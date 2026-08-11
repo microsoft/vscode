@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatContext, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -47,8 +47,11 @@ interface IMockSendMessageCall {
  * for assertion and exposes {@link fireProgress} to inject progress events.
  */
 export class MockAgent implements IAgent {
-	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
+	readonly onDidChatProgress = this._onDidChatProgress.event;
+	readonly onDidMaterializeChat = Event.None;
+	readonly onDidChangeChatData = Event.None;
+	readonly onDidSpawnChat = Event.None;
 	private readonly _onDidSendMessage = new Emitter<IMockSendMessageCall>();
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
@@ -81,7 +84,7 @@ export class MockAgent implements IAgent {
 	readonly chatContexts: { boundary: string; chat: URI; context: IAgentChatContext | URI | undefined }[] = [];
 	/** Active-client fan-out recorded exactly as Agent Host supplied it. */
 	readonly activeClientCalls: { chat: URI; context: URI | IAgentChatContext; clientId: string; hostCustomizations: readonly Customization[] | undefined }[] = [];
-	/** Host customizations handed to {@link getSessionCustomizations}. */
+	/** Host customizations handed to {@link getChatCustomizations}. */
 	readonly sessionCustomizationsCalls: { session: URI; hostCustomizations: readonly Customization[] | undefined }[] = [];
 	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult; context?: IAgentChatContext }[] = [];
 	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
@@ -90,6 +93,11 @@ export class MockAgent implements IAgent {
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
 	getSessionCustomizations?: (session: URI, hostCustomizations?: readonly Customization[]) => Promise<readonly Customization[]>;
+	getChatCustomizations = async (_chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> => {
+		const configurationResource = URI.isUri(context) ? context : context.configurationResource;
+		this.sessionCustomizationsCalls.push({ session: configurationResource, hostCustomizations });
+		return this.getSessionCustomizations?.(configurationResource, hostCustomizations) ?? this.customizations;
+	};
 
 	/**
 	 * Configurable session history. Tests construct {@link IHistoryRecord}
@@ -121,15 +129,26 @@ export class MockAgent implements IAgent {
 		this._models.set(models, undefined);
 	}
 
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
+	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+		return [...this._sessions.values()].map(session => ({ chat: URI.parse(buildDefaultChatUri(session)), startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
 	}
 
-	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		return [...this._sessions.values()].map(session => ({ session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
+	}
+
+	async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+		const session = resolveAgentChatContext(context, chat).configurationResource;
 		if (!this._sessions.has(AgentSession.id(session))) {
 			return undefined;
 		}
-		return { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides };
+		return { chat, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides };
+	}
+
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		return this._sessions.has(AgentSession.id(session))
+			? { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }
+			: undefined;
 	}
 
 	/** Optional override for the working directory returned by initializing createChat. */
@@ -150,12 +169,22 @@ export class MockAgent implements IAgent {
 		return { project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
 		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
 	}
+	resolveSessionConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
+		return this.resolveChatConfig(params);
+	}
 
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+	getInheritedChatConfig(): undefined {
+		return undefined;
+	}
+
+	async chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return { items: [] };
+	}
+	sessionConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		return this.chatConfigCompletions(params);
 	}
 
 	async sendMessage(session: URI, chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
@@ -193,12 +222,6 @@ export class MockAgent implements IAgent {
 		return turns;
 	}
 
-	/** Mandatory {@link IAgent} teardown hook: finalize session-scoped resources once every chat has been disposed. */
-	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
-		this.disposeSessionCalls.push(session);
-		this._sessions.delete(AgentSession.id(session));
-	}
-
 	/** Backing helper for {@link chats}.releaseChat: records a non-destructive release. */
 	private _releaseSessionRecord(session: URI): void {
 		// Non-destructive: record the call but keep the session in the catalog
@@ -208,6 +231,11 @@ export class MockAgent implements IAgent {
 
 	async abortSession(session: URI): Promise<void> {
 		this.abortSessionCalls.push(session);
+	}
+
+	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
+		this.disposeSessionCalls.push(session);
+		this._sessions.delete(AgentSession.id(session));
 	}
 
 	async truncateSession(session: URI, turnId?: string, chat?: URI): Promise<void> {
@@ -281,11 +309,13 @@ export class MockAgent implements IAgent {
 		},
 		disposeChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
 			this._recordContext('disposeChat', chatUri, context);
-			// Every chat, including the default one, is torn down uniformly
-			// here; session-scoped teardown happens exclusively in the
-			// mandatory finalizeSession hook once all chats are gone.
 			const { session, chat } = this._resolveChatTarget(chatUri, context);
-			return this.disposeChat(session, chat);
+			return this.disposeChat(session, chat).then(() => {
+				if (this._initialChats.delete(chatUri.toString())) {
+					this.disposeSessionCalls.push(session);
+					this._sessions.delete(AgentSession.id(session));
+				}
+			});
 		},
 		releaseChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
 			// Unlike dispose, release has no separate session-level finalize
@@ -320,6 +350,8 @@ export class MockAgent implements IAgent {
 		},
 	};
 
+	async materializeChat(_chat: URI, _context: URI | IAgentChatContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> { }
+
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
 		return true;
@@ -337,7 +369,7 @@ export class MockAgent implements IAgent {
 				load: { kind: CustomizationLoadStatus.Loaded },
 			},
 		}));
-		this._onDidSessionProgress.fire({
+		this._onDidChatProgress.fire({
 			kind: 'action',
 			resource: session,
 			action: {
@@ -383,7 +415,7 @@ export class MockAgent implements IAgent {
 	 * Fires an {@link AgentSignal} on this agent.
 	 */
 	fireProgress(signal: AgentSignal): void {
-		this._onDidSessionProgress.fire(signal);
+		this._onDidChatProgress.fire(signal);
 	}
 
 	/**
@@ -401,7 +433,7 @@ export class MockAgent implements IAgent {
 	}
 
 	dispose(): void {
-		this._onDidSessionProgress.dispose();
+		this._onDidChatProgress.dispose();
 		this._onDidSendMessage.dispose();
 		this._onDidCustomizationsChange.dispose();
 	}
@@ -419,8 +451,11 @@ export const PRE_EXISTING_SESSION_URI = AgentSession.uri('mock', 'pre-existing-s
 export class ScriptedMockAgent implements IAgent {
 	readonly id: AgentProvider = 'mock';
 
-	private readonly _onDidSessionProgress = new Emitter<AgentSignal>();
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidChatProgress = new Emitter<AgentSignal>();
+	readonly onDidChatProgress = this._onDidChatProgress.event;
+	readonly onDidMaterializeChat = Event.None;
+	readonly onDidChangeChatData = Event.None;
+	readonly onDidSpawnChat = Event.None;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, [{ provider: 'mock', id: 'mock-model', name: 'Mock Model', maxContextWindow: 128000, supportsVision: false }]);
 	readonly models = this._models;
 
@@ -472,22 +507,34 @@ export class ScriptedMockAgent implements IAgent {
 		return [];
 	}
 
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({
-			session: s,
+	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+		return [...this._sessions.values()].map(session => ({
+			chat: URI.parse(buildDefaultChatUri(session)),
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
 			project: mockProject(this.id),
-			summary: s.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
+			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
 		}));
 	}
 
-	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		return [...this._sessions.values()].map(session => ({
+			session,
+			startTime: Date.now(),
+			modifiedTime: Date.now(),
+			project: mockProject(this.id),
+			summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined,
+		}));
+	}
+
+	async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+		const session = resolveAgentChatContext(context, chat).configurationResource;
 		if (!this._sessions.has(AgentSession.id(session))) {
 			return undefined;
 		}
+
 		return {
-			session,
+			chat,
 			startTime: Date.now(),
 			modifiedTime: Date.now(),
 			project: mockProject(this.id),
@@ -495,12 +542,18 @@ export class ScriptedMockAgent implements IAgent {
 		};
 	}
 
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		return this._sessions.has(AgentSession.id(session))
+			? { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), summary: session.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined }
+			: undefined;
+	}
+
 	private _createSessionRecord(session: URI): IAgentCreateChatResult {
 		this._sessions.set(AgentSession.id(session), session);
 		return { project: mockProject(this.id) };
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
 		const isolation = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree' ? params.config.isolation : 'worktree';
 		const branch = isolation === 'worktree' && typeof params.config?.branch === 'string' ? params.config.branch : 'main';
 		return {
@@ -530,14 +583,24 @@ export class ScriptedMockAgent implements IAgent {
 			values: { isolation, branch },
 		};
 	}
+	resolveSessionConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
+		return this.resolveChatConfig(params);
+	}
 
-	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+	getInheritedChatConfig(): undefined {
+		return undefined;
+	}
+
+	async chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		if (params.property !== 'branch') {
 			return { items: [] };
 		}
 		const query = params.query?.toLowerCase() ?? '';
 		const branches = ['main', 'feature/config', 'release'].filter(branch => branch.toLowerCase().includes(query));
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
+	}
+	sessionConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		return this.chatConfigCompletions(params);
 	}
 
 	async sendMessage(session: URI, chat: URI, prompt: string, _attachments?: readonly MessageAttachment[], turnId?: string): Promise<void> {
@@ -574,10 +637,10 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, tid, 'tc-perm-1', 'shell', 'Shell', 'Run a test command')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-perm-1', 'Run a test command', { toolInput: 'echo test', confirmationTitle: 'Run a test command' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-perm-1', 'Run a test command', { toolInput: 'echo test', confirmationTitle: 'Run a test command' }));
 				})();
 				this._pendingPermissions.set('tc-perm-1', (approved) => {
 					if (approved) {
@@ -595,10 +658,10 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, tid, 'tc-write-1', 'create', 'Create File', 'Create file')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: '/workspace/src/app.ts' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-1', 'Write src/app.ts', { permissionKind: 'write', permissionPath: '/workspace/src/app.ts' }));
 					// Auto-approved writes resolve immediately — complete the tool and turn
 					await timeout(10);
 					this._fireSequence([
@@ -614,10 +677,10 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, tid, 'tc-write-env-1', 'create', 'Create File', 'Create file')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-write-env-1', 'Write .env', { permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' }));
 				})();
 				this._pendingPermissions.set('tc-write-env-1', (approved) => {
 					if (approved) {
@@ -635,10 +698,10 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, tid, 'tc-shell-1', 'bash', 'Run Command', 'Run command')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-shell-1', 'ls -la', { permissionKind: 'shell', toolInput: 'ls -la' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-shell-1', 'ls -la', { permissionKind: 'shell', toolInput: 'ls -la' }));
 					// Auto-approved shell commands resolve immediately
 					await timeout(10);
 					this._fireSequence([
@@ -654,10 +717,10 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, tid, 'tc-shell-deny-1', 'bash', 'Run Command', 'Run command')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-shell-deny-1', 'rm -rf /', { permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-shell-deny-1', 'rm -rf /', { permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' }));
 				})();
 				this._pendingPermissions.set('tc-shell-deny-1', (approved) => {
 					if (approved) {
@@ -689,23 +752,23 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, tid, 'tc-orphan-initial', 'bash', 'Run Command', 'Run command')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_toolComplete(chat, sessionStr, tid, 'tc-orphan-initial', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }));
+					this._onDidChatProgress.fire(_toolComplete(chat, sessionStr, tid, 'tc-orphan-initial', { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true }));
 					await timeout(5);
 					// Complete the turn — the state manager clears the active turn.
-					this._onDidSessionProgress.fire(_idle(chat, sessionStr, tid));
+					this._onDidChatProgress.fire(_idle(chat, sessionStr, tid));
 
 					// Hook-triggered continuation: a new tool starts with an
 					// empty turnId and `pending_confirmation` arrives while
 					// there is no active turn.
 					await timeout(10);
 					for (const s of _toolStart(chat, sessionStr, '', 'tc-orphan', 'view', 'Read', 'Read file')) {
-						this._onDidSessionProgress.fire(s);
+						this._onDidChatProgress.fire(s);
 					}
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-orphan', 'Read file', { permissionKind: 'read', permissionPath: '/workspace/file.ts' }));
 				})();
 				this._pendingPermissions.set('tc-orphan', (approved) => {
 					if (approved) {
@@ -776,7 +839,7 @@ export class ScriptedMockAgent implements IAgent {
 				(async () => {
 					await timeout(10);
 					// Client tools don't get auto-ready — toolStart with toolClientId only emits tool_start
-					this._onDidSessionProgress.fire(_action(chat, {
+					this._onDidChatProgress.fire(_action(chat, {
 						type: ActionType.ChatToolCallStart,
 						turnId: tid,
 						toolCallId: 'tc-client-1',
@@ -785,7 +848,7 @@ export class ScriptedMockAgent implements IAgent {
 						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-client-1', 'Running tests...', { toolInput: '{}' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-client-1', 'Running tests...', { toolInput: '{}' }));
 				})();
 				// The tool stays pending — the client is responsible for dispatching toolCallComplete.
 				// Once complete, fire a response delta and idle.
@@ -802,7 +865,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fires tool_start with toolClientId followed by a permission request.
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire(_action(chat, {
+					this._onDidChatProgress.fire(_action(chat, {
 						type: ActionType.ChatToolCallStart,
 						turnId: tid,
 						toolCallId: 'tc-client-perm-1',
@@ -811,7 +874,7 @@ export class ScriptedMockAgent implements IAgent {
 						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
-					this._onDidSessionProgress.fire(_pendingConfirmation(chat, 'tc-client-perm-1', 'Run tests on project', { confirmationTitle: 'Allow Run Tests?' }));
+					this._onDidChatProgress.fire(_pendingConfirmation(chat, 'tc-client-perm-1', 'Run tests on project', { confirmationTitle: 'Allow Run Tests?' }));
 				})();
 				this._pendingPermissions.set('tc-client-perm-1', (approved) => {
 					if (approved) {
@@ -851,7 +914,7 @@ export class ScriptedMockAgent implements IAgent {
 					const filePath = prompt.slice('terminal-edit:'.length);
 					void (async () => {
 						for (const s of _toolStart(chat, sessionStr, tid, 'tc-term-edit-1', 'bash', 'Run Command', 'Edit file via shell')) {
-							this._onDidSessionProgress.fire(s);
+							this._onDidChatProgress.fire(s);
 						}
 						const fs = await import('fs/promises');
 						await fs.writeFile(filePath, 'edited-from-terminal\n');
@@ -881,7 +944,7 @@ export class ScriptedMockAgent implements IAgent {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
 			timeout(20).then(() => {
-				this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(chat.toString()) ? chat : URI.parse(buildDefaultChatUri(chat)), id: steeringMessage.id });
+				this._onDidChatProgress.fire({ kind: 'steering_consumed', chat: isAhpChatChannel(chat.toString()) ? chat : URI.parse(buildDefaultChatUri(chat)), id: steeringMessage.id });
 			});
 		}
 	}
@@ -915,7 +978,7 @@ export class ScriptedMockAgent implements IAgent {
 		this.didCompleteToolCalls.add(key);
 		// Fire tool_complete action signal and resolve any pending callback.
 		const { sessionStr, turnId } = this._ctx(chat);
-		this._onDidSessionProgress.fire(_toolComplete(chat, sessionStr, turnId, toolCallId, result));
+		this._onDidChatProgress.fire(_toolComplete(chat, sessionStr, turnId, toolCallId, result));
 		const callback = this._pendingPermissions.get(toolCallId);
 		if (callback) {
 			this._pendingPermissions.delete(toolCallId);
@@ -936,11 +999,6 @@ export class ScriptedMockAgent implements IAgent {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
 		return [];
-	}
-
-	/** Mandatory {@link IAgent} teardown hook: finalize session-scoped resources once every chat has been disposed. */
-	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
-		this._sessions.delete(AgentSession.id(session));
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -979,8 +1037,7 @@ export class ScriptedMockAgent implements IAgent {
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
 		disposeChat: (): Promise<void> => {
-			// Session-scoped teardown happens exclusively in finalizeSession
-			// once every chat (including the default one) has been disposed.
+			this._sessions.clear();
 			return Promise.resolve();
 		},
 		releaseChat: async (): Promise<void> => { },
@@ -1006,6 +1063,16 @@ export class ScriptedMockAgent implements IAgent {
 		},
 	};
 
+	async materializeChat(_chat: URI, _context: URI | IAgentChatContext, _providerData: string | undefined): Promise<IAgentCreateChatResult | void> { }
+
+	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
+		this._sessions.delete(AgentSession.id(session));
+	}
+
+	async getChatCustomizations(): Promise<readonly Customization[]> {
+		return [];
+	}
+
 	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
 		// Mock agent accepts truncation without side effects
 	}
@@ -1029,7 +1096,7 @@ export class ScriptedMockAgent implements IAgent {
 	async shutdown(): Promise<void> { }
 
 	dispose(): void {
-		this._onDidSessionProgress.dispose();
+		this._onDidChatProgress.dispose();
 	}
 
 	/**
@@ -1040,7 +1107,7 @@ export class ScriptedMockAgent implements IAgent {
 		let delay = 0;
 		for (const signal of signals) {
 			delay += 10;
-			setTimeout(() => this._onDidSessionProgress.fire(signal), delay);
+			setTimeout(() => this._onDidChatProgress.fire(signal), delay);
 		}
 	}
 

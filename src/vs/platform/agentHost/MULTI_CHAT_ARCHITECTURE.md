@@ -60,7 +60,7 @@ seam you are on. To avoid confusion, follow this convention:
 |-------|----------------------|-------|
 | AHP wire protocol (`common/state/protocol/`) and the orchestrator (`AgentService`, `AgentHostStateManager`) | The **AH session** — the protocol-visible grouping of a default chat plus its peer chats. | This is the vocabulary the generated protocol types pin (`SessionState`, `SessionSummary`, `sessionAdded`, ...); it is immutable and authoritative. |
 | Inside an agent harness (`node/claude`, `node/copilot`, `node/codex`) | The agent's **own SDK / provider session** — the provider's native concept (Codex calls it a *thread*). The agent has no notion of the AH grouping; it only ever deals in chats and its own SDK sessions. | Prefer the provider's native term where one exists (Codex "thread"); otherwise spell it out as "SDK session" / "provider session" in comments and local names wherever the two could be confused. |
-| The `IAgent` seam (`chats.createChat` / `chats.disposeChat` / `chats.releaseChat` / `finalizeSession`) | Chat operations receive an exact chat plus opaque persistence/configuration scopes. | Providers never receive AH ownership or chat-role fields; `finalizeSession` is the only remaining session-addressed lifecycle hook. |
+| The `IAgent` seam (`chats.*` plus chat metadata/configuration events) | Operations receive an exact chat plus opaque persistence/configuration scopes. | Providers never receive AH ownership or chat-role fields. |
 
 **Why we do not rename the agents' "SDK session" symbols:** the generated
 protocol fixes "Session" = AH session across hundreds of references we cannot
@@ -93,7 +93,7 @@ graph TB
 
     UI -->|"createChat / disposeChat / dispatchAction"| svc
     svc -->|"chats.createChat / fork / sendMessage"| Agents
-    Agents -->|"onDidSessionProgress / onDidSpawnChat / onDidEndChat"| svc
+    Agents -->|"onDidChatProgress / onDidSpawnChat"| svc
     stm -->|state snapshots / envelopes| UI
     Agents -->|"getDescriptor().capabilities"| caps
 ```
@@ -103,10 +103,9 @@ graph TB
 Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
 - Reading history (`chats.getMessages`).
-- Emitting progress signals (`onDidSessionProgress`).
+- Emitting progress signals (`onDidChatProgress`).
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
 - Re-attaching a chat's backing on restore (`materializeChat`) — including the session's default chat.
-- Finalizing session-scoped resources once every chat has been disposed (`finalizeSession`).
 - Advertising static capability flags (`getDescriptor().capabilities`).
 
 Agents do **not** maintain the chat catalog, persist membership, know whether a chat is the session or a peer, or inject `AgentHostStateManager`. Host facts they genuinely need (subagent origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrive through typed seams — see §8.
@@ -116,9 +115,9 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 **`AgentService` (`node/agentService.ts`):**
 - Owns the `(session, chat)` → `(agent, session URI, chat URI)` mapping.
 - Owns `_providers`, `_sessionToProvider`, and `_findProviderForSession` (which falls back through the session URI's scheme when a session was restored without an `AgentService.createSession` call in this process lifetime).
-- Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each entry through `IAgent.getSessionMetadata`, and applies the existing DB/state overlays.
+- Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each initial chat through `IAgent.getChatMetadata`, and applies the existing DB/state overlays.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
-- Disposes every catalog chat in stable order (peers first, default last) and then runs the mandatory `finalizeSession` hook; releases every catalog chat (and only that) on idle eviction, which must stay non-destructive.
+- Disposes every catalog chat in stable order (peers first, initial chat last); releases every catalog chat on idle eviction.
 - Derives the exhaustive per-operation `IAgentChatContext` (persistence scope, opaque configuration scope, catalog origin, host customizations) via the single `createAgentChatContext` helper.
 - Supplies complete resolved `IAgentCreateChatOptions` (`workingDirectories`, `project`, provider config, model/agent, active client, and fork/import/side-chat source) on every creation.
 - Records side-chat provenance in the catalog but leaves hidden context injection and visible-history filtering to the provider. The source is a stable turn id; active-turn partial response and selected text are immutable creation-time snapshots.
@@ -185,13 +184,13 @@ The default chat URI is derived from the AH session URI, but its provider identi
 Both user-driven chats (`AgentService.createChat` → `addChat`) and harness-spawned chats (`AgentService._onChatSpawned` → `addChat`) go through `AgentHostStateManager.addChat`. The spawn-channel listener is registered **before** `AgentSideEffects` during `registerProvider` (`node/agentService.ts:registerProvider`) to guarantee the chat exists in the catalog before any turn actions arrive for it (DR1 deterministic sequencing).
 
 **I5 — Orchestrator peer-chat catalog is the restore source of truth (with one-time legacy migration).**
-The orchestrator persists additional chats in `PEER_CHATS_METADATA_KEY` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a legacy session has no persisted blob, whatever `materializeChat` recovers is persisted additively under `defaultChatProviderData` so later restores read it directly; an already-canonical blob is never rewritten. If neither a persisted nor a recovered backing exists, the host restores history and logs that the chat has no live backing rather than falling back to identity reuse. A missing additional-chat catalog triggers the one-time `listLegacyChats` migration. Harness-spawned chats remain transient and are re-derived from tool-origin state.
+The orchestrator persists additional chats in `PEER_CHATS_METADATA_KEY` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a legacy session has no persisted blob, whatever `materializeChat` recovers is persisted additively under `defaultChatProviderData` so later restores read it directly; an already-canonical blob is never rewritten. If neither a persisted nor a recovered backing exists, the host restores history and logs that the chat has no live backing rather than falling back to identity reuse. A missing additional-chat catalog triggers the one-time `listLegacyChatBackings` migration. Harness-spawned chats remain transient and are re-derived from tool-origin state.
 
 **I6 — `_findProviderForSession` not `_sessionToProvider`.**
 The `_sessionToProvider` map is populated only by `AgentService.createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it. `_findProviderForSession` (`node/agentService.ts:AgentService._findProviderForSession`) falls back to the session URI scheme, which is what makes restored sessions work.
 
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.**
-Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so one-time legacy discovery never registers it as a top-level AH session. Normal Claude `listSessions` is empty; only `listLegacySessions` performs SDK discovery for migration/import.
+Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so one-time legacy discovery never registers it as a top-level AH session. Only `listLegacyChats` performs SDK discovery for one-time registry migration.
 
 **I8 — Providers are given host facts; they must not re-derive them.**
 Everything a provider needs about a chat and its owning session is published on
@@ -266,7 +265,7 @@ graph LR
 
     provider -->|"IPC (agentHost channel)"| svc
     svc -->|"IAgentChats.*"| Harnesses
-    Harnesses -->|"onDidSessionProgress / onDidSpawnChat"| svc
+    Harnesses -->|"onDidChatProgress / onDidSpawnChat"| svc
     stm -->|"ActionEnvelope stream"| provider
     provider -->|"capabilities.multipleChats(.fork)"| ctxkeys
 ```
@@ -299,13 +298,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant SDK as Agent SDK
-    participant A as IAgent (onDidSessionProgress / onDidSpawnChat)
+    participant A as IAgent (onDidChatProgress / onDidSpawnChat)
     participant AS as AgentService
     participant SM as AgentHostStateManager
     participant SE as AgentSideEffects
 
     SDK->>A: subagent_started signal
-    A->>AS: onDidSessionProgress(AgentSignal{kind:'subagent_started'})
+    A->>AS: onDidChatProgress(AgentSignal{kind:'subagent_started'})
     Note over AS: _sequenceSpawnedChat (registered BEFORE AgentSideEffects)
     AS->>AS: _onChatSpawned(event)
     AS->>SM: addChat(session, chat, {origin: {kind:Tool, toolCallId}})
@@ -352,7 +351,7 @@ sequenceDiagram
             Note over SM: Retain summary, draft, providerData, and resolver\n(no ChatState yet)
         end
     else catalog absent (undefined) — one-time legacy migration (Copilot only)
-        AS->>A: listLegacyChats(session) [legacy copilot.chats]
+        AS->>A: listLegacyChatBackings(configurationResource)
         A-->>AS: {uri, providerData}[]
         loop for each legacy chat
             AS->>SM: registerRestoredChatSummary(session, chatUri, {resolver, providerData})
@@ -454,8 +453,8 @@ addressed chat's own thread — there is no cascade between chats of the same
 session. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and
 app-server protocol are unchanged, and Codex still never recognizes or derives a
 default-chat URI. The orchestrator registry contains the parent AH session, not
-these chat backing URIs; normal Codex `listSessions` is empty and `listLegacySessions` is used only for the one-time
-legacy registry backfill. Capabilities are `multipleChats: { fork: true }`.
+these chat backing URIs; `listLegacyChats` is used only for one-time registry
+backfill. Capabilities are `multipleChats: { fork: true }`.
 
 
 ---
@@ -464,16 +463,11 @@ legacy registry backfill. Capabilities are `multipleChats: { fork: true }`.
 
 **Status: implemented — AH owns identity, enumeration, lifecycle, and grouping.**
 
-Agents still expose provider session lifecycle and metadata methods, but these
-describe SDK backing data; they are not the source of protocol-visible
-membership. `AgentSessionRegistry` is the durable membership source, and
+Agents expose exact-chat lifecycle and metadata methods for SDK backing data;
+they are not the source of protocol-visible membership.
+`AgentSessionRegistry` is the durable membership source, and
 `AgentHostStateManager` owns each session's chat catalog and default-chat
 pointer.
-
-Session *creation* and *chat* creation are distinct operations, so they are
-distinct methods on the agent — the orchestrator does **not** overload
-`chats.createChat` to also provision a session. `chats.createChat` has exactly
-one meaning: add an additional chat to an already-provisioned session.
 
 ### The seam
 
@@ -482,8 +476,7 @@ one meaning: add an additional chat to an already-provisioned session.
   `chats.createChat`, which
   provisions and binds that chat in one provider call for fresh, fork, and
   import creation. The result preserves provisional /
-  `onDidMaterializeSession` / deferred-`sessionAdded` semantics.
-  `chats.createChat` only adds an additional chat.
+  `onDidMaterializeChat` / deferred-`sessionAdded` semantics.
 - **Fork a session.** The AHP request identifies a source session and turn. The
   protocol adapter derives that session's exact default-chat URI and
   `IAgentCreateSessionConfig.fork.chat` is required at the provider boundary.
@@ -492,36 +485,26 @@ one meaning: add an additional chat to an already-provisioned session.
 - **Add a chat.** `AgentService.createChat` also dispatches to `chats.createChat`,
   supplying the owning session's resolved roots, project, config, and optional
   fork/side-chat source so the agent never reads them back from another chat.
-- **Dispose/release.** On disposal `AgentService` reads the authoritative chat
-  catalog and calls `chats.disposeChat` for **every** chat — peers first, the
-  default last — and then the mandatory `IAgent.finalizeSession`, which reclaims
-  whatever session-scoped state outlives the chats. Every chat is visited even
-  if one rejects; the first error is rethrown after finalization. Create-time
-  rollback is the exact inverse of creation: dispose the one provisioned default
-  chat, then finalize. Idle eviction calls `chats.releaseChat` for every catalog
-  chat and **never** finalizes — `finalizeSession` is destructive (it reclaims
-  managed working directories and workspaceless scratch dirs), while a release
-  must leave the session resumable. Each chat hook is exact; an agent never
-  cascades from the default chat to siblings.
+- **Dispose/release.** `AgentService` calls `chats.disposeChat` for every chat,
+  peers first and the initial chat last. Providers release shared configuration
+  resources when their final exact-chat reference disappears. Idle eviction
+  calls `chats.releaseChat`, which remains non-destructive.
 - **Config.** Live provider runtimes that react to session config subscribe to
   `IAgentConfigurationService.onDidSessionConfigChange` using their explicit
   config resource. `AgentSideEffects` does not enumerate chats or fan config
   values through provider hooks.
-- **Active client.** `AgentSideEffects` resolves the session's exact chat set
-  and hands it — with the host's last customization snapshot — to
-  `getOrCreateActiveClient`, re-fanning it out whenever the catalog grows and
-  skipping the call while the host has no authoritative membership. Providers do
-  not own session→chat membership (§8c).
+- **Active client.** `AgentSideEffects` calls `getOrCreateActiveClient` once per
+  exact chat and client. Providers receive no sibling list (§8c).
 - **Enumerate.** `AgentService.listSessions` enumerates
   `AgentSessionRegistry`, asks the registered provider for that exact session's
-  metadata via `getSessionMetadata`, and applies persisted and live state
-  overlays. Provider `listSessions` is used only by the one-time registry
-  backfill (and as a compatibility fallback when direct lookup is unavailable);
-  AH does not reconstruct membership by grouping provider conversations.
+  metadata via `getChatMetadata`, and applies persisted and live state overlays.
+  Provider `listLegacyChats` exists only for one-time registry backfill.
 
 ### No provider-side default-chat derivation
 
-AH supplies both the chat URI and its owning session explicitly on every chat operation. Claude and Copilot record only `chat → SDK conversation`; Codex records only `chat → thread runtime`. Providers consume the owning session, persistence resource, subagent origin, and host customizations from transient context (§8a). Session-versus-peer decisions remain in Agent Host.
+AH supplies the exact chat plus opaque persistence/configuration scopes. Claude
+and Copilot record only `chat → SDK conversation`; Codex records only
+`chat → thread runtime`. Session-versus-peer decisions remain in Agent Host.
 
 Provider chat resolution has three valid states:
 
@@ -536,9 +519,8 @@ Provider chat resolution has three valid states:
 ### Storage-preservation
 
 All three harnesses use the single `createChat` operation for fresh, fork,
-import, and additional-chat provisioning, and mandatory `finalizeSession` for session-scoped
-teardown. There is no bind fallback: a default chat is re-attached only through
-`materializeChat`.
+import, and additional-chat provisioning. There is no bind fallback: an initial
+chat is re-attached only through `materializeChat`.
 The change is storage-preserving: existing session URIs, provider stores,
 `providerData`, and `PEER_CHATS_METADATA_KEY` formats are unchanged, and the
 one-time `defaultChatProviderData` backfill for old databases is purely
@@ -547,14 +529,9 @@ migration.
 
 ### Interface surface
 
-`IAgent` retains `listSessions`, optional `getSessionMetadata`, and the
-mandatory `finalizeSession` hook for provider persistence, backfill, direct
-metadata lookup, and session-scoped teardown. `createSession`, `disposeSession`,
-and `releaseSession` are gone from the shared seam, as is
-`IAgentChats.bindSessionChat`. Conversation history is chat-addressed through
-`chats.getMessages`; all provisioning is chat-addressed through
-`chats.createChat`; and teardown is chat-addressed through
-`chats.disposeChat` / `chats.releaseChat`.
+Provider discovery is migration-only through `listLegacyChats`; direct metadata
+lookup uses `getChatMetadata`. Conversation history, provisioning, restoration,
+and teardown are all exact-chat-addressed.
 
 ---
 
@@ -605,7 +582,7 @@ never passes that membership to the provider.
 
 ### 8b. Session customizations at the update boundary
 
-`getSessionCustomizations(session, hostCustomizations)` receives the host's
+`getChatCustomizations(chat, context, hostCustomizations)` receives the host's
 **last published snapshot** explicitly, from `AgentService` (create/restore),
 `AgentSideEffects._publishSessionCustomizations` (republish), and
 `AgentHostSkillCompletionProvider` (slash completions). It is a snapshot to
@@ -675,7 +652,7 @@ by `AgentService`, exposed as `agentService.promptCache` /
 
 | Provider read | Seam |
 |---|---|
-| `stateManager.getSessionState(session)?.customizations` | `context.customizations` / `resolveAgentHostCustomizations(context)`, or the `hostCustomizations` argument of `getSessionCustomizations` / `getOrCreateActiveClient`. All three carry the host's last published snapshot, and `undefined` means "no snapshot yet", not "no customizations" |
+| `stateManager.getSessionState(session)?.customizations` | `context.customizations` / `resolveAgentHostCustomizations(context)`, or the `hostCustomizations` argument of `getChatCustomizations` / `getOrCreateActiveClient`. All three carry the host's last published snapshot, and `undefined` means "no snapshot yet", not "no customizations" |
 | `stateManager.getChatState(chat)?.origin`, `sessionState.chats.find(...)?.origin` | `context.origin` / `resolveAgentChatOrigin(context)`; for spawn edges `resolveSubagentChatParent(context)` |
 | `parseChatUri(chat)?.chatId.startsWith('subagent/')`, `parseSubagentSessionUri(chat)` for routing | `resolveSubagentChatParent(context)` from the host-owned `Tool` origin |
 | `isDefaultChatUri(chat)` gates | Host-side filtering of exact-chat materialization receipts; providers emit the addressed chat and do not classify it |

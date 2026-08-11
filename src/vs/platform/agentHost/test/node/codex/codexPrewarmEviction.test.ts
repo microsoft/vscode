@@ -311,7 +311,7 @@ suite('CodexAgent prewarm eviction', () => {
 	test('session actions target the owning session after the chat is bound', async () => {
 		const agent = await createAgent(disposables);
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(signal => signals.push(signal)));
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
 		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')] });
 
 		agent['_fire'](session, { type: ActionType.SessionActivityChanged, activity: 'Working' });
@@ -1325,11 +1325,11 @@ suite('CodexAgent prewarm eviction', () => {
 		const forked = await forking;
 		const forkedEntry = agent['_sessions'].get(AgentSession.id(forked.session))!;
 
-		// Teardown runs the way Agent Host runs it: dispose the session's chat.
-		// `finalizeSession` is deliberately left to the fork below — the test
-		// session-data service backs every session with one shared database, so
-		// finalizing the source here would read the fork's overlay and delete
-		// the fork's directory.
+		// Teardown runs the way Agent Host runs it: dispose each session's own
+		// chat. Configuration-scope ref tracking reclaims a managed working
+		// directory automatically once a scope's last chat is disposed, keyed
+		// by that scope's own configuration resource — so disposing the
+		// source's chat here can never read or delete the fork's directory.
 		const disposingSource = agent.chats.disposeChat(sourceChat, { configurationResource: source.session, resource: sourceChat });
 		const sourceUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: sourceUnsubscribe.id, result: {} });
@@ -1349,11 +1349,13 @@ suite('CodexAgent prewarm eviction', () => {
 			copiedMarker: 'fork me',
 		});
 
+		// Disposing the fork's own (only) chat drops its configuration scope's
+		// ref count to zero, so the reclaim runs inline — no separate
+		// finalize call is needed.
 		const disposingFork = agent.chats.disposeChat(forkChat, { configurationResource: forked.session, resource: forkChat });
 		const forkUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: forkUnsubscribe.id, result: {} });
 		await disposingFork;
-		await agent.finalizeSession(forked.session);
 		assert.strictEqual(fs.existsSync(forkDirectory), false);
 		peer.exit();
 	});
@@ -1398,7 +1400,8 @@ suite('CodexAgent prewarm eviction', () => {
 			agentB['_refreshSkillHookCustomizations'] = async () => { };
 			agentB['_refreshSkillExtraRoots'] = async () => { };
 
-			const metadataPromise = agentB.getSessionMetadata(created.session);
+			const restoredChat = defaultChatOf(created.session);
+			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat });
 			const read = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: read.id,
@@ -1416,7 +1419,6 @@ suite('CodexAgent prewarm eviction', () => {
 			// The restored session-backed chat is never rebound through a
 			// session-addressed seam: Agent Host addresses it by its exact chat
 			// URI plus the transient owning-session context.
-			const restoredChat = defaultChatOf(created.session);
 			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { configurationResource: created.session, resource: restoredChat });
 			const resume = await readNextRequest(peerB.outbound);
 			peerB.push({

@@ -788,9 +788,10 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		});
 
 		// Cleanup: tear the chat down and assert the WarmQuery was
-		// closed via Symbol.asyncDispose (no orphan subprocess).
+		// closed via Symbol.asyncDispose (no orphan subprocess). Trace-context
+		// release for the default chat now happens inside disposeChat itself —
+		// there is no separate finalize step.
 		await agent.chats.disposeChat(created.chat, chatContext(created.chat, created.session));
-		await agent.finalizeSession(created.session);
 		assert.strictEqual(sdk.warmQueries[0].asyncDisposeCount, 1, 'WarmQuery is asyncDisposed on chat dispose');
 	});
 
@@ -872,7 +873,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		];
 
 		const inputRequested = new DeferredPromise<ChatInputRequest>();
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
 				inputRequested.complete(s.action.request);
 			}
@@ -967,7 +968,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			signals.push(s);
 			if (s.kind === 'pending_confirmation' && s.state.toolCallId === TOOL_USE_ID) {
 				agent.respondToPermissionRequest(TOOL_USE_ID, true);

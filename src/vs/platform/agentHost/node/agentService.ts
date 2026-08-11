@@ -22,7 +22,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentChatAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, SubagentChatSignal, subagentChatTitle } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -830,23 +830,17 @@ export class AgentService extends Disposable implements IAgentService {
 		// Registering this listener ahead of the side-effects listener makes the
 		// ordering independent of when the agent registers its own subagent->spawn
 		// bridge; addChat/removeChat are idempotent, so the overlap is safe.
-		this._providerSubscriptions.add(provider.onDidSessionProgress(signal => this._sequenceSpawnedChat(signal)));
+		this._providerSubscriptions.add(provider.onDidChatProgress(signal => this._sequenceSpawnedChat(signal)));
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
-		if (provider.onDidMaterializeSession) {
-			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
-		}
-		if (provider.onDidChangeSessionList) {
-			this._providerSubscriptions.add(provider.onDidChangeSessionList(() => this._onProviderSessionListChanged()));
+		this._providerSubscriptions.add(provider.onDidMaterializeChat(e => this._onDidMaterializeChat(e)));
+		if (provider.onDidChangeChatList) {
+			this._providerSubscriptions.add(provider.onDidChangeChatList(() => this._onProviderChatListChanged()));
 		}
 		if (provider.onMcpNotification) {
 			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
 		}
-		if (provider.onDidChangeChatData) {
-			this._providerSubscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
-		}
-		if (provider.onDidSpawnChat) {
-			this._providerSubscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
-		}
+		this._providerSubscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
+		this._providerSubscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
@@ -944,7 +938,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: session.draft
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
-		const config = this._providers.get(session.provider)?.getInheritedSessionConfig?.(session.config?.values ?? {});
+		const config = this._providers.get(session.provider)?.getInheritedChatConfig(session.config?.values ?? {});
 		return {
 			provider: session.provider,
 			...(model !== undefined ? { model } : {}),
@@ -984,9 +978,17 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	/** Enumerate a provider's persisted sessions. */
+	private _toSessionMetadata(metadata: IAgentChatMetadata): IAgentSessionMetadata {
+		const { chat, ...rest } = metadata;
+		return {
+			...rest,
+			session: URI.parse(parseRequiredSessionUriFromChatUri(chat)),
+		};
+	}
+
+	/** Enumerate a provider's persisted chats for one-time registry migration. */
 	private async _enumerateProviderSessions(provider: IAgent): Promise<IAgentSessionMetadata[]> {
-		return [...await (provider.listLegacySessions?.() ?? provider.listSessions())];
+		return (await provider.listLegacyChats()).map(metadata => this._toSessionMetadata(metadata));
 	}
 
 	/**
@@ -998,12 +1000,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * {@link listSessions} re-surfaces those when they have turn activity.
 	 */
 	private async _registeredSessionMetadata(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
-		if (!agent.getSessionMetadata) {
-			// Older providers without a direct lookup fall back to catalog
-			// enumeration, matching the restore path.
-			return this._getSessionMetadataFromCatalog(agent, session);
-		}
-		return agent.getSessionMetadata(session, await this._readDefaultChatProviderData(session));
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session));
+		return metadata ? this._toSessionMetadata(metadata) : undefined;
 	}
 
 	/** Runs {@link _backfillRegistryFromProviders} at most once per host. */
@@ -1318,7 +1317,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return (await this._sessionRegistry.list()).map(s => s.session);
 	}
 
-	/** Debounces provider `onDidChangeSessionList` bursts into one surface pass. */
+	/** Debounces provider `onDidChangeChatList` bursts into one surface pass. */
 	private readonly _surfaceSessionsDebounce = this._register(new MutableDisposable());
 	/** Adoptable-legacy session keys already announced this AH lifetime, so bursts don't re-announce them. */
 	private readonly _announcedSurfacedKeys = new Set<string>();
@@ -1329,7 +1328,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * adoptable-legacy sessions not yet known to clients so they surface without a
 	 * manual reload.
 	 */
-	private _onProviderSessionListChanged(): void {
+	private _onProviderChatListChanged(): void {
 		this._surfaceSessionsDebounce.value = disposableTimeout(() => {
 			void this._surfaceAdoptableLegacySessions();
 		}, 250);
@@ -1530,12 +1529,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// `setClientCustomizations`). Subsequent updates flow through the
 		// existing `SessionCustomizationsChanged` / `SessionCustomizationUpdated`
 		// actions published by `PluginController`.
-		const initialCustomizations = await (provider.getSessionCustomizations
-			? provider.getSessionCustomizations(session, this._hostCustomizations(session)).catch(err => {
-				this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
-				return undefined;
-			})
-			: Promise.resolve(undefined));
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		const initialCustomizations = await provider.getChatCustomizations(defaultChat, this._chatContext(session, defaultChat), this._hostCustomizations(session)).catch(err => {
+			this._logService.error('[AgentService] createSession: failed to resolve initial customizations', err);
+			return undefined;
+		});
 
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
@@ -1609,7 +1607,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			// Provisional sessions defer the `sessionAdded` notification and
 			// the `SessionReady` lifecycle transition until the agent fires
-			// {@link IAgent.onDidMaterializeSession} (typically on first
+			// {@link IAgent.onDidMaterializeChat} (typically on first
 			// `sendMessage`). Until then, the state exists in memory so
 			// clients can subscribe and stream config / model changes that
 			// the agent will pick up at materialization time.
@@ -1638,13 +1636,13 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!created.provisional) {
 			// Persist the AH-owned workspace-less marker now that the session DB
 			// exists, from the value `_buildInitialSummary` inferred. Provisional
-			// sessions defer this to `_onDidMaterializeSession`.
+			// sessions defer this to `_onDidMaterializeChat`.
 			this._persistWorkspaceless(session, readSessionWorkspaceless(this._stateManager.getSessionSummary(session.toString())?._meta));
 			this._persistMultiRoot(session, readSessionMultiRootMetadata(this._stateManager.getSessionSummary(session.toString())?._meta));
 
 			// `SessionReady` transitions the session lifecycle from
 			// `Creating` to `Ready`. For provisional sessions we defer
-			// this to {@link _onDidMaterializeSession} so subscribers
+			// this to {@link _onDidMaterializeChat} so subscribers
 			// don't see `Ready` until the agent actually has an SDK
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
@@ -1954,9 +1952,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/**
 	 * Undo a partially-created provider session after a create-time failure.
 	 * Creation only ever provisions the session's default chat, so the rollback
-	 * is the exact inverse: dispose that one chat, then run the mandatory
-	 * session-scoped finalization. Best-effort — the caller rethrows the
-	 * original creation error.
+	 * is the exact inverse: dispose that one chat. Best-effort — the caller
+	 * rethrows the original creation error.
 	 */
 	private async _rollbackProviderSession(provider: IAgent, session: URI): Promise<void> {
 		const defaultChatUri = URI.parse(buildDefaultChatUri(session));
@@ -1964,11 +1961,6 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.chats.disposeChat(defaultChatUri, this._chatContext(session, defaultChatUri));
 		} catch (disposeError) {
 			this._logService.error(disposeError, `[AgentService] Failed to roll back default chat of provider session ${session.toString()}`);
-		}
-		try {
-			await provider.finalizeSession(session);
-		} catch (finalizeError) {
-			this._logService.error(finalizeError, `[AgentService] Failed to finalize rolled-back provider session ${session.toString()}`);
 		}
 	}
 
@@ -1991,15 +1983,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Tear a session down destructively: dispose every chat in the catalog —
-	 * peer chats first, the default chat last — and then run the session's
-	 * mandatory {@link IAgent.finalizeSession} hook for whatever session-scoped
-	 * state outlives its chats. Every chat is visited even if one rejects, so a
-	 * single failing leaf can't strand the rest; the first error is rethrown
-	 * after finalization.
+	 * peer chats first and the default chat last. Every chat is visited even if
+	 * one rejects, so a failing leaf cannot strand the rest.
 	 */
 	private async _disposeSession(provider: IAgent, session: URI): Promise<void> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
-		const workspaceless = readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		let firstError: unknown;
 		for (const chat of this._getSessionChatsInTeardownOrder(session)) {
 			try {
@@ -2007,11 +1995,6 @@ export class AgentService extends Disposable implements IAgentService {
 			} catch (err) {
 				firstError ??= err;
 			}
-		}
-		try {
-			await provider.finalizeSession(session, { workspaceless });
-		} catch (err) {
-			firstError ??= err;
 		}
 		if (firstError !== undefined) {
 			throw firstError;
@@ -2347,26 +2330,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 * - Dispatch `SessionReady` so subscribers see the lifecycle transition.
 	 * - Lazily attach git state for the (possibly new) working directory.
 	 */
-	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
-		const sessionKey = e.session.toString();
+	private _onDidMaterializeChat(e: IAgentMaterializeChatEvent): void {
+		const session = URI.parse(parseRequiredSessionUriFromChatUri(e.chat));
+		const sessionKey = session.toString();
 		// The session is now materialized — its SDK is resolved (any cold
 		// download already finished), so no further progress is expected for it.
 		this._clearDownloadProgressInterest(sessionKey);
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
-			this._logService.warn(`[AgentService] onDidMaterializeSession for unknown session: ${sessionKey}`);
+			this._logService.warn(`[AgentService] onDidMaterializeChat for unknown session: ${sessionKey}`);
 			return;
 		}
 		const currentSummary = this._stateManager.getSessionSummary(sessionKey);
 		if (!currentSummary) {
-			this._logService.warn(`[AgentService] onDidMaterializeSession missing summary for session: ${sessionKey}`);
+			this._logService.warn(`[AgentService] onDidMaterializeChat missing summary for session: ${sessionKey}`);
 			return;
 		}
-		if (e.resource.toString() !== state.defaultChat) {
+		if (e.chat.toString() !== state.defaultChat) {
 			return;
 		}
-		if (e.chat) {
-			const write = this._persistDefaultChatBacking({ session: e.session, chat: e.chat });
+		if (e.result) {
+			const write = this._persistDefaultChatBacking({ session, chat: e.result });
 			this._defaultChatBackingWrites.set(sessionKey, write);
 			void write.catch(err => this._logService.error(err, `[AgentService] Failed to persist materialized default-chat backing for ${sessionKey}`));
 			const clearWrite = () => {
@@ -2379,7 +2363,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
 		// falls back to whatever the agent reported for folder sessions.
-		const project = this._worktree?.sessionWorktreeProject(AgentSession.id(e.session)) ?? e.project;
+		const project = this._worktree?.sessionWorktreeProject(AgentSession.id(session)) ?? e.project;
 		const currentSet = currentSummary.workingDirectories?.map(d => URI.parse(d));
 		const summary: SessionSummary = {
 			...currentSummary,
@@ -2393,12 +2377,12 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		const configValues = state.config?.values;
 		if (configValues && Object.keys(configValues).length > 0) {
-			this._persistConfigValues(e.session, configValues);
+			this._persistConfigValues(session, configValues);
 		}
 		// Persist the AH-owned workspace-less marker now that the session has a
 		// real on-disk database (deferred from create for provisional sessions).
-		this._persistWorkspaceless(e.session, readSessionWorkspaceless(summary._meta));
-		this._persistMultiRoot(e.session, readSessionMultiRootMetadata(summary._meta));
+		this._persistWorkspaceless(session, readSessionWorkspaceless(summary._meta));
+		this._persistMultiRoot(session, readSessionMultiRootMetadata(summary._meta));
 		// `markSessionPersisted` writes the summary into state and fires
 		// the deferred `SessionAdded` notification atomically so subscribers
 		// see consistent state through both paths.
@@ -2410,7 +2394,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Attach git state for the resolved process root (index 0), if present.
-		void this._gitStateService.refreshSessionGitState(e.session.toString(), e.workingDirectories?.[0]);
+		void this._gitStateService.refreshSessionGitState(sessionKey, e.workingDirectories?.[0]);
 
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
@@ -2532,7 +2516,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// so without this a fresh worktree session's isolation is `undefined` at
 			// create time — the pending mark below is skipped and the send falls back
 			// to folder even though the user picked worktree.
-			const resolved = await this._withIsolationSchema(await provider.resolveSessionConfig(this._toProviderConfig(params)), params);
+			const resolved = await this._withIsolationSchema(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
@@ -2546,7 +2530,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return this._withIsolationSchema(await provider.resolveSessionConfig(this._toProviderConfig(params)), params);
+		return this._withIsolationSchema(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 	}
 
 	/**
@@ -2606,7 +2590,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		return provider.sessionConfigCompletions(this._toProviderConfig(params));
+		return provider.chatConfigCompletions(this._toProviderConfig(params));
 	}
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
@@ -3415,10 +3399,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// already-adopted sessions.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 		const migrationStartTime = Date.now();
-		let adoption: IAgentSessionAdoptionResult = { adopted: false, eligible: false };
-		if (migrateLegacyEnabled && agent.ensureSessionAdopted) {
+		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
+		if (migrateLegacyEnabled && agent.ensureChatAdopted) {
 			try {
-				adoption = await agent.ensureSessionAdopted(session);
+				const defaultChat = URI.parse(buildDefaultChatUri(session));
+				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
 				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
@@ -3505,9 +3490,9 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._persistDefaultChatBacking({ session, chat: recoveredDefaultChat });
 		}
 		const providerData = defaultChatProviderData ?? recoveredDefaultChat?.providerData;
-		await agent.materializeChat?.(defaultChatUri, chatContext, providerData);
+		await agent.materializeChat(defaultChatUri, chatContext, providerData);
 		if (providerData === undefined) {
-			this._logService.warn(`[AgentService] Restoring default chat ${defaultChatUri.toString()} with no persisted or recovered provider backing (agent=${agent.id}, materializeChat=${agent.materializeChat ? 'present' : 'absent'})`);
+			this._logService.warn(`[AgentService] Restoring default chat ${defaultChatUri.toString()} with no persisted or recovered provider backing (agent=${agent.id})`);
 		}
 		let turns: readonly Turn[];
 		try {
@@ -3695,12 +3680,10 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectories: meta.workingDirectories,
 				config: persistedConfigValues,
 			}),
-			agent.getSessionCustomizations
-				? agent.getSessionCustomizations(session, this._hostCustomizations(session)).catch(err => {
-					this._logService.error('[AgentService] restoreSession: failed to resolve session customizations', err);
-					return undefined;
-				})
-				: Promise.resolve(undefined),
+			agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session)).catch(err => {
+				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
+				return undefined;
+			}),
 			...promises
 		]);
 		if (restoredConfig) {
@@ -3760,7 +3743,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * is persisted.
 	 */
 	private async _migrateLegacyPeerChats(agent: IAgent, session: URI): Promise<void> {
-		const legacy = await agent.listLegacyChats?.(session);
+		const legacy = await agent.listLegacyChatBackings?.(session);
 		if (!legacy || legacy.length === 0) {
 			// Write an empty catalog sentinel so `_readPersistedPeerChatCatalog`
 			// returns `[]` on subsequent restores and this migration never re-runs.
@@ -3829,9 +3812,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`No agent provider for restored peer chat: ${chatKey}`);
 		}
 		try {
-			if (agent.materializeChat) {
-				await agent.materializeChat(chat, this._chatContext(session, chat), providerData);
-			}
+			await agent.materializeChat(chat, this._chatContext(session, chat), providerData);
 			const turns = await this._getChatMessages(agent, chat, session);
 			return { turns: await this._interleaveLocalTurns(session.toString(), chatKey, turns) };
 		} catch (err) {
@@ -3860,7 +3841,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Deterministic membership sequencer for agent-spawned chats,
-	 * driven off {@link IAgent.onDidSessionProgress}: a `subagent_started` adds
+	 * driven off {@link IAgent.onDidChatProgress}: a `subagent_started` adds
 	 * the subagent chat to the catalog via the same spawn-channel handler
 	 * ({@link _onChatSpawned}) used by {@link IAgent.onDidSpawnChat}.
 	 * A completed subagent chat stays live and subscribable, so completion is
@@ -4160,30 +4141,24 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _getSessionMetadataForRestore(agent: IAgent, session: URI): Promise<IAgentSessionMetadata | undefined> {
 		const sessionStr = session.toString();
-		if (agent.getSessionMetadata) {
+		const chat = URI.parse(buildDefaultChatUri(session));
+		try {
+			const metadata = await agent.getChatMetadata(chat, this._chatContext(session, chat), await this._readDefaultChatProviderData(session));
+			return await this._withWorktreeProject(session, metadata ? this._toSessionMetadata(metadata) : undefined);
+		} catch (err) {
+			if (err instanceof ProtocolError) {
+				throw err;
+			}
 			try {
-				const meta = await agent.getSessionMetadata(session, await this._readDefaultChatProviderData(session));
-				return await this._withWorktreeProject(session, meta);
-			} catch (err) {
-				if (err instanceof ProtocolError) {
-					throw err;
+				return await this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session));
+			} catch (fallbackErr) {
+				if (fallbackErr instanceof ProtocolError) {
+					const message = err instanceof Error ? err.message : String(err);
+					throw new ProtocolError(fallbackErr.code, `Failed to get chat metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`, fallbackErr.data);
 				}
-				try {
-					return await this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session));
-				} catch (fallbackErr) {
-					if (fallbackErr instanceof ProtocolError) {
-						const message = err instanceof Error ? err.message : String(err);
-						throw new ProtocolError(fallbackErr.code, `Failed to get session metadata for ${sessionStr}: ${message}; ${fallbackErr.message}`, fallbackErr.data);
-					}
-					throw fallbackErr;
-				}
+				throw fallbackErr;
 			}
 		}
-
-		// Older providers only expose catalog enumeration. Keep the fallback so
-		// restore remains compatible, but providers with a direct lookup avoid
-		// blocking session open on a full catalog refresh.
-		return this._withWorktreeProject(session, await this._getSessionMetadataFromCatalog(agent, session));
 	}
 
 	/**

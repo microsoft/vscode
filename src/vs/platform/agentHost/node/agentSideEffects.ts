@@ -38,6 +38,7 @@ import {
 	getInlineToolInput,
 	isAhpChatChannel,
 	isDefaultChatUri,
+	buildDefaultChatUri,
 	isSubagentChatUri,
 	isChatReadOnly,
 	AH_META_IS_ARCHIVED_DB_KEY,
@@ -436,11 +437,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI): Promise<void> {
-		if (!agent.getSessionCustomizations) {
-			return;
-		}
-
-		const customizations = await agent.getSessionCustomizations(URI.parse(session), this._hostCustomizations(session));
+		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
+		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), this._hostCustomizations(session));
 
 		// Skip the dispatch when the resolved customizations match what the
 		// session state already holds. A single edit under a shared `~/.claude`
@@ -468,7 +466,7 @@ export class AgentSideEffects extends Disposable {
 
 	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI): void {
 		void this._publishSessionCustomizations(agent, session).catch(err => {
-			this._logService.error('[AgentSideEffects] getSessionCustomizations failed', err);
+			this._logService.error('[AgentSideEffects] getChatCustomizations failed', err);
 		});
 	}
 
@@ -685,7 +683,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	registerProgressListener(agent: IAgent): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(agent.onDidSessionProgress(signal => {
+		disposables.add(agent.onDidChatProgress(signal => {
 			this._handleAgentSignal(agent, signal);
 		}));
 		if (agent.onDidCustomizationsChange) {

@@ -18,7 +18,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeSessionEvent } from '../../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agentService.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -603,7 +603,7 @@ suite('CodexAgent exact chat routing', () => {
 			const chat = sessionChatWithPeerShape(sessionUri);
 			const folder = URI.file('/repo/intent');
 			const materialized: string[] = [];
-			disposables.add(agent.onDidMaterializeSession(e => materialized.push(e.resource.toString())));
+			disposables.add(agent.onDidMaterializeChat(e => materialized.push(e.chat.toString())));
 
 			await createSessionBackedChat(agent, chat, { configurationResource: sessionUri, resource: chat }, {
 				workingDirectories: [folder],
@@ -657,13 +657,14 @@ suite('CodexAgent exact chat routing', () => {
 			await entry.materializePromise;
 			assert.strictEqual(agent['_sessionIdByChatUri'].get(chat.toString()), 'session-dispose-intent');
 
-			// Agent Host's teardown order: dispose every chat, then finalize the
-			// session's remaining scope.
+			// Agent Host's teardown order: dispose every chat. Configuration-
+			// scope ref tracking reclaims any remaining scope-level resources
+			// inline once the scope's last chat is disposed — no separate
+			// finalize call is needed.
 			const disposing = agent.chats.disposeChat(chat, context);
 			const unsubscribe = await readNextRequest(peer.outbound);
 			peer.push({ id: unsubscribe.id, result: {} });
 			await disposing;
-			await agent.finalizeSession(sessionUri);
 
 			assert.deepStrictEqual({
 				unsubscribed: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
@@ -860,9 +861,9 @@ suite('CodexAgent chat backing durability', () => {
 	 * `threadId`, and drive the first send so the session-scoped materialize
 	 * receipt — the one carrying the refreshed chat backing — is emitted.
 	 */
-	async function materializeSession(agent: CodexAgent, peer: ITestPeer, session: URI, chat: URI, folder: URI, threadId: string): Promise<IAgentMaterializeSessionEvent> {
-		const receipts: IAgentMaterializeSessionEvent[] = [];
-		const listener = agent.onDidMaterializeSession(e => receipts.push(e));
+	async function materializeSession(agent: CodexAgent, peer: ITestPeer, session: URI, chat: URI, folder: URI, threadId: string): Promise<IAgentMaterializeChatEvent> {
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		const listener = agent.onDidMaterializeChat(e => receipts.push(e));
 		try {
 			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
 				workingDirectories: [folder],
@@ -904,13 +905,13 @@ suite('CodexAgent chat backing durability', () => {
 			secondPeer = disposables.add(createTestPeer());
 			connect(second, secondPeer);
 			const signals: AgentSignal[] = [];
-			disposables.add(second.onDidSessionProgress(signal => signals.push(signal)));
+			disposables.add(second.onDidChatProgress(signal => signals.push(signal)));
 
-			const restoring = second.getSessionMetadata(session, receipt.chat?.providerData);
+			const restoring = second.getChatMetadata(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
 			const read = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: read.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await restoring;
-			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.chat?.providerData);
+			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
 
 			// Drive a turn on the restored chat and fail it at `turn/start`, so
 			// the runtime has to route a chat action back to the chat it is
@@ -925,8 +926,8 @@ suite('CodexAgent chat backing durability', () => {
 
 			const restored = second['_sessions'].get('host-session');
 			assert.deepStrictEqual({
-				backingSessionId: JSON.parse(receipt.chat!.providerData!).sessionId,
-				backingSession: receipt.chat?.backingSession?.toString(),
+				backingSessionId: JSON.parse(receipt.result!.providerData!).sessionId,
+				backingSession: receipt.result?.backingSession?.toString(),
 				restoredThreadId: restored?.threadId,
 				restoredSessionUri: restored?.sessionUri.toString(),
 				restoredChatChannel: restored?.chatChannel?.toString(),
@@ -967,14 +968,16 @@ suite('CodexAgent chat backing durability', () => {
 			// session — what a peer chat's blob looks like, and what any
 			// re-keyed backing would look like after a restart.
 			const addressed = AgentSession.uri('codex', 'addressed-session');
-			const restoring = agent.getSessionMetadata(addressed, JSON.stringify({ sessionId: 'backing-runtime' }));
+			const chat = URI.parse(buildDefaultChatUri(addressed));
+			const context = { configurationResource: addressed, resource: chat };
+			const restoring = agent.getChatMetadata(chat, context, JSON.stringify({ sessionId: 'backing-runtime' }));
 			const read = await readNextRequest(peer.outbound);
 			peer.push({ id: read.id, result: { thread: { id: 'backing-thread', cwd: '/repo/addressed', turns: [] } } });
 			const metadata = await restoring;
 
 			const restored = agent['_sessions'].get('backing-runtime');
 			assert.deepStrictEqual({
-				metadataSession: metadata?.session.toString(),
+				metadataChat: metadata?.chat.toString(),
 				// The entry's own URI must round-trip to the key it is stored
 				// under; stamping it with the addressed session would leave
 				// every entry→map lookup pointing at a runtime that does not
@@ -986,7 +989,7 @@ suite('CodexAgent chat backing durability', () => {
 				// the session Agent Host addressed — the only URI it knows.
 				advertised,
 			}, {
-				metadataSession: addressed.toString(),
+				metadataChat: chat.toString(),
 				restoredSessionUri: AgentSession.uri('codex', 'backing-runtime').toString(),
 				restoredThreadId: 'backing-thread',
 				addressedRuntimeExists: false,
@@ -1014,17 +1017,17 @@ suite('CodexAgent chat backing durability', () => {
 			// `thread/read` for a thread of its own that is blocked waiting on a
 			// dynamic tool call, which is exactly the state a session server
 			// tool runs in.
-			const metadata = await agent.getSessionMetadata(session, JSON.stringify({ sessionId: 'live-session' }));
+			const metadata = await agent.getChatMetadata(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'live-session' }));
 
 			assert.deepStrictEqual({
-				session: metadata?.session.toString(),
+				chat: metadata?.chat.toString(),
 				workingDirectories: metadata?.workingDirectories?.map(directory => directory.fsPath),
 				// Real clock values: `0` would date the session to 1970 and
 				// invert the host's created-before / created-after filters.
 				startedInThisRun: (metadata?.startTime ?? 0) >= before,
 				modifiedAtOrAfterStart: (metadata?.modifiedTime ?? 0) >= (metadata?.startTime ?? 0),
 			}, {
-				session: session.toString(),
+				chat: chat.toString(),
 				workingDirectories: [folder.fsPath],
 				startedInThisRun: true,
 				modifiedAtOrAfterStart: true,
@@ -1059,7 +1062,7 @@ suite('CodexAgent chat backing durability', () => {
 
 			assert.deepStrictEqual({
 				session: forked.session.toString(),
-				// The fork is materialized on return, so `onDidMaterializeSession`
+				// The fork is materialized on return, so `onDidMaterializeChat`
 				// never fires for it — the create result is the host's only
 				// chance to persist a backing it can restore from. The blob names
 				// the runtime's own durable id, the thread id is decoupled into

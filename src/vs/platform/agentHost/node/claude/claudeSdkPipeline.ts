@@ -27,7 +27,7 @@ import type { SubagentRegistry } from './claudeSubagentRegistry.js';
  * the materializer service directly. The callback MUST start the SDK in
  * `resume` mode (i.e. pass `Options.resume = sessionId` instead of
  * `Options.sessionId`) and MUST NOT re-fire the agent's
- * `onDidMaterializeSession` event — that event is once-per-provisional
+ * `onDidMaterializeChat` event — that event is once-per-provisional
  * promotion (see `claudeAgent.ts` materialize path).
  */
 export interface IRematerializer {

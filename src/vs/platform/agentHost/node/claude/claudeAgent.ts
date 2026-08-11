@@ -27,7 +27,7 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSch
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -318,8 +318,8 @@ class ClaudeActiveClientHandle implements IActiveClient {
 export class ClaudeAgent extends Disposable implements IAgent {
 	readonly id: AgentProvider = CLAUDE_AGENT_PROVIDER_ID;
 
-	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
-	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
+	readonly onDidChatProgress = this._onDidChatProgress.event;
 
 	private readonly _onDidCustomizationsChange = this._register(new Emitter<void>());
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
@@ -393,7 +393,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * sub-agent chats delegated by a `Task`/`Agent` tool call (and, when the
 	 * harness gains them, Claude Teams teammates). Derived from the
 	 * `subagent_started` / `subagent_completed` signals that already flow on
-	 * {@link onDidSessionProgress}, so the orchestrator records the spawn edge
+	 * {@link onDidChatProgress}, so the orchestrator records the spawn edge
 	 * on the unified chat catalog. See {@link IAgent.onDidSpawnChat}.
 	 */
 	private readonly _onDidSpawnChat = this._register(new Emitter<IAgentSpawnChatEvent>());
@@ -416,8 +416,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * notification — observers don't see the session in their list until
 	 * persistence has settled.
 	 */
-	private readonly _onDidMaterializeSession = this._register(new Emitter<IAgentMaterializeSessionEvent>());
-	readonly onDidMaterializeSession = this._onDidMaterializeSession.event;
+	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
+	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
 
 	/**
 	 * Per-SDK-session-id serializer for {@link shutdown}'s teardown pass, so
@@ -524,7 +524,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _wireEntry(session: ClaudeAgentSession): ClaudeChatEntry {
 		const entry = new ClaudeChatEntry(session);
 		entry.addDisposable(session.onDidSessionProgress(signal => {
-			this._onDidSessionProgress.fire(signal);
+			this._onDidChatProgress.fire(signal);
 			this._emitSpawnedChatEvents(signal);
 		}));
 		entry.addDisposable(session.onDidCustomizationsChange(() => this._onDidCustomizationsChange.fire()));
@@ -565,7 +565,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * Bridges the agent's `subagent_started` signal onto the
 	 * {@link onDidSpawnChat} membership channel. The signals are still forwarded
-	 * verbatim on {@link onDidSessionProgress} (the orchestrator's
+	 * verbatim on {@link onDidChatProgress} (the orchestrator's
 	 * `AgentSideEffects` keeps driving the sub-agent turn + parent tool-call
 	 * content); this event only mirrors the spawn into the unified chat catalog.
 	 * A completed subagent chat stays live and subscribable (it is removed only
@@ -597,7 +597,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
-		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore, this.id);
+		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
 		// CAPI reports each request's billed credits via the proxy (the SDK
 		// strips `copilot_usage` from its `result`). Route every report to
 		// the originating session by the session id the proxy decoded from
@@ -937,7 +937,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * reach Claude otherwise. Progress is suppressed (`quiet`) because the AH
 	 * service may not have created the session state yet — a
 	 * `SessionCustomizationUpdated` envelope would be orphaned; the completed
-	 * snapshot is provided via `getSessionCustomizations` immediately after.
+	 * snapshot is provided via `getChatCustomizations` immediately after.
 	 *
 	 * The client's contribution is addressed to exactly the chat this call
 	 * provisioned. A sibling chat of the same session never inherits it —
@@ -1175,9 +1175,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Claude:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
 		});
 
-		this._onDidMaterializeSession.fire({
-			session: context.configurationResource,
-			resource: context.chat,
+		this._onDidMaterializeChat.fire({
+			chat: context.chat,
 			project: session.project,
 			workingDirectories: materializedWorkingDirectories,
 		});
@@ -1210,14 +1209,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private _resolvePermissionMode(config: Record<string, unknown> | undefined): ClaudePermissionMode {
 		return narrowClaudePermissionMode(config?.[ClaudeSessionConfigKey.PermissionMode]) ?? 'default';
-	}
-
-	async finalizeSession(session: URI): Promise<void> {
-		// No session-level active-client state to prune here: handles are keyed
-		// per exact chat and are dropped by `_disposeChat` as each of the
-		// session's catalog chats is disposed — which Agent Host guarantees
-		// runs, for every chat, before this hook fires.
-		this._otelService.releaseSessionTraceContext(session.toString());
 	}
 
 	private async _disposeLiveSession(session: ClaudeAgentSession): Promise<void> {
@@ -1517,7 +1508,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * {@link sendMessage} to finish before tearing down — prevents
 	 * use-after-dispose if a send is concurrently in progress. The durable
 	 * chat catalog is owned by the orchestrator now, so this only drops the
-	 * live session and its provider backing data.
+	 * live session and its provider backing data. There is no separate
+	 * session-level finalization hook: the trace context keyed on the chat's
+	 * own `resource` (the configuration scope, for the default chat) is
+	 * released right here, once, when that exact chat is disposed.
 	 */
 	private async _disposeChat(chat: URI, operationContext?: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
@@ -1659,9 +1653,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._deleteLiveChat(chatKey);
 			throw err;
 		}
-		this._onDidMaterializeSession.fire({
-			session: configurationResource,
-			resource: context.chat,
+		this._onDidMaterializeChat.fire({
+			chat: context.chat,
 			project: chatSession.project,
 			workingDirectories: workingDirectories ?? chatSession.workingDirectories,
 		});
@@ -1962,11 +1955,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return turns;
 	}
 
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [];
-	}
-
-	async listLegacySessions(): Promise<IAgentSessionMetadata[]> {
+	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
 		// Plan section 3.3.2: SDK is the source of truth; we deliberately do
 		// NOT filter entries that lack a per-session DB — external Claude Code
 		// CLI sessions have no DB and must still surface (Phase-5 exit
@@ -1974,20 +1963,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// an optional per-session overlay hydrates the additional-directory tail.
 		// External sessions without an overlay remain valid single-root entries.
 		//
-		// `AgentService.listSessions` fans out across all providers via
-		// `Promise.all` (agentService.ts:202-204). If our SDK dynamic
-		// import fails (corrupt install, missing optional dep) and we let
-		// it reject, *every* provider's session list disappears — the
-		// sibling Copilot provider gets nuked too. Catch and log instead.
+		// One-time legacy discovery only — the orchestrator fans this out
+		// across every provider via `Promise.all`. If our SDK dynamic import
+		// fails (corrupt install, missing optional dep) and we let it reject,
+		// *every* provider's legacy list disappears — the sibling Copilot
+		// provider gets nuked too. Catch and log instead.
 		let sdkEntries: readonly SDKSessionInfo[];
 		try {
-			// Don't trigger a cold SDK download just to populate the session
-			// list at startup. When the SDK isn't local yet, surface an empty
-			// list; the download fires (with host-level progress) once the user
-			// starts a session, and the next `listSessions` — driven by the
-			// renderer's post-turn refresh — returns the full list.
+			// Don't trigger a cold SDK download just to populate this list at
+			// startup. When the SDK isn't local yet, surface an empty list; the
+			// download fires (with host-level progress) once the user starts a
+			// session, and the next legacy discovery pass returns the full list.
 			if (!(await this._sdkService.canLoadWithoutDownload())) {
-				this._logService.info('[Claude] SDK not downloaded yet; deferring session list until a session triggers the download');
+				this._logService.info('[Claude] SDK not downloaded yet; deferring legacy chat list until a session triggers the download');
 				return [];
 			}
 			sdkEntries = await this._sdkService.listSessions();
@@ -1996,18 +1984,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return [];
 		}
 		return Promise.all(sdkEntries.map(entry => {
-			const meta = this._metadataStore.project(entry);
-			return this._withPersistedWorkingDirectories(meta.session, meta);
+			const session = AgentSession.uri(this.id, entry.sessionId);
+			const chat = URI.parse(buildDefaultChatUri(session));
+			return this._withPersistedWorkingDirectories(session, { chat, ...this._metadataStore.project(entry) });
 		}));
 	}
 
 	/**
-	 * Phase 6.1 / Cycle D4 — per-session lookup. Mirrors
-	 * {@link CopilotAgent.getSessionMetadata} but accepts the
-	 * external-CLI case: a session that exists on disk via the raw
-	 * Anthropic CLI has no per-session DB, so we MUST NOT gate on the
-	 * sidecar (the way Copilot's variant does). The SDK is the source
-	 * of truth for existence.
+	 * Phase 6.1 / Cycle D4 — per-chat lookup. Mirrors
+	 * {@link CopilotAgent.getChatMetadata} but accepts the external-CLI case: a
+	 * session that exists on disk via the raw Anthropic CLI has no per-session
+	 * DB, so we MUST NOT gate on the sidecar (the way Copilot's variant does).
+	 * The SDK is the source of truth for existence.
 	 *
 	 * The SDK entry supplies the authoritative primary directory; an optional
 	 * per-session overlay hydrates the additional-directory tail. External
@@ -2015,16 +2003,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the SDK lookup propagate (the caller is doing a single targeted fetch and
 	 * should learn that the SDK module is broken).
 	 */
-	async getSessionMetadata(session: URI, providerData?: string): Promise<IAgentSessionMetadata | undefined> {
+	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		// Don't trigger a cold SDK download just to hydrate metadata during
 		// restore (the renderer subscribes to the last-active session on
 		// startup). When the SDK isn't local yet, defer; the download fires
 		// once the user sends the first message.
 		if (!(await this._sdkService.canLoadWithoutDownload())) {
-			this._logService.info('[Claude] SDK not downloaded yet; deferring session metadata until a session triggers the download');
+			this._logService.info('[Claude] SDK not downloaded yet; deferring chat metadata until a session triggers the download');
 			return undefined;
 		}
-		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : AgentSession.id(session);
+		const { configurationResource } = resolveAgentChatContext(context, chat);
+		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : AgentSession.id(configurationResource);
 		if (!sessionId) {
 			return undefined;
 		}
@@ -2032,7 +2021,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!sdkInfo) {
 			return undefined;
 		}
-		return this._withPersistedWorkingDirectories(session, { ...this._metadataStore.project(sdkInfo), session });
+		return this._withPersistedWorkingDirectories(configurationResource, { chat, ...this._metadataStore.project(sdkInfo) });
 	}
 
 	/**
@@ -2042,7 +2031,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * tail of a multi-root session lives in the per-session overlay. Sessions
 	 * without an overlay (external Claude CLI, single-root) are returned as-is.
 	 */
-	private async _withPersistedWorkingDirectories(session: URI, meta: IAgentSessionMetadata): Promise<IAgentSessionMetadata> {
+	private async _withPersistedWorkingDirectories(session: URI, meta: IAgentChatMetadata): Promise<IAgentChatMetadata> {
 		const primary = meta.workingDirectories?.[0];
 		if (!primary) {
 			return meta;
@@ -2060,7 +2049,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return { ...meta, workingDirectories: [primary, ...tail] };
 	}
 
-	resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	resolveChatConfig(_params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
 		// Decision B5 (plan section 3.3.5): Claude collapses the platform's
 		// `autoApprove` × `mode` two-axis approval surface onto a single
 		// `permissionMode` axis matching the SDK's native enum. The
@@ -2110,7 +2099,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 	}
 
-	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
 		const inherited: Record<string, unknown> = {};
 		for (const key of [ClaudeSessionConfigKey.PermissionMode, SessionConfigKey.Permissions]) {
 			if (config[key] !== undefined) {
@@ -2120,7 +2109,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return Object.keys(inherited).length > 0 ? inherited : undefined;
 	}
 
-	sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+	chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		// Plan section 3.3.5: Claude's only schema property is the
 		// `permissionMode` static enum, so dynamic completion is
 		// definitionally empty in Phase 5. Branch completion lands in
@@ -2426,12 +2415,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Project a per-item sync result onto a `SessionCustomizationUpdated`
-	 * action and emit it on {@link onDidSessionProgress}. Lets the workbench
+	 * action and emit it on {@link onDidChatProgress}. Lets the workbench
 	 * flip each row to `Loaded` / `Error` as the underlying
 	 * {@link IAgentPluginManager.syncCustomizations} resolves it.
 	 */
 	private _fireCustomizationUpdated(session: URI, item: ISyncedCustomization): void {
-		this._onDidSessionProgress.fire({
+		this._onDidChatProgress.fire({
 			kind: 'action',
 			resource: session,
 			action: {
@@ -2457,13 +2446,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * `hostCustomizations` is the host's last published snapshot for `session`,
+	 * `hostCustomizations` is the host's last published snapshot for `chat`,
 	 * supplied explicitly at this boundary. `undefined` means the host has
 	 * published none yet, which is deliberately distinct from an empty list:
 	 * the session keeps its own reconciled view rather than clearing it.
+	 *
+	 * Resolves `chat` through its exact backing only ({@link _findChatByUri}) —
+	 * never falls back to guessing the SDK conversation id from the
+	 * configuration scope, since a fresh chat's SDK id is independent of it.
 	 */
-	async getSessionCustomizations(session: URI, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
-		const sess = this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(AgentSession.id(session));
+	async getChatCustomizations(chat: URI, _context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
+		const sess = this._findChatByUri(chat);
 		if (!sess) {
 			return [];
 		}

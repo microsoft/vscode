@@ -739,8 +739,8 @@ export interface IAgentHostManagementService {
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
-export interface IAgentSessionMetadata {
-	readonly session: URI;
+export interface IAgentChatMetadata {
+	readonly chat: URI;
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
@@ -779,6 +779,10 @@ export interface IAgentSessionMetadata {
 	readonly _meta?: SessionMeta;
 }
 
+export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
+	readonly session: URI;
+}
+
 export interface IAgentSessionProjectInfo {
 	readonly uri: URI;
 	readonly displayName: string;
@@ -806,7 +810,7 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 	 * `true` when the agent only allocated an in-memory placeholder for this
 	 * session (no SDK session, no worktree, no on-disk state). Materialization
 	 * happens lazily on the first {@link IAgentChats.sendMessage}, at which point
-	 * the agent fires {@link IAgent.onDidMaterializeSession}. The
+	 * the agent fires {@link IAgent.onDidMaterializeChat}. The
 	 * {@link IAgentService} uses this flag to defer the `sessionAdded` protocol
 	 * notification so observers don't see the session in their list until it
 	 * has been persisted.
@@ -815,16 +819,15 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeSession}. Fired once per session
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired once when a provisional chat
  * when a previously {@link IAgentCreateSessionResult.provisional} session has
  * its SDK session, worktree (if any), and on-disk metadata in place.
  */
-export interface IAgentMaterializeSessionEvent {
-	readonly session: URI;
-	/** Exact chat whose provider runtime materialized. The host decides whether it is session-scoped. */
-	readonly resource: URI;
+export interface IAgentMaterializeChatEvent {
+	/** Exact chat whose provider runtime materialized. */
+	readonly chat: URI;
 	/** Updated opaque backing for the session chat, when materialization minted it. */
-	readonly chat?: IAgentCreateChatResult;
+	readonly result?: IAgentCreateChatResult;
 	/**
 	 * The complete resolved working-directory set (index 0 = the resolved process
 	 * root, e.g. a worktree). The host replaces index 0 of the current session set
@@ -1388,16 +1391,19 @@ export interface IAgentChats {
 	getMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]>;
 }
 
-export interface IAgentResolveSessionConfigParams {
+export interface IAgentResolveChatConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, unknown>;
 }
 
-export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessionConfigParams {
+export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {
 	readonly property: string;
 	readonly query?: string;
 }
+
+export type IAgentResolveSessionConfigParams = IAgentResolveChatConfigParams;
+export type IAgentSessionConfigCompletionsParams = IAgentChatConfigCompletionsParams;
 
 /** Serializable model information from the agent host. */
 export interface IAgentModelInfo {
@@ -1413,7 +1419,7 @@ export interface IAgentModelInfo {
 	readonly _meta?: Record<string, unknown>;
 }
 
-// ---- Agent signals (sent via IAgent.onDidSessionProgress) -------------------
+// ---- Agent signals (sent via IAgent.onDidChatProgress) ----------------------
 
 /**
  * A signal emitted by an agent during session execution.
@@ -1653,13 +1659,13 @@ export interface IActiveClient {
 }
 
 /**
- * Outcome of {@link IAgent.ensureSessionAdopted}. `adopted` is true iff this
+ * Outcome of {@link IAgent.ensureChatAdopted}. `adopted` is true iff this
  * call newly seeded metadata for the session; `eligible` is true iff the session
  * is a legacy on-disk session that was a genuine adoption candidate (whether or
  * not it was adopted this call), so callers can distinguish a migration that did
  * not happen from an ordinary native restore.
  */
-export interface IAgentSessionAdoptionResult {
+export interface IAgentChatAdoptionResult {
 	readonly adopted: boolean;
 	readonly eligible: boolean;
 }
@@ -1673,27 +1679,26 @@ export interface IAgent {
 	/** Unique identifier for this provider (e.g. `'copilot'`). */
 	readonly id: AgentProvider;
 
-	/** Fires when the provider streams progress for a session. */
-	readonly onDidSessionProgress: Event<AgentSignal>;
+	/** Fires when the provider streams progress for a chat. */
+	readonly onDidChatProgress: Event<AgentSignal>;
 
 	/**
 	 * Fires once when a previously
-	 * {@link IAgentCreateSessionResult.provisional} session has been
-	 * materialized — i.e. its SDK session, worktree (if any), and on-disk
-	 * metadata are all in place. The {@link IAgentService} uses this event
+	 * provisional chat has been materialized — i.e. its SDK backing and on-disk
+	 * metadata are in place. The {@link IAgentService} uses this event
 	 * to fire the deferred `sessionAdded` notification with the now-final
 	 * summary.
 	 */
-	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
+	readonly onDidMaterializeChat: Event<IAgentMaterializeChatEvent>;
 
 	/**
-	 * Fires (debounced) when the provider's on-disk session set may have changed
-	 * out of band (e.g. a legacy Copilot CLI session was created by the extension
+	 * Fires (debounced) when the provider's on-disk chat set may have changed
+	 * out of band (e.g. a legacy Copilot CLI chat was created by the extension
 	 * host while the window is open). The {@link IAgentService} responds by
 	 * announcing any adoptable-legacy sessions not yet known to clients. Optional:
 	 * providers that cannot detect out-of-band changes omit it.
 	 */
-	readonly onDidChangeSessionList?: Event<void>;
+	readonly onDidChangeChatList?: Event<void>;
 
 	/**
 	 * Provides the agent host's server-tool host so the provider can advertise
@@ -1719,8 +1724,8 @@ export interface IAgent {
 	// ---- Session lifecycle / configuration ---------------------------------
 
 	/**
-	 * Adopt-on-open for a legacy on-disk session (e.g. one created by the
-	 * extension-host Copilot CLI): if `session` has an on-disk SDK event log but
+	 * Adopt-on-open for a legacy on-disk chat (e.g. one created by the
+	 * extension-host Copilot CLI): if `chat` has an on-disk SDK event log but
 	 * no agent-host metadata yet, seed that metadata in place — reusing the event
 	 * log verbatim — so the normal restore flow can resume it. Reports whether the
 	 * session was newly adopted (so the caller can run a one-time checkpoint
@@ -1728,32 +1733,30 @@ export interface IAgent {
 	 * can tell a genuine migration candidate apart from an ordinary native
 	 * restore). Optional: providers without a legacy on-disk format omit it.
 	 */
-	ensureSessionAdopted?(session: URI): Promise<IAgentSessionAdoptionResult>;
+	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
 
-	/** Resolve provider-owned session configuration; host-owned worktree fields are omitted. */
-	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+	/** Resolve provider-owned chat configuration; host-owned worktree fields are omitted. */
+	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult>;
 
-	/** Select provider-owned configuration that a newly created session should inherit. */
-	getInheritedSessionConfig?(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
+	/** Select provider-owned configuration that a newly created chat should inherit. */
+	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined;
 
-	/** Return dynamic completions for a provider-owned session configuration property. */
-	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
+	/** Return dynamic completions for a provider-owned chat configuration property. */
+	chatConfigCompletions(params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/**
-	 * Re-attach an agent's in-memory backing for a peer chat on session
-	 * restore, decoding the opaque `providerData` produced earlier by
+	 * Re-attach an agent's in-memory backing for an exact chat on restore,
+	 * decoding the opaque `providerData` produced earlier by
 	 * {@link IAgentChats.createChat} (or the latest
-	 * {@link onDidChangeChatData}). `session` is the chat's owning session,
-	 * supplied explicitly by the orchestrator so the agent never has to
-	 * recover it by parsing `chat`. After this resolves the agent MUST
-	 * be able to serve {@link getSessionMessages}/
+	 * {@link onDidChangeChatData}). After this resolves the agent MUST
+	 * be able to serve
 	 * {@link IAgentChats.sendMessage} for `chat`.
 	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
 	 * log and no-op so the orchestrator restores the chat with history but no
 	 * live backing. Legacy recovery is a separate host-orchestrated step through
 	 * {@link recoverLegacyChat}; this method never infers a chat's role.
 	 */
-	materializeChat?(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
+	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Recover the historical backing for a chat whose provider data predates
@@ -1763,7 +1766,7 @@ export interface IAgent {
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
 	/**
-	 * Migration-only enumeration of a session's peer chats persisted in the
+	 * Migration-only enumeration of chat backings persisted in the
 	 * agent's OWN legacy format (predating the orchestrator-owned catalog). The
 	 * orchestrator calls this once, when its own catalog is absent, to drain the
 	 * legacy chats into {@link PEER_CHATS_METADATA_KEY}; subsequent restores read
@@ -1772,14 +1775,14 @@ export interface IAgent {
 	 * produces and {@link materializeChat} decodes. Agents with no legacy
 	 * format (e.g. Codex) omit this method.
 	 */
-	listLegacyChats?(session: URI): Promise<readonly IAgentLegacyChat[]>;
+	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	/**
-	 * Fires when a peer chat's opaque `providerData` changes after creation
+	 * Fires when a chat's opaque `providerData` changes after creation
 	 * (e.g. per-chat model switch, fork remap). The orchestrator re-persists the
 	 * blob. Agents whose blob is immutable never fire this.
 	 */
-	readonly onDidChangeChatData?: Event<IAgentChatDataChange>;
+	readonly onDidChangeChatData: Event<IAgentChatDataChange>;
 
 	// ---- Spawned chat (membership) channel -------------------------
 	//
@@ -1792,12 +1795,12 @@ export interface IAgent {
 	// membership path. Agents that never spawn chats omit both events.
 
 	/**
-	 * Fires when the agent spawns a new chat within a session (e.g. a
+	 * Fires when the agent spawns a new chat (e.g. a
 	 * sub-agent delegated by a tool call). The orchestrator records it in the
 	 * chat catalog, preserving the {@link IAgentSpawnChatEvent.parent}
 	 * spawn edge as the chat's {@link ChatOriginKind.Tool} origin.
 	 */
-	readonly onDidSpawnChat?: Event<IAgentSpawnChatEvent>;
+	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent>;
 
 	/**
 	 * Called when a chat's pending (steering) message changes.
@@ -1810,9 +1813,6 @@ export interface IAgent {
 	 * forwarded to the agent; `queuedMessages` will always be empty.
 	 */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
-
-	/** Finalize session-scoped resources after Agent Host has disposed every chat. */
-	finalizeSession(session: URI, context?: { readonly workspaceless?: boolean }): Promise<void>;
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
@@ -1830,17 +1830,12 @@ export interface IAgent {
 	refreshModels?(): Promise<void>;
 
 	/**
-	 * Enumerate the agent's own persisted SDK sessions, keyed by session URI
-	 * ({@link AgentSession.uri}). The orchestrator owns the session-to-chat
-	 * mapping, so the agent never derives chat URIs here.
+	 * Enumerate provider-native chats only for one-time legacy discovery.
 	 */
-	listSessions(): Promise<readonly IAgentSessionMetadata[]>;
+	listLegacyChats(): Promise<readonly IAgentChatMetadata[]>;
 
-	/** Enumerate SDK sessions only for one-time legacy discovery/import. */
-	listLegacySessions?(): Promise<readonly IAgentSessionMetadata[]>;
-
-	/** Retrieve metadata for a registered session using its exact initial-chat backing when present. */
-	getSessionMetadata?(session: URI, providerData?: string): Promise<IAgentSessionMetadata | undefined>;
+	/** Retrieve metadata for a registered exact chat. */
+	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
 	getProtectedResources(): ProtectedResourceMetadata[];
@@ -1883,7 +1878,7 @@ export interface IAgent {
 	getCustomizations?(): readonly Customization[];
 
 	/**
-	 * Returns the effective customization list for a session, including
+	 * Returns the effective customization list for a chat, including
 	 * source, enablement, and loading/error status.
 	 *
 	 * `hostCustomizations` is the last customization snapshot the host
@@ -1899,7 +1894,7 @@ export interface IAgent {
 	 * deliberately distinct from an empty list: the provider MUST NOT read it
 	 * as "the host has no customizations" and clear its reconciled state.
 	 */
-	getSessionCustomizations?(session: URI, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
+	getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.

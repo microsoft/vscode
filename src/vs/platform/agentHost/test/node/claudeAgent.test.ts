@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -115,6 +115,11 @@ function listSessionChatBackings(agent: ClaudeAgent): string[] {
 
 function defaultChatUri(session: URI): URI {
 	return URI.parse(buildDefaultChatUri(session));
+}
+
+/** Recovers the owning session id from a {@link IAgentChatMetadata.chat} default-chat URI. */
+function sessionIdOfChat(chat: URI): string {
+	return AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat)));
 }
 
 /**
@@ -198,13 +203,13 @@ async function releaseDefaultChat(agent: ClaudeAgent, session: URI): Promise<voi
 
 /**
  * Tears a session down the way Agent Host does: every catalog chat is disposed
- * through the chat surface — here the session-backed default chat — and the
- * session is finalized afterwards.
+ * through the chat surface — here the session-backed default chat. There is no
+ * separate finalize step; trace-context release now lives solely in the exact
+ * chat's own disposal (see `_disposeChat`).
  */
 async function disposeSession(agent: ClaudeAgent, session: URI): Promise<void> {
 	const chat = defaultChatUri(session);
 	await agent.chats.disposeChat(chat, chatContext(chat));
-	await agent.finalizeSession(session);
 }
 
 /**
@@ -220,7 +225,7 @@ async function bindDefaultChat(agent: ClaudeAgent, session: URI): Promise<void> 
 
 /**
  * The host's last published customization snapshot for a session — what
- * `AgentService`/`AgentSideEffects` hand to `getSessionCustomizations` and
+ * `AgentService`/`AgentSideEffects` hand to `getChatCustomizations` and
  * `getOrCreateActiveClient`. `undefined` means the host has published none
  * yet, which is deliberately distinct from an empty list.
  */
@@ -479,7 +484,7 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
 	 * `true` (SDK already local). Set to `false` to simulate the cold-start
 	 * case where the SDK isn't downloaded yet — restore-reachable reads
-	 * ({@link listSessions}, {@link getSessionInfo} via `getSessionMetadata`,
+	 * ({@link listSessions}, {@link getSessionInfo} via `getChatMetadata`,
 	 * {@link getSessionMessages}) MUST defer rather than trigger a download.
 	 */
 	canLoadWithoutDownloadResult = true;
@@ -2152,7 +2157,7 @@ suite('ClaudeAgent', () => {
 
 		// Phase 4: confirm the resume started the SDK with the updated model
 		// from Phase 2. Model selection is no longer surfaced on
-		// `IAgentSessionMetadata`; the observable effect of the overlay is the
+		// `IAgentChatMetadata`; the observable effect of the overlay is the
 		// model the resume query is started with. If materialize wrote
 		// unconditionally on resume, the SDK would start with the initial
 		// materialize-time model instead.
@@ -2223,8 +2228,8 @@ suite('ClaudeAgent', () => {
 		sdk.forkSessionResult = { sessionId: 'forked-1' };
 		sdk.sessionList = [{ sessionId: 'forked-1', summary: 'fork', lastModified: 1, cwd: URI.file('/work').fsPath }];
 
-		const events: IAgentMaterializeSessionEvent[] = [];
-		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		const events: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(e => events.push(e)));
 		await agent.materializeChat(defaultChatUri(sourceUri), { configurationResource: sourceUri, resource: sourceUri }, JSON.stringify({ sdkSessionId: sourceId }));
 
 		// The fork binds the exact target chat directly, so the new AH session
@@ -2252,7 +2257,7 @@ suite('ClaudeAgent', () => {
 			atForkTime,
 			afterSend: {
 				materializeCount: events.length,
-				materializeUri: events[0]?.session.toString(),
+				materializeUri: events[0]?.chat.toString(),
 				startupResume: sdk.capturedStartupOptions[0]?.resume,
 				startupSessionId: sdk.capturedStartupOptions[0]?.sessionId,
 			},
@@ -2269,7 +2274,7 @@ suite('ClaudeAgent', () => {
 			},
 			afterSend: {
 				materializeCount: 1,
-				materializeUri: newUri.toString(),
+				materializeUri: defaultChatUri(newUri).toString(),
 				startupResume: 'forked-1',
 				startupSessionId: undefined,
 			},
@@ -2496,7 +2501,7 @@ suite('ClaudeAgent', () => {
 		sdk.sessionList = [{ sessionId, cwd: '/work', summary: '', lastModified: Date.now() }];
 
 		// Seed a permissionMode overlay the cold recreate must carry forward.
-		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude');
+		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore);
 		await metaStore.write(created.session, { permissionMode: 'plan' });
 
 		await agent.truncateSession(created.session, undefined, defaultChatUri(created.session), chatContext(defaultChatUri(created.session)));
@@ -2533,7 +2538,7 @@ suite('ClaudeAgent', () => {
 		const sourceUri = AgentSession.uri('claude', sourceId);
 		// Seed the SOURCE overlay; the fork must copy it onto the new session
 		// so it reaches `Options.permissionMode` at materialize.
-		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude');
+		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore);
 		await metaStore.write(sourceUri, { permissionMode: 'plan' });
 
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
@@ -2671,7 +2676,7 @@ suite('ClaudeAgent', () => {
 	test('first sendMessage on a provisional session materializes it (single startup, single materialize event)', async () => {
 		// Phase 6 §5.1 Test 3 (tracer). Forces the materialize spine into
 		// existence: `_provisionalSessions` map, `_materializeProvisional`,
-		// `IClaudeAgentSdkService.startup()`, `_onDidMaterializeSession`
+		// `IClaudeAgentSdkService.startup()`, `_onDidMaterializeChat`
 		// event, and `entry.send` plumbing in `ClaudeAgentSession`.
 		//
 		// Public-interface assertions only: we never read `_sessions`
@@ -2689,9 +2694,9 @@ suite('ClaudeAgent', () => {
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		assert.strictEqual(sdk.startupCallCount, 0, 'createSession does not touch the SDK');
 
-		const events: IAgentMaterializeSessionEvent[] = [];
-		assert.ok(agent.onDidMaterializeSession, 'agent must expose onDidMaterializeSession');
-		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		const events: IAgentMaterializeChatEvent[] = [];
+		assert.ok(agent.onDidMaterializeChat, 'agent must expose onDidMaterializeChat');
+		disposables.add(agent.onDidMaterializeChat(e => events.push(e)));
 
 		const sessionId = created.sdkSessionId;
 		sdk.nextQueryMessages = [
@@ -2704,14 +2709,14 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			startupCallCount: sdk.startupCallCount,
 			materializeEventCount: events.length,
-			eventSession: events[0]?.session.toString(),
+			eventChat: events[0]?.chat.toString(),
 			eventCwd: events[0]?.workingDirectories?.[0]?.fsPath,
 			startupOptionsCwd: sdk.capturedStartupOptions[0]?.cwd,
 			startupOptionsSessionId: sdk.capturedStartupOptions[0]?.sessionId,
 		}, {
 			startupCallCount: 1,
 			materializeEventCount: 1,
-			eventSession: created.session.toString(),
+			eventChat: defaultChatUri(created.session).toString(),
 			eventCwd: URI.file('/work').fsPath,
 			startupOptionsCwd: URI.file('/work').fsPath,
 			startupOptionsSessionId: sessionId,
@@ -2726,8 +2731,8 @@ suite('ClaudeAgent', () => {
 		const repoB = URI.file('/repo-b');
 		const created = await createSession(agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
-		const events: IAgentMaterializeSessionEvent[] = [];
-		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		const events: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(e => events.push(e)));
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -2956,7 +2961,7 @@ suite('ClaudeAgent', () => {
 		const skillUri = URI.joinPath(repoB, '.claude', 'skills', 'from-b', 'SKILL.md');
 		await fileService.writeFile(skillUri, VSBuffer.fromString('---\nname: from-b\ndescription: Skill from B\n---\nbody'));
 		const created = await createSession(agent, { workingDirectories: [repoA, repoB] });
-		const before = await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session));
+		const before = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const sessionId = created.sdkSessionId;
 		sdk.supportedAgentsResult = [];
 		sdk.supportedCommandsResult = [{ name: 'from-b', description: 'Skill from B', argumentHint: '' }];
@@ -2964,7 +2969,7 @@ suite('ClaudeAgent', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', [repoA, repoB], undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		const after = await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session));
+		const after = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const skillContainerUri = URI.joinPath(repoB, '.claude', 'skills').toString();
 		const names = (customizations: readonly Customization[]) => {
 			const container = customizations.find(customization => customization.uri === skillContainerUri);
@@ -3039,7 +3044,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('getSessionMetadata hydrates the additional directories from the persisted overlay', async () => {
+	test('getChatMetadata hydrates the additional directories from the persisted overlay', async () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -3060,7 +3065,8 @@ suite('ClaudeAgent', () => {
 		// The host hands back the default chat's persisted `providerData`, which
 		// carries the SDK conversation id — the AH session id never addresses
 		// the SDK catalog.
-		const meta = await ctxB.agent.getSessionMetadata(created.session, created.chat!.providerData);
+		const chat = defaultChatUri(created.session);
+		const meta = await ctxB.agent.getChatMetadata(chat, chatContext(chat), created.chat!.providerData);
 
 		assert.deepStrictEqual(
 			meta?.workingDirectories?.map(d => d.fsPath),
@@ -3175,7 +3181,7 @@ suite('ClaudeAgent', () => {
 			VSBuffer.fromString('---\nname: worktree-skill\ndescription: Worktree skill\n---\nbody'),
 		);
 		await customizationChanged;
-		const customizations = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const skills = customizations.find(customization => customization.uri === URI.joinPath(worktree, '.claude', 'skills').toString());
 
 		assert.deepStrictEqual({
@@ -3229,13 +3235,13 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('materialize event payload includes the exact chat resource', async () => {
-		// Phase 6 §5.1 Test 4. Pins the {@link IAgentMaterializeSessionEvent}
+		// Phase 6 §5.1 Test 4. Pins the {@link IAgentMaterializeChatEvent}
 		// payload independently of the tracer in Test 3. The default
 		// {@link createNoopGitService} produces no project metadata, so
-		// `project` is `undefined`. AgentService relies on this exact
-		// shape to forward to its `sessionAdded` notification (it spreads
-		// the event into `IAgentSessionMetadata`-shaped fields), so a
-		// snapshot here is the load-bearing contract.
+		// `project` is `undefined`. Claude never mints a fresh backing at
+		// materialize time, so `result` is omitted entirely — AgentService
+		// relies on this exact shape to forward to its `sessionAdded`
+		// notification, so a snapshot here is the load-bearing contract.
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
@@ -3244,26 +3250,24 @@ suite('ClaudeAgent', () => {
 		const sessionId = created.sdkSessionId;
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
-		const events: IAgentMaterializeSessionEvent[] = [];
-		assert.ok(agent.onDidMaterializeSession);
-		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		const events: IAgentMaterializeChatEvent[] = [];
+		assert.ok(agent.onDidMaterializeChat);
+		disposables.add(agent.onDidMaterializeChat(e => events.push(e)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		assert.strictEqual(events.length, 1, 'event fires exactly once');
 		const ev = events[0];
 		assert.deepStrictEqual({
-			session: ev.session.toString(),
-			resource: ev.resource.toString(),
+			chat: ev.chat.toString(),
 			workingDirectory: ev.workingDirectories?.[0]?.toString(),
 			project: ev.project,
 			keys: Object.keys(ev).sort(),
 		}, {
-			session: created.session.toString(),
-			resource: defaultChatUri(created.session).toString(),
+			chat: defaultChatUri(created.session).toString(),
 			workingDirectory: cwd.toString(),
 			project: undefined,
-			keys: ['project', 'resource', 'session', 'workingDirectories'],
+			keys: ['chat', 'project', 'workingDirectories'],
 		});
 	});
 
@@ -3434,7 +3438,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3503,7 +3507,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3582,7 +3586,7 @@ suite('ClaudeAgent', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), result];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3645,7 +3649,7 @@ suite('ClaudeAgent', () => {
 		};
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3684,7 +3688,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3747,7 +3751,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3767,7 +3771,7 @@ suite('ClaudeAgent', () => {
 	test('D3: subagent spawn mirrors onto onDidSpawnChat while the subagent signals still flow', async () => {
 		// The membership channel (onDidSpawnChat) is derived from the
 		// subagent_started signal the agent already emits on
-		// onDidSessionProgress — the orchestrator records the spawn edge on the
+		// onDidChatProgress — the orchestrator records the spawn edge on the
 		// unified chat catalog. A completed subagent chat stays live and
 		// subscribable (removed only on session teardown). The
 		// signals must STILL be forwarded verbatim so the existing
@@ -3804,7 +3808,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 		const spawned: IAgentSpawnChatEvent[] = [];
 		disposables.add(agent.onDidSpawnChat!(e => spawned.push(e)));
 
@@ -3864,7 +3868,7 @@ suite('ClaudeAgent', () => {
 		];
 
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(agent.onDidChatProgress(s => signals.push(s)));
 
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -3945,7 +3949,7 @@ suite('ClaudeAgent', () => {
 		// Use the materialize event to deterministically wait until the
 		// session is in `_sessions` (and the in-flight deferred has been
 		// queued by `entry.send`). Without this we'd race materialize.
-		const materialized = Event.toPromise(agent.onDidMaterializeSession);
+		const materialized = Event.toPromise(agent.onDidMaterializeChat);
 
 		const send = agent.chats.sendMessage(defaultChatUri(created.session), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		const settle: { rejected?: unknown } = {};
@@ -3985,14 +3989,14 @@ suite('ClaudeAgent', () => {
 		// can fire, find the provisional record, abort, remove, and
 		// return. Without the pre-commit abort gate added in this fix,
 		// materialize would still set `_sessions[sessionId]` and fire
-		// `onDidMaterializeSession` — leaking a WarmQuery subprocess.
+		// `onDidMaterializeChat` — leaking a WarmQuery subprocess.
 		//
 		// Test setup uses a custom session database whose `setMetadata`
 		// blocks on a per-test deferred so we can deterministically
 		// interleave dispose with persist. The fix asserts:
 		//  - the racing `sendMessage` rejects with `CancellationError`
 		//  - the session never lands in `_sessions`
-		//  - `onDidMaterializeSession` never fires
+		//  - `onDidMaterializeChat` never fires
 		//  - the WarmQuery is asyncDisposed (no orphan subprocess)
 		const persistGate = new DeferredPromise<void>();
 		let persistEntered = false;
@@ -4039,8 +4043,8 @@ suite('ClaudeAgent', () => {
 		const sessionId = created.sdkSessionId;
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 
-		const materializeEvents: IAgentMaterializeSessionEvent[] = [];
-		disposables.add(agent.onDidMaterializeSession(e => materializeEvents.push(e)));
+		const materializeEvents: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(e => materializeEvents.push(e)));
 
 		// Kick off the materialize. It will pass the post-startup abort
 		// gate, create the wrapper, then park inside `setMetadata`.
@@ -4147,8 +4151,8 @@ suite('ClaudeAgent', () => {
 			makeResultSuccess(sessionId),
 		];
 
-		const events: IAgentMaterializeSessionEvent[] = [];
-		disposables.add(agent.onDidMaterializeSession(e => events.push(e)));
+		const events: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(e => events.push(e)));
 
 		await bindDefaultChat(agent, sessionUri);
 		await agent.chats.sendMessage(defaultChatUri(sessionUri), 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
@@ -4156,7 +4160,7 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({
 			startupCallCount: sdk.startupCallCount,
 			materializeEventCount: events.length,
-			eventSession: events[0]?.session.toString(),
+			eventChat: events[0]?.chat.toString(),
 			eventCwd: events[0]?.workingDirectories?.[0]?.fsPath,
 			startupOptionsCwd: sdk.capturedStartupOptions[0]?.cwd,
 			// In resume mode the SDK gets `Options.resume = <id>` and
@@ -4167,7 +4171,7 @@ suite('ClaudeAgent', () => {
 		}, {
 			startupCallCount: 1,
 			materializeEventCount: 1,
-			eventSession: sessionUri.toString(),
+			eventChat: defaultChatUri(sessionUri).toString(),
 			eventCwd: URI.file('/work').fsPath,
 			startupOptionsCwd: URI.file('/work').fsPath,
 			startupOptionsResume: sessionId,
@@ -4404,7 +4408,7 @@ suite('ClaudeAgent', () => {
 
 		const sessionUri = created.session;
 		const observed: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			const resource = s.kind === 'action' ? s.resource : s.chat;
 			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
@@ -4658,29 +4662,16 @@ suite('ClaudeAgent', () => {
 		}];
 
 		await disposeSession(agent, created.session);
-		const result = await agent.listLegacySessions();
+		const result = await agent.listLegacyChats();
 
 		assert.deepStrictEqual({
-			ids: result.map(r => AgentSession.id(r.session)),
+			ids: result.map(r => sessionIdOfChat(r.chat)),
 			summary: result[0]?.summary,
 			sdkCalls: sdk.listSessionsCallCount,
 		}, {
 			ids: [created.sdkSessionId],
 			summary: 'Hello world',
 			sdkCalls: 1,
-		});
-	});
-
-	test('normal provider enumeration does not project SDK conversations as AH membership', async () => {
-		const { agent, sdk } = createTestContext(disposables);
-		sdk.sessionList = [{ sessionId: 'sdk-only', summary: 'SDK only', lastModified: 1 }];
-
-		assert.deepStrictEqual({
-			sessions: await agent.listSessions(),
-			sdkCalls: sdk.listSessionsCallCount,
-		}, {
-			sessions: [],
-			sdkCalls: 0,
 		});
 	});
 
@@ -4736,12 +4727,12 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacySessions();
-		const a = result.find(r => AgentSession.id(r.session) === 'a');
-		const b = result.find(r => AgentSession.id(r.session) === 'b');
+		const result = await agent.listLegacyChats();
+		const a = result.find(r => sessionIdOfChat(r.chat) === 'a');
+		const b = result.find(r => sessionIdOfChat(r.chat) === 'b');
 		assert.deepStrictEqual({
 			count: result.length,
-			ids: result.map(r => AgentSession.id(r.session)).sort(),
+			ids: result.map(r => sessionIdOfChat(r.chat)).sort(),
 			summaryA: a?.summary,
 			summaryB: b?.summary,
 			modifiedA: a?.modifiedTime,
@@ -4805,11 +4796,11 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacySessions();
-		const find = (id: string) => result.find(r => AgentSession.id(r.session) === id);
+		const result = await agent.listLegacyChats();
+		const find = (id: string) => result.find(r => sessionIdOfChat(r.chat) === id);
 		assert.deepStrictEqual({
 			count: result.length,
-			ids: result.map(r => AgentSession.id(r.session)).sort(),
+			ids: result.map(r => sessionIdOfChat(r.chat)).sort(),
 			corruptSummary: find('corrupt')?.summary,
 		}, {
 			count: 3,
@@ -4843,15 +4834,15 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacySessions();
+		const result = await agent.listLegacyChats();
 		assert.deepStrictEqual(result, []);
 	});
 
-	test('getSessionMetadata joins SDK info with sidecar overlay, returns SDK-only fields for external sessions, and undefined for unknown ids (Phase 6.1 / Cycle D4 / I7)', async () => {
+	test('getChatMetadata joins SDK info with sidecar overlay, returns SDK-only fields for external sessions, and undefined for unknown ids (Phase 6.1 / Cycle D4 / I7)', async () => {
 		// Phase 6.1 plan / Cycle D4 + drift I7. CONTEXT.md M11 / agents.md
 		// section "Lazy session metadata" (~line 2125) require Claude to
-		// expose a per-session lookup that mirrors the
-		// `IAgent.getSessionMetadata` shape so AgentService can hydrate
+		// expose a per-chat lookup that mirrors the
+		// `IAgent.getChatMetadata` shape so AgentService can hydrate
 		// stale session URIs without enumerating the full provider
 		// catalog. The Claude shape MUST surface external CLI sessions
 		// (no sidecar) — otherwise `claude:/<id>` URIs from raw Anthropic
@@ -4895,21 +4886,24 @@ suite('ClaudeAgent', () => {
 		const sidecarUri = AgentSession.uri('claude', 'sidecar');
 		const externalUri = AgentSession.uri('claude', 'external');
 		const unknownUri = AgentSession.uri('claude', 'unknown');
+		const sidecarChat = defaultChatUri(sidecarUri);
+		const externalChat = defaultChatUri(externalUri);
+		const unknownChat = defaultChatUri(unknownUri);
 
-		const sidecar = await agent.getSessionMetadata!(sidecarUri);
-		const external = await agent.getSessionMetadata!(externalUri);
-		const unknown = await agent.getSessionMetadata!(unknownUri);
+		const sidecar = await agent.getChatMetadata(sidecarChat, chatContext(sidecarChat));
+		const external = await agent.getChatMetadata(externalChat, chatContext(externalChat));
+		const unknown = await agent.getChatMetadata(unknownChat, chatContext(unknownChat));
 
 		assert.deepStrictEqual({
 			sidecar: {
-				session: sidecar?.session.toString(),
+				chat: sidecar?.chat.toString(),
 				summary: sidecar?.summary,
 				startTime: sidecar?.startTime,
 				modifiedTime: sidecar?.modifiedTime,
 				workingDirectory: sidecar?.workingDirectories?.[0]?.toString(),
 			},
 			external: {
-				session: external?.session.toString(),
+				chat: external?.chat.toString(),
 				summary: external?.summary,
 				startTime: external?.startTime,
 				modifiedTime: external?.modifiedTime,
@@ -4919,14 +4913,14 @@ suite('ClaudeAgent', () => {
 			sdkLookups: sdk.getSessionInfoCalls.slice().sort(),
 		}, {
 			sidecar: {
-				session: sidecarUri.toString(),
+				chat: sidecarChat.toString(),
 				summary: 'With Sidecar',
 				startTime: 4900,
 				modifiedTime: 5000,
 				workingDirectory: URI.file('/work').toString(),
 			},
 			external: {
-				session: externalUri.toString(),
+				chat: externalChat.toString(),
 				summary: 'External',
 				startTime: 5900,
 				modifiedTime: 6000,
@@ -4937,19 +4931,20 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('getSessionMetadata resolves a registered AH session through its exact default-chat backing', async () => {
+	test('getChatMetadata resolves a registered AH session through its exact default-chat backing', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		const session = AgentSession.uri(agent.id, 'ah-session');
 		sdk.sessionList = [{ sessionId: 'sdk-default', summary: 'Exact default', lastModified: 10, cwd: '/work' }];
 
-		const metadata = await agent.getSessionMetadata!(session, JSON.stringify({ sdkSessionId: 'sdk-default' }));
+		const chat = defaultChatUri(session);
+		const metadata = await agent.getChatMetadata(chat, chatContext(chat), JSON.stringify({ sdkSessionId: 'sdk-default' }));
 
 		assert.deepStrictEqual({
-			session: metadata?.session.toString(),
+			chat: metadata?.chat.toString(),
 			summary: metadata?.summary,
 			lookups: sdk.getSessionInfoCalls,
 		}, {
-			session: session.toString(),
+			chat: chat.toString(),
 			summary: 'Exact default',
 			lookups: ['sdk-default'],
 		});
@@ -4958,7 +4953,7 @@ suite('ClaudeAgent', () => {
 	test('restore-reachable SDK reads defer (no download) when the SDK is not yet local (preselection premature-download fix)', async () => {
 		// Regression: when a materialized Claude session is restored on
 		// startup (the renderer subscribes to the last-active session), the
-		// host's restore path calls `getSessionMetadata` -> `getSessionInfo`
+		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
 		// and `chats.getMessages`, both of which dynamically import the SDK.
 		// Before the fix that eagerly triggered a cold SDK download (with no
 		// progress interest registered, so no notification) purely from
@@ -4986,10 +4981,11 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
-		const metadata = await agent.getSessionMetadata!(sessionUri);
+		const chat = defaultChatUri(sessionUri);
+		const metadata = await agent.getChatMetadata(chat, chatContext(chat));
 		await bindDefaultChat(agent, sessionUri);
 		const messages = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
-		const sessions = await agent.listLegacySessions();
+		const sessions = await agent.listLegacyChats();
 
 		assert.deepStrictEqual({
 			metadata,
@@ -5180,7 +5176,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('resolveSessionConfig returns Claude-native permissionMode + reused Permissions schema', async () => {
+	test('resolveChatConfig returns Claude-native permissionMode + reused Permissions schema', async () => {
 		// Plan section 3.3.5 / decision B5 — Claude collapses the platform's
 		// two-axis approval model (`autoApprove` × `mode`) onto a single
 		// `permissionMode` axis matching the SDK's native
@@ -5197,7 +5193,7 @@ suite('ClaudeAgent', () => {
 		// to decide what to render, and accidentally re-introducing
 		// `mode` would drop the wrong picker into the Claude UI.
 		const { agent } = createTestContext(disposables);
-		const result = await agent.resolveSessionConfig({});
+		const result = await agent.resolveChatConfig({});
 		const properties = result.schema.properties;
 		const permissionMode = properties['permissionMode'];
 
@@ -5228,14 +5224,14 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('sessionConfigCompletions returns no items (permissionMode is a static enum)', async () => {
+	test('chatConfigCompletions returns no items (permissionMode is a static enum)', async () => {
 		// Plan section 3.3.5 — Claude's only schema property is the
 		// `permissionMode` static enum, so dynamic completion is
 		// definitionally empty. Locks the contract before Phase 6's
 		// branch picker (subject to the worktree-extraction prerequisite
 		// in section 8) might want to plug into this method.
 		const { agent } = createTestContext(disposables);
-		const result = await agent.sessionConfigCompletions({ property: 'permissionMode', query: 'def' });
+		const result = await agent.chatConfigCompletions({ property: 'permissionMode', query: 'def' });
 		assert.deepStrictEqual(result, { items: [] });
 	});
 
@@ -6435,7 +6431,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		const host = new FakeServerToolHost();
 		const { ctx, canUseTool } = await materialize(undefined, host);
 		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(signal => signals.push(signal)));
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
 
 		const result = await canUseTool('mcp__host__viewUnreviewedComments', {}, makeOptions('tu_empty_comments'));
 
@@ -6463,7 +6459,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		const { ctx, canUseTool, sessionUri } = await materialize();
 
 		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
 
 		const promise = canUseTool('Read', { file_path: '/tmp/foo.txt' }, makeOptions('tu_shape'));
 		await tick();
@@ -6497,14 +6493,14 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 
 	test('Test 8 — synchronous auto-respond inside pending_confirmation listener resolves canUseTool', async () => {
 		// Regression: the `agentSideEffects` auto-approval path responds
-		// synchronously inside `onDidSessionProgress.fire(...)`. If the
+		// synchronously inside `onDidChatProgress.fire(...)`. If the
 		// permission deferred is registered AFTER the fire, that response
 		// hits an empty pending map and the SDK's `canUseTool` deadlocks.
 		// Mirror the synchronous-respond pattern here and assert the
 		// canUseTool promise resolves with `allow`.
 		const { ctx, canUseTool } = await materialize();
 
-		disposables.add(ctx.agent.onDidSessionProgress(s => {
+		disposables.add(ctx.agent.onDidChatProgress(s => {
 			if (s.kind === 'pending_confirmation') {
 				ctx.agent.respondToPermissionRequest(s.state.toolCallId, true);
 			}
@@ -6578,7 +6574,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		session.subagents.noteInnerTool('toolu_inner', 'toolu_parent');
 
 		const signals: AgentSignal[] = [];
-		const sub = ctx.agent.onDidSessionProgress(s => signals.push(s));
+		const sub = ctx.agent.onDidChatProgress(s => signals.push(s));
 		disposables.add(sub);
 
 		const promise = canUseTool('Read', { file_path: '/tmp/inner.txt' }, {
@@ -6611,7 +6607,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		session.subagents.noteInnerTool('toolu_inner_plan', 'toolu_parent_plan');
 
 		const signals: AgentSignal[] = [];
-		const sub = ctx.agent.onDidSessionProgress(s => signals.push(s));
+		const sub = ctx.agent.onDidChatProgress(s => signals.push(s));
 		disposables.add(sub);
 
 		// AskUserQuestion — emits a ChatInputRequested action.
@@ -6688,7 +6684,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		};
 
 		const inputRequests: ChatInputRequest[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(s => {
+		disposables.add(ctx.agent.onDidChatProgress(s => {
 			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
 				inputRequests.push(s.action.request);
 			}
@@ -6767,7 +6763,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		const { ctx, canUseTool, sessionUri } = await materialize();
 
 		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
 
 		const promise = canUseTool('ExitPlanMode', { plan: '1. Read foo\n2. Edit foo' }, {
 			signal: new AbortController().signal,
@@ -6847,7 +6843,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		// SDK's `canUseTool` deadlocks.
 		const { ctx, canUseTool } = await materialize();
 
-		disposables.add(ctx.agent.onDidSessionProgress(s => {
+		disposables.add(ctx.agent.onDidChatProgress(s => {
 			if (s.kind === 'pending_confirmation' && s.state.toolName === 'ExitPlanMode') {
 				ctx.agent.respondToPermissionRequest(s.state.toolCallId, true);
 			}
@@ -6993,7 +6989,7 @@ suite('ClaudeAgent (Phase 10.6 — MCP elicitation translation)', () => {
 		const sessionId = created.sdkSessionId;
 
 		const inputRequests: ChatInputRequest[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(s => {
+		disposables.add(ctx.agent.onDidChatProgress(s => {
 			if (s.kind === 'action' && s.action.type === ActionType.ChatInputRequested) {
 				inputRequests.push(s.action.request);
 			}
@@ -7314,7 +7310,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		const sid = AgentSession.id(sessionUri);
 
 		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
 
 		const longSend = ctx.agent.chats.sendMessage(defaultChatUri(sessionUri), 'long task', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(sessionUri)));
 		await tick();
@@ -7484,7 +7480,7 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		// `steering_consumed` signal that fires the moment the iterable
 		// hands the message to the SDK.
 		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
+		disposables.add(ctx.agent.onDidChatProgress(s => signals.push(s)));
 
 		// Inject steering and capture its uuid via the iterable's drain.
 		ctx.agent.setPendingMessages!(defaultChatUri(created.session), { id: 'pending-steer', message: { text: 'moo', origin: { kind: MessageKind.User } } }, []);
@@ -7875,7 +7871,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			VSBuffer.fromString(JSON.stringify({ slack: { type: 'http', url: 'https://mcp.slack.com/mcp' } })),
 		);
 		const created = await createSession(agent, { workingDirectories: [workspace] });
-		const before = await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session));
+		const before = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const server = before.find(customization => customization.type === CustomizationType.McpServer && customization.name === 'slack');
 		assert.ok(server);
 
@@ -7897,13 +7893,13 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			id: server.id,
 			enabled: false,
 		});
-		const staged = await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session));
+		const staged = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const sessionId = created.sdkSessionId;
 		sdk.supportedAgentsResult = [];
 		sdk.mcpServerStatusResult = [{ name: 'slack', status: 'connected' }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		const afterMaterialize = await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session));
+		const afterMaterialize = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationToggled,
 			id: server.id,
@@ -7911,7 +7907,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
-		const afterEnable = await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session));
+		const afterEnable = await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const queries = sdk.warmQueries.map(warm => warm.produced).filter(query => query !== undefined);
 		const toggleCalls = queries.flatMap(query => query.mcpToggleCalls);
 		const toggleTransitions = toggleCalls.filter((call, index) => index === 0 || toggleCalls[index - 1].enabled !== call.enabled);
@@ -7966,7 +7962,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const updates: string[] = [];
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			if (s.kind === 'action' && s.action.type === ActionType.SessionCustomizationUpdated) {
 				updates.push(s.action.customization.uri.toString());
 			}
@@ -7992,7 +7988,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 
 		const updates: { uri: string }[] = [];
-		disposables.add(agent.onDidSessionProgress(s => {
+		disposables.add(agent.onDidChatProgress(s => {
 			if (s.kind === 'action' && s.action.type === ActionType.SessionCustomizationUpdated) {
 				updates.push({ uri: s.action.customization.uri.toString() });
 			}
@@ -8021,8 +8017,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await syncClientCustomizations(agent, stateManager, s2.session, 'c', [makeClientCustomization('https://shared', 'S')]);
 
 		const [initial1, initial2] = await Promise.all([
-			agent.getSessionCustomizations(s1.session, hostCustomizations(stateManager, s1.session)),
-			agent.getSessionCustomizations(s2.session, hostCustomizations(stateManager, s2.session)),
+			agent.getChatCustomizations(defaultChatUri(s1.session), chatContext(defaultChatUri(s1.session)), hostCustomizations(stateManager, s1.session)),
+			agent.getChatCustomizations(defaultChatUri(s2.session), chatContext(defaultChatUri(s2.session)), hostCustomizations(stateManager, s2.session)),
 		]);
 		publishReducerCustomizations(stateManager, s1.session, initial1);
 		publishReducerCustomizations(stateManager, s2.session, initial2);
@@ -8033,8 +8029,8 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 
 		const [projected1, projected2] = await Promise.all([
-			agent.getSessionCustomizations(s1.session, hostCustomizations(stateManager, s1.session)),
-			agent.getSessionCustomizations(s2.session, hostCustomizations(stateManager, s2.session)),
+			agent.getChatCustomizations(defaultChatUri(s1.session), chatContext(defaultChatUri(s1.session)), hostCustomizations(stateManager, s1.session)),
+			agent.getChatCustomizations(defaultChatUri(s2.session), chatContext(defaultChatUri(s2.session)), hostCustomizations(stateManager, s2.session)),
 		]);
 		assert.deepStrictEqual({
 			first: projected1.find(customization => customization.id === customizationId('https://shared'))?.enabled,
@@ -8061,11 +8057,11 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// `IAgent.getCustomizations()` is the provider-level catalogue
 		// (host-configured), NOT an aggregator across sessions. Claude has
 		// no host-configured customizations today, so [] is the contract.
-		// Client-pushed refs flow through `getSessionCustomizations` instead.
+		// Client-pushed refs flow through `getChatCustomizations` instead.
 		assert.deepStrictEqual(agent.getCustomizations(), []);
 	});
 
-	test('getSessionCustomizations resolves against a provisional session', async () => {
+	test('getChatCustomizations resolves against a provisional session', async () => {
 		const pm = new FakeAgentPluginManager();
 		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
 		const { agent, stateManager } = buildCtxWith(pm);
@@ -8075,7 +8071,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		await syncClientCustomizations(agent, stateManager, created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 
-		const customizations = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		// The client-pushed customization, plus the curated read-only built-ins
 		// always present pre-materialize for discoverability (before a live SDK
 		// set exists): the built-in agents directory and the "Built-in" skills
@@ -8083,7 +8079,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills']);
 	});
 
-	test('getSessionCustomizations overlays the enablement state onto client-pushed entries', async () => {
+	test('getChatCustomizations overlays the enablement state onto client-pushed entries', async () => {
 		const pm = new FakeAgentPluginManager();
 		pm.syncResult = [makeSyncedRef('https://a', '/p/a')];
 		const { agent, stateManager } = buildCtxWith(pm);
@@ -8091,7 +8087,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 
 		await syncClientCustomizations(agent, stateManager, created.session, 'c', [makeClientCustomization('https://a', 'A')]);
-		const initial = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const initial = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		publishReducerCustomizations(stateManager, created.session, initial);
 		stateManager.dispatchServerAction(created.session.toString(), {
 			type: ActionType.SessionCustomizationToggled,
@@ -8099,7 +8095,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			enabled: false,
 		});
 
-		const customizations = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		assert.strictEqual(customizations.find(c => c.uri === 'https://a')?.enabled, false);
 	});
 
@@ -8157,7 +8153,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		];
 		pm.syncResult = [makeSyncedRef('https://x', '/p/x')];
 		await syncClientCustomizations(agent, stateManager, created.session, 'c', [makeClientCustomization('https://x', 'X')]);
-		publishReducerCustomizations(stateManager, created.session, await agent.getSessionCustomizations(created.session, hostCustomizations(stateManager, created.session)));
+		publishReducerCustomizations(stateManager, created.session, await agent.getChatCustomizations(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session)));
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		const session = agent.getSessionForTesting(created.session)!;
 		// First-turn materialize consumed the dirty bit from the sync
@@ -8199,7 +8195,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('getSessionCustomizations swallows SDK snapshot failure and returns the client-pushed projection', async () => {
+	test('getChatCustomizations swallows SDK snapshot failure and returns the client-pushed projection', async () => {
 		// `snapshotResolvedCustomizations` calls `supportedAgents()` and
 		// `mcpServerStatus()` in `Promise.all`; the FakeQuery throws on
 		// both. The session should warn-log and still return the
@@ -8215,7 +8211,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await syncClientCustomizations(agent, stateManager, created.session, 'c', [makeClientCustomization('https://a', 'A')]);
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		const customizations = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		// SDK snapshot failed → `sdk` stays undefined → unfiltered fallback:
 		// the client-pushed entry survives (UI not blanked) and the curated
 		// built-ins are appended (the built-in agents directory and the skills
@@ -8223,7 +8219,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		assert.deepStrictEqual(customizations.map(c => c.uri), ['https://a', 'file:///mock-home/.claude/agents', 'agent-builtin:/skills'], 'client-pushed projection survives SDK snapshot failure');
 	});
 
-	test('getSessionCustomizations derives the Built-in container from the live SDK command set post-materialize', async () => {
+	test('getChatCustomizations derives the Built-in container from the live SDK command set post-materialize', async () => {
 		// Once materialized, the runtime's real built-ins are exactly the SDK
 		// commands we don't discover on disk — surfaced read-only with the
 		// SDK's own descriptions, replacing the curated pre-materialize seed.
@@ -8241,7 +8237,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		const customizations = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		assert.strictEqual(customizations.length, 1);
 		const container = customizations[0];
 		assert.strictEqual(container.type, CustomizationType.Directory);
@@ -8259,7 +8255,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		);
 	});
 
-	test('getSessionCustomizations surfaces a native plugin captured from the live SDK init.plugins (path filter)', async () => {
+	test('getChatCustomizations surfaces a native plugin captured from the live SDK init.plugins (path filter)', async () => {
 		// Native plugins are auto-loaded by the runtime; the host only surfaces
 		// them. Post-materialize, a plugin survives only when the captured
 		// `system/init.plugins` reports its resolved root path — proving the
@@ -8284,7 +8280,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		sdk.nextQueryMessages = [init, makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
-		const customizations = await agent.getSessionCustomizations!(created.session, hostCustomizations(stateManager, created.session));
+		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		assert.deepStrictEqual(
 			customizations.filter(c => c.type === CustomizationType.Plugin).map(c => c.name),
 			['tg@m'],
@@ -8606,7 +8602,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const sourceUri = AgentSession.uri('claude', sourceId);
 		// Seed the SOURCE overlay; the fork must copy it onto the exact target
 		// chat's own overlay key (not the SDK-derived fork session URI).
-		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore, 'claude');
+		const metaStore = instantiationService.createInstance(ClaudeSessionMetadataStore);
 		await metaStore.write(sourceUri, { permissionMode: 'plan' });
 
 		sdk.sessionMessagesById.set(sourceId, forkSourceMessages(sourceId));
@@ -9000,7 +8996,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			}
 		};
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidSessionProgress(signal => signals.push(signal)));
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
 
 		await agent.chats.sendMessage(chatUri, 'additional', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chatUri));
 

@@ -11,7 +11,7 @@ import type { IAgent } from '../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
@@ -30,7 +30,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		/**
 		 * The owning session's last host-published customization snapshot.
 		 * Supplied by Agent Host so the provider hands it to
-		 * `getSessionCustomizations` explicitly instead of the agent reading it
+		 * `getChatCustomizations` explicitly instead of the agent reading it
 		 * from shared host state. `undefined` when the host has published no
 		 * snapshot for the session yet.
 		 */
@@ -85,10 +85,8 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	private async _getCandidates(agent: IAgent, session: URI): Promise<readonly SlashCommmandCandidate[]> {
-		if (!agent.getSessionCustomizations) {
-			return [];
-		}
-		const customizations = await agent.getSessionCustomizations(session, this._getHostCustomizations(session));
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const customizations = await agent.getChatCustomizations(chat, { configurationResource: session, resource: session }, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {

@@ -262,7 +262,7 @@ suite('AgentSideEffects', () => {
 		// AgentSideEffects starts its turn. Registered here (ahead of each test's
 		// registerProgressListener) so the subagent chat exists first. addChat is
 		// idempotent, matching the real spawn-channel/side-effects overlap.
-		disposables.add(agent.onDidSessionProgress(signal => {
+		disposables.add(agent.onDidChatProgress(signal => {
 			const spawn = SubagentChatSignal.toSpawnEvent(signal);
 			if (spawn) {
 				stateManager.addChat(spawn.session.toString(), spawn.chat.toString(), {
