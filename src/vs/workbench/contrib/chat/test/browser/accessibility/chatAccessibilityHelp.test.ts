@@ -134,11 +134,15 @@ suite('Chat Accessibility Help', () => {
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			chatInputWindow: getAccessibilityHelpText('chatInputWindow', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
 		}, {
 			panelChat: true,
 			agentView: true,
 			editsView: true,
 			quickChat: false,
+			inlineChat: false,
+			chatInputWindow: false,
 		});
 	});
 });

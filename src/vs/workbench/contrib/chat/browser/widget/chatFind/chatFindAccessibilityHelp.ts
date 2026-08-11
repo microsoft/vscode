@@ -41,7 +41,7 @@ class ChatFindAccessibilityHelpProvider extends Disposable implements IAccessibl
 	provideContent(): string {
 		const content: string[] = [];
 		content.push(localize('chatFind.header', "Accessibility Help: Chat Transcript Find"));
-		content.push(localize('chatFind.context', "You are in the Find input for the chat transcript. It searches the full logical transcript, including collapsed reasoning and tool details, not just what is currently rendered."));
+		content.push(localize('chatFind.context', "You are in the Find input for the chat transcript. It searches the whole conversation, including turns that are scrolled out of view, not only what is on screen."));
 		content.push('');
 		content.push(localize('chatFind.keyboardHeader', "Keyboard Navigation Summary:"));
 		content.push(localize('chatFind.keyEnter', "- Enter: Move to the next match."));
@@ -55,7 +55,7 @@ class ChatFindAccessibilityHelpProvider extends Disposable implements IAccessibl
 		content.push(localize('chatFind.optionRegex', "- Regular Expression: Use pattern matching for advanced searches."));
 		content.push('');
 		content.push(localize('chatFind.revealHeader', "Navigating to a Match:"));
-		content.push(localize('chatFind.revealDesc', "Moving to a match scrolls the transcript to it and expands any collapsed disclosure (such as earlier work or reasoning) that contains it."));
+		content.push(localize('chatFind.revealDesc', "Moving to a match scrolls the transcript to it, expanding the completed-work disclosure when the match is inside it."));
 		content.push('');
 		content.push(localize('chatFind.settingsHeader', "Settings You Can Adjust ({0} opens Settings):", '<keybinding:workbench.action.openSettings>'));
 		content.push(localize('chatFind.settingVerbosity', "- `accessibility.verbosity.find`: Controls whether Chat Find announces the Accessibility Help hint."));

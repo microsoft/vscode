@@ -56,7 +56,9 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
-	test('searches reasoning ("thinking") and tool invocation details', () => {
+	test('searches tool invocation messages but not collapsed reasoning', () => {
+		// Reasoning bodies are built only on expansion, so indexing them would report matches
+		// that can never be revealed. See `buildSegments`.
 		const items = [
 			fakeResponse('resp1', [
 				thinking('I should check the needle in this haystack first.'),
@@ -66,8 +68,22 @@ suite('ChatFindModel', () => {
 		const model = new ChatFindModel(() => items);
 		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
 
-		assert.strictEqual(model.matches.length, 2);
-		assert.ok(model.matches.every(m => m.itemId === 'resp1'));
+		assert.strictEqual(model.matches.length, 1);
+		assert.strictEqual(model.matches[0].itemId, 'resp1');
+		model.dispose();
+	});
+
+	test('caps the total match count across segments', () => {
+		// Two segments that each exceed the cap on their own: the total must still be bounded.
+		const many = new Array(9000).fill('needle').join(' ');
+		const items = [
+			fakeResponse('resp1', [markdown(many)]),
+			fakeResponse('resp2', [markdown(many)]),
+		];
+		const model = new ChatFindModel(() => items);
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+
+		assert.strictEqual(model.matches.length, 9999);
 		model.dispose();
 	});
 

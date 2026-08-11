@@ -71,7 +71,9 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 			// Mirrors the renderer, which puts the references slot first and code citations
 			// between the response content and the trailing parts that hold row-level text.
 			const trailingPartIndex = renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
-			const parts = getChatResponsePlaintextParts(item, true);
+			// Reasoning is deliberately excluded: `ChatThinkingContentPart` builds its body only
+			// once expanded, so a match there could be counted but never revealed or highlighted.
+			const parts = getChatResponsePlaintextParts(item, false);
 			const textByRenderedPart = new Map<number, string>();
 			for (const part of parts) {
 				if (part.text.trim().length > 0) {
@@ -103,7 +105,7 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 	return segments;
 }
 
-function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp): IChatFindMatch[] {
+function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp, limit: number): IChatFindMatch[] {
 	const matches: IChatFindMatch[] = [];
 	regex.lastIndex = 0;
 	let occurrenceIndex = 0;
@@ -125,7 +127,7 @@ function findMatchesInSegment(segment: IChatFindSegment, regex: RegExp): IChatFi
 		if (match[0].length === 0) {
 			regex.lastIndex++;
 		}
-		if (++safety > MAX_FIND_MATCHES || matches.length >= MAX_FIND_MATCHES) {
+		if (++safety > MAX_FIND_MATCHES || matches.length >= limit) {
 			break;
 		}
 	}
@@ -215,10 +217,10 @@ export class ChatFindModel extends Disposable {
 		const segments = buildSegments(this.getItems());
 		const matches: IChatFindMatch[] = [];
 		for (const segment of segments) {
-			matches.push(...findMatchesInSegment(segment, regex));
 			if (matches.length >= MAX_FIND_MATCHES) {
 				break;
 			}
+			matches.push(...findMatchesInSegment(segment, regex, MAX_FIND_MATCHES - matches.length));
 		}
 
 		this._matches = matches;

@@ -240,7 +240,12 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 
 		this._register(this.host.onDidChangeContent(() => {
 			if (this.isVisible()) {
-				this._recomputeDelayer.trigger(() => this._model.recompute()).catch(() => { });
+				this._recomputeDelayer.trigger(() => {
+					this._model.recompute();
+					// The row usually rerenders before this debounced pass, so its repaint ran
+					// against the previous match set; repaint again now the new matches exist.
+					this._scheduleRepaint();
+				}).catch(() => { });
 			}
 		}));
 		this._register(this.host.onDidRerenderRow(() => {
@@ -508,11 +513,15 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		const currentRanges: Range[] = [];
 		const otherRanges: Range[] = [];
 		const codeDecorations = new Map<CodeBlockPart, { range: EditorRange; current: boolean }[]>();
-		for (let index = 0; index < this._model.matches.length && currentRanges.length + otherRanges.length < MAX_VISIBLE_HIGHLIGHTS; index++) {
+		// Counts code-block matches too: they are painted as editor decorations rather than DOM
+		// ranges, so bounding only the ranges would let an all-code result set rescan every match.
+		let locatedCount = 0;
+		for (let index = 0; index < this._model.matches.length && locatedCount < MAX_VISIBLE_HIGHLIGHTS; index++) {
 			const locatedMatch = this._locateMatch(this._model.matches[index], regex);
 			if (!locatedMatch) {
 				continue;
 			}
+			locatedCount++;
 			if (isCodeMatch(locatedMatch)) {
 				const decorations = codeDecorations.get(locatedMatch.codeBlock) ?? [];
 				decorations.push({ range: locatedMatch.range, current: index === this._model.activeIndex });
