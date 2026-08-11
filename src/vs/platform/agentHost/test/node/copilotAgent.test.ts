@@ -800,9 +800,9 @@ suite('CopilotAgent', () => {
 			});
 			assert.deepStrictEqual({ events: telemetryService.events, experimentProperties: telemetryService.experimentProperties }, {
 				events: [
-					{ eventName: 'copilotCli/response.success', data: expectedData('set', 'experiment:1') },
-					{ eventName: 'copilotCli/response.success', data: expectedData('wiped-sticky', 'experiment:1') },
-					{ eventName: 'copilotCli/response.success', data: expectedData('cleared') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('set', 'experiment:1') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('wiped-sticky', 'experiment:1') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('cleared') },
 				],
 				experimentProperties: {},
 			});
