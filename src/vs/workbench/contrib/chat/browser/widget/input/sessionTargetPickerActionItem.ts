@@ -82,6 +82,24 @@ export function createSessionTypePickerAction(
 }
 
 /**
+ * Returns picker availability using the signed-out Agent Host setting for every chat surface.
+ */
+export function getConfiguredSessionTypePickerAvailability(
+	type: AgentSessionTarget,
+	configurationService: IConfigurationService,
+	chatSessionsService: IChatSessionsService,
+	chatEntitlementService: IChatEntitlementService,
+	languageModelsService: ILanguageModelsService,
+): SessionTypeAvailability {
+	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+	return getSessionTypePickerAvailability(
+		type,
+		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
+		allowSignedOutWhenUsable,
+	);
+}
+
+/**
  * Action view item for selecting a session target in the chat interface.
  * This picker allows switching between different chat session types for new/empty sessions.
  */
@@ -115,11 +133,12 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
-					const allowSignedOutWhenUsable = this._isSessionsWindow && this.configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
-					const availability = getSessionTypePickerAvailability(
+					const availability = getConfiguredSessionTypePickerAvailability(
 						sessionTypeItem.type,
-						getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type, allowSignedOutWhenUsable),
-						allowSignedOutWhenUsable,
+						this.configurationService,
+						this.chatSessionsService,
+						this.chatEntitlementService,
+						this.languageModelsService,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,
