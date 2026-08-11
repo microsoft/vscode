@@ -11,8 +11,12 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IHoverOptions, IHoverWidget } from '../../../../../base/browser/ui/hover/hover.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
 import { UpdateTitleBarEntry } from '../../browser/updateTitleBarEntry.js';
@@ -89,5 +93,44 @@ suite('UpdateTitleBarEntry', () => {
 			tabDefaultPrevented: false,
 			hoverShowRequests: [{ focus: true, trapFocus: true }],
 		});
+	});
+});
+
+suite('UpdateTooltip', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('removes hidden actions from the tab order', () => {
+		const configurationService = new TestConfigurationService({ 'update.mode': 'default' });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const tooltip = store.add(new UpdateTooltip(
+			new class extends mock<IClipboardService>() { },
+			store.add(new TestCommandService()),
+			configurationService,
+			new TestHoverService(),
+			new class extends mock<IMeteredConnectionService>() {
+				override readonly isConnectionMetered = false;
+			},
+			new class extends mock<IProductService>() {
+				override readonly nameLong = 'Code - OSS Dev';
+				override readonly version = '1.134.0';
+				override readonly commit = 'current';
+			},
+		));
+
+		tooltip.renderState(State.Ready({ version: 'next', productVersion: '1.135.0' }, false, false));
+
+		assert.deepStrictEqual(
+			Array.from(tooltip.domNode.querySelectorAll<HTMLElement>('button, [tabindex]')).map(element => ({
+				className: element.className,
+				display: element.style.display,
+				tabIndex: element.tabIndex,
+			})),
+			[
+				{ className: 'copy-version-button', display: '', tabIndex: 0 },
+				{ className: 'copy-version-button', display: '', tabIndex: 0 },
+				{ className: 'release-notes-button', display: '', tabIndex: 0 },
+				{ className: 'action-button', display: 'none', tabIndex: -1 },
+			],
+		);
 	});
 });
