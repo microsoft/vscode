@@ -442,6 +442,20 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Returns a chat's {@link ChatOrigin} from its catalog summary.
+	 *
+	 * Reads the {@link ChatSummary} rather than the {@link ChatState} on
+	 * purpose: a restored chat registers its summary (origin included) up front
+	 * and only materializes state lazily via {@link resolveChatState}, so the
+	 * summary is the one source that is populated for restored and
+	 * provider-spawned chats alike. Origin is immutable once a chat exists, so
+	 * no hydration is ever required to read it.
+	 */
+	getChatOrigin(chat: URI): ChatOrigin | undefined {
+		return this._chatEntries.get(chat)?.summary.origin;
+	}
+
+	/**
 	 * Resolves a restored chat's provider backing and history when necessary.
 	 * Concurrent calls for one entry share its resolver; a failed attempt can
 	 * be retried unless the entry was removed or replaced.
@@ -865,6 +879,12 @@ export class AgentHostStateManager extends Disposable {
 	 * When `options.providerData` is supplied it is recorded verbatim as the
 	 * peer chat's opaque, agent-owned restore blob. The StateManager never
 	 * parses it. The default chat never carries `providerData`.
+	 *
+	 * `options.origin` records how the chat came into existence (a fork, a side
+	 * chat, or a tool spawn). Omitting it means "the user created this chat",
+	 * which is exactly the default {@link ChatOriginKind.User} origin
+	 * {@link createDefaultChatSummary} stamps — so every chat in the catalog
+	 * always has an origin.
 	 */
 	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
@@ -889,11 +909,15 @@ export class AgentHostStateManager extends Disposable {
 			this.updateChatTitle(session, defaultChatUri, sessionState.title);
 		}
 
+		// `createDefaultChatSummary` already stamps the plain
+		// `ChatOriginKind.User` origin a user-created chat has. Only an
+		// explicitly supplied origin (fork, side chat, tool spawn) replaces it,
+		// so a chat is never left without provenance.
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options?.title ?? '',
 			status: SessionStatus.Idle,
-			origin: options?.origin,
+			...(options?.origin ? { origin: options.origin } : {}),
 			interactivity: options?.interactivity,
 		};
 		this._chatEntries.set(chatUri, {
@@ -933,7 +957,10 @@ export class AgentHostStateManager extends Disposable {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
 			status: SessionStatus.Idle,
-			origin: options.origin,
+			// A persisted catalog entry with no recorded origin is a plain
+			// user-created chat; keep the default rather than restoring it
+			// without provenance.
+			...(options.origin ? { origin: options.origin } : {}),
 			interactivity: options.interactivity,
 		};
 		sessionState.chats = [...sessionState.chats, chatSummary];

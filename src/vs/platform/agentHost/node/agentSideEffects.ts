@@ -29,7 +29,7 @@ import { ISessionDatabase, ISessionDataService } from '../common/sessionDataServ
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionInputRequest } from '../common/state/protocol/state.js';
+import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type Customization, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
@@ -49,7 +49,6 @@ import {
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
-	resolveChatUri,
 	SessionLifecycle,
 	SessionStatus,
 	ToolCallStatus,
@@ -69,6 +68,7 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
+import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
 import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
@@ -326,6 +326,19 @@ export class AgentSideEffects extends Disposable {
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
+			// A chat joining the catalog changes the session's authoritative
+			// membership, so every client already contributing to the session
+			// is re-fanned-out over the new set. Handled here (rather than in
+			// `handleAction`) because every chat-membership path — user
+			// `createChat`, a provider-spawned subagent, a restored subagent —
+			// funnels through the same server-dispatched action. Agent Host
+			// stays the sole owner of session→chat membership; the provider
+			// only ever replaces what it was handed.
+			if (envelope.action.type === ActionType.SessionChatAdded) {
+				for (const activeClient of this._stateManager.getSessionState(envelope.channel)?.activeClients ?? []) {
+					this._fanOutActiveClient(envelope.channel, activeClient);
+				}
+			}
 			if (envelope.action.type === ActionType.SessionConfigChanged) {
 				const values = this._stateManager.getSessionState(envelope.channel)?.config?.values;
 				if (values) {
@@ -346,9 +359,57 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
-		const sessionUri = URI.parse(session);
-		const chatUri = URI.parse(chat);
-		return { session: sessionUri, resource: resolveChatUri(sessionUri, chatUri) };
+		return createAgentChatContext(this._stateManager, session, chat);
+	}
+
+	/**
+	 * The owning session's last host-published customization snapshot — the
+	 * same list clients observe on `SessionState.customizations`, including
+	 * user enablement toggles. Supplied explicitly at every provider boundary
+	 * that needs them.
+	 *
+	 * `undefined` means the host has not published a snapshot for this session
+	 * yet (it is unknown, provisional, or evicted). That is deliberately
+	 * distinct from an empty list: the provider must reconcile against its own
+	 * state instead of treating "no snapshot" as "no customizations".
+	 */
+	private _hostCustomizations(session: ProtocolURI): readonly Customization[] | undefined {
+		return this._stateManager.getSessionState(session)?.customizations;
+	}
+
+	/**
+	 * Hands a client's contribution to the provider over the session's exact,
+	 * host-owned chat membership.
+	 *
+	 * Agent Host owns the fan-out end to end: the provider receives the
+	 * complete chat list (default chat first) plus the effective host
+	 * customizations, and MUST treat it as the authoritative replacement for
+	 * that client's membership. It never synthesizes a default-chat URI, owns
+	 * session→chat membership, or reads customizations back out of shared host
+	 * state.
+	 *
+	 * When the host has no state for the session there is no authoritative
+	 * membership to hand over, so the fan-out is skipped rather than invented.
+	 * The client's contribution is preserved in the session state and replayed
+	 * once state exists — {@link ActionType.SessionChatAdded} and a later
+	 * {@link ActionType.SessionActiveClientSet} both re-enter here.
+	 */
+	private _fanOutActiveClient(session: ProtocolURI, activeClient: SessionActiveClient): void {
+		const agent = this._options.getAgent(session);
+		if (!agent) {
+			return;
+		}
+		const chats = getSessionChatsForFanOut(this._stateManager, session);
+		if (!chats) {
+			this._logService.warn(`[AgentSideEffects] Skipping active-client fan-out for session without host state: session=${session}, clientId=${activeClient.clientId}`);
+			return;
+		}
+		const handle = agent.getOrCreateActiveClient(URI.parse(session), {
+			clientId: activeClient.clientId,
+			displayName: activeClient.displayName,
+		}, chats, this._hostCustomizations(session));
+		handle.tools = activeClient.tools;
+		handle.customizations = activeClient.customizations ?? [];
 	}
 
 	/**
@@ -390,7 +451,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
-		const customizations = await agent.getSessionCustomizations(URI.parse(session));
+		const customizations = await agent.getSessionCustomizations(URI.parse(session), this._hostCustomizations(session));
 
 		// Skip the dispatch when the resolved customizations match what the
 		// session state already holds. A single edit under a shared `~/.claude`
@@ -1274,6 +1335,16 @@ export class AgentSideEffects extends Disposable {
 		return chatChannel;
 	}
 
+	/**
+	 * Forwards a completed client tool call to the provider.
+	 *
+	 * `chat` is the host-resolved *routing* target — for a subagent chat that
+	 * is the ancestor chat whose provider runtime owns the tool call (see
+	 * {@link _toolCallCompletionChat}). The context describes the chat the tool
+	 * call was actually addressed to, so a provider can recover the spawn edge
+	 * with `resolveSubagentChatParent(context)` instead of walking host state.
+	 * The two differ exactly when the addressed chat is a subagent.
+	 */
 	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
 		const completionChat = this._toolCallCompletionChat(chatChannel);
 		const agent = this._options.getAgent(sessionChannel);
@@ -1282,7 +1353,7 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		this._logService.info(`[AgentSideEffects] Forwarding client tool completion: source=${source}, session=${sessionChannel}, chat=${chatChannel}, completionChat=${completionChat}, toolCallId=${toolCallId}, success=${result.success}`);
-		agent.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(completionChat), toolCallId, result);
+		agent.onClientToolCallComplete(URI.parse(sessionChannel), URI.parse(completionChat), toolCallId, result, this._chatContext(sessionChannel, chatChannel));
 	}
 
 	// ---- Side-effect handlers --------------------------------------------------
@@ -1471,7 +1542,8 @@ export class AgentSideEffects extends Disposable {
 				const agent = this._options.getAgent(sessionChannel);
 				if (agent) {
 					const chat = URI.parse(channel);
-					agent.chats.abort(chat).catch(err => {
+					const session = parseRequiredSessionUriFromChatUri(channel);
+					agent.chats.abort(chat, this._chatContext(session, channel)).catch(err => {
 						this._logService.error('[AgentSideEffects] abort failed', err);
 					});
 				}
@@ -1558,17 +1630,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionActiveClientSet: {
-				const agent = this._options.getAgent(channel);
-				if (!agent) {
-					break;
-				}
-				const activeClient = action.activeClient;
-				const handle = agent.getOrCreateActiveClient(URI.parse(channel), {
-					clientId: activeClient.clientId,
-					displayName: activeClient.displayName,
-				}, this._stateManager.getSessionState(channel)?.chats.map(chat => URI.parse(chat.resource)));
-				handle.tools = activeClient.tools;
-				handle.customizations = activeClient.customizations ?? [];
+				this._fanOutActiveClient(channel, action.activeClient);
 				break;
 			}
 			case ActionType.SessionActiveClientRemoved: {

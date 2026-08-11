@@ -42,6 +42,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
@@ -751,7 +752,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		}
 		override getSessionState(session: string) {
 			if ((!options?.sessionCustomizations && !options?.initialSessionMeta) || session !== sessionUri.toString()) {
-				return undefined;
+				return super.getSessionState(session);
 			}
 			const state = createSessionState({
 				resource: sessionUri.toString(),
@@ -767,23 +768,24 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				...(options.sessionCustomizations ? { customizations: [...options.sessionCustomizations()] } : {}),
 			}, undefined);
 		}
-		override getSessionSummary(session: string) {
-			if (options?.initialSessionMeta && session === sessionUri.toString()) {
-				const now = new Date().toISOString();
-				return {
-					resource: session,
-					provider: 'copilot',
-					title: 'Test session',
-					status: SessionStatus.Idle,
-					createdAt: now,
-					modifiedAt: now,
-					_meta: options.initialSessionMeta,
-				};
-			}
-			return super.getSessionSummary(session);
-		}
 	}(new NullLogService()));
+	// The session's prompt-cache seam is backed by real host state, so the
+	// session must exist for `_meta` to be readable and writable — exactly as
+	// in production, where Agent Host creates it before any provider runtime.
+	const stateManagerNow = new Date().toISOString();
+	stateManager.createSession({
+		resource: sessionUri.toString(),
+		provider: 'copilot',
+		title: 'Test session',
+		status: SessionStatus.Idle,
+		createdAt: stateManagerNow,
+		modifiedAt: stateManagerNow,
+		...(options?.initialSessionMeta ? { _meta: options.initialSessionMeta } : {}),
+	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
+	// The session consumes the narrow prompt-cache seam (§8d of
+	// MULTI_CHAT_ARCHITECTURE.md) rather than the state manager itself.
+	services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 	const environmentService = {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
@@ -809,6 +811,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			clientSnapshot: options?.clientSnapshot,
 			activeClientToolSet: options?.activeClientToolSet,
 			resolveMcpChildId: options?.resolveMcpChildId ?? (() => undefined),
+			// The owning session's last host-published customization snapshot
+			// (§8b), handed to the session by the agent. The session reads it
+			// through this accessor instead of shared host state.
+			hostCustomizations: () => options?.sessionCustomizations?.() ?? [],
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',

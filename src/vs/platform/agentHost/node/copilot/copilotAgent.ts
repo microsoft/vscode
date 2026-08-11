@@ -42,7 +42,7 @@ import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
-import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext } from '../../common/agentService.js';
+import { AgentChatKind, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatKind, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -53,17 +53,17 @@ import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDa
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
-import { ChatOriginKind, ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, parseChatUri, parseSubagentSessionUri, AH_META_WORKSPACELESS_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
-import { ActiveClientToolSet } from '../activeClientState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, parseChatUri, AH_META_WORKSPACELESS_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
@@ -193,7 +193,7 @@ export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 /**
  * A session that has been requested by a client but has not yet been
  * materialized into a real Copilot SDK session, worktree, or persisted
- * metadata. Created by {@link CopilotAgent.createSession} when no fork is
+ * metadata. Created by {@link IAgentChats.createSessionChat} when no fork is
  * requested, and consumed by {@link CopilotAgent._materializeProvisional}
  * on the first {@link CopilotAgent.sendMessage}.
  *
@@ -254,6 +254,13 @@ interface ICopilotAgentSessionIdentity {
 	/** Host-chosen persistence/config scope (the {@link IAgentChatContext.resource}). */
 	readonly resource: URI;
 }
+
+/**
+ * Stand-in for "Agent Host has published no customization snapshot for this
+ * session yet". A stable singleton so identity-based caches over the retained
+ * snapshot stay valid across reads.
+ */
+const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 
 /** Coordinates all per-session work, resumption, and teardown. */
 class CopilotSessionLifetime {
@@ -632,7 +639,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Backings restored without provider data retain the historical AH-id-equals-SDK-id contract. */
-	private readonly _legacySessionChatBackings = new Set<string>();
 
 	private _createChatResult(sdkSessionId: string): IAgentCreateChatResult {
 		const backing: IPersistedChat = { sdkSessionId };
@@ -666,6 +672,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	/**
+	 * The last customization snapshot Agent Host published for each session
+	 * (Section 8b of `MULTI_CHAT_ARCHITECTURE.md`), keyed by owning session URI.
+	 *
+	 * This is the provider's *only* view of host-owned customization state:
+	 * every value here arrived on a host call boundary — an addressed chat
+	 * operation's {@link IAgentChatContext.customizations}, the
+	 * `hostCustomizations` argument of {@link getSessionCustomizations} /
+	 * {@link getOrCreateActiveClient} — never from shared host state. The
+	 * contract is "retain the last supplied value and refresh it at the next
+	 * boundary", so provider-internal work that has no host call of its own
+	 * (the session's MCP enablement reconcile, a plugin re-publish) reads the
+	 * retained snapshot rather than reaching back into the state manager.
+	 *
+	 * A session is absent until the host publishes its first snapshot, which
+	 * is deliberately distinct from an empty list: readers that need a list
+	 * fall back to `[]`, but writers never record `undefined` over a snapshot
+	 * the host already supplied.
+	 */
+	private readonly _hostCustomizations = new ResourceMap<readonly Customization[]>();
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 
 	constructor(
@@ -674,7 +700,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
@@ -695,9 +721,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
-		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
-			if (AgentSession.provider(session) === this.id) {
-				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+		// Session titles are host-owned; the narrow signal already filters by
+		// provider and derives the conversation id, so nothing here reads
+		// shared host state.
+		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, conversationId, title }) => {
+			if (provider === this.id) {
+				this._otelService.emitSessionTitleChanged(conversationId, session.toString(), title);
 			}
 		}));
 		// Mirror the sub-agent fan-out signals onto the first-class spawned-
@@ -1086,7 +1115,55 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._plugins.getConfiguredHostCustomizations();
 	}
 
-	async getSessionCustomizations(session: URI): Promise<readonly Customization[]> {
+	/**
+	 * Records the host's latest customization snapshot for `session` (Section 8b).
+	 *
+	 * Called at every host boundary that carries one. `undefined` means "the
+	 * host has published no snapshot yet", which is deliberately distinct from
+	 * an empty list, so it never overwrites a snapshot already retained.
+	 */
+	private _rememberHostCustomizations(session: URI, customizations: readonly Customization[] | undefined): void {
+		if (customizations) {
+			this._hostCustomizations.set(session, customizations);
+		}
+	}
+
+	/**
+	 * Records the host customization snapshot carried by an addressed chat
+	 * operation's context, so every chat call (create, send, model/agent
+	 * change, history read, dispose, release) refreshes the retained value.
+	 * A session-only (legacy) or provider-internal context carries none and is
+	 * ignored.
+	 */
+	private _noteHostCustomizations(context: URI | IAgentChatContext | undefined): void {
+		if (!context || URI.isUri(context)) {
+			return;
+		}
+		this._rememberHostCustomizations(context.session, resolveAgentHostCustomizations(context));
+	}
+
+	/**
+	 * The last host-published customization snapshot retained for `session`,
+	 * or the shared empty list when the host has published none yet. Callers
+	 * that need to distinguish the two read {@link _hostCustomizations}
+	 * directly. The empty case is a stable singleton so identity-based caches
+	 * downstream (see `SessionPluginController._getDesiredCustomization`) do
+	 * not rebuild on every read.
+	 */
+	private _retainedHostCustomizations(session: URI): readonly Customization[] {
+		return this._hostCustomizations.get(session) ?? NO_HOST_CUSTOMIZATIONS;
+	}
+
+	/**
+	 * @param hostCustomizations The owning session's last host-published
+	 * customization snapshot (Section 8b). Recorded as the session's retained
+	 * snapshot and used to reapply the host's MCP enablement decisions on top
+	 * of the provider's own authoritative view. `undefined` means the host has
+	 * published none yet — distinct from an empty list, so the previously
+	 * retained snapshot is kept rather than cleared.
+	 */
+	async getSessionCustomizations(session: URI, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> {
+		this._rememberHostCustomizations(session, hostCustomizations);
 		const anchors = await this._getSessionCustomizationAnchors(session);
 		const activeClient = this._getOrCreateActiveClient(session, anchors.directory);
 		if (anchors.applyAdditional) {
@@ -1097,28 +1174,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 		}
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
-		const entry = this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(AgentSession.id(session));
-		const topLevelMcp = entry?.topLevelMcpCustomizations() ?? [];
+		const topLevelMcp = this._findSessionChat(session)?.topLevelMcpCustomizations() ?? [];
 		const customizations = [...fromPlugins, ...topLevelMcp];
-		const desired = this._stateManager.getSessionState(session.toString())?.customizations ?? [];
-		return applyMcpServerEnablement(customizations, desired);
+		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
 
 	async handleMcpRequest(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
-		const sessionId = AgentSession.id(session);
-		const entry = this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(sessionId);
+		const entry = this._findSessionChat(session);
 		if (!entry) {
-			throw new Error(`Method not found: no active session ${sessionId}`);
+			throw new Error(`Method not found: no active session ${AgentSession.id(session)}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
 	}
 
 	async startMcpServer(session: URI, id: string): Promise<void> {
-		await (this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(AgentSession.id(session)))?.startMcpServer(id);
+		await this._findSessionChat(session)?.startMcpServer(id);
 	}
 
 	async stopMcpServer(session: URI, id: string): Promise<void> {
-		await (this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(AgentSession.id(session)))?.stopMcpServer(id);
+		await this._findSessionChat(session)?.stopMcpServer(id);
 	}
 
 	/**
@@ -1159,7 +1233,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				applyAdditional: true,
 			};
 		}
-		const entry = this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(sessionId);
+		const entry = this._findSessionChat(session);
 		if (entry) {
 			// For non-provisional sessions the anchor follows the working directory
 			// (the worktree). Prefer it over a persisted `customizationDirectory`,
@@ -1909,7 +1983,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionMetadata = await this._retryAfterClosedConnection('getSessionMetadata', async () => {
 			const client = await this._ensureClient();
 			return client.getSessionMetadata(sessionId);
-		}, createCopilotFailureCorrelation(session, URI.parse(buildDefaultChatUri(session)), undefined, sessionId));
+			// This lookup is session-addressed, so the correlation names the
+			// session's own chat: the exact URI the host bound it to, else the
+			// session itself (which correlates as the default chat, identically to
+			// the URI this used to rebuild by shape).
+		}, createCopilotFailureCorrelation(session, this._findSessionChatUri(session) ?? session, undefined, sessionId));
 		if (!sessionMetadata) {
 			return undefined;
 		}
@@ -1969,14 +2047,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Resolves the working directory for a {@link createSession} call: the caller-supplied folder, else a
+	 * Resolves the working directory for a {@link IAgentChats.createSessionChat} call: the caller-supplied folder, else a
 	 * still-provisional session's folder for an idempotent re-create, else — when the session is workspace-less
 	 * (no `workingDirectory` supplied) — a stable per-session scratch directory.
 	 */
 	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string, isWorkspaceless: boolean): Promise<URI> {
 		if (sessionConfig.fork) {
 			const sourceSessionId = AgentSession.id(sessionConfig.fork.session);
-			const liveWorkingDirectory = this._findAnySession(sourceSessionId)?.workingDirectory;
+			const liveWorkingDirectory = this._findSessionBySdkId(sourceSessionId)?.workingDirectory;
 			if (liveWorkingDirectory) {
 				return liveWorkingDirectory;
 			}
@@ -2043,12 +2121,36 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// session or storage scope. Routing reads only the exact chat backing map
 	// and never recovers ownership by parsing the chat URI.
 
+	/**
+	 * The live runtime for the SDK conversation with this *exact* id.
+	 *
+	 * {@link _chatEntriesBySdkId} is keyed strictly by Copilot SDK session id,
+	 * so this is an exact-id lookup and nothing more: it does not search by AH
+	 * session URI, chat channel, or persistence scope, and it matches a
+	 * host-minted AH session id only for the legacy identity where the two
+	 * coincide. Use {@link _findChatByUri} to route an addressed chat and
+	 * {@link _findSessionChat} to reach a session's session-backed chat.
+	 */
 	private _findSessionBySdkId(sdkSessionId: string): CopilotAgentSession | undefined {
 		return this._chatEntriesBySdkId.get(sdkSessionId)?.chatSession;
 	}
 
-	private _findAnySession(sessionId: string): CopilotAgentSession | undefined {
-		return this._findSessionBySdkId(sessionId);
+	/**
+	 * The live runtime backing a session's session-backed (default) chat: the
+	 * one whose host-chosen persistence scope ({@link IAgentChatContext.resource})
+	 * *is* the session itself. Every additional chat is scoped to its own chat
+	 * URI, so this identifies the session-backed chat exactly — and it does so
+	 * from a fact the host supplied, replacing the old
+	 * `_findChatByUri(buildDefaultChatUri(session))` probe. The provider never
+	 * re-derives a default-chat URI from a session URI's shape.
+	 */
+	private _findSessionChat(session: URI): CopilotAgentSession | undefined {
+		for (const entry of this._chatEntriesBySdkId.values()) {
+			if (isEqual(entry.chatSession.resourceUri, session)) {
+				return entry.chatSession;
+			}
+		}
+		return undefined;
 	}
 
 	private _findChatByUri(chat: URI | string): CopilotAgentSession | undefined {
@@ -2066,55 +2168,63 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return undefined;
 	}
 
-	private _isUnboundSession(sessionId: string): boolean {
-		const session = this._findAnySession(sessionId);
-		const chatChannelUri = session?.chatChannelUri;
-		return !!chatChannelUri && !this._chatBackings.has(chatChannelUri.toString());
-	}
-
-	private _findLiveSessionForChat(sessionId: string, chatKey: string): CopilotAgentSession | undefined {
-		for (const entry of this._chatEntriesBySdkId.values()) {
-			const candidate = entry.chatSession;
-			const candidateChatChannelUri = candidate.chatChannelUri;
-			if (!candidateChatChannelUri) {
-				continue;
-			}
-			if (this._chatBackings.has(candidateChatChannelUri.toString())) {
-				continue;
-			}
-			if (chatKey === candidateChatChannelUri.toString() || candidate.sessionId === sessionId) {
-				return candidate;
-			}
-		}
-		return undefined;
-	}
-
-	private _findUnboundSessionForChat(session: URI, chatKey: string): CopilotAgentSession | undefined {
+	/**
+	 * The exact chat URI Agent Host bound a session's session-backed (default)
+	 * chat to, recovered from the provider's own routing table: the live
+	 * runtime's SDK id when the session is materialized, else the SDK id
+	 * reserved for it while it is still provisional, else the legacy identity
+	 * where the SDK id equals the AH session id. `undefined` when the session
+	 * has no chat backing at all (an unbound legacy runtime).
+	 */
+	private _findSessionChatUri(session: URI): URI | undefined {
 		const sessionId = AgentSession.id(session);
-		return chatKey === session.toString()
-			? this._findAnySession(sessionId)
-			: this._findLiveSessionForChat(sessionId, chatKey);
+		const sdkSessionId = this._findSessionChat(session)?.sessionId
+			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
+			?? sessionId;
+		return this._findBoundSessionChatUri(sdkSessionId);
 	}
 
-	private _resolveChatContext(chat: URI, sessionOrContext?: URI | IAgentChatContext): IResolvedCopilotChatContext {
-		const explicit = sessionOrContext ? resolveAgentChatContext(sessionOrContext, chat) : undefined;
-		return explicit
-			? this._resolveExplicitChatContext(chat, explicit)
-			: this._resolveImplicitChatContext(chat);
+	/**
+	 * Normalizes an addressed chat operation onto the provider's routing view.
+	 *
+	 * Every addressed operation funnels through here, so this is also where the
+	 * session's retained host-customization snapshot (Section 8b) is refreshed from
+	 * the context the host just supplied — that is what keeps the retained
+	 * value at most one host round-trip stale for provider-internal work that
+	 * has no host call of its own.
+	 */
+	private _resolveChatContext(chat: URI, sessionOrContext: URI | IAgentChatContext | undefined): IResolvedCopilotChatContext {
+		if (!sessionOrContext) {
+			const chatKey = chat.toString();
+			const backing = this._chatBackings.get(chatKey);
+			const target = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
+			if (!backing || !target) {
+				throw new Error(`Cold Copilot chat operation requires explicit host context: ${chatKey}`);
+			}
+			const ownerSession = target.ownerSessionUri ?? target.sessionUri;
+			return {
+				session: ownerSession,
+				sessionId: AgentSession.id(ownerSession),
+				resource: target.resourceUri,
+				chat,
+				chatKey,
+				sdkSessionId: backing.sdkSessionId,
+				sequencerKey: backing.sdkSessionId,
+				target,
+			};
+		}
+		const explicit = resolveAgentChatContext(sessionOrContext, chat);
+		this._noteHostCustomizations(sessionOrContext);
+		return this._resolveExplicitChatContext(chat, explicit);
 	}
 
 	private _resolveExplicitChatContext(chat: URI, context: IAgentChatContext): IResolvedCopilotChatContext {
 		const chatKey = chat.toString();
 		const backing = this._chatBackings.get(chatKey);
 		const boundTarget = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
-		if (boundTarget && !isEqual(boundTarget.sessionUri, context.session)) {
-			throw new Error(`Chat ${chatKey} is bound to session ${boundTarget.sessionUri.toString()}, not ${context.session.toString()}`);
-		}
 		const sessionId = AgentSession.id(context.session);
-		const target = backing
-			? boundTarget
-			: this._findUnboundSessionForChat(context.session, chatKey);
-		const sdkSessionId = backing?.sdkSessionId ?? target?.sessionId;
+		const target = boundTarget;
+		const sdkSessionId = backing?.sdkSessionId;
 		return {
 			session: context.session,
 			sessionId,
@@ -2127,46 +2237,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _resolveImplicitChatContext(chat: URI): IResolvedCopilotChatContext {
-		const chatKey = chat.toString();
-		const backing = this._chatBackings.get(chatKey);
-		const boundTarget = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
-		const session = boundTarget?.sessionUri ?? (backing ? AgentSession.uri(this.id, backing.sdkSessionId) : chat);
-		const sessionId = AgentSession.id(session);
-		const target = backing ? boundTarget : this._findUnboundSessionForChat(session, chatKey);
-		const sdkSessionId = backing?.sdkSessionId ?? target?.sessionId;
-		const resource = boundTarget && boundTarget.sessionId !== AgentSession.id(boundTarget.sessionUri) ? chat : session;
-		return {
-			session,
-			sessionId,
-			resource,
-			chat,
-			chatKey,
-			sdkSessionId,
-			sequencerKey: sdkSessionId ?? chatKey,
-			target,
-		};
-	}
-
-	private _bindSessionChat(sessionId: string, chat: URI): CopilotAgentSession | undefined {
-		const existingBacking = this._chatBackings.get(chat.toString());
-		if (existingBacking) {
-			if (existingBacking.sdkSessionId === sessionId) {
-				this._legacySessionChatBackings.add(chat.toString());
-			}
-			return this._findSessionBySdkId(existingBacking.sdkSessionId);
-		}
-		const existing = this._findAnySession(sessionId);
-		if (existing) {
-			existing.bindChatChannel(chat);
-		}
-		this._chatBackings.set(chat.toString(), { sdkSessionId: sessionId });
-		this._legacySessionChatBackings.add(chat.toString());
-		return existing;
-	}
-
 	private _getRuntimeSlashCommands(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions) {
-		const session = this._findAnySession(sessionId);
+		const session = this._findSessionBySdkId(sessionId);
 		if (session) {
 			return session.getRuntimeSlashCommands(options) ?? [];
 		}
@@ -2178,16 +2250,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	readonly chats: IAgentChats = {
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
 		createSessionChat: async (chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
+			this._noteHostCustomizations(context);
 			const resolved = resolveAgentChatContext(context, chat);
 			return this._createSession({ ...(config ?? {}), session: resolved.session }, chat);
 		},
 		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), { ...options, fork: source });
 		},
-		bindSessionChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._bindSessionChatOnRestore(chat, resolveAgentChatContext(context, chat).session),
 		disposeChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => this._disposeChat(chatUri, context),
 		releaseChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => this._releaseChat(chatUri, context),
 		sendMessage: (chatUri: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
@@ -2196,8 +2270,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			return this._sendMessage(chatUri, prompt, attachments, turnId, senderClientId, clientType, workingDirectories, operationContext);
 		},
-		abort: (chatUri: URI): Promise<void> => {
-			return this._abortSession(chatUri);
+		abort: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
+			return this._abortSession(chatUri, context);
 		},
 		changeModel: (chatUri: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chatUri, model, context);
@@ -2208,17 +2282,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => this._getChatMessages(chat, context),
 	};
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		return this._createSession(config ?? {});
-	}
-
 	private async _createSession(
 		sessionConfig: IAgentCreateSessionConfig,
-		chat?: URI,
+		chat: URI,
 	): Promise<IAgentCreateSessionResult> {
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
-		const sdkSessionId = chat ? generateUuid() : sessionId;
+		const sdkSessionId = generateUuid();
 		if (sessionConfig.fork && AgentSession.id(sessionConfig.fork.session) === sessionId) {
 			throw new Error(`Cannot fork Copilot session ${sessionId} onto itself`);
 		}
@@ -2331,10 +2401,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		if (sessionConfig.importConversation) {
-			if (sessionConfig.session && !this._findAnySession(sessionId) && !this._provisionalSessions.has(sessionId)) {
+			if (sessionConfig.session && !this._findSessionBySdkId(sessionId) && !this._provisionalSessions.has(sessionId)) {
 				this._resetSessionLifetime(sessionId);
 			}
-			return this._importConversation(sessionConfig, sessionId, workingDirectory, undefined);
+			// Thread the exact target `chat` through so `createSessionChat`
+			// binds the imported session's default chat directly during resume.
+			return this._importConversation(sessionConfig, sessionId, workingDirectory, chat);
 		}
 
 		// Non-fork path: create a *provisional* session. The Copilot SDK
@@ -2346,20 +2418,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 
 		// Idempotency for already-materialized sessions: a duplicate
-		// `createSession` for a URI that has already been promoted to a real
-		// SDK session (or restored from disk) is a no-op; we return the
+		// `createSessionChat` for a chat that has already been promoted to a
+		// real SDK session (or restored from disk) is a no-op; we return the
 		// non-provisional result so the caller doesn't re-fire `SessionAdded`.
 		// This guards against client retries that race a successful first
 		// message.
-		const existing = chat ? this._findChatByUri(chat) : this._findAnySession(sessionId);
+		const existing = this._findChatByUri(chat);
 		if (existing) {
-			this._logService.info(`[Copilot] createSession is a no-op: session already materialized: ${sessionUri.toString()}`);
+			this._logService.info(`[Copilot] createSessionChat is a no-op: session already materialized: ${sessionUri.toString()}`);
 			const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-			return { session: sessionUri, resolvedWorkingDirectory: workingDirectory, ...(project ? { project } : {}), ...(chat ? { chat: this._createChatResult(existing.sessionId) } : {}) };
+			return { session: sessionUri, resolvedWorkingDirectory: workingDirectory, ...(project ? { project } : {}), chat: this._createChatResult(existing.sessionId) };
 		}
 
-		// Idempotent: a duplicate `createSession` for a still-provisional URI
-		// (e.g. a client retried on reconnect with the same URI) keeps the
+		// Idempotent: a duplicate `createSessionChat` for a still-provisional
+		// URI (e.g. a client retried on reconnect with the same URI) keeps the
 		// existing record. We deliberately do NOT overwrite `model` or
 		// `workingDirectory`: a re-create payload from a fresh connection sends
 		// the eager-create defaults (model: undefined, the same workingDirectory),
@@ -2380,6 +2452,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const seeded = sessionConfig.activeClient;
 			ac.toolSet.set(seeded.clientId, seeded.tools);
 			ac.getOrCreateHandle(seeded.clientId, seeded.displayName);
+			// A freshly-created session has exactly one chat — the exact target
+			// the host provisioned it with — so seed the eager claimant's
+			// membership with it. The host's first `session/activeClientSet`
+			// fan-out replaces this with the authoritative catalog.
+			this._adoptClientChats(ac, seeded.clientId, [chat]);
 			if (seeded.customizations !== undefined) {
 				// Provisional eager-create: no session-state listener is
 				// hooked up yet, so suppress action events. The session
@@ -2407,9 +2484,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				project,
 				workspaceless: isWorkspaceless,
 			});
-			if (chat) {
-				this._chatBackings.set(chat.toString(), { sdkSessionId });
-			}
+			this._chatBackings.set(chat.toString(), { sdkSessionId });
 		}
 
 		this._logService.info(`[Copilot] Session created (provisional): ${sessionUri.toString()}`);
@@ -2418,12 +2493,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			resolvedWorkingDirectory: workingDirectory,
 			provisional: true,
 			...(project ? { project } : {}),
-			...(chat ? { chat: this._createChatResult(sdkSessionId) } : {}),
+			chat: this._createChatResult(sdkSessionId),
 		};
-	}
-
-	private async _bindSessionChatOnRestore(chat: URI, session: URI): Promise<void> {
-		this._bindSessionChat(AgentSession.id(session), chat);
 	}
 
 	/**
@@ -2435,7 +2506,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * service layer, so the seeded event ids and the seeded protocol turns stay
 	 * aligned. Mirrors the immediate-materialization shape of the fork path.
 	 */
-	private async _importConversation(sessionConfig: IAgentCreateSessionConfig, sessionId: string, workingDirectory: URI, chat: URI | undefined): Promise<IAgentCreateSessionResult> {
+	private async _importConversation(sessionConfig: IAgentCreateSessionConfig, sessionId: string, workingDirectory: URI, chat: URI): Promise<IAgentCreateSessionResult> {
 		const importConfig = sessionConfig.importConversation!;
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		return this._queueSession(sessionId, async () => {
@@ -2568,7 +2639,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Promotes a {@link IProvisionalSession} into a real Copilot SDK session
-	 * by performing the work that {@link createSession} previously did
+	 * by performing the work that {@link IAgentChats.createSessionChat} previously did
 	 * eagerly: resolves the working directory (creating a worktree if
 	 * `isolation === 'worktree'`), instantiates the {@link CopilotAgentSession},
 	 * persists session metadata, and notifies the {@link IAgentService} via
@@ -2583,7 +2654,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link changeModel}). The latest provider-owned session config is read
 	 * straight from the state manager via
 	 * {@link IAgentConfigurationService.getSessionConfigValues} so any
-	 * `SessionConfigChanged` actions that arrived after `createSession` are
+	 * `SessionConfigChanged` actions that arrived after `createSessionChat` are
 	 * honoured without bespoke forwarding.
 	 */
 	private async _materializeProvisional(sessionId: string, resolvedWorkingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
@@ -2615,7 +2686,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Multi-root: anchor customization discovery to the additional workspace
 		// roots (index 1..N of the resolved set). Empty when single-root / gated off.
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(resolvedWorkingDirectories));
-		const snapshot = await activeClient.snapshot();
+		// Advertise exactly the clients Agent Host fanned this chat out to.
+		const snapshot = await activeClient.snapshot((this._findSessionChatUri(sessionUri) ?? sessionUri).toString());
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 
 		let agentSession: CopilotAgentSession | undefined;
@@ -2756,8 +2828,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { items: [] };
 	}
 
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+	/**
+	 * @param chats The exact chats this client contributes to, owned and fanned
+	 * out by Agent Host and never empty. It is the authoritative *replacement*
+	 * for this client's membership, recorded on the session's
+	 * {@link ActiveClient} and consumed in two places: it scopes the tools a
+	 * chat advertises to its SDK session ({@link ActiveClient.toolsForChat},
+	 * applied at launch and reconciled by {@link ActiveClient.requiresRestart}),
+	 * and it filters client-tool ownership at stamp time
+	 * ({@link ActiveClient.contributesTo}) so a tool call issued by one chat is
+	 * never attributed to — and therefore dispatched to — a client the host did
+	 * not fan that chat out to. The provider neither synthesizes a default-chat
+	 * URI nor discovers sibling chats to extend the set; when the catalog grows
+	 * the host re-invokes this with the complete new set.
+	 * @param hostCustomizations The owning session's last host-published
+	 * customization snapshot (Section 8b), retained so provider-internal work reads
+	 * it instead of shared host state. Copilot's customization state is
+	 * session-scoped (one {@link SessionPluginController} shared by every chat
+	 * in the session), so it reaches exactly the chats `chats` enumerates.
+	 */
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[], hostCustomizations?: readonly Customization[]): IActiveClient {
+		this._rememberHostCustomizations(session, hostCustomizations);
 		const activeClient = this._getOrCreateActiveClient(session, undefined);
+		this._adoptClientChats(activeClient, client.clientId, chats);
 		// Anchor the customization directory (best-effort, idempotent) so
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
@@ -2775,24 +2868,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return activeClient.getOrCreateHandle(client.clientId, client.displayName);
 	}
 
+	/**
+	 * Records the host's authoritative chat membership for `clientId`.
+	 *
+	 * An empty set would mean "this client contributes to nothing", which the
+	 * host never publishes — it withholds the fan-out entirely while it has no
+	 * membership to hand over. Treat it as a protocol violation and keep the
+	 * last authoritative set rather than silently dropping the client's
+	 * contributions from every chat.
+	 *
+	 * Chats that newly enter the membership need no eager push: their live
+	 * runtimes advertise a chat-scoped snapshot and reconcile it against the
+	 * new membership on their next interaction (see
+	 * {@link ActiveClient.requiresRestart}), while client-tool ownership is
+	 * resolved against the membership at stamp time.
+	 */
+	private _adoptClientChats(activeClient: ActiveClient, clientId: string, chats: readonly URI[]): void {
+		if (chats.length === 0) {
+			this._logService.warn(`[Copilot] Ignoring empty active-client chat membership for client ${clientId}; keeping the last host-published set`);
+			return;
+		}
+		const added = activeClient.setClientChats(clientId, chats);
+		if (added.length > 0) {
+			this._logService.info(`[Copilot] Active client ${clientId} now contributes to ${chats.length} chat(s); newly reachable: [${added.map(chat => chat.toString()).join(', ')}]`);
+		}
+	}
+
 	removeActiveClient(session: URI, clientId: string): void {
 		const sessionId = AgentSession.id(session);
 		this._logService.info(`[Copilot:${sessionId}] removeActiveClient: clientId=${clientId}`);
 		this._activeClients.get(session)?.removeClient(clientId);
 	}
 
-	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
-		const addressed = this._findChatByUri(chat);
-		if (addressed) {
-			addressed.handleClientToolCallComplete(toolCallId, result);
-			return;
-		}
-		let rootSession = session;
-		let parsed;
-		while ((parsed = parseSubagentSessionUri(rootSession))) {
-			rootSession = parsed.parentSession;
-		}
-		this._findAnySession(AgentSession.id(rootSession))?.handleClientToolCallComplete(toolCallId, result);
+	/**
+	 * Resolves a completed client tool call onto the runtime that owns it.
+	 *
+	 * `chat` is the host-resolved *routing* target — for a tool call addressed
+	 * to a subagent chat the host already resolved it to the ancestor chat
+	 * whose runtime owns the call — so the exact chat backing answers almost
+	 * every case. `context` describes the chat the call was *addressed* to,
+	 * and carries the subagent's `Tool` origin, so the spawning chat is
+	 * recovered from that explicit host fact rather than by parsing the
+	 * addressed URI. The last resort is the owning session's session-backed
+	 * chat, taken from the same context.
+	 */
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
+		const spawnedFrom = resolveSubagentChatParent(context);
+		const owner = context?.session ?? session;
+		const target = this._findChatByUri(chat)
+			?? (spawnedFrom ? this._findChatByUri(spawnedFrom.chat) : undefined)
+			?? this._findSessionChat(owner);
+		target?.handleClientToolCallComplete(toolCallId, result);
 	}
 
 	private async _sendMessage(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext): Promise<void> {
@@ -2826,7 +2952,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${context.sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			const rootsChanged = !!entry && workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-			const structuralConfigChanged = !!entry && !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot);
+			const structuralConfigChanged = !!entry && !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot, context.chatKey);
 			if (entry && (rootsChanged || structuralConfigChanged)) {
 				this._logService.info(`[Copilot:${context.sessionId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
@@ -2836,7 +2962,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// below) so the refreshed config is re-applied deterministically.
 				await this._destroyLiveSession(entry, true);
 				if (entry.sessionId === context.sessionId) {
-					entry = await this._resumeSession(context.sessionId, isEqual(context.chat, context.session) ? undefined : context.chat, workingDirectories);
+					entry = await this._resumeSession(context.sessionId, context.chat, workingDirectories);
 				} else {
 					if (workingDirectories) {
 						activeClient?.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(workingDirectories));
@@ -2920,15 +3046,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
-		const context = this._resolveChatContext(chat);
-		if (!context.target) {
-			this._logService.warn(`[Copilot:${context.sessionId}] setPendingMessages: chat not found for ${chat.toString()}`);
+		const backing = this._chatBackings.get(chat.toString());
+		const target = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
+		if (!target) {
+			this._logService.warn(`[Copilot] setPendingMessages: chat not found for ${chat.toString()}`);
 			return;
 		}
 
 		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
 		if (steeringMessage) {
-			context.target.sendSteering(steeringMessage);
+			target.sendSteering(steeringMessage);
 		}
 
 		// Queued messages are consumed by the server (AgentSideEffects)
@@ -2936,62 +3063,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// No SDK-level enqueue is needed.
 	}
 
-	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
-		// If the URI describes a subagent child session (`<parent>/subagent/<toolCallId>`),
-		// load the parent's events once and extract the child's filtered turns.
-		const subagentInfo = parseSubagentSessionUri(session);
-		if (subagentInfo) {
-			return this._getSubagentMessages(subagentInfo);
-		}
-
-		const sessionId = AgentSession.id(session);
-		// Provisional sessions have no SDK history yet.
-		if (this._provisionalSessions.has(sessionId)) {
-			return [];
-		}
-		const chat = this._findBoundSessionChatUri(sessionId) ?? session;
-		const resolved = this._resolveChatContext(chat, { session, resource: session });
-		const entry = await this._queueChat(resolved.sessionId, resolved.sequencerKey, async () => {
-			return this._ensureResolvedChatSession(this._resolveChatContext(chat, { session, resource: session })).catch(err => {
-				if (err instanceof SessionWorkingDirectoryMissingError) {
-					// Unrecoverable: surface to the restore/subscribe path so the
-					// client shows a clear error instead of a silently empty chat.
-					throw err;
-				}
-				this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
-				return undefined;
-			});
-		});
-		if (!entry) {
-			return [];
-		}
-		// The host prepends the worktree "created" announcement on restore (see
-		// AgentService._getChatMessages); this agent just returns its turns.
-		return entry.getMessages();
-	}
-
 	private async _getChatMessages(chat: URI, sessionOrContext?: URI | IAgentChatContext): Promise<readonly Turn[]> {
 		if (this._isShuttingDown) {
 			return [];
 		}
-		// A subagent child session (`<parent>/subagent/<toolCallId>`) is addressed
-		// through the chat surface on the persisted replay/restore path; extract
-		// its filtered turns from the parent's event log rather than resolving it
-		// as a regular chat backing (which has none, so it would return empty).
-		const explicit = sessionOrContext && !URI.isUri(sessionOrContext) ? sessionOrContext : undefined;
-		const subagentInfo = parseSubagentSessionUri(chat);
-		const isSubagentChat = parseChatUri(chat)?.chatId.startsWith('subagent/') === true;
-		if (subagentInfo || isSubagentChat) {
-			if (explicit?.origin?.kind === ChatOriginKind.Tool) {
-				const parentChat = URI.parse(explicit.origin.chat);
-				const parentContext = this._resolveChatContext(parentChat, { session: explicit.session, resource: explicit.session });
-				const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
-					this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.sessionId}] Failed to resume exact source chat for subagent restore`, err);
-					return undefined;
-				});
-				return parentEntry?.getSubagentMessages(explicit.origin.toolCallId) ?? [];
-			}
-			return subagentInfo ? this._getSubagentMessages(subagentInfo) : [];
+		// A subagent chat has no provider backing of its own: the spawning
+		// chat's SDK event log holds its turns. Route it by the host's explicit
+		// provisioning intent plus the `Tool` spawn edge on its origin — never
+		// by recognizing a subagent shape in the addressed URI.
+		if (resolveAgentChatKind(chat, sessionOrContext) === AgentChatKind.Subagent) {
+			return this._getSubagentChatMessages(chat, sessionOrContext);
 		}
 		const context = this._resolveChatContext(chat, sessionOrContext);
 		if (this._provisionalSessions.has(context.sessionId) && isEqual(context.resource, context.session)) {
@@ -3018,36 +3099,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Reconstruct a subagent child session's turns from its root parent's event
-	 * log. Shared by the chat surface ({@link _getChatMessages}) and the legacy
-	 * {@link getSessionMessages} so both restore paths route subagents
-	 * identically.
+	 * Reconstructs a subagent chat's turns by filtering the spawning chat's
+	 * SDK event log by the tool call that started it.
+	 *
+	 * The spawn edge is *required* and comes only from the host-supplied
+	 * {@link IAgentChatContext.origin}: Agent Host stamps a `Tool` origin on
+	 * every subagent chat it addresses, including the legacy restore path that
+	 * still addresses a subagent *session* URI. Without it the provider has no
+	 * host fact naming the spawning chat, and it will not go looking for one in
+	 * the URI's shape, so the read resolves to no turns.
 	 */
-	private async _getSubagentMessages(subagentInfo: { readonly parentSession: URI; readonly toolCallId: string }): Promise<readonly Turn[]> {
-		// Walk up the subagent chain to find the root session-backed leaf.
-		let rootSession = subagentInfo.parentSession;
-		let parentParsed;
-		while ((parentParsed = parseSubagentSessionUri(rootSession))) {
-			rootSession = parentParsed.parentSession;
-		}
-		const rootSessionId = AgentSession.id(rootSession);
-		const parentEntry = this._findAnySession(rootSessionId) ?? await this._resumeSession(rootSessionId, this._findBoundSessionChatUri(rootSessionId)).catch(err => {
-			this._logService.warn(`[Copilot:${rootSessionId}] Failed to resume root for subagent restore`, err);
-			return undefined;
-		});
-		if (!parentEntry) {
+	private async _getSubagentChatMessages(chat: URI, sessionOrContext?: URI | IAgentChatContext): Promise<readonly Turn[]> {
+		const spawnedFrom = resolveSubagentChatParent(sessionOrContext);
+		if (!spawnedFrom) {
+			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()} addressed without its host-supplied tool-call origin; no turns to reconstruct`);
 			return [];
 		}
-		return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
+		const owner = resolveAgentChatContext(sessionOrContext ?? chat, chat).session;
+		const parentContext = this._resolveChatContext(spawnedFrom.chat, { session: owner, resource: owner });
+		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
+			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.sessionId}] Failed to resume exact source chat for subagent restore`, err);
+			return undefined;
+		});
+		return parentEntry?.getSubagentMessages(spawnedFrom.toolCallId) ?? [];
 	}
 
-	async disposeSession(session: URI): Promise<void> {
-		const wasProvisionalWorkspaceless = this._provisionalSessions.get(AgentSession.id(session))?.workspaceless === true;
-		const defaultChat = URI.parse(buildDefaultChatUri(session));
-		await this._disposeChat(defaultChat, { session, resource: session });
-		await this._finalizeSession(session, wasProvisionalWorkspaceless);
-	}
-
+	/**
+	 * Finalizes session-scoped resources after Agent Host has disposed every
+	 * chat in the session through {@link IAgentChats.disposeChat}. Destructive
+	 * per-session teardown is not a provider entry point: the host owns the
+	 * session's chat catalog, so nothing here has to rebuild a default-chat URI
+	 * to reach the session's own chat.
+	 */
 	async finalizeSession(session: URI, context?: { readonly workspaceless?: boolean }): Promise<void> {
 		await this._finalizeSession(session, context?.workspaceless === true);
 	}
@@ -3061,6 +3144,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._sessionLifetimes.get(sessionId)?.dispose(async () => { });
 		this._activeClients.get(session)?.dispose();
 		this._activeClients.delete(session);
+		this._hostCustomizations.delete(session);
 		if (isWorkspaceless) {
 			await this._cleanupWorkspacelessScratchDir(this._workspacelessScratchDir(sessionId), sessionId);
 		}
@@ -3068,22 +3152,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._applyPendingClientRestart();
 	}
 
-	/**
-	 * Non-destructive counterpart to {@link disposeSession}: releases the
-	 * session's in-memory resources (SDK session/connection, cached entry,
-	 * active clients, MCP subscriptions) but preserves all durable data — the
-	 * SDK session log, session database, and worktree stay on disk. The session
-	 * transparently resumes on the next access via {@link _resumeSession}.
-	 *
-	 * No-ops for sessions that have nothing durable to resume from (provisional
-	 * sessions) or that aren't currently held in memory, and for sessions with a
-	 * running turn — disconnecting mid-turn would strand the SDK session.
-	 */
-	async releaseSession(session: URI): Promise<void> {
-		await this._releaseChat(URI.parse(buildDefaultChatUri(session)));
-	}
-
 	private async _abortSession(chat: URI, operationContext?: URI | IAgentChatContext): Promise<void> {
+		if (!operationContext) {
+			const backing = this._chatBackings.get(chat.toString());
+			if (!backing || !this._findSessionBySdkId(backing.sdkSessionId)) {
+				return;
+			}
+		}
 		try {
 			await this._abortSessionOnce(chat, operationContext);
 		} catch (error) {
@@ -3141,7 +3216,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// snapshot empty/stale tools and never see subsequent updates, and
 			// would also leak (nothing disposes a chat-keyed ActiveClient).
 			const activeClient = this._getOrCreateActiveClient(session, workingDirectory);
-			const snapshot = await activeClient.snapshot();
+			const snapshot = await activeClient.snapshot(chatKey);
 			const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
 
 			// Forking: mint the new chat's backing chat by forking the
@@ -3251,12 +3326,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * by parsing the chat URI.
 	 */
 	private async _ensureResolvedChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession | undefined> {
-		if (this._legacySessionChatBackings.has(context.chatKey)) {
-			return context.target ?? this._resumeSession(context.sessionId, context.chat, workingDirectories);
-		}
 		const provisional = this._provisionalSessions.get(context.sessionId);
 		if (provisional && provisional.sdkSessionId === context.sdkSessionId) {
 			return this._materializeProvisional(context.sessionId);
+		}
+		if (context.sdkSessionId === context.sessionId) {
+			return context.target ?? this._resumeSession(context.sessionId, context.chat, workingDirectories);
 		}
 		if (context.sdkSessionId) {
 			const lifetime = this._getOrCreateSessionLifetime(context.sdkSessionId);
@@ -3269,21 +3344,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (target) {
 					return target;
 				}
-				return this._resolveOrResumeChatSession(context);
+				return this._resolveOrResumeChatSession(context, workingDirectories);
 			} finally {
 				lease.dispose();
 			}
 		}
-		if (context.target) {
-			if (this._isUnboundSession(context.sessionId)) {
-				this._bindSessionChat(context.sessionId, context.chat);
-			}
-			return context.target;
-		}
-		if (!isEqual(context.resource, context.session)) {
-			return undefined;
-		}
-		return this._resumeSession(context.sessionId, isEqual(context.chat, context.session) ? undefined : context.chat).catch(() => undefined);
+		return context.target;
 	}
 
 	/**
@@ -3341,7 +3407,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._queueChat(sessionId, initial.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const target = current.target;
-			const backing = current.sdkSessionId ? this._chatBackings.get(chatKey) : await this._resolveChatBacking(current.session, chat);
+			const backing = this._chatBackings.get(chatKey);
 			const provisional = this._provisionalSessions.get(sessionId);
 			const isSessionScoped = operationContext ? isEqual(current.resource, current.session) : current.sdkSessionId === sessionId;
 			const isProvisionalSessionScoped = !!provisional && isSessionScoped;
@@ -3355,7 +3421,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._provisionalSessions.delete(sessionId);
 			}
 			this._chatBackings.delete(chatKey);
-			this._legacySessionChatBackings.delete(chatKey);
 
 			if (target) {
 				await this._destroyLiveSession(target, true);
@@ -3405,10 +3470,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * at creation (or the latest {@link onDidChangeChatData}). After this
 	 * resolves the chat's backing SDK session can be resumed lazily on its first
 	 * send. Best-effort — a corrupt/unknown blob is logged and dropped rather
-	 * than thrown. When `providerData` is `undefined`, the only fallback is the
-	 * legacy `copilot.chats` migration codec.
+	 * than thrown. When `providerData` is `undefined`, legacy persistence is
+	 * migrated into the same exact backing used by normal runtime routing.
 	 */
-	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+		this._noteHostCustomizations(context);
 		const chatKey = chat.toString();
 		let backing: IPersistedChat | undefined;
 		if (providerData !== undefined) {
@@ -3426,11 +3492,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const legacy = await this._readLegacyChatBackings(resolved.session);
 			backing = legacy.get(chatInfo.chatId);
 			if (!backing) {
-				return;
+				if (resolveAgentChatKind(chat, resolved) !== AgentChatKind.Session) {
+					return;
+				}
+				backing = { sdkSessionId: AgentSession.id(resolved.session) };
 			}
 		}
 		this._chatBackings.set(chatKey, backing);
-		this._legacySessionChatBackings.delete(chatKey);
+		return { providerData: encodeProviderData(backing) };
 	}
 
 	/**
@@ -3446,29 +3515,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			result.push({ uri: URI.parse(buildChatUri(session, chatId)), providerData: encodeProviderData(info) });
 		}
 		return result;
-	}
-
-	/**
-	 * Resolves a chat backing from the in-memory map, falling back once to the
-	 * legacy `copilot.chats` migration codec (seeding the live map) for sessions
-	 * that have not yet been materialized via {@link materializeChat}.
-	 */
-	private async _resolveChatBacking(session: URI, chat: URI): Promise<IPersistedChat | undefined> {
-		const chatKey = chat.toString();
-		const live = this._chatBackings.get(chatKey);
-		if (live) {
-			return live;
-		}
-		const parsed = parseChatUri(chat);
-		if (!parsed) {
-			return undefined;
-		}
-		const persisted = await this._readLegacyChatBackings(session);
-		const info = persisted.get(parsed.chatId);
-		if (info) {
-			this._chatBackings.set(chatKey, info);
-		}
-		return info;
 	}
 
 	private _getOrCreateSessionLifetime(sessionId: string): CopilotSessionLifetime | undefined {
@@ -3504,7 +3550,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * its provider backing when necessary.
 	 * Returns `undefined` when the chat has no known backing.
 	 */
-	private async _resolveOrResumeChatSession(context: IResolvedCopilotChatContext): Promise<CopilotAgentSession | undefined> {
+	private async _resolveOrResumeChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession | undefined> {
 		const { session, chat, chatKey } = context;
 		const existing = this._findChatByUri(chat);
 		if (existing) {
@@ -3526,12 +3572,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (again) {
 					return again;
 				}
-				const info = await this._resolveChatBacking(session, chat);
+				const info = this._chatBackings.get(chatKey);
 				if (!info) {
 					return undefined;
 				}
-				const parentEntry = this._findAnySession(sessionId);
-				const workingDirectory = parentEntry?.workingDirectory
+				const parentEntry = this._findSessionBySdkId(sessionId);
+				const workingDirectory = workingDirectories?.[0] ?? parentEntry?.workingDirectory
 					?? this._provisionalSessions.get(sessionId)?.workingDirectory
 					?? (await this._readSessionMetadata(session)).workingDirectory;
 				if (!workingDirectory) {
@@ -3540,13 +3586,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				const client = await this._ensureClient();
 				const activeClient = this._getOrCreateActiveClient(session, workingDirectory);
-				const snapshot = await activeClient.snapshot();
+				const snapshot = await activeClient.snapshot(chatKey);
 				const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
 				const launchPlan: CopilotSessionLaunchPlan = {
 					kind: 'resume',
 					client,
 					sessionId: info.sdkSessionId,
 					workingDirectory,
+					additionalDirectories: workingDirectories?.slice(1),
 					resolvedAgentName: undefined,
 					snapshot,
 					activeClientToolSet: activeClient.toolSet,
@@ -3558,6 +3605,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await agentSession.initializeSession();
 				this._throwIfClientReplaced(client, agentSession);
 				this._registerLiveChat(chat, agentSession, activeClient);
+				if (workingDirectories) {
+					await this._storeSessionMetadata(session, info.model, workingDirectory, workingDirectories, undefined, undefined);
+				}
 				this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for context ${session.toString()}`);
 				return agentSession;
 			} catch (error) {
@@ -3826,7 +3876,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
 		let client = this._activeClients.get(session);
 		if (!client) {
-			const pluginController = this._plugins.createSessionController(session, directory);
+			// The controller reads the session's retained host-customization
+			// snapshot through this accessor rather than holding a copy, so the
+			// enablement it projects always reflects the latest snapshot the
+			// host supplied at a call boundary (Section 8b).
+			const pluginController = this._plugins.createSessionController(directory, () => this._retainedHostCustomizations(session));
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidSessionProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
@@ -3860,7 +3914,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
 				activeClientToolSet: launchPlan.activeClientToolSet,
+				// Client-tool ownership is filtered by the host-owned membership
+				// for the chat the call was issued on, so a tool call is never
+				// attributed to (and therefore dispatched to) a client Agent
+				// Host did not fan this chat out to. The session passes its
+				// current channel because `bindChatChannel` can move it after
+				// construction.
+				clientReachesChat: (clientId, chat) => activeClient.contributesTo(clientId, chat.toString()),
 				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
+				// The session's MCP enablement reconcile has no host call of its
+				// own, so it reads the owning session's retained
+				// host-customization snapshot (Section 8b) through this accessor
+				// instead of shared host state. `sessionUri` is the owning
+				// session for every chat, including additional ones, so a peer
+				// chat reconciles against the same snapshot as its session.
+				hostCustomizations: () => this._retainedHostCustomizations(sessionUri),
 				serverToolHost: this._serverToolHost,
 				isLaunchTokenCurrent: () => this._githubToken === launchPlan.githubToken,
 				onTurnEnded: () => this._onChatTurnEnded(),
@@ -3923,7 +3991,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	protected _resumeSession(sessionId: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
 		if (chatChannelUri) {
-			this._bindSessionChat(sessionId, chatChannelUri);
+			this._chatBackings.set(chatChannelUri.toString(), { sdkSessionId: sessionId });
 		}
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
 		if (!lifetime) {
@@ -3980,7 +4048,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// snapshot supersedes the persisted restoration seed.
 		const launchWorkingDirectories = workingDirectories ?? storedMetadata.workingDirectories;
 		activeClient.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(launchWorkingDirectories));
-		const snapshot = await activeClient.snapshot();
+		// Advertise exactly the clients Agent Host fanned this session's own
+		// chat out to. `_findBoundSessionChatUri` is the chat this SDK id is
+		// bound to, if any; an unbound legacy runtime has no chat address the
+		// host could have fanned out, so the session-wide union applies.
+		const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString());
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
@@ -4672,9 +4744,15 @@ class PluginController extends Disposable {
 	 * directory. The returned controller is a {@link Disposable} owned by
 	 * the caller; disposing it releases the session's disk-discovery
 	 * watchers and detaches from this controller's change event.
+	 *
+	 * `hostCustomizations` reads the session's retained host-published
+	 * customization snapshot (Section 8b of `MULTI_CHAT_ARCHITECTURE.md`) — the
+	 * source of the per-session enablement the controller projects. It is an
+	 * accessor rather than a value so the controller always sees the newest
+	 * snapshot Agent Host supplied, without holding host state itself.
 	 */
-	public createSessionController(session: URI, directory: URI | undefined): SessionPluginController {
-		return this._instantiationService.createInstance(SessionPluginController, this, session, directory);
+	public createSessionController(directory: URI | undefined, hostCustomizations: () => readonly Customization[]): SessionPluginController {
+		return this._instantiationService.createInstance(SessionPluginController, this, directory, hostCustomizations);
 	}
 
 	/**
@@ -4839,9 +4917,13 @@ class SessionPluginController extends Disposable {
 
 	constructor(
 		private readonly _parent: PluginController,
-		private readonly _session: URI,
 		private _directory: URI | undefined,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		/**
+		 * Reads the owning session's last host-published customization
+		 * snapshot (Section 8b). The controller projects the host's per-customization
+		 * enablement from it and holds no host state of its own.
+		 */
+		private readonly _hostCustomizations: () => readonly Customization[],
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
@@ -5191,7 +5273,7 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _getDesiredCustomization(id: string): Customization | ChildCustomization | undefined {
-		const customizations = this._stateManager.getSessionState(this._session.toString())?.customizations;
+		const customizations = this._hostCustomizations();
 		if (customizations !== this._indexedDesiredCustomizations) {
 			this._indexedDesiredCustomizations = customizations;
 			this._desiredCustomizationById.clear();
@@ -5309,6 +5391,28 @@ class ActiveClient extends Disposable {
 
 	private readonly _handles = new Map<string, CopilotActiveClientHandle>();
 
+	/**
+	 * Host-owned membership: each client's exact chat set, keyed by `clientId`
+	 * and holding chat-URI strings.
+	 *
+	 * Agent Host owns session→chat membership end to end and republishes the
+	 * complete set through {@link CopilotAgent.getOrCreateActiveClient}
+	 * whenever the session's catalog grows, so every entry here is an
+	 * authoritative *replacement*, never a union with what the provider
+	 * previously believed. Nothing in this class discovers sibling chats or
+	 * extends a set of its own.
+	 */
+	private readonly _chatsByClient = new Map<string, ReadonlySet<string>>();
+
+	/**
+	 * Every chat the host has published membership for, across all clients.
+	 * A chat outside this set has no authoritative membership *yet* — the
+	 * window between a peer chat being provisioned and the host's follow-up
+	 * fan-out — which is deliberately distinct from "no client contributes to
+	 * it". See {@link contributesTo}.
+	 */
+	private readonly _knownChats = new Set<string>();
+
 	constructor(
 		private readonly _sessionUri: URI,
 		pluginController: SessionPluginController,
@@ -5324,6 +5428,70 @@ class ActiveClient extends Disposable {
 		}));
 	}
 
+	/**
+	 * Adopt the host's authoritative chat set for `clientId`, replacing any
+	 * previously published membership wholesale. Returns the chats this client
+	 * newly reaches, so the caller can refresh their live runtimes.
+	 */
+	setClientChats(clientId: string, chats: readonly URI[]): readonly URI[] {
+		const previous = this._chatsByClient.get(clientId);
+		const next = new Set(chats.map(chat => chat.toString()));
+		this._chatsByClient.set(clientId, next);
+		this._reindexKnownChats();
+		return chats.filter(chat => !previous?.has(chat.toString()));
+	}
+
+	/** The exact chats `clientId` contributes to, as last published by the host. */
+	clientChats(clientId: string): readonly string[] {
+		return [...(this._chatsByClient.get(clientId) ?? [])];
+	}
+
+	/**
+	 * Whether `clientId`'s contributions reach `chatKey`.
+	 *
+	 * A chat the host has not published membership for yet is treated as
+	 * in-scope for every client: a peer chat's SDK runtime is provisioned
+	 * before the host's follow-up fan-out reaches this provider, and a client
+	 * tool call issued in that window must still resolve an owning client
+	 * rather than being dropped. Once any fan-out names the chat, membership is
+	 * exact.
+	 */
+	contributesTo(clientId: string, chatKey: string): boolean {
+		return !this._knownChats.has(chatKey) || this._chatsByClient.get(clientId)?.has(chatKey) === true;
+	}
+
+	/**
+	 * The tools visible to the addressed chat: the union contributed by the
+	 * clients the host fanned that chat out to, deduplicated by name with the
+	 * first-inserted contributor winning (matching
+	 * {@link ActiveClientToolSet.merged}).
+	 */
+	toolsForChat(chatKey: string): readonly ToolDefinition[] {
+		const seen = new Set<string>();
+		const result: ToolDefinition[] = [];
+		for (const clientId of this.toolSet.clientIds()) {
+			if (!this.contributesTo(clientId, chatKey)) {
+				continue;
+			}
+			for (const tool of this.toolSet.get(clientId)) {
+				if (!seen.has(tool.name)) {
+					seen.add(tool.name);
+					result.push(tool);
+				}
+			}
+		}
+		return result;
+	}
+
+	private _reindexKnownChats(): void {
+		this._knownChats.clear();
+		for (const chats of this._chatsByClient.values()) {
+			for (const chatKey of chats) {
+				this._knownChats.add(chatKey);
+			}
+		}
+	}
+
 	/** Get (or lazily create) the stable handle for `clientId`. */
 	getOrCreateHandle(clientId: string, displayName: string | undefined): CopilotActiveClientHandle {
 		let handle = this._handles.get(clientId);
@@ -5334,16 +5502,25 @@ class ActiveClient extends Disposable {
 		return handle;
 	}
 
-	/** Drop a client's tool and customization contributions from this session. */
+	/** Drop a client's tool, customization, and membership state from this session. */
 	removeClient(clientId: string): void {
 		this._handles.delete(clientId);
 		this.toolSet.delete(clientId);
+		this._chatsByClient.delete(clientId);
+		this._reindexKnownChats();
 		this.pluginController.removeClient(clientId);
 	}
 
-	async snapshot(): Promise<IActiveClientSnapshot> {
+	/**
+	 * The client contributions a chat should advertise to its SDK session: the
+	 * tools of the clients Agent Host fanned *that* chat out to, plus the
+	 * session-scoped plugin and MCP configuration (which Copilot shares across
+	 * every chat in the session). `chatKey` is omitted only where no chat is
+	 * addressed yet.
+	 */
+	async snapshot(chatKey?: string): Promise<IActiveClientSnapshot> {
 		return {
-			tools: this.toolSet.merged(),
+			tools: chatKey === undefined ? this.toolSet.merged() : this.toolsForChat(chatKey),
 			plugins: await this.pluginController.getAppliedPlugins(),
 			mcpServers: this._getMcpServers(),
 		};
@@ -5358,11 +5535,16 @@ class ActiveClient extends Disposable {
 	/**
 	 * Returns `true` when the SDK session must be disposed and resumed to
 	 * pick up a changed config. Compares ONLY plugins and the structural
-	 * (merged) tool set (name + description + inputSchema). The owning
+	 * (chat-scoped) tool set (name + description + inputSchema). The owning
 	 * `clientId`s are deliberately excluded — a clientId-only change is
 	 * reflected live via {@link toolSet} and never requires a restart.
+	 *
+	 * `chatKey` scopes the comparison to the chats the host fanned each client
+	 * out to, so a chat whose membership changed converges on its next
+	 * interaction instead of running indefinitely on the advertisement it was
+	 * launched with.
 	 */
-	async requiresRestart(snap: IActiveClientSnapshot): Promise<boolean> {
+	async requiresRestart(snap: IActiveClientSnapshot, chatKey?: string): Promise<boolean> {
 		const plugins = await this.pluginController.getAppliedPlugins();
 		if (!parsedPluginsEqual(snap.plugins, plugins)) {
 			return true;
@@ -5370,6 +5552,8 @@ class ActiveClient extends Disposable {
 		if (!equals(snap.mcpServers, this._getMcpServers())) {
 			return true;
 		}
-		return !this.toolSet.structuralEquals(snap.tools);
+		return chatKey === undefined
+			? !this.toolSet.structuralEquals(snap.tools)
+			: !structuralToolsEqual(this.toolsForChat(chatKey), snap.tools);
 	}
 }

@@ -12,13 +12,14 @@ import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, SubagentChatSignal } from '../../common/agentService.js';
+import { AgentChatKind, AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -126,6 +127,19 @@ function createTestSideEffects(
 		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),
 	};
 	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, resolvedOptions));
+}
+
+/**
+ * Provision a session directly on an agent through the exact-chat seam
+ * {@link IAgentChats.createSessionChat}, mirroring what
+ * `AgentService.createSession` does. Used by tests that need a session to
+ * exist on the agent backend without going through the orchestrator.
+ */
+async function createAgentSession(agent: IAgent): Promise<URI> {
+	const session = AgentSession.uri(agent.id, generateUuid());
+	const defaultChat = URI.parse(buildDefaultChatUri(session));
+	await agent.chats.createSessionChat(defaultChat, session, { session });
+	return session;
 }
 
 class TestTelemetryService implements ITelemetryService {
@@ -281,6 +295,51 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: 'hello world', attachments: undefined, chat: URI.parse(defaultChatUri) }]);
+		});
+
+		test('stamps the exhaustive host chat context on the send boundary', async () => {
+			setupSession();
+			const hostCustomization: Customization = {
+				type: CustomizationType.Plugin,
+				id: customizationId('file:///send-plugin'),
+				uri: 'file:///send-plugin',
+				name: 'Send Plugin',
+				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+			};
+			stateManager.setSessionCustomizations(sessionUri.toString(), [hostCustomization]);
+			const peerChatUri = buildChatUri(sessionUri, 'peer-send');
+			stateManager.addChat(sessionUri.toString(), peerChatUri, {
+				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
+			});
+
+			sideEffects.handleAction(peerChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello world', origin: { kind: MessageKind.User } },
+			});
+			await waitForSendMessageCalls(1);
+
+			const recorded = agent.chatContexts.filter(entry => entry.boundary === 'sendMessage');
+			assert.deepStrictEqual(recorded.map(entry => {
+				const context = entry.context as IAgentChatContext;
+				return {
+					chat: entry.chat.toString(),
+					session: context.session.toString(),
+					resource: context.resource.toString(),
+					kind: context.kind,
+					origin: context.origin,
+					customizations: context.customizations?.map(c => c.id),
+				};
+			}), [{
+				chat: peerChatUri,
+				session: sessionUri.toString(),
+				resource: peerChatUri,
+				kind: AgentChatKind.Peer,
+				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
+				customizations: [hostCustomization.id],
+			}]);
 		});
 
 		test('passes the dispatching client id and type to sendMessage', async () => {
@@ -2819,6 +2878,77 @@ suite('AgentSideEffects', () => {
 				clientId: 'test-client',
 			}]);
 		});
+
+		test('Agent Host owns the exact chat fan-out and supplies host customizations', () => {
+			setupSession();
+			const hostCustomization: Customization = {
+				type: CustomizationType.Plugin,
+				id: customizationId('file:///host-plugin'),
+				uri: 'file:///host-plugin',
+				name: 'Host Plugin',
+				enabled: true,
+				load: { kind: CustomizationLoadStatus.Loaded },
+			};
+			stateManager.setSessionCustomizations(sessionUri.toString(), [hostCustomization]);
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-fanout'));
+			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
+
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [] },
+			});
+
+			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
+				session: call.session.toString(),
+				clientId: call.clientId,
+				chats: call.chats.map(chat => chat.toString()),
+				hostCustomizations: call.hostCustomizations?.map(c => c.id),
+			})), [{
+				session: sessionUri.toString(),
+				clientId: 'test-client',
+				// Default chat first, then the catalog peers — never synthesized
+				// by the provider.
+				chats: [defaultChatUri, peerChatUri.toString()],
+				hostCustomizations: [hostCustomization.id],
+			}]);
+		});
+
+		test('skips the fan-out when the host has no state for the session', () => {
+			const unknownSession = URI.parse('mock:/never-created');
+			sideEffects.handleAction(unknownSession.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [] },
+			});
+
+			// An absent session has no authoritative membership, so the provider
+			// is not handed an invented default-chat-only list.
+			assert.deepStrictEqual(agent.activeClientCalls, []);
+		});
+
+		test('re-fans-out every active client when a chat joins the catalog', () => {
+			setupSession();
+			const activeClientAction: SessionAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [] },
+			};
+			// Record the contribution in session state (as the real dispatch
+			// pipeline does) and run its side effect.
+			stateManager.dispatchClientAction(sessionUri.toString(), activeClientAction, { clientId: 'test-client', clientSeq: 1 });
+			sideEffects.handleAction(sessionUri.toString(), activeClientAction);
+
+			const peerChatUri = buildChatUri(sessionUri, 'peer-added');
+			stateManager.addChat(sessionUri.toString(), peerChatUri);
+
+			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
+				clientId: call.clientId,
+				chats: call.chats.map(chat => chat.toString()),
+			})), [
+				{ clientId: 'test-client', chats: [defaultChatUri] },
+				// Adding a chat replaces the client's membership with the new,
+				// host-owned set — the provider never grows it itself.
+				{ clientId: 'test-client', chats: [defaultChatUri, peerChatUri] },
+			]);
+		});
 	});
 
 	// ---- handleAction: root/configChanged --------------------------------
@@ -3534,8 +3664,27 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(
-				agent.clientToolCallCompleteCalls.map(c => ({ session: c.session.toString(), chat: c.chat?.toString(), toolCallId: c.toolCallId })),
-				[{ session: sessionUri.toString(), chat: peerChatUri, toolCallId: 'tc-inner' }],
+				agent.clientToolCallCompleteCalls.map(c => ({
+					session: c.session.toString(),
+					chat: c.chat?.toString(),
+					toolCallId: c.toolCallId,
+					// `context` describes the *addressed* chat, so a provider can
+					// recover the spawning chat + tool call from it. Stamping the
+					// routing target here instead would make that unresolvable.
+					contextResource: c.context?.resource.toString(),
+					contextKind: c.context?.kind,
+					parent: resolveSubagentChatParent(c.context)?.chat.toString(),
+					parentToolCallId: resolveSubagentChatParent(c.context)?.toolCallId,
+				})),
+				[{
+					session: sessionUri.toString(),
+					chat: peerChatUri,
+					toolCallId: 'tc-inner',
+					contextResource: subagentChatUri,
+					contextKind: AgentChatKind.Subagent,
+					parent: peerChatUri,
+					parentToolCallId: 'tc-parent',
+				}],
 			);
 		});
 	});
@@ -4163,8 +4312,7 @@ suite('AgentSideEffects', () => {
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
-			// Create a session on the agent backend
-			await localAgent.createSession();
+			await createAgentSession(localAgent);
 
 			// Persist a custom title in the DB
 			await sessionDb.setMetadata('customTitle', 'My Custom Title');
@@ -4183,8 +4331,7 @@ suite('AgentSideEffects', () => {
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
-			// Create a session on the agent backend
-			const { session } = await localAgent.createSession();
+			const session = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -4211,7 +4358,7 @@ suite('AgentSideEffects', () => {
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			localService.registerProvider(localAgent);
 
-			const { session } = await localAgent.createSession();
+			const session = await createAgentSession(localAgent);
 			const sessions = await localAgent.listSessions();
 			const sessionResource = sessions[0].session;
 

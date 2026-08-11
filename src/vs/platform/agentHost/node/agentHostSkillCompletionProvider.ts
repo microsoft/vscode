@@ -11,7 +11,7 @@ import type { IAgent } from '../common/agentService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization } from '../common/state/sessionState.js';
+import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
@@ -27,6 +27,14 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 	constructor(
 		private readonly _getAgent: (session: URI | string) => IAgent | undefined,
+		/**
+		 * The owning session's last host-published customization snapshot.
+		 * Supplied by Agent Host so the provider hands it to
+		 * `getSessionCustomizations` explicitly instead of the agent reading it
+		 * from shared host state. `undefined` when the host has published no
+		 * snapshot for the session yet.
+		 */
+		private readonly _getHostCustomizations: (session: URI | string) => readonly Customization[] | undefined = () => undefined,
 	) {
 		super();
 	}
@@ -80,7 +88,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		if (!agent.getSessionCustomizations) {
 			return [];
 		}
-		const customizations = await agent.getSessionCustomizations(session);
+		const customizations = await agent.getSessionCustomizations(session, this._getHostCustomizations(session));
 		const result: SlashCommmandCandidate[] = [];
 		for (const c of customizations) {
 			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {

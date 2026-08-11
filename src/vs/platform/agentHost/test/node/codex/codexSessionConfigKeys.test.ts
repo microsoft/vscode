@@ -22,7 +22,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -38,7 +38,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
-	instantiationService.stub(IAgentHostStateManager, disposables.add(new AgentHostStateManager(logService)));
+	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);

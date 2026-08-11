@@ -6,13 +6,20 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentChatContext } from '../../../common/agentService.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agentService.js';
+import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 
+/**
+ * Exactly the state `_resolveConversationSession` reads: the provider id it
+ * mints canonical session URIs with, and the chat→runtime bindings it recorded.
+ * Notably NOT the session map — resolution answers with the canonical URI of
+ * the bound runtime id rather than echoing whatever URI an entry happens to
+ * carry, so a stale or mis-stamped entry cannot redirect a chat.
+ */
 interface ICodexConversationResolverHarness {
-	readonly id: 'codex';
+	readonly id: AgentProvider;
 	readonly _sessionIdByChatUri: Map<string, string>;
-	readonly _sessions: Map<string, { readonly sessionUri: URI }>;
 }
 
 function resolveConversationSession(harness: ICodexConversationResolverHarness, address: URI, context?: URI | IAgentChatContext): URI | undefined {
@@ -22,19 +29,18 @@ function resolveConversationSession(harness: ICodexConversationResolverHarness, 
 	return resolver.call(harness, address, context);
 }
 
+function emptyHarness(): ICodexConversationResolverHarness {
+	return { id: CODEX_AGENT_PROVIDER_ID, _sessionIdByChatUri: new Map() };
+}
+
 suite('CodexAgent', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('prefers transient host context over conversation URI shape', () => {
 		const session = AgentSession.uri('codex', 'session-1');
-		const harness: ICodexConversationResolverHarness = {
-			id: 'codex',
-			_sessionIdByChatUri: new Map(),
-			_sessions: new Map(),
-		};
 
-		const result = resolveConversationSession(harness, URI.parse('untitled:conversation'), {
+		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			session,
 			resource: URI.parse('untitled:conversation'),
 		});
@@ -46,9 +52,8 @@ suite('CodexAgent', () => {
 		const session = AgentSession.uri('codex', 'session-2');
 		const chat = URI.parse('untitled:bound');
 		const harness: ICodexConversationResolverHarness = {
-			id: 'codex',
+			id: CODEX_AGENT_PROVIDER_ID,
 			_sessionIdByChatUri: new Map([[chat.toString(), 'session-2']]),
-			_sessions: new Map([['session-2', { sessionUri: session }]]),
 		};
 
 		const result = resolveConversationSession(harness, chat);
@@ -56,28 +61,24 @@ suite('CodexAgent', () => {
 		assert.strictEqual(result?.toString(), session.toString());
 	});
 
-	test('accepts a direct codex session URI for legacy callers', () => {
+	test('resolution has exactly two sources: a recorded binding or host context', () => {
 		const session = AgentSession.uri('codex', 'session-3');
-		const harness: ICodexConversationResolverHarness = {
-			id: 'codex',
-			_sessionIdByChatUri: new Map(),
-			_sessions: new Map(),
-		};
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
 
-		const result = resolveConversationSession(harness, session);
-
-		assert.strictEqual(result?.toString(), session.toString());
-	});
-
-	test('does not infer a foreign URI as codex conversation membership', () => {
-		const harness: ICodexConversationResolverHarness = {
-			id: 'codex',
-			_sessionIdByChatUri: new Map(),
-			_sessions: new Map(),
-		};
-
-		const result = resolveConversationSession(harness, URI.parse('untitled:unknown'));
-
-		assert.strictEqual(result, undefined);
+		assert.deepStrictEqual({
+			// The legacy "a codex session URI addresses its own chat" adapter is
+			// gone: an unbound session URI is not self-resolving any more.
+			unboundSessionUri: resolveConversationSession(emptyHarness(), session)?.toString(),
+			// Nor is a chat URI recognized by shape — an unbound default chat
+			// only resolves once the host supplies its owning session.
+			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { session, resource: defaultChat })?.toString(),
+			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
+		}, {
+			unboundSessionUri: undefined,
+			unboundDefaultChat: undefined,
+			withHostContext: session.toString(),
+			foreignUri: undefined,
+		});
 	});
 });

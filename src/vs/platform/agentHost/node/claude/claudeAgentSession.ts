@@ -513,7 +513,13 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
-		this._hostCustomizations = ctx.customizations ?? [];
+		// `ctx.customizations` is the host's last published snapshot for the
+		// owning session. Absent means "the host has published none yet", which
+		// is not the same as an empty list — keep whatever was already
+		// reconciled rather than clearing it.
+		if (ctx.customizations) {
+			this._hostCustomizations = ctx.customizations;
+		}
 		// Adopt the host-resolved working directory (e.g. an isolated worktree)
 		// before it's read below; falls back to the session's `workspace` when the
 		// host didn't resolve a dedicated directory. The plural
@@ -628,7 +634,7 @@ export class ClaudeAgentSession extends Disposable {
 		// Final pre-commit abort gate. The first gate above caught aborts
 		// that landed while `sdk.startup()` was in flight; this one catches
 		// aborts that landed during the metadata write (a separate async
-		// boundary). Without it, a racing `disposeSession` could complete
+		// boundary). Without it, a racing teardown could complete
 		// before this method returns and leave the pipeline live.
 		if (this.abortController.signal.aborted) {
 			throw new CancellationError();

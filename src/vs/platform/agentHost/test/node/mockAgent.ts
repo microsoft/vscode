@@ -15,7 +15,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryReco
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -55,7 +55,6 @@ export class MockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
-	private _nextId = 1;
 	/** Active turn IDs per session, captured from sendMessage(). */
 	private readonly _activeTurnIds = new Map<string, string>();
 
@@ -72,13 +71,24 @@ export class MockAgent implements IAgent {
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
 	readonly removeActiveClientCalls: { clientId: string }[] = [];
-	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult }[] = [];
+	/**
+	 * Every host-supplied {@link IAgentChatContext} this agent was handed,
+	 * keyed by the boundary it arrived at. Lets shared tests assert that Agent
+	 * Host stamps the exhaustive `kind` / `origin` / `customizations` seam on
+	 * every addressed chat operation.
+	 */
+	readonly chatContexts: { boundary: string; chat: URI; context: IAgentChatContext | URI | undefined }[] = [];
+	/** Active-client fan-out recorded exactly as Agent Host supplied it. */
+	readonly activeClientCalls: { session: URI; clientId: string; chats: readonly URI[]; hostCustomizations: readonly Customization[] | undefined }[] = [];
+	/** Host customizations handed to {@link getSessionCustomizations}. */
+	readonly sessionCustomizationsCalls: { session: URI; hostCustomizations: readonly Customization[] | undefined }[] = [];
+	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult; context?: IAgentChatContext }[] = [];
 	readonly truncateSessionCalls: { session: URI; turnId: string | undefined; chat: URI | undefined }[] = [];
 	/** Configurable return value for getCustomizations. */
 	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
-	getSessionCustomizations?: (session: URI) => Promise<readonly Customization[]>;
+	getSessionCustomizations?: (session: URI, hostCustomizations?: readonly Customization[]) => Promise<readonly Customization[]>;
 
 	/**
 	 * Configurable session history. Tests construct {@link IHistoryRecord}
@@ -121,7 +131,7 @@ export class MockAgent implements IAgent {
 		return { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides };
 	}
 
-	/** Optional override for the working directory returned by createSession. */
+	/** Optional override for the working directory returned by createSessionChat. */
 	resolvedWorkingDirectory: URI | undefined;
 
 	/**
@@ -131,11 +141,11 @@ export class MockAgent implements IAgent {
 	 */
 	sendMessageError: Error | undefined;
 	lastCreateSessionConfig: IAgentCreateSessionConfig | undefined;
-	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+
+	/** Backing helper for {@link chats}.createSessionChat: registers and returns a new session record. */
+	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateSessionResult {
 		this.lastCreateSessionConfig = config;
-		const session = config?.session ?? AgentSession.uri(this.id, `${this.id}-session-${this._nextId++}`);
-		const rawId = AgentSession.id(session);
-		this._sessions.set(rawId, session);
+		this._sessions.set(AgentSession.id(session), session);
 		return { session, project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
 	}
 
@@ -182,12 +192,14 @@ export class MockAgent implements IAgent {
 		return turns;
 	}
 
-	async disposeSession(session: URI): Promise<void> {
+	/** Mandatory {@link IAgent} teardown hook: finalize session-scoped resources once every chat has been disposed. */
+	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
 		this.disposeSessionCalls.push(session);
 		this._sessions.delete(AgentSession.id(session));
 	}
 
-	async releaseSession(session: URI): Promise<void> {
+	/** Backing helper for {@link chats}.releaseChat: records a non-destructive release. */
+	private _releaseSessionRecord(session: URI): void {
 		// Non-destructive: record the call but keep the session in the catalog
 		// so a later restore/resume still finds its durable data.
 		this.releaseSessionCalls.push(session);
@@ -243,27 +255,45 @@ export class MockAgent implements IAgent {
 		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
 	}
 
+	/** Records a host-supplied chat context for later assertion. */
+	private _recordContext(boundary: string, chat: URI, context: URI | IAgentChatContext | undefined): void {
+		this.chatContexts.push({ boundary, chat, context });
+	}
+
 	readonly chats: IAgentChats = {
 		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			this._recordContext('createChat', chatUri, context);
 			return this.createChat(resolveAgentChatContext(context, chatUri).session, chatUri, options);
 		},
+		createSessionChat: (chatUri: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
+			this._recordContext('createSessionChat', chatUri, context);
+			const session = resolveAgentChatContext(context, chatUri).session;
+			return Promise.resolve(this._createSessionRecord(session, config));
+		},
 		fork: (chatUri: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+			this._recordContext('fork', chatUri, context);
 			return this.createChat(resolveAgentChatContext(context, chatUri).session, chatUri, { ...options, fork: source });
 		},
-		disposeChat: (chatUri: URI): Promise<void> => {
-			if (isDefaultChatUri(chatUri)) {
-				return this.disposeSession(URI.parse(parseDefaultChatUri(chatUri)!));
-			}
-			const { session, chat } = this._resolveChatTarget(chatUri);
+		disposeChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
+			this._recordContext('disposeChat', chatUri, context);
+			// Every chat, including the default one, is torn down uniformly
+			// here; session-scoped teardown happens exclusively in the
+			// mandatory finalizeSession hook once all chats are gone.
+			const { session, chat } = this._resolveChatTarget(chatUri, context);
 			return this.disposeChat(session, chat);
 		},
-		releaseChat: (chatUri: URI): Promise<void> => {
-			const { session } = this._resolveChatTarget(chatUri);
-			return this.releaseSession(session);
+		releaseChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
+			// Unlike dispose, release has no separate session-level finalize
+			// hook: every addressed chat (default or peer) maps directly to
+			// this mock's session-level release bookkeeping.
+			const { session } = this._resolveChatTarget(chatUri, context);
+			this._releaseSessionRecord(session);
+			return Promise.resolve();
 		},
 		sendMessage: (chatUri: URI, prompt: string, _workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const clientType = typeof clientTypeOrContext === 'string' ? clientTypeOrContext : AgentHostClientType.Unknown;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
+			this._recordContext('sendMessage', chatUri, operationContext);
 			const { session, chat } = this._resolveChatTarget(chatUri, operationContext);
 			return this.sendMessage(session, chat, prompt, attachments, turnId, senderClientId, clientType);
 		},
@@ -280,6 +310,7 @@ export class MockAgent implements IAgent {
 			return this.changeAgent(session, agent, chat);
 		},
 		getMessages: (chat: URI, _context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+			this._recordContext('getMessages', chat, _context);
 			return this.getSessionMessages(chat);
 		},
 	};
@@ -312,8 +343,9 @@ export class MockAgent implements IAgent {
 		return results;
 	}
 
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[] = [], hostCustomizations?: readonly Customization[]): IActiveClient {
 		const self = this;
+		this.activeClientCalls.push({ session, clientId: client.clientId, chats, hostCustomizations });
 		let tools: readonly ToolDefinition[] = [];
 		let customizations: readonly ClientPluginCustomization[] = [];
 		return {
@@ -336,8 +368,8 @@ export class MockAgent implements IAgent {
 		this.removeActiveClientCalls.push({ clientId });
 	}
 
-	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult): void {
-		this.clientToolCallCompleteCalls.push({ session, chat, toolCallId, result });
+	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
+		this.clientToolCallCompleteCalls.push({ session, chat, toolCallId, result, context });
 	}
 
 	async shutdown(): Promise<void> { }
@@ -388,7 +420,6 @@ export class ScriptedMockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
-	private _nextId = 1;
 
 	/**
 	 * Message history for the pre-existing session: a single user→assistant
@@ -459,10 +490,8 @@ export class ScriptedMockAgent implements IAgent {
 		};
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-		const session = config?.session ?? AgentSession.uri('mock', `mock-session-${this._nextId++}`);
-		const rawId = AgentSession.id(session);
-		this._sessions.set(rawId, session);
+	private _createSessionRecord(session: URI): IAgentCreateSessionResult {
+		this._sessions.set(AgentSession.id(session), session);
 		return { session, project: mockProject(this.id) };
 	}
 
@@ -852,7 +881,7 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	getOrCreateActiveClient(_session: URI, client: { readonly clientId: string; readonly displayName?: string }): IActiveClient {
+	getOrCreateActiveClient(_session: URI, client: { readonly clientId: string; readonly displayName?: string }, _chats?: readonly URI[], _hostCustomizations?: readonly Customization[]): IActiveClient {
 		let tools: readonly ToolDefinition[] = [];
 		let customizations: readonly ClientPluginCustomization[] = [];
 		return {
@@ -904,7 +933,8 @@ export class ScriptedMockAgent implements IAgent {
 		return [];
 	}
 
-	async disposeSession(session: URI): Promise<void> {
+	/** Mandatory {@link IAgent} teardown hook: finalize session-scoped resources once every chat has been disposed. */
+	async finalizeSession(session: URI, _context?: { readonly workspaceless?: boolean }): Promise<void> {
 		this._sessions.delete(AgentSession.id(session));
 	}
 
@@ -939,13 +969,16 @@ export class ScriptedMockAgent implements IAgent {
 		createChat: (_chat: URI, _context: URI | IAgentChatContext, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
+		createSessionChat: (chatUri: URI, context: URI | IAgentChatContext, _config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
+			const session = resolveAgentChatContext(context, chatUri).session;
+			return Promise.resolve(this._createSessionRecord(session));
+		},
 		fork: (_chat: URI, _context: URI | IAgentChatContext, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Scripted mock agent does not support chat forking');
 		},
-		disposeChat: (chat: URI): Promise<void> => {
-			if (isDefaultChatUri(chat)) {
-				return this.disposeSession(URI.parse(parseDefaultChatUri(chat)!));
-			}
+		disposeChat: (): Promise<void> => {
+			// Session-scoped teardown happens exclusively in finalizeSession
+			// once every chat (including the default one) has been disposed.
 			return Promise.resolve();
 		},
 		releaseChat: async (): Promise<void> => { },
