@@ -5,10 +5,8 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
-import { homedir } from 'os';
-import { untildify } from '../../../../base/common/labels.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { dirname, isAbsolute, join, normalize } from '../../../../base/common/path.js';
+import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
@@ -16,6 +14,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
+import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
@@ -80,8 +79,7 @@ function isSupportedMcpServerConfiguration(value: unknown): value is IMcpServerC
 
 function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultCwd?: URI): MCPServerConfig {
 	if (config.type === McpServerType.LOCAL) {
-		const cwd = config.cwd ? untildify(config.cwd, homedir()) : undefined;
-		const effectiveCwd = cwd && defaultCwd && !isAbsolute(cwd) ? normalize(join(defaultCwd.fsPath, cwd)) : cwd ?? defaultCwd?.fsPath;
+		const effectiveCwd = resolveMcpServerWorkingDirectory(config.cwd, defaultCwd);
 		return {
 			type: 'local',
 			command: config.command,

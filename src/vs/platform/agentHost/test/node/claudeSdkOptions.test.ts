@@ -210,10 +210,15 @@ suite('claudeSdkOptions / MCP server projection', () => {
 			...definition('relative-primary', primary),
 			configuration: { type: McpServerType.LOCAL, command: 'relative-primary', cwd: '.' },
 		} satisfies IMcpServerDefinition;
+		const normalizedPrimary = {
+			...definition('normalized-primary', primary),
+			configuration: { type: McpServerType.LOCAL, command: 'normalized-primary', cwd: `${primary.fsPath}/child/..` },
+		} satisfies IMcpServerDefinition;
 		const result = toClaudeMcpServers([
 			definition('primary', primary),
 			definition('remote-primary', remotePrimary),
 			relativePrimary,
+			normalizedPrimary,
 			definition('additional', URI.file('/additional')),
 			definition('remote', URI.file('/additional'), true),
 			{
@@ -222,7 +227,7 @@ suite('claudeSdkOptions / MCP server projection', () => {
 			},
 		], primary);
 
-		assert.deepStrictEqual(Object.keys(result.servers), ['primary', 'remote-primary', 'relative-primary', 'remote', 'sse']);
+		assert.deepStrictEqual(Object.keys(result.servers), ['primary', 'remote-primary', 'relative-primary', 'normalized-primary', 'remote', 'sse']);
 		assert.strictEqual(result.servers.sse.type, 'sse');
 		assert.deepStrictEqual(result.skipped, ['additional']);
 	});

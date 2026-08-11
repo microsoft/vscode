@@ -6,7 +6,7 @@
 import type { McpSdkServerConfigWithInstance, McpServerConfig, OnElicitation, Options } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { tmpdir } from 'os';
-import { delimiter, dirname, isAbsolute, join, normalize } from '../../../../base/common/path.js';
+import { delimiter, dirname, normalize } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
@@ -23,6 +23,7 @@ import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsMo
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 /**
  * Inputs to {@link buildOptions} that vary per startup. Pure-data: no
@@ -211,11 +212,8 @@ export function toClaudeMcpServers(
 			continue;
 		}
 
-		const defaultCwd = definition.defaultCwd?.fsPath ?? primaryCwd.fsPath;
-		const effectiveCwd = config.cwd === undefined
-			? defaultCwd
-			: isAbsolute(config.cwd) ? normalize(config.cwd) : normalize(join(defaultCwd, config.cwd));
-		const hasRepresentableCwd = isEqual(URI.file(effectiveCwd), URI.file(primaryCwd.fsPath));
+		const effectiveCwd = resolveMcpServerWorkingDirectory(config.cwd, definition.defaultCwd ?? primaryCwd);
+		const hasRepresentableCwd = effectiveCwd !== undefined && isEqual(URI.file(normalize(effectiveCwd)), URI.file(normalize(primaryCwd.fsPath)));
 		if (!hasRepresentableCwd) {
 			skipped.push(definition.name);
 			continue;

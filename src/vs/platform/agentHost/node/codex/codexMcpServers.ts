@@ -6,11 +6,9 @@
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { NKeyMap } from '../../../../base/common/map.js';
-import { untildify } from '../../../../base/common/labels.js';
-import { isAbsolute, join, normalize } from '../../../../base/common/path.js';
-import { homedir } from 'os';
 import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 import type { McpServerStartupState } from './protocol/generated/v2/McpServerStartupState.js';
 import type { McpServerStatus as CodexMcpServerStatus } from './protocol/generated/v2/McpServerStatus.js';
 import type { Resource } from './protocol/generated/Resource.js';
@@ -167,12 +165,9 @@ export function codexMcpStatusToEntry(status: CodexMcpServerStatus): ICodexMcpSe
  * Builds a name-keyed inventory snapshot from a codex `mcpServerStatus/list`
  * response page (or the concatenation of all paginated pages).
  */
-export function codexMcpListToInventory(data: readonly (CodexMcpServerStatus | null | undefined)[]): Map<string, ICodexMcpServerEntry> {
+export function codexMcpListToInventory(data: readonly CodexMcpServerStatus[]): Map<string, ICodexMcpServerEntry> {
 	const inventory = new Map<string, ICodexMcpServerEntry>();
 	for (const status of data) {
-		if (!status || typeof status.name !== 'string') {
-			continue;
-		}
 		inventory.set(status.name, codexMcpStatusToEntry(status));
 	}
 	return inventory;
@@ -323,8 +318,7 @@ export function toCodexMcpServerJson(config: IMcpServerConfiguration, defaultCwd
 			out.env = env;
 		}
 		if (typeof config.cwd === 'string' || defaultCwd) {
-			const cwd = typeof config.cwd === 'string' ? untildify(config.cwd, homedir()) : undefined;
-			out.cwd = cwd && defaultCwd && !isAbsolute(cwd) ? normalize(join(defaultCwd.fsPath, cwd)) : cwd ?? defaultCwd?.fsPath;
+			out.cwd = resolveMcpServerWorkingDirectory(config.cwd, defaultCwd);
 		}
 		return out;
 	}

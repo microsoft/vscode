@@ -582,8 +582,6 @@ interface ICodexSession {
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
-	/** Workspace MCP definitions changed since the thread last consumed its configuration. */
-	mcpDiscoveryDirty: boolean;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
 	lastPromptText: string;
 	/** True once the workbench has disposed this session. Guards background prewarm continuations. */
@@ -1737,7 +1735,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const store = new DisposableStore();
 			const discovery = store.add(new SessionMcpDiscovery(roots, this._fileService));
 			store.add(discovery.onDidChange(() => {
-				session.mcpDiscoveryDirty = true;
+				session.materializedMcpSig = undefined;
 				if (session.firstTurnSent) {
 					session.needsResume = true;
 				}
@@ -2429,7 +2427,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
-			mcpDiscoveryDirty: false,
 			lastPromptText: '',
 			disposed: false,
 			materializePromise: undefined,
@@ -2990,7 +2987,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
-			mcpDiscoveryDirty: false,
 			lastPromptText: '',
 			disposed: false,
 			materializePromise: undefined,
@@ -3069,7 +3065,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: true,
-			mcpDiscoveryDirty: false,
 			lastPromptText: '',
 			disposed: false,
 			materializePromise: undefined,
@@ -3358,7 +3353,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		session.threadId = threadId;
 		session.materializedMcpSig = mcpServersSignature(mcpServers);
-		session.mcpDiscoveryDirty = false;
 		session.materializedCustomizationsSig = customizationLaunch.signature;
 		session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
 		this._logService.info(`[Codex DEBUG] materialized session=${session.sessionUri.toString()} threadId=${session.threadId}`);
@@ -3643,9 +3637,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		// turn commits history, so nothing is lost — so the tools land in
 		// `dynamicTools` and the servers in `config.mcp_servers`.
 		const toolsChanged = toolsSignature(session.clientToolSet.merged()) !== session.materializedToolsSig;
-		const mcpChanged = session.mcpDiscoveryDirty || mcpServersSignature(this._buildSessionMcpServers(session)) !== session.materializedMcpSig;
+		const mcpChanged = mcpServersSignature(this._buildSessionMcpServers(session)) !== session.materializedMcpSig;
 		const customizationLaunch = await this._buildCustomizationLaunch(session);
 		const customizationsChanged = customizationLaunch.signature !== session.materializedCustomizationsSig;
+		if (session.firstTurnSent && mcpChanged) {
+			session.needsResume = true;
+		}
 		if (!session.firstTurnSent && !session.needsResume && (toolsChanged || mcpChanged || customizationsChanged)) {
 			try {
 				await this._restartThreadWithCurrentTools(session);
@@ -3665,13 +3662,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		const threadId = session.threadId!;
-		if (session.firstTurnSent && session.mcpDiscoveryDirty) {
-			session.needsResume = true;
-		}
 		if (session.needsResume) {
-			const resumeHadMcpChanges = session.mcpDiscoveryDirty;
 			session.needsResume = false;
-			session.mcpDiscoveryDirty = false;
 			try {
 				// Carry the current MCP servers (with any injected auth token)
 				// so a resumed thread reconnects auth-gated servers, matching
@@ -3701,7 +3693,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				void this._refreshMcpInventory(conn.client, threadId);
 			} catch (err) {
 				session.needsResume = true;
-				session.mcpDiscoveryDirty ||= resumeHadMcpChanges;
 				const duration = this._clearTurnStopWatch(session);
 				this._fire(sessionUri, {
 					type: ActionType.ChatError,
@@ -4609,7 +4600,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			let cursor: string | null | undefined = null;
 			do {
 				const response: ListMcpServerStatusResponse = await client.request<'mcpServerStatus/list', ListMcpServerStatusResponse>('mcpServerStatus/list', { cursor, detail: 'full', threadId });
-				data = data.concat(response.data);
+				data = data.concat(response.data ?? []);
 				cursor = response.nextCursor;
 			} while (cursor);
 		} catch (err) {
