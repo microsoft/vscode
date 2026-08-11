@@ -684,6 +684,9 @@ export function getBuiltinMcpServerEnablementActions(mcpService: IMcpService, se
 	if (activeSessionServer === undefined) {
 		return getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench);
 	}
+	if (activeSessionServer.isPluginProvided && activeSessionServer.owningPluginClientId === undefined) {
+		return getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer);
+	}
 	return [
 		...getLocalMcpServerEnablementActions(mcpService, serverId, isEmptyWorkbench, { includeWorkspace: false }),
 		...getAgentHostMcpServerEnablementActions(agentHostCustomizations, agentPluginService, sessionResource, activeSessionServer, ['workspace', 'session']),

@@ -16,7 +16,6 @@ assets/walkthroughs/**
 !dist/webview.js
 !dist/copilotDebugCommand.js
 !dist/copilotCLIShim.js
-!dist/cli.js
 !dist/suggestionsPanelWebview.js
 !node_modules/@vscode/copilot-typescript-server-plugin/package.json
 !node_modules/@vscode/copilot-typescript-server-plugin/dist/*.js

@@ -6,7 +6,6 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -23,15 +22,11 @@ const DISCOVERED_CONFIG_NOTIFICATION_ID = 'agentHost.discoveredConfig.claude';
 /** Single entry point for starting GitHub Copilot sign-in from a nudge. */
 const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 
-/** Command bound to the nudge's bell-slash "Don't Show Again" button. */
-const MUTE_COMMAND_ID = 'workbench.action.agentHost.discoveredConfig.mute';
-
 /**
- * Persists the user's "Don't Show Again" choice. The discovered config lives on
- * this machine, so the preference is scoped to the machine — {@link
- * StorageScope.APPLICATION} to span profiles and workspaces, and {@link
- * StorageTarget.MACHINE} so settings sync does not carry it to a machine where
- * no such config exists.
+ * Persists the user's dismissal. The discovered config lives on this machine, so
+ * the preference is scoped to the machine — {@link StorageScope.APPLICATION} to
+ * span profiles and workspaces, and {@link StorageTarget.MACHINE} so settings
+ * sync does not carry it to a machine where no such config exists.
  */
 const MUTED_STORAGE_KEY = 'agentHost.discoveredConfig.claude.muted';
 
@@ -45,9 +40,10 @@ const MUTED_STORAGE_KEY = 'agentHost.discoveredConfig.claude.muted';
  *
  * The banner is scoped to the Claude session type (so it only renders when that
  * harness is selected) and clears itself the moment the user signs in or the
- * agent stops advertising native mode. Its bell-slash button persists a
- * machine-wide "Don't Show Again" choice; the X button dismisses it only for the
- * current window.
+ * agent stops advertising native mode. Dismissing it with the X persists a
+ * machine-wide choice not to show it again — the nudge is informational, so a
+ * user who has read it once has read it for good. Sending a message merely hides
+ * it for the current window.
  */
 export class AgentHostDiscoveredConfigNotificationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -71,10 +67,15 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 	) {
 		super();
 
-		// The bell-slash button runs this command, which persists the mute; the
-		// storage listener below then re-drives `_update` to tear the banner down.
-		this._register(CommandsRegistry.registerCommand(MUTE_COMMAND_ID, () => {
-			this._storageService.store(MUTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		// Dismissing the banner is the user telling us they've read it, so persist
+		// that; the storage listener below then re-drives `_update` to tear it
+		// down. `onDidDismiss` fires only for an explicit dismissal — the
+		// auto-dismiss on send does not, so sending a message still just hides
+		// the nudge for this window.
+		this._register(this._chatInputNotificationService.onDidDismiss(id => {
+			if (id === DISCOVERED_CONFIG_NOTIFICATION_ID) {
+				this._storageService.store(MUTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 		}));
 
 		// Signing in/out flips the nudge; a session-type change is how the agent
@@ -148,13 +149,13 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 				kind: ChatInputNotificationActionKind.Command,
 				label: localize('agentHost.discoveredConfig.signIn', "Sign in to GitHub"),
 				commandId: SIGN_IN_COMMAND_ID,
+				// Dismissal is permanent now, so a sign-in click — which the user
+				// may still cancel — must not route through it. The banner retires
+				// on its own once the account resolves to signed in.
+				keepOpen: true,
 			}],
 			dismissible: true,
 			autoDismissOnMessage: true,
-			mute: {
-				commandId: MUTE_COMMAND_ID,
-				tooltip: localize('agentHost.discoveredConfig.mute', "Don't Show Again"),
-			},
 			sessionTypes: [SessionType.AgentHostClaude],
 		});
 	}

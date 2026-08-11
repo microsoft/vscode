@@ -16,10 +16,15 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange = Event.None;
 	private readonly _enablement = new Map<string, readonly CustomizationEnablement[]>();
+	private readonly _enablementByDurableKey = new Map<string, readonly CustomizationEnablement[]>();
 	private _pending: 'session' | 'workingDirectory' | undefined;
 
 	setEnablementFor(id: string, enablement: readonly CustomizationEnablement[]): void {
 		this._enablement.set(id, sortCustomizationEnablement(enablement));
+	}
+
+	setEnablementForDurableKey(key: string, enablement: readonly CustomizationEnablement[]): void {
+		this._enablementByDurableKey.set(key, sortCustomizationEnablement(enablement));
 	}
 
 	setPending(reason: 'session' | 'workingDirectory' | undefined): void {
@@ -36,7 +41,7 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 		if (this._pending !== undefined) {
 			return { kind: 'pending', reason: this._pending };
 		}
-		return this._resolved(this._enablement.get(target.id) ?? []);
+		return this._resolved(this._enablement.get(target.id) ?? this._enablementByDurableKey.get(this._key(target)) ?? []);
 	}
 
 	applyClientGlobalEnablement(session: string, target: ICustomizationEnablementTarget, enablement: readonly CustomizationEnablement[]): CustomizationEnablementResolution {
@@ -70,6 +75,12 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 			enabled: isCustomizationEnabled({ enablement }),
 			workingDirectory: { kind: 'workspaceless' },
 		};
+	}
+
+	private _key(target: ICustomizationEnablementTarget): string {
+		return target.type === CustomizationType.McpServer && target.owningPluginSource
+			? `${target.owningPluginSource.toString()}#mcp=${target.name}`
+			: target.id;
 	}
 }
 
@@ -200,6 +211,38 @@ suite('CustomizationEnablementGate', () => {
 				],
 			}],
 		}]);
+	});
+
+	test('publishes a workspace decision for a materialized plugin MCP child in every session', () => {
+		const service = new TestEnablementService();
+		const pluginUri = 'file:///Users/connor/.vscode-oss-dev-dev/agent-plugins/github.com/microsoft/azure-skills/.github/plugins/azure-skills';
+		const materializedChildId = 'file:///Users/connor/.vscode-oss-dev-dev/agentPlugins/19ff2ac36f2/.mcp.json#mcp=azure';
+		const workspaceEnablement = [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///Users/connor/Github/js-debug-demos/node', enabled: false }] as const;
+		service.setEnablementForDurableKey(`${pluginUri}#mcp=azure`, workspaceEnablement);
+		const parsedPlugin: PluginCustomization = {
+			...plugin([{
+				...server(),
+				id: materializedChildId,
+				uri: 'file:///Users/connor/.vscode-oss-dev-dev/agentPlugins/19ff2ac36f2/.mcp.json',
+				name: 'azure',
+			}]),
+			uri: pluginUri,
+		};
+
+		const firstSession = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [parsedPlugin]);
+		const secondSession = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-2'), [parsedPlugin]);
+
+		assert.deepStrictEqual({
+			first: firstChildEnablement(firstSession.customizations),
+			second: firstChildEnablement(secondSession.customizations),
+			firstSdkChildren: sdkChildNames(firstSession.customizations),
+			secondSdkChildren: sdkChildNames(secondSession.customizations),
+		}, {
+			first: workspaceEnablement,
+			second: workspaceEnablement,
+			firstSdkChildren: [],
+			secondSdkChildren: [],
+		});
 	});
 
 	test('retains a plugin child global decision when its client republish has no opinion', () => {

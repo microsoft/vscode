@@ -60,11 +60,9 @@ export const ContextTierConfigKey = 'contextTier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-function futureDisabledMcpServersSessionOption(_plugins: readonly ICopilotPluginInfo[]): Partial<SessionConfig> {
-	// TODO: Pass `disabledMcpServers` here when https://github.com/github/copilot-sdk/pull/2260
-	// is available in the public SessionOptions API. This replaces the interim
-	// published-disabled state and auth-prompt suppression for directory-discovered servers.
-	return {};
+function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[]): Partial<SessionConfig> {
+	const disabledMcpServers = [...new Set(plugins.flatMap(plugin => plugin.disabledMcpServers ?? []))];
+	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
 }
 
 /**
@@ -635,7 +633,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		return {
 			...byok,
-			...futureDisabledMcpServersSessionOption(plugins),
+			...disabledMcpServersSessionOption(plugins),
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

@@ -31,7 +31,7 @@ import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } fr
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -7561,7 +7561,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('unsupported session reference variable is dropped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-			const sessionReference = URI.from({ scheme: 'claude-code', path: '/session-123' });
+			const sessionReference = URI.from({ scheme: 'unsupported-agent', path: '/session-123' });
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue #review',
@@ -10459,10 +10459,10 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('refreshes customizations when the current active client hydrates after open', async () => {
+		test('refreshes customizations once when the current active client hydrates after open', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], version: undefined },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'late-active-client');
@@ -10508,11 +10508,27 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 
+			agentHostService.fireAction({
+				channel: sessionResource.toString(),
+				action: {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: {
+						clientId: agentHostService.clientId,
+						tools: [],
+						customizations: [
+							{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
+						],
+					},
+				},
+				serverSeq: 2,
+				origin: undefined,
+			});
+
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionActiveClientSet);
 			assert.strictEqual(activeClientActions.length, 1);
 			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], version: undefined },
 			]);
 		});
 	});
@@ -10861,6 +10877,25 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.authenticateCalls, [
 				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
 				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-2' },
+			]);
+		});
+
+		test('re-authenticates with the same token when authentication is required', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.fireNotification({
+				type: 'auth/required',
+				channel: 'ahp-root://',
+				resource: 'https://api.github.com',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
 			]);
 		});
 

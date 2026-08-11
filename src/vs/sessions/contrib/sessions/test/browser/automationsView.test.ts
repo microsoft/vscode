@@ -22,7 +22,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationRunTrigger, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -50,7 +50,7 @@ function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
 }
 
-function automation(overrides: Partial<IAutomation> = {}): IAutomation {
+function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
 	return {
 		id: AUTOMATION_ID,
 		name: 'Daily review',
@@ -72,7 +72,7 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
 		leaderWindowId: 0,
-		sessionResource: SESSION_RESOURCE.toString(),
+		sessionResource: SESSION_RESOURCE,
 		...overrides,
 	};
 }
@@ -84,15 +84,15 @@ function dispatchKeydown(element: HTMLElement, init: KeyboardEventInit & { keyCo
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
-	private readonly automationValue = observableValue<readonly IAutomation[]>(this, []);
+	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
-	override readonly automations: IObservable<readonly IAutomation[]> = this.automationValue;
+	override readonly automations: IObservable<readonly IAutomationDescriptor[]> = this.automationValue;
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this.runValue;
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
 	deleteRunCalls = 0;
 
-	setAutomations(value: readonly IAutomation[]): void {
+	setAutomations(value: readonly IAutomationDescriptor[]): void {
 		this.automationValue.set(value, undefined);
 	}
 
@@ -100,7 +100,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		this.runValue.set(value, undefined);
 	}
 
-	override getAutomation(id: string): IAutomation | undefined {
+	override getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.automationValue.get().find(item => item.id === id);
 	}
 
@@ -108,7 +108,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return constObservable(this.runValue.get().filter(item => item.automationId === automationId));
 	}
 
-	override async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
+	override async createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		mutationGuard?.();
 		const created = automation({
 			id: AUTOMATION_ID,
@@ -125,12 +125,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return created;
 	}
 
-	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+	override async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
 		const current = this.getAutomation(id);
 		if (!current) {
 			throw new Error('missing automation');
 		}
-		const updated: IAutomation = {
+		const updated: IAutomationDescriptor = {
 			...current,
 			name: patch.name ?? current.name,
 			prompt: patch.prompt ?? current.prompt,
@@ -146,7 +146,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return updated;
 	}
 
-	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, _expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+	override async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, _expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		this.updateCalls++;
 		mutationGuard?.();
 		return this.updateResult ?? { kind: 'updated', automation: await this.updateAutomation(id, patch) };
@@ -213,7 +213,7 @@ class FakeRunner extends mock<IAutomationRunner>() {
 	whenDispatched: Promise<IAutomationRunDispatch> = Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' });
 	runCalls = 0;
 
-	override runOnce(_automation: IAutomation, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
+	override runOnce(_automation: IAutomationDescriptor, _trigger: AutomationRunTrigger, _leaderWindowId: number, _token?: CancellationToken): IAutomationRunOperation {
 		this.runCalls++;
 		return { whenDispatched: this.whenDispatched, whenCompleted: Promise.resolve() };
 	}
@@ -262,7 +262,9 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	markAllReadSessionCount = 0;
 	getSessionCalls = 0;
 	deleteSessionCalls = 0;
+	cancelCurrentRequestCalls = 0;
 	deleteError: Error | undefined;
+	cancelError: Error | undefined;
 	readonly markAllReadCompleted = new DeferredPromise<void>();
 
 	override getSession(resource: URI): ISession | undefined {
@@ -297,6 +299,13 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		}
 		this.deletedSessionResources.add(session.resource.toString());
 		this.sessionDeletedEmitter.fire(session);
+	}
+
+	override async cancelCurrentRequest(): Promise<void> {
+		this.cancelCurrentRequestCalls++;
+		if (this.cancelError) {
+			throw this.cancelError;
+		}
 	}
 
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
@@ -579,7 +588,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
@@ -666,6 +675,51 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
 	});
 
+	test('stops an active run without opening its session', async () => {
+		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+
+		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
+		assert.ok(stopButton);
+		stopButton.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			ariaLabel: stopButton.getAttribute('aria-label'),
+			cancelCurrentRequestCalls: sessionsManagementService.cancelCurrentRequestCalls,
+			openCalls: sessionsService.openCalls,
+			deleteButtonVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
+		}, {
+			ariaLabel: 'Stop session for Daily review',
+			cancelCurrentRequestCalls: 1,
+			openCalls: 0,
+			deleteButtonVisible: false,
+		});
+	});
+
+	test('re-enables Stop when cancellation fails', async () => {
+		const { automationService, dialogService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+		sessionsManagementService.cancelError = new Error('stop failed');
+
+		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
+		assert.ok(stopButton);
+		stopButton.click();
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			ariaDisabled: stopButton.getAttribute('aria-disabled'),
+			disabledClass: stopButton.classList.contains('disabled'),
+			error: dialogService.errors,
+		}, {
+			ariaDisabled: 'false',
+			disabledClass: false,
+			error: [{ message: 'Failed to stop the automation run session.', detail: 'stop failed' }],
+		});
+	});
+
 	test('deleting a run session confirms the permanent deletion without opening it', async () => {
 		const { automationService, dialogService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
@@ -702,7 +756,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 		dialogService.confirmResult = { confirmed: true };
 

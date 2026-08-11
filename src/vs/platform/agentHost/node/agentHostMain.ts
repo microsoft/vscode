@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../base/common/async.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Server as ChildProcessServer } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc.mp.js';
@@ -43,6 +44,7 @@ import { AgentSdkDownloader, IAgentSdkDownloader, type IAgentSdkDownloadProgress
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -94,6 +96,7 @@ import { join } from '../../../base/common/path.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
+import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -164,6 +167,8 @@ async function startAgentHost(): Promise<void> {
 	// renderer's BYOK server channel are not wired, so the registry stays empty
 	// and the proxy never binds.
 	const byokLmEnabled = isAgentEnabled(process.env[AgentHostByokModelsEnabledEnvVar], true);
+	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
+	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 	try {
 		// Build the process DI container and network stack before telemetry so every
 		// outbound fetch, including restricted telemetry, uses the same proxy resolver.
@@ -205,7 +210,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IByokLmProxyService, byokLmProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService, fetchFn));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], storageResource);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], hostLaunchKind, storageResource);
 		const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 		diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -298,10 +303,10 @@ async function startAgentHost(): Promise<void> {
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
-	// id; the agent service fans each out to the `createSession` progress tokens
-	// of the sessions waiting on that provider's SDK, routed through the state
-	// manager so both the local (IPC) and any external (WebSocket) renderer
-	// receive them via the same path as session updates.
+	// id; the agent service surfaces frames requested by a waiting session or
+	// another user-initiated flow, routed through the state manager so both the
+	// local (IPC) and any external (WebSocket) renderer receive them via the same
+	// path as session updates.
 	if (sdkDownloadProgress) {
 		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
 			p.packageId,
@@ -309,6 +314,7 @@ async function startAgentHost(): Promise<void> {
 			p.receivedBytes,
 			p.totalBytes,
 			p.phase === 'completed' || p.phase === 'failed',
+			p.explicitlyRequested,
 		)));
 	}
 
@@ -331,6 +337,8 @@ async function startAgentHost(): Promise<void> {
 		// Shared config for the local data-plane protocol handlers (renderer
 		// MessagePort + the external endpoint, which each get their own handler).
 		const localProtocolHandlerConfig = {
+			hostLaunchKind,
+			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -339,13 +347,13 @@ async function startAgentHost(): Promise<void> {
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.
-			localDataPlaneDisposables.add(new ProtocolServerHandler(
+			localDataPlaneDisposables.add(instantiationService.createInstance(
+				ProtocolServerHandler,
 				agentService,
 				agentService.stateManager,
 				messagePortProtocolServer,
 				localProtocolHandlerConfig,
 				clientFileSystemProvider,
-				logService,
 			));
 			// Non-protocol reverse bridges remain on their existing IPC channels.
 			// The renderer's MessagePortClient ctx is its clientId.
@@ -414,13 +422,13 @@ async function startAgentHost(): Promise<void> {
 				// publishing the metadata that advertises it, so a client can't connect
 				// in the gap and be missed.
 				localDataPlaneDisposables.add(localEndpoint.server);
-				localDataPlaneDisposables.add(new ProtocolServerHandler(
+				localDataPlaneDisposables.add(instantiationService.createInstance(
+					ProtocolServerHandler,
 					agentService,
 					agentService.stateManager,
 					localEndpoint.server,
 					localProtocolHandlerConfig,
 					clientFileSystemProvider,
-					logService,
 				));
 				try {
 					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata, logService);
@@ -443,8 +451,10 @@ async function startAgentHost(): Promise<void> {
 	// management IPC channel.
 	const connectionCountEmitter = disposables.add(new Emitter<number>());
 	let dynamicSocketInfo: IAgentHostSocketInfo | undefined;
+	const configuredWebSocketServer = new DeferredPromise<void>();
 	const connectionTrackerService: IConnectionTrackerService = {
 		onDidChangeConnectionCount: connectionCountEmitter.event,
+		waitForConfiguredWebSocketServer: () => configuredWebSocketServer.p,
 		async startWebSocketServer(): Promise<IAgentHostSocketInfo> {
 			if (dynamicSocketInfo) {
 				return dynamicSocketInfo;
@@ -460,18 +470,20 @@ async function startAgentHost(): Promise<void> {
 				{ instantiationService, logsHome: environmentService.logsHome },
 			));
 
-			const protocolHandler = disposables.add(new ProtocolServerHandler(
+			const protocolHandler = disposables.add(instantiationService.createInstance(
+				ProtocolServerHandler,
 				agentService,
 				agentService.stateManager,
 				wsServer,
 				{
+					hostLaunchKind,
+					connectionTelemetryTracker,
 					defaultDirectory: URI.file(os.homedir()).toString(),
 					completionTriggerCharacters: agentService.completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
 					otlpLogEmitter,
 				},
 				clientFileSystemProvider,
-				logService,
 			));
 			disposables.add(protocolHandler.onDidChangeConnectionCount(count => connectionCountEmitter.fire(count)));
 
@@ -534,7 +546,7 @@ async function startAgentHost(): Promise<void> {
 
 	// The configured bridge listener remains separate: tunnel forwarding pipes
 	// raw WebSocket streams and cannot carry the local endpoint's bearer token.
-	startWebSocketServer(
+	const configuredWebSocketServerStart = startWebSocketServer(
 		agentService,
 		clientFileSystemProvider,
 		instantiationService,
@@ -542,8 +554,12 @@ async function startAgentHost(): Promise<void> {
 		logService,
 		otlpLogEmitter,
 		disposables,
+		hostLaunchKind,
+		connectionTelemetryTracker,
 		count => connectionCountEmitter.fire(count),
-	).catch(err => {
+	);
+	configuredWebSocketServer.settleWith(configuredWebSocketServerStart);
+	void configuredWebSocketServerStart.catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -629,6 +645,8 @@ async function startWebSocketServer(
 	logService: ILogService,
 	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
+	hostLaunchKind: AgentHostLaunchKind,
+	connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker,
 	onConnectionCountChanged: (count: number) => void,
 ): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
@@ -660,18 +678,20 @@ async function startWebSocketServer(
 		{ instantiationService, logsHome },
 	));
 
-	const protocolHandler = disposables.add(new ProtocolServerHandler(
+	const protocolHandler = disposables.add(instantiationService.createInstance(
+		ProtocolServerHandler,
 		agentService,
 		agentService.stateManager,
 		wsServer,
 		{
+			hostLaunchKind,
+			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 		},
 		clientFileSystemProvider,
-		logService,
 	));
 	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));
 

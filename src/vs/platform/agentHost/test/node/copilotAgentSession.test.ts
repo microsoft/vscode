@@ -22,7 +22,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -87,6 +87,7 @@ class MockCopilotSession {
 	readonly mcpStartServerCalls: Array<{ serverName: string }> = [];
 	readonly mcpStopServerCalls: Array<{ serverName: string }> = [];
 	mcpDisableGate: Promise<unknown> | undefined;
+	mcpStopServerGate: Promise<unknown> | undefined;
 	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number; contextWindow?: { currentTokens: number; tokenLimit: number; messagesLength: number } } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	compactError: unknown = undefined;
 	/** Invoked inside `rpc.history.compact` before it settles, so tests can emit the SDK's in-flight compaction events. */
@@ -297,6 +298,7 @@ class MockCopilotSession {
 			},
 			stopServer: async (params: { serverName: string }) => {
 				this.mcpStopServerCalls.push(params);
+				await this.mcpStopServerGate;
 				this.mcpListResult = {
 					servers: this.mcpListResult.servers.map(server => server.name === params.serverName ? { ...server, status: 'not_configured' } : server),
 				};
@@ -733,6 +735,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// neither matters here — we just need to surface a value the
 		// session class will read.
 		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
+		getEffectiveWorkingDirectories: () => undefined,
 		isWorkingDirectoryPending: () => false,
 		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		getSessionConfigValues: () => undefined,
@@ -1054,6 +1057,14 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('assistant.turn_end', { turnId: 'sdk-0' } as SessionEventPayload<'assistant.turn_end'>['data']);
 		await session.getMessages();
 		assert.strictEqual(getEventsCalls, 2, 'memo should be invalidated after the event log changes');
+
+		session.resetTurnState('turn-error');
+		mockSession.fire('session.error', {
+			errorType: 'TestError',
+			message: 'something went wrong',
+		} as SessionEventPayload<'session.error'>['data']);
+		await session.getMessages();
+		assert.strictEqual(getEventsCalls, 3, 'memo should be invalidated after a session error');
 	});
 
 	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
@@ -2723,7 +2734,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.ok(session.respondToPermissionRequest('tc-create', false));
-			assert.strictEqual((await resultPromise).kind, 'denied-interactively-by-user');
+			assert.deepStrictEqual(await resultPromise, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
 		test('auto-approves write permission for session-state plan files', async () => {
@@ -2914,7 +2925,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'reject');
 		});
 
-		test('denied-interactively when user denies', async () => {
+		test('rejects with feedback when user denies', async () => {
 			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'shell',
@@ -2925,7 +2936,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 1);
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
-			assert.strictEqual(result.kind, 'denied-interactively-by-user');
+			assert.deepStrictEqual(result, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
 		test('shell permissions carry the tracked shell language when known', async () => {
@@ -3234,7 +3245,7 @@ suite('CopilotAgentSession', () => {
 				}, {
 					managedApprovalRequired: true,
 					responded: true,
-					result: { kind: 'denied-interactively-by-user' },
+					result: { kind: 'reject', feedback: 'The user denied permission.' },
 				}, testCase.name);
 				disposables.clear();
 			}
@@ -3278,7 +3289,7 @@ suite('CopilotAgentSession', () => {
 					results: [firstResult, await duplicateResultPromise],
 					pendingConfirmationCount,
 				}, {
-					results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+					results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 					pendingConfirmationCount: 2,
 				}, testCase.name);
 				disposables.clear();
@@ -3407,7 +3418,7 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.ok(session.respondToPermissionRequest('tc-assisted-bypass', false));
 
-			assert.strictEqual((await resultPromise).kind, 'denied-interactively-by-user');
+			assert.deepStrictEqual(await resultPromise, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
 		test('does not send when the SDK rejects the requested permission mode', async () => {
@@ -5228,6 +5239,39 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(terminalManager.disposedTerminals, ['agenthost-terminal://shell/test-session-1/tc-shell-exit']);
 		});
 
+		test('live read_bash completion does not render shell_exit metadata as a terminal command', async () => {
+			const { mockSession, signals, terminalManager } = await createAgentSession(disposables);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-read-bash',
+				toolName: 'read_bash',
+				arguments: { shellId: 'build', delay: 0 },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-read-bash',
+				success: true,
+				result: {
+					content: 'Build completed\n',
+					contents: [{ type: 'shell_exit', shellId: 'build', exitCode: 0, outputPreview: 'Build completed\n' }],
+				},
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const completeSignal = signals[2];
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
+				assert.deepStrictEqual({
+					pastTenseMessage: action.result.pastTenseMessage,
+					content: action.result.content,
+					createdTerminals: terminalManager.outputTerminalsCreated,
+				}, {
+					pastTenseMessage: 'Read Terminal',
+					content: [{ type: ToolResultContentType.Text, text: 'Build completed\n' }],
+					createdTerminals: [],
+				});
+			}
+		});
+
 		test('live task_complete emits root markdown instead of a tool call', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 
@@ -5710,8 +5754,25 @@ suite('CopilotAgentSession', () => {
 			assert.ok(isAction(signals[0], ActionType.ChatError));
 			if (isAction(signals[0], ActionType.ChatError)) {
 				const action = signals[0].action as ChatErrorAction;
-				assert.strictEqual(action.error.errorType, 'TestError');
-				assert.strictEqual(action.error.message, 'something went wrong');
+				assert.deepStrictEqual(action.error, {
+					errorType: 'TestError',
+					message: 'something went wrong',
+					stack: 'Error: something went wrong',
+					_meta: {
+						chatError: {
+							fetchError: {
+								type: 'failed',
+								reason: 'something went wrong',
+								requestId: 'provider-request-id',
+								serverRequestId: 'service-request-id',
+								capiError: {
+									code: 'test-code',
+									message: 'something went wrong',
+								},
+							},
+						},
+					},
+				});
 			}
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilotSdkSessionError'), [{
 				eventName: 'agentHost.copilotSdkSessionError',
@@ -5743,7 +5804,7 @@ suite('CopilotAgentSession', () => {
 				source: 'subagent',
 				failureKind: 'transport',
 				transport: 'websocket',
-				apiEndpoint: 'ws:/responses',
+				apiEndpoint: '/chat/completions',
 				statusCode: 502,
 				durationMs: 42,
 				model: 'private-deployment-name',
@@ -5782,7 +5843,7 @@ suite('CopilotAgentSession', () => {
 					failureKind: 'transport',
 					source: 'subagent',
 					transport: 'websocket',
-					apiEndpoint: 'ws:/responses',
+					apiEndpoint: new TelemetryTrustedValue('/chat/completions'),
 					statusCode: 502,
 					durationMs: 42,
 					model: 'byokModel',
@@ -7013,6 +7074,28 @@ suite('CopilotAgentSession', () => {
 			return created;
 		}
 
+		async function runToolSearch(clientResultText: string, availableTools: CurrentToolMetadata[], query = 'search tools', success = true): Promise<ToolResultObject> {
+			const { session, runtime, mockSession } = await createToolSearchSession(false);
+			const [override] = runtime.createClientSdkTools();
+			const toolCallId = 'tc-tool-search-result';
+			const args = query ? { query } : {};
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId,
+				toolName: 'tool_search_tool',
+				arguments: args,
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const handlerPromise = invokeClientToolHandler(override, toolCallId, args, availableTools);
+			session.handleClientToolCallComplete(toolCallId, {
+				success,
+				pastTenseMessage: 'Searched tools',
+				content: [{ type: ToolResultContentType.Text, text: clientResultText }],
+				...(success ? {} : { error: { message: 'Tool search failed' } }),
+			});
+			return handlerPromise;
+		}
+
 		test('tool-search override routes to the client and injects deferred candidates', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(false);
 
@@ -7061,7 +7144,80 @@ suite('CopilotAgentSession', () => {
 
 			const result = await handlerPromise;
 			assert.strictEqual(result.resultType, 'success');
-			assert.deepStrictEqual(result.toolReferences, ['everything-get-sum']);
+			assert.deepStrictEqual({
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				textResultForLlm: '["everything-get-sum"]',
+				toolReferences: ['everything-get-sum'],
+			});
+		});
+
+		test('tool-search override aligns model-visible names with runtime references', async () => {
+			const cases: { clientResultText: string; availableTools: CurrentToolMetadata[]; expected: string[] }[] = [
+				{
+					clientResultText: '["github-pull-request_create_pull_request","github-pull-request_doSearch"]',
+					availableTools: [
+						{ name: 'create_pull_request', description: 'Create a pull request', deferLoading: true },
+						{ name: 'doSearch', description: 'Search GitHub', deferLoading: true },
+					],
+					expected: [],
+				},
+				{
+					clientResultText: '["github-pull-request/create_pull_request","github-pull-request/create_pull_request"]',
+					availableTools: [
+						{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true },
+					],
+					expected: ['create_pull_request'],
+				},
+			];
+
+			const results = [];
+			for (const testCase of cases) {
+				const result = await runToolSearch(testCase.clientResultText, testCase.availableTools);
+				results.push({
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				});
+			}
+			assert.deepStrictEqual(results, cases.map(testCase => ({
+				textResultForLlm: JSON.stringify(testCase.expected),
+				toolReferences: testCase.expected,
+			})));
+		});
+
+		test('tool-search override preserves non-list client result text', async () => {
+			const texts = ['Error: query parameter is required', '"create_pull_request"'];
+			const results = [];
+			for (const text of texts) {
+				const result = await runToolSearch(text, [], '');
+				results.push({
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				});
+			}
+			assert.deepStrictEqual(results, texts.map(text => ({
+				textResultForLlm: text,
+				toolReferences: [],
+			})));
+		});
+
+		test('tool-search override preserves failed client result text', async () => {
+			const result = await runToolSearch(
+				'["github-pull-request/create_pull_request"]',
+				[{ name: 'create_pull_request', namespacedName: 'github-pull-request/create_pull_request', description: 'Create a pull request', deferLoading: true }],
+				'create pull request',
+				false,
+			);
+			assert.deepStrictEqual({
+				resultType: result.resultType,
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				resultType: 'failure',
+				textResultForLlm: '["github-pull-request/create_pull_request"]',
+				toolReferences: ['create_pull_request'],
+			});
 		});
 
 		test('auto-approved tool search defers its only ready until candidates are available', async () => {
@@ -7467,7 +7623,7 @@ suite('CopilotAgentSession', () => {
 				pendingConfirmations: 1,
 			});
 			assert.ok(session.respondToPermissionRequest('tc-managed-client', false));
-			assert.deepStrictEqual(await permissionPromise, { kind: 'denied-interactively-by-user' });
+			assert.deepStrictEqual(await permissionPromise, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
 		test('handleClientToolCallComplete with content containing embedded resources', async () => {
@@ -7673,7 +7829,7 @@ suite('CopilotAgentSession', () => {
 				pendingConfirmations: 1,
 			});
 			assert.ok(session.respondToPermissionRequest('tc-managed-buffered', false));
-			assert.deepStrictEqual(await permissionPromise, { kind: 'denied-interactively-by-user' });
+			assert.deepStrictEqual(await permissionPromise, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 	});
 
@@ -7691,6 +7847,8 @@ suite('CopilotAgentSession', () => {
 			readonly toolNames: readonly string[] = fakeToolDefinitions.map(def => def.name);
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+			readonly confirmationToolNames = new Set<string>();
+			readonly sessionConfirmationToolNames = new Set<string>();
 			result = 'ok';
 			error: Error | undefined;
 
@@ -7698,7 +7856,9 @@ suite('CopilotAgentSession', () => {
 				this.advertised.push(sessionUri);
 			}
 
-			requiresConfirmation(_toolName: string): boolean { return false; }
+			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
+
+			requiresConfirmation(_sessionUri: string, toolName: string): boolean { return this.sessionConfirmationToolNames.has(toolName); }
 
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
@@ -7756,7 +7916,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
 		});
 
-		test('auto-approves every server tool without prompting for confirmation', async () => {
+		test('auto-approves server tools that do not require confirmation', async () => {
 			const serverToolHost = new FakeServerToolHost();
 			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
 
@@ -7772,6 +7932,46 @@ suite('CopilotAgentSession', () => {
 				results: serverToolHost.toolNames.map(() => ({ kind: 'approve-once' })),
 				pendingConfirmations: 0,
 			});
+		});
+
+		test('auto-approves a confirmation server tool when the session has nothing to confirm', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const toolName = serverToolHost.toolNames[0];
+			serverToolHost.confirmationToolNames.add(toolName);
+			const { runtime, signals } = await createAgentSession(disposables, { serverToolHost });
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-empty-server-tool',
+				toolName,
+				managedApprovalRequired: true,
+			});
+
+			assert.deepStrictEqual({
+				result,
+				pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+			}, {
+				result: { kind: 'approve-once' },
+				pendingConfirmations: 0,
+			});
+		});
+
+		test('requests confirmation when a server tool has content to confirm', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const toolName = serverToolHost.toolNames[0];
+			serverToolHost.confirmationToolNames.add(toolName);
+			serverToolHost.sessionConfirmationToolNames.add(toolName);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { serverToolHost });
+
+			const permission = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-nonempty-server-tool',
+				toolName,
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'tc-nonempty-server-tool');
+			assert.strictEqual(session.respondToPermissionRequest('tc-nonempty-server-tool', false), true);
+
+			assert.deepStrictEqual(await permission, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 	});
 
@@ -8458,6 +8658,54 @@ suite('CopilotAgentSession', () => {
 			}, {
 				stopServerCalls: [{ serverName }],
 				state: { kind: McpServerStatus.Stopped },
+			});
+		});
+
+		test('startMcpServer waits for an in-flight stop of the same server', async () => {
+			const serverName = 'db';
+			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const stopGate = new DeferredPromise<void>();
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enabled: true,
+					state: { kind: McpServerStatus.Ready },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+					mock.mcpStopServerGate = stopGate.p;
+				},
+			});
+
+			const stopPromise = session.stopMcpServer(id);
+			await timeout(0);
+			const startPromise = session.startMcpServer(id);
+			await timeout(0);
+			const callsWhileStopping = {
+				stop: [...mockSession.mcpStopServerCalls],
+				start: [...mockSession.mcpStartServerCalls],
+			};
+			stopGate.complete();
+			await Promise.all([stopPromise, startPromise]);
+
+			assert.deepStrictEqual({
+				callsWhileStopping,
+				finalCalls: {
+					stop: mockSession.mcpStopServerCalls,
+					start: mockSession.mcpStartServerCalls,
+				},
+			}, {
+				callsWhileStopping: {
+					stop: [{ serverName }],
+					start: [],
+				},
+				finalCalls: {
+					stop: [{ serverName }],
+					start: [{ serverName }],
+				},
 			});
 		});
 

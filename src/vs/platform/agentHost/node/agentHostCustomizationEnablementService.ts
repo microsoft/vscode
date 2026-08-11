@@ -180,7 +180,8 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	/** Bound after AgentService construction because WorktreeIsolation depends on ICopilotApiService and AgentService's endpoint service. */
 	setWorktreeIsolation(worktree: IAgentHostWorktreeIsolation): void {
 		this._worktree = worktree;
-		this._worktreePendingListener.value = worktree.onDidChangeWorkingDirectoryPending(sessionId => {
+		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
+		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending?.(sessionId => {
 			const session = this._sessionsById.get(sessionId);
 			if (session === undefined) {
 				// A worktree can become pending before this service initializes its

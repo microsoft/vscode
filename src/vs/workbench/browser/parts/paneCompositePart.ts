@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, getFloatingOuterGutterEdges, getFloatingPaneCompositeVerticalMargins } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -658,8 +658,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
 	 * (the border is drawn inside the box, as `.monaco-workbench .part` is
-	 * `box-sizing: border-box` in `part.css`). The side bars sit directly under the
-	 * title bar, so they have no top margin. On each window edge this part is the outermost
+	 * `box-sizing: border-box` in `part.css`). On each window edge this part is the outermost
 	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets a doubled outer
 	 * margin, so its width inset is larger on that side.
 	 */
@@ -669,13 +668,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		const borderTotal = 2; // 1px border on each side
-		const margin = FLOATING_PANEL_MARGIN;
 		const { top, bottom } = getFloatingPaneCompositeVerticalMargins(this.layoutService, this.partId, getWindow(this.element));
-		const outerGutter = this.getFloatingOuterGutterEdges();
-		const leftMargin = outerGutter.left ? margin * 2 : margin;
-		const rightMargin = outerGutter.right ? margin * 2 : FLOATING_PANEL_INNER_MARGIN;
+		const { left, right } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, this.partId);
 		return {
-			width: leftMargin + rightMargin + borderTotal,
+			width: left + right + borderTotal,
 			height: top + bottom + borderTotal
 		};
 	}

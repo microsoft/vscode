@@ -127,6 +127,7 @@ suite('CopilotShellTools', () => {
 			onDidSessionConfigChange: Event.None,
 			onDidChangeWorkingDirectoryPending: workingDirectoryPendingEmitter.event,
 			getEffectiveValue: () => undefined,
+			getEffectiveWorkingDirectories: () => undefined,
 			isWorkingDirectoryPending: () => false,
 			resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 			getSessionConfigValues: () => undefined,

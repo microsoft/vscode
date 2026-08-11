@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -61,6 +62,7 @@ const syncTestConfigurationNode = {
 };
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -110,6 +112,10 @@ function findRootConfigValue(messages: readonly ProtocolTransportMessage[], conf
 }
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
+	constructor(readonly clientConnectionKind?: AgentHostClientConnectionKind) {
+		super();
+	}
+
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
@@ -731,6 +737,28 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('liveness watchdog does not time out local child-process connections', async () => {
+		const clock = sinon.useFakeTimers();
+		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.Local));
+		const { client } = createClient(transport);
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
+		try {
+			await clock.tickAsync(60_000);
+
+			assert.deepStrictEqual({
+				sentPing: transport.sentMessages.some(isPingRequest),
+				closeCount,
+			}, {
+				sentPing: true,
+				closeCount: 0,
+			});
+		} finally {
+			client.dispose();
+			clock.restore();
+		}
+	});
+
 	test('liveness stops after the connection is closed', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const lowLoad = { hasHighLoad: () => false };
@@ -815,7 +843,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 	});
 
 	test('initialize handshake includes protocol version and client info', async () => {
-		const transport = disposables.add(new TestClientProtocolTransport());
+		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
 		const { client } = createClient(transport, undefined, undefined, undefined, undefined, 'renderer-client-id', clientInfo);
 		const connectPromise = client.connect();
@@ -829,17 +857,19 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const sent = transport.sentMessages[0] as JsonRpcRequest;
 		assert.strictEqual(sent.method, 'initialize');
-		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation };
+		const params = sent.params as { protocolVersions: readonly string[]; clientId: string; clientInfo?: Implementation; _meta?: Record<string, unknown> };
 		assert.deepStrictEqual({
 			protocolVersions: params.protocolVersions,
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
+			_meta: params._meta,
 		}, {
 			// Every negotiable version is offered so an older host can negotiate down,
 			// newest first so a current host still picks it.
 			protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
 			clientId: 'renderer-client-id',
 			clientInfo,
+			_meta: { 'vscode.clientConnectionKind': 'dev_tunnel' },
 		});
 		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
 
@@ -1596,6 +1626,18 @@ suite('RemoteAgentHostProtocolClient', () => {
 			}
 		}
 
+		async function waitForRequestAt(transport: TestProtocolTransport, method: string, index: number): Promise<JsonRpcRequest> {
+			while (true) {
+				const requests = transport.sentMessages.filter(
+					(message): message is JsonRpcRequest => 'method' in message && message.method === method && 'id' in message,
+				);
+				if (requests[index]) {
+					return requests[index];
+				}
+				await Promise.resolve();
+			}
+		}
+
 		/** Wait for the next time the new transport is created by the factory. */
 		async function waitForTransport(transports: TestClientProtocolTransport[], index: number): Promise<TestClientProtocolTransport> {
 			while (transports.length <= index) {
@@ -1667,6 +1709,36 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 		});
 
+		test('retries with a fresh initialize when the factory transport closes during initial connect', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = assert.rejects(client.connect());
+
+			client.notifyTransportClosed();
+			await waitForReconnecting(client);
+			transports[0].connectDeferred.error(new Error('Initial transport closed'));
+			await connectPromise;
+
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			await flushMicrotasks();
+
+			assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+		});
+
 		test('falls back to initialize with client info when the server forgot the client', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo);
@@ -1697,6 +1769,88 @@ suite('RemoteAgentHostProtocolClient', () => {
 			} finally {
 				client.dispose();
 			}
+		});
+
+		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const sessionUri = URI.parse('copilot:/test-session');
+			const chatUri = URI.parse('ahp-chat://default/test-session');
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const sessionRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+			const initialSessionSubscribe = await waitForRequestAt(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSessionSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+			});
+			const chatRef = client.getSubscription(StateComponents.Chat, chatUri, 'test');
+			const initialChatSubscribe = await waitForRequestAt(transports[0], 'subscribe', 1);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialChatSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+			});
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token' });
+			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+			await authentication;
+			await flushMicrotasks();
+
+			client.dispatch(chatUri.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-after-restart',
+				startedAt: '2026-08-09T00:00:00.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+			const initialDispatch = findDispatchAction(transports[0], ActionType.ChatTurnStarted);
+			assert.ok(initialDispatch);
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }],
+				},
+			});
+
+			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: restoredAuthenticate.id, result: {} });
+			const restoredSessionSubscribe = await waitForRequestAt(reconnectTransport, 'subscribe', 0);
+			assert.strictEqual((restoredSessionSubscribe.params as { channel: string }).channel, sessionUri.toString());
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredSessionSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 1 } },
+			});
+			const restoredChatSubscribe = await waitForRequestAt(reconnectTransport, 'subscribe', 1);
+			assert.strictEqual((restoredChatSubscribe.params as { channel: string }).channel, chatUri.toString());
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredChatSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 2 } },
+			});
+			await flushMicrotasks();
+
+			const replayed = findDispatchAction(reconnectTransport, ActionType.ChatTurnStarted);
+			assert.ok(replayed, 'pending turn should replay after the session and chat are restored');
+			assert.ok(
+				reconnectTransport.sentMessages.indexOf(replayed) > reconnectTransport.sentMessages.indexOf(restoredChatSubscribe),
+				'pending turn should be sent after subscription restoration',
+			);
+
+			chatRef.dispose();
+			sessionRef.dispose();
+			client.dispose();
 		});
 
 		test('replays pending optimistic actions after reconnect', async function () {

@@ -1,0 +1,49 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
+    response:
+      content:
+        - type: text
+          text: I'll create the file.
+        - type: tool_use
+          id: toolcall_0
+          name: Write
+          input:
+            file_path: ${workdir}/cancelled.txt
+            content: CANCELLED_CONTENT
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Create cancelled.txt containing exactly CANCELLED_CONTENT using your file creation tool, then reply exactly "created".
+        - role: assistant
+          content:
+            - type: text
+              text: I'll create the file.
+            - type: tool_use
+              name: Write
+              input:
+                file_path: ${workdir}/cancelled.txt
+                content: CANCELLED_CONTENT
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Tool permission request failed: AbortError: Tool permission stream closed before response received'
+            - type: text
+              text: Continue from where you left off.
+        - role: assistant
+          content: No response requested.
+        - role: user
+          content: Reply exactly "replacement".
+    response:
+      content: replacement
+      stopReason: end_turn

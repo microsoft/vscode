@@ -58,8 +58,25 @@ function isRecord(value: JsonValue | undefined): value is { [key: string]: JsonV
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
 
+const ALIAS_SPEC = /^npm:(?<name>@?[^@]+)@/;
+
 /**
- * Rewrites the declared range of every changed dependency to the exact version the lockfile commits,
+ * Turns a declared dependency spec into one that resolves to `version`, or `undefined` when the spec
+ * cannot carry a registry version. Aliases (`npm:other-package@^1.0.0`) keep the aliased name, because
+ * replacing the whole spec with a bare version silently installs a different package. Specs that do not
+ * resolve against the registry at all (`file:`, `git+`, `github:`, `workspace:`, tarball URLs, owner/repo
+ * shorthands) have no version to pin and are left alone.
+ */
+function pinnedSpec(declared: string, version: string): string | undefined {
+	const alias = ALIAS_SPEC.exec(declared);
+	if (alias?.groups) {
+		return `npm:${alias.groups.name}@${version}`;
+	}
+	return declared.includes(':') || declared.includes('/') ? undefined : version;
+}
+
+/**
+ * Rewrites the declared range of every changed direct dependency to the exact version the lockfile commits,
  * so regeneration resolves what the pull request submitted instead of whatever the registry has
  * published since. npm rejects `overrides` for direct dependencies (EOVERRIDE), so the range itself
  * has to carry the pin.
@@ -70,24 +87,28 @@ export function pinChangedPackages(packageJson: JsonValue, changedKeys: readonly
 	}
 
 	const submittedPackages = submitted.packages ?? {};
-	const pinnedVersions = new Map<string, string>();
-	for (const packageKey of changedKeys) {
-		const record = submittedPackages[packageKey];
-		const name = packageKey.slice(packageKey.lastIndexOf('node_modules/') + 'node_modules/'.length);
-		if (isRecord(record) && typeof record.version === 'string' && record.link !== true && name) {
-			pinnedVersions.set(name, record.version);
-		}
-	}
-
+	const changedKeySet = new Set(changedKeys);
 	const pinned = structuredClone(packageJson);
 	for (const field of DEPENDENCY_FIELDS) {
 		const declared = pinned[field];
 		if (!isRecord(declared)) {
 			continue;
 		}
-		for (const [name, version] of pinnedVersions) {
-			if (typeof declared[name] === 'string') {
-				declared[name] = version;
+		for (const name of Object.keys(declared)) {
+			const spec = declared[name];
+			const packageKey = `node_modules/${name}`;
+			if (typeof spec !== 'string' || !changedKeySet.has(packageKey)) {
+				continue;
+			}
+			// Only a changed top-level record pins a direct dependency; a nested copy of the same name
+			// carries a version the declared range is not allowed to resolve to.
+			const record = submittedPackages[packageKey];
+			if (!isRecord(record) || typeof record.version !== 'string' || record.link === true) {
+				continue;
+			}
+			const pinnedRange = pinnedSpec(spec, record.version);
+			if (pinnedRange !== undefined) {
+				declared[name] = pinnedRange;
 			}
 		}
 	}
@@ -165,16 +186,21 @@ function readLockfile(contents: string, filePath: string): IPackageLock {
 }
 
 function git(...args: string[]): string {
-	return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' }).trim();
+	// Lockfiles routinely exceed the 1 MB default; a truncated read would otherwise be reported as a
+	// missing base revision and force every package to be re-resolved.
+	return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }).trim();
 }
 
 function getBaseLockfile(baseRef: string, relativeLockPath: string): IPackageLock | undefined {
+	const revision = `${baseRef}:${relativeLockPath}`;
 	try {
-		const contents = git('show', `${baseRef}:${relativeLockPath}`);
-		return readLockfile(contents, `${baseRef}:${relativeLockPath}`);
+		// A lockfile the pull request adds has no base revision, which is not an error. Probe for it
+		// quietly so that genuine `git show` failures stay observable instead of being swallowed.
+		execFileSync('git', ['cat-file', '-e', revision], { cwd: ROOT, stdio: 'ignore' });
 	} catch {
 		return undefined;
 	}
+	return readLockfile(git('show', revision), revision);
 }
 
 function regenerateLockfile(lockPath: string, seed: IPackageLock, pinnedPackageJson: JsonValue): IPackageLock {

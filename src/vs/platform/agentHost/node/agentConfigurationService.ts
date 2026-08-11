@@ -99,6 +99,9 @@ export interface IAgentConfigurationService {
 		key: K,
 	): SchemaValue<D[K]> | undefined;
 
+	/** Returns all effective session roots, including inherited parent-session roots. */
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
+
 	/**
 	 * Whether a fresh worktree-isolation session's worktree has not yet been
 	 * created. Agents consult this to defer prewarming (and any other eager
@@ -182,7 +185,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	setWorktreeIsolation(worktree: WorktreeIsolation): void {
 		this._worktree = worktree;
-		this._worktreePendingListener.value = worktree.onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId));
+		const onDidChangeWorkingDirectoryPending = worktree.onDidChangeWorkingDirectoryPending;
+		this._worktreePendingListener.value = onDidChangeWorkingDirectoryPending
+			? onDidChangeWorkingDirectoryPending(sessionId => this._onDidChangeWorkingDirectoryPending.fire(sessionId))
+			: undefined;
 	}
 
 	constructor(
@@ -241,6 +247,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			}
 		}
 		return undefined;
+	}
+
+	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined {
+		return getEffectiveWorkingDirectories(this._stateManager, session);
 	}
 
 	isWorkingDirectoryPending(session: ProtocolURI): boolean {

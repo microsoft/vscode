@@ -348,6 +348,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			format: PluginFormat.Copilot,
 			hooks: [],
 			mcpServers: [],
+			disabledMcpServers: ['azure', 'azure'],
 			agents: [],
 			skills: [{
 				uri: skillUri,
@@ -393,6 +394,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createPluginDirectories: createConfigs[0].pluginDirectories,
 				createSkillDirectories: createConfigs[0].skillDirectories,
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
+				createDisabledMcpServers: createConfigs[0].disabledMcpServers,
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				resumeClientName: resumeConfigs[0].clientName,
@@ -400,6 +402,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
 				resumeSkillDirectories: resumeConfigs[0].skillDirectories,
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
+				resumeDisabledMcpServers: resumeConfigs[0].disabledMcpServers,
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 			}, {
@@ -408,6 +411,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createPluginDirectories: [pluginDir.fsPath],
 				createSkillDirectories: [],
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				createDisabledMcpServers: ['azure'],
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				resumeClientName: 'vscode-agent-host',
@@ -415,6 +419,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumePluginDirectories: [pluginDir.fsPath],
 				resumeSkillDirectories: [],
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
+				resumeDisabledMcpServers: ['azure'],
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 			});

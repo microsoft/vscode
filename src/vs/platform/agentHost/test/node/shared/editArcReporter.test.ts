@@ -448,6 +448,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		onDidSessionConfigChange: Event.None,
 		onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		getEffectiveValue: () => undefined,
+		getEffectiveWorkingDirectories: () => undefined,
 		isWorkingDirectoryPending: () => false,
 		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		updateSessionConfig: () => { },

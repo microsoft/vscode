@@ -307,6 +307,28 @@ suite('mcpListWidget', () => {
 				});
 			});
 
+			test('routes global plugin MCP enablement through the host when the plugin is host-discovered', () => {
+				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+				const server = createAgentHostServer({
+					id: 'azure',
+					isPluginProvided: true,
+				});
+				const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, 'azure', false, agentHostService, createAgentPluginService(), sessionResource, server));
+
+				runAction(actions[0]);
+
+				assert.deepStrictEqual({
+					labels: actions.map(action => action.label),
+					agentHostCalls,
+					localCalls,
+				}, {
+					labels: ['Disable', 'Disable (Workspace)', 'Disable (Session)'],
+					agentHostCalls: [[sessionResource, 'azure', undefined, CustomizationEnablementKind.Global, false]],
+					localCalls: [],
+				});
+			});
+
 			test('keeps legacy VS Code workspace actions without an active agent-host session', () => {
 				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();

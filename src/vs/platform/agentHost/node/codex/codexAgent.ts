@@ -25,7 +25,7 @@ import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
-import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -52,8 +52,11 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -870,6 +873,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
@@ -878,10 +882,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._publishAccountInfo({ status: 'unknown' });
+
+		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
+			if (AgentSession.provider(session) === this.id) {
+				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+			}
+		}));
+
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			const signInRequest = this._configurationService.getRootConfigValues?.()[CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY];
 			if (typeof signInRequest === 'string' && signInRequest !== this._lastSignInRequest) {
@@ -915,7 +927,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _signInToChatGPT(request: string): Promise<void> {
+		const progressInterest = this._agentSdkDownloader.acquireDownloadProgressInterest(CodexSdkPackage);
 		try {
+			if (!(await this._isSdkResolvableWithoutDownload())) {
+				this._publishAccountInfo({ status: 'downloading' });
+			}
 			const connection = await this._ensureConnection();
 			const account = await this._refreshAccount(connection.client);
 			if (account.status === 'signedIn' && account.authType === 'chatgpt') {
@@ -928,6 +944,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			this._setOpenAIAccountState({ usageSource: 'openai', status: 'error', error: message });
+		} finally {
+			progressInterest.dispose();
 		}
 	}
 
@@ -1153,7 +1171,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		throw new Error('Codex has no available models.');
 	}
 
-	private _createReasoningEffortConfigSchema(): ConfigSchema {
+	private _createReasoningEffortConfigSchema(
+		supportedEfforts: readonly { readonly reasoningEffort: string; readonly description?: string }[] | undefined,
+		declaredDefault?: string,
+		modelId?: string,
+	): ConfigSchema | undefined {
+		if (!supportedEfforts?.length) {
+			return undefined;
+		}
+		const efforts = supportedEfforts.map(option => option.reasoningEffort);
 		return {
 			type: 'object',
 			properties: {
@@ -1161,10 +1187,10 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: 'string',
 					title: localize('codex.modelThinkingLevel.title', "Thinking Level"),
 					description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
-					default: 'medium',
-					enum: [...CODEX_REASONING_EFFORTS],
-					enumLabels: CODEX_REASONING_EFFORTS.map(getReasoningEffortLabel),
-					enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
+					default: resolveDefaultReasoningEffort(efforts, declaredDefault, modelId),
+					enum: efforts,
+					enumLabels: efforts.map(getReasoningEffortLabel),
+					enumDescriptions: supportedEfforts.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
 				},
 			},
 		};
@@ -1356,7 +1382,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._githubToken !== token) {
 				return;
 			}
-			const configSchema = this._createReasoningEffortConfigSchema();
 			// Codex talks to every model through the `vscode-proxy` custom model
 			// provider with `wire_api="responses"` (see CodexProxyService), so it
 			// can only drive models that expose Copilot CAPI's OpenAI-shaped
@@ -1376,7 +1401,11 @@ export class CodexAgent extends Disposable implements IAgent {
 					maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
 					maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
 					supportsVision: !!m.capabilities?.supports?.vision,
-					configSchema,
+					configSchema: this._createReasoningEffortConfigSchema(
+						(m.capabilities?.supports as { readonly reasoning_effort?: readonly string[] } | undefined)?.reasoning_effort?.map(reasoningEffort => ({ reasoningEffort })),
+						undefined,
+						m.id,
+					),
 					policyState: m.policy?.state as PolicyState | undefined,
 					_meta: createPricingMetaFromBilling(
 						normalizeCAPIBilling(m.billing),
@@ -1416,7 +1445,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				data.push(...response.data);
 				cursor = response.nextCursor;
 			} while (cursor !== null);
-			const configSchema = this._createReasoningEffortConfigSchema();
 			const models = data
 				.sort((left, right) => Number(right.isDefault) - Number(left.isDefault))
 				.map((model): IAgentModelInfo => ({
@@ -1424,7 +1452,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					id: toCodexModelSelectionId(modelProvider, model.model),
 					name: model.displayName,
 					supportsVision: model.inputModalities.includes('image'),
-					configSchema,
+					configSchema: this._createReasoningEffortConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model),
 					_meta: createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
 				}));
 			this._codexModels = models;
@@ -1460,6 +1488,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				try { ready.child.kill('SIGKILL'); } catch { /* already dead */ }
 				throw new Error('Codex app-server was replaced while starting');
 			}
+			// Authentication can complete while the connection is starting; apply the latest token before publishing ready.
+			ready.proxyHandle.setToken(this._githubToken ?? '');
 			this._connection = { kind: 'ready', ...ready };
 			return ready;
 		}).catch(err => {
@@ -1502,8 +1532,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _isSdkResolvableWithoutDownload(): Promise<boolean> {
-		if (await this._agentSdkDownloader.isSdkResolvableWithoutDownload?.(CodexSdkPackage)) {
-			return true;
+		if (this._agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+			return this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage);
 		}
 		return (await resolveCodexDevSdkRoot()) !== undefined;
 	}
@@ -1780,6 +1810,25 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
+				if (host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+					const entry = session.mapState.itemToToolCall.get(params.callId);
+					if (!entry) {
+						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
+					}
+					const invocationMessage = getServerToolDisplay(params.tool, params.arguments)?.invocationMessage ?? `Calling ${params.tool}`;
+					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+						this._fire(session.sessionUri, {
+							type: ActionType.ChatToolCallReady,
+							turnId: entry.turnId,
+							toolCallId: entry.toolCallId,
+							invocationMessage,
+							confirmationTitle: localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+						});
+					});
+					if (decision !== 'accept' && decision !== 'acceptForSession') {
+						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
+					}
+				}
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
@@ -3548,6 +3597,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
 		}
+
+		// Check needsResume before the resume block clears it so restored sessions never receive a late baseline.
+		if (!session.firstTurnSent && !session.needsResume) {
+			const baselineWorkingDirectories = session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined);
+			this._checkpointService.captureBaselineCheckpoint(sessionUri, baselineWorkingDirectories).catch(err => {
+				this._logService.warn(`[Codex:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
+
 		// Codex registers client tools and MCP servers only at `thread/start`.
 		// If the thread was prewarmed (or otherwise started) before the current
 		// client tools / MCP servers were known, restart it now — before any
@@ -4723,6 +4781,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 		}));
 		return Promise.resolve({ values: resolvedValues, schema });
+	}
+
+	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		const inherited: Record<string, unknown> = migrateCodexPermissionValues(config, {
+			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+		});
+		if (config[SessionConfigKey.Permissions] !== undefined) {
+			inherited[SessionConfigKey.Permissions] = config[SessionConfigKey.Permissions];
+		}
+		return Object.keys(inherited).length > 0 ? inherited : undefined;
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {

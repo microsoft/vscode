@@ -23,7 +23,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -40,7 +41,7 @@ const VOICE_LANGUAGE_SETTING = 'agents.voice.language';
 /** Where the first link sends anyone who wants to change their mind later. */
 const VOICE_SETTINGS_COMMAND = 'agentsVoice.openSettings';
 
-type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'close' | 'escape';
+type VoiceModeOnboardingAction = 'shown' | 'selectVoice' | 'previewVoice' | 'selectMicrophone' | 'openSettings' | 'openInstructions' | 'close' | 'escape';
 
 type VoiceModeOnboardingActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action taken in the Voice Mode onboarding card.' };
@@ -62,6 +63,7 @@ type VoiceModeOnboardingActionEvent = {
  */
 interface IVoiceModeVoice {
 	readonly id: string;
+	readonly sampleId: string;
 	readonly label: string;
 	/** This voice's waveform texture. See {@link IWave}. */
 	readonly signature: readonly IWave[];
@@ -81,8 +83,9 @@ interface IWave {
 
 const VOICES: readonly IVoiceModeVoice[] = [
 	{
-		id: 'maya_neutral',
-		label: localize('voiceMode.onboarding.voice.maya', "Maya (Default)"),
+		id: 'birch_neutral',
+		sampleId: 'maya_neutral',
+		label: localize('voiceMode.onboarding.voice.birch', "Birch (Default)"),
 		// Flowing mid-range: even spread, gentle drift.
 		signature: [
 			{ frequency: 1.0, amplitude: 0.42, speed: 0.42, phase: 0.0 },
@@ -92,8 +95,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'victoria_neutral',
-		label: localize('voiceMode.onboarding.voice.victoria', "Victoria"),
+		id: 'harper_neutral',
+		sampleId: 'victoria_neutral',
+		label: localize('voiceMode.onboarding.voice.harper', "Harper"),
 		// Bright and quick: higher frequencies, tighter ripple.
 		signature: [
 			{ frequency: 1.4, amplitude: 0.38, speed: 0.52, phase: 0.0 },
@@ -103,8 +107,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'kevin_neutral',
-		label: localize('voiceMode.onboarding.voice.kevin', "Kevin"),
+		id: 'oak_neutral',
+		sampleId: 'kevin_neutral',
+		label: localize('voiceMode.onboarding.voice.oak', "Oak"),
 		// Low and broad: long swells with little high-frequency detail.
 		signature: [
 			{ frequency: 0.7, amplitude: 0.48, speed: 0.30, phase: 0.4 },
@@ -114,8 +119,9 @@ const VOICES: readonly IVoiceModeVoice[] = [
 		],
 	},
 	{
-		id: 'daniel_neutral',
-		label: localize('voiceMode.onboarding.voice.daniel', "Daniel"),
+		id: 'junho_neutral',
+		sampleId: 'daniel_neutral',
+		label: localize('voiceMode.onboarding.voice.junho', "Junho"),
 		// Steady and measured: slow drift, calm regular crests.
 		signature: [
 			{ frequency: 0.9, amplitude: 0.44, speed: 0.24, phase: 1.3 },
@@ -378,6 +384,7 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	private width = 0;
 	private height = 0;
 	private running = false;
+	private suspended = false;
 	private level = 0;
 	/** Timestamp of the previous frame, for the elapsed-time each draw eases over. */
 	private lastTimestamp: number | undefined;
@@ -429,12 +436,24 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	}
 
 	private updateMotion(): void {
-		if (this.accessibilityService.isMotionReduced()) {
+		if (this.suspended || this.accessibilityService.isMotionReduced()) {
 			this.stop();
 			this.draw(dom.getWindow(this.container).performance.now());
 		} else {
 			this.start();
 		}
+	}
+
+	/**
+	 * Pause while the card is put away for higher-precedence content, so an
+	 * invisible introduction is not still painting every frame.
+	 */
+	setSuspended(suspended: boolean): void {
+		if (this.suspended === suspended) {
+			return;
+		}
+		this.suspended = suspended;
+		this.updateMotion();
 	}
 
 	private start(): void {
@@ -558,7 +577,7 @@ class VoiceSamplePlayer extends Disposable {
 		return Math.min(1, Math.sqrt(sum / this.levels.length) * 3.2);
 	}
 
-	play(sampleId: string): void {
+	play(sampleId: string, playingVoice = sampleId): void {
 		this.stop();
 		try {
 			const audio = this.ensureAudio();
@@ -570,7 +589,7 @@ class VoiceSamplePlayer extends Disposable {
 			store.add(toDisposable(() => audio.pause()));
 			this.playback.value = store;
 
-			this.setPlayingVoice(sampleId);
+			this.setPlayingVoice(playingVoice);
 			audio.play().catch(error => {
 				this.logService.trace(`[voice] Voice Mode onboarding preview failed: ${error}`);
 				this.stop();
@@ -662,6 +681,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 
 	private readonly card: ChatInputOnboardingCard;
 	private readonly player: VoiceSamplePlayer;
+	private animator: VoiceModeOnboardingAnimator | undefined;
 	private readonly options: IVoiceModeOnboardingBannerOptions;
 	private readonly microphonePicker = this._register(new MutableDisposable<DisposableStore>());
 	private microphoneOptions: IMicrophoneOption[] = [];
@@ -747,7 +767,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		const wave = dom.append(this.domNode, dom.$('.voice-mode-onboarding-wave'));
 		const canvas = dom.append(wave, dom.$('canvas.voice-mode-onboarding-canvas')) as HTMLCanvasElement;
 		canvas.setAttribute('aria-hidden', 'true');
-		this._register(instantiationService.createInstance(VoiceModeOnboardingAnimator, canvas, wave, {
+		this.animator = this._register(instantiationService.createInstance(VoiceModeOnboardingAnimator, canvas, wave, {
 			getLevel: () => this.player.getLevel(),
 			getSignature: () => this.currentSignature(),
 		}));
@@ -991,7 +1011,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 
 	/**
 	 * One short paragraph: what Voice Mode does, and where to change its
-	 * settings.
+	 * settings or instructions.
 	 *
 	 * `[[...]]` marks each clause that becomes a link, so translators can place
 	 * it naturally in the sentence instead of receiving a fixed phrase
@@ -1002,17 +1022,17 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
 			comment: [
-				'Preserve the double square brackets: they mark the text that becomes a link.',
-				'The link opens Voice Mode settings.',
+				'Preserve the double square brackets: they mark the text that becomes a link. Keep both links, in this order - the first opens Voice Mode settings, the second opens the voice.md customization file.',
 			],
-		}, "Choose how your agent speaks to you. Adjust [[settings]] anytime.");
+		}, "Choose how your agent speaks to you. Adjust [[settings]] or [[how it's written]] anytime.");
 
 		dom.append(description, renderFormattedText(text, {
 			actionHandler: {
-				callback: () => {
-					this.logAction('openSettings');
-					this.commandService.executeCommand(VOICE_SETTINGS_COMMAND)
-						.catch(error => this.logService.error(`[voice] Failed to run ${VOICE_SETTINGS_COMMAND}: ${error}`));
+				callback: index => {
+					const commandId = index === '0' ? VOICE_SETTINGS_COMMAND : CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID;
+					this.logAction(index === '0' ? 'openSettings' : 'openInstructions');
+					this.commandService.executeCommand(commandId)
+						.catch(error => this.logService.error(`[voice] Failed to run ${commandId}: ${error}`));
 				},
 				disposables: this._store,
 			},
@@ -1054,6 +1074,26 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		this.card.announce();
 	}
 
+	/**
+	 * Stops the sample and the waveform while the card is put away for a
+	 * notification, so an invisible introduction is not still playing audio or
+	 * painting every frame.
+	 */
+	setVisible(visible: boolean): void {
+		this.animator?.setSuspended(!visible);
+		if (!visible) {
+			this.player.stop();
+		}
+	}
+
+	hasFocus(): boolean {
+		return this.card.hasFocus();
+	}
+
+	focus(): void {
+		this.card.focus();
+	}
+
 	private selectVoice(voice: IVoiceModeVoice): void {
 		if (this.player.playingVoice === voice.id) {
 			this.player.stop();
@@ -1063,7 +1103,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		this.logAction('selectVoice');
 		this.selectedVoice = voice;
 		this.updateSelection();
-		this.player.play(voice.id);
+		this.player.play(voice.sampleId, voice.id);
 		status(localize('voiceMode.onboarding.voice.selected', "{0} selected.", voice.label));
 		this.configurationService.updateValue(VOICE_SETTING, voice.id, ConfigurationTarget.USER)
 			.catch(error => this.logService.error(`[voice] Failed to persist the Voice Mode voice: ${error}`));
@@ -1157,15 +1197,8 @@ export interface IVoiceModeOnboardingService {
 	/**
 	 * Register a container that can host the banner (a chat input). The most
 	 * recently focused host wins when the banner is shown.
-	 *
-	 * @param container the element the banner is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
-	 * @param focus hands focus back to this host's input when the banner closes.
-	 * Passed explicitly because `focusRoot` is a container, not a control - the
-	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -1198,8 +1231,8 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): void {
