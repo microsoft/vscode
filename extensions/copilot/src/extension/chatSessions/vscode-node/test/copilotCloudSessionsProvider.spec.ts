@@ -12,7 +12,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { getCloudSessionItemMetadata, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -78,6 +78,24 @@ describe('copilotCloudSessionsProvider helpers', () => {
 			name: 'vscode',
 			host: 'github.com',
 			branch: 'copilot/task-branch',
+		});
+	});
+
+	it('keeps the task resource stable and reports the pull request URI for state migration', () => {
+		// A task keeps its `/task/<id>` identity for its whole life. Once it has a pull request
+		// it also reports the `/<prNumber>` URI it used to be listed under, so archive/pin/read
+		// state recorded against that URI migrates forward instead of being orphaned.
+		expect({
+			prLess: getCloudSessionResources('abc-123', undefined),
+			prBacked: getCloudSessionResources('abc-123', 325),
+		}).toEqual({
+			prLess: {
+				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
+			},
+			prBacked: {
+				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
+				legacyResource: vscode.Uri.parse('copilot-cloud-agent:/325'),
+			},
 		});
 	});
 });

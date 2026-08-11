@@ -150,6 +150,20 @@ export function getCloudSessionItemMetadata(repo: CloudSessionData['repo'], diff
 }
 
 /**
+ * Session resources for a cloud task. The task id is the stable identity; a task that has
+ * a pull request also reports the `/<prNumber>` URI it was previously listed under so the
+ * host can migrate archive/pin/read state forward once and drop the old entry.
+ */
+export function getCloudSessionResources(taskId: string, pullRequestNumber: number | undefined): { resource: vscode.Uri; legacyResource?: vscode.Uri } {
+	const resource = vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(taskId) });
+	if (pullRequestNumber === undefined) {
+		return { resource };
+	}
+
+	return { resource, legacyResource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + pullRequestNumber }) };
+}
+
+/**
  * Map a Task API lifecycle state directly to a {@link vscode.ChatSessionStatus}. This keeps the
  * non-terminal "agent handed the turn back" states distinct from active work: `idle` (agent
  * finished its turn, nothing pending) renders as Completed and `waiting_for_user` (agent paused for
@@ -1169,7 +1183,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					: getCloudSessionItemMetadata(entry.repo, entry.diffRefs);
 
 				return {
-					resource: vscode.Uri.from({ scheme: CopilotCloudSessionsProvider.TYPE, path: '/' + SessionIdForTask.getId(entry.taskId) }),
+					...getCloudSessionResources(entry.taskId, pr?.number),
 					label: pr?.title || entry.title || entry.taskId,
 					status: taskStateToChatSessionStatus(entry.state),
 					...(pr ? {
