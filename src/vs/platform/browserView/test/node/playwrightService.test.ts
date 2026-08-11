@@ -233,8 +233,7 @@ suite('PlaywrightService network filtering', () => {
 		let requestListener: ((request: Request) => void) | undefined;
 		let routeListener: ((route: Route) => void) | undefined;
 		let webSocketRouteListener: ((route: WebSocketRoute) => void) | undefined;
-		let page: PageApi;
-		page = {
+		const page: PageApi = {
 			request: requestContext,
 			context: () => Object.assign(new TestContext(requestContext), { browser: () => ({}) }),
 			mainFrame: () => ({ page: () => page }),
