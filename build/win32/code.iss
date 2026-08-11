@@ -115,7 +115,7 @@ Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: 
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}.lnk'))
 
 [Run]
-Filename: "{app}\{#ExeBasename}.exe"; Parameters: "{code:GetRelaunchArgs}"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
+Filename: "{app}\{#ExeBasename}.exe"; Parameters: "{code:GetRelaunchArgs}"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate; AfterInstall: DeleteRelaunchArgsFile
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
 
 [Registry]
@@ -1345,6 +1345,15 @@ begin
     if LoadStringFromFile(ArgsFile, RawArgs) then
       Result := Trim(UTF8ToString(RawArgs));
   end;
+end;
+
+procedure DeleteRelaunchArgsFile();
+var
+  ArgsFile: String;
+begin
+  ArgsFile := ExpandConstant('{param:relaunchargs|}');
+  if (ArgsFile <> '') and FileExists(ArgsFile) then
+    DeleteFile(ArgsFile);
 end;
 
 function IsBackgroundUpdate(): Boolean;

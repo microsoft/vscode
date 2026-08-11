@@ -47,6 +47,8 @@ interface IAvailableUpdate {
 	updateProcess?: ChildProcess;
 }
 
+const RELAUNCH_ARGUMENTS_FILE_PREFIX = 'relaunch-args-';
+
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
@@ -387,7 +389,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<void> {
-		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const relaunchArgumentsFileName = exceptVersion ? `${RELAUNCH_ARGUMENTS_FILE_PREFIX}${exceptVersion}` : undefined;
+		const filter = exceptVersion
+			? (one: string) => one !== relaunchArgumentsFileName && !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one))
+			: () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.Promises.readdir(cachePath);
@@ -439,11 +444,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
 			];
 
-			// Preserve session defining arguments (e.g. --extensions-dir) across the installer relaunch (see #322663).
-			const relaunchArgsFilePath = this.writeRelaunchArgumentsFile(cachePath);
-			if (relaunchArgsFilePath) {
-				installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
-			}
+			// The restarting instance populates this file immediately before releasing the installer.
+			const relaunchArgsFilePath = this.getRelaunchArgumentsFilePath(cachePath, update.version);
+			installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
 
 			const child = spawn(this.availableUpdate.packagePath,
 				installerArgs,
@@ -620,6 +623,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
+			this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
 			try {
 				unlinkSync(this.availableUpdate.updateFilePath);
 			} catch {
@@ -629,7 +633,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			const installerArgs = ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'];
 
 			// Preserve session defining arguments (e.g. --extensions-dir) across the installer relaunch (see #322663).
-			const relaunchArgsFilePath = this.writeRelaunchArgumentsFile(this.cachePathSync);
+			const relaunchArgsFilePath = this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
 			if (relaunchArgsFilePath) {
 				installerArgs.push(`/relaunchargs="${relaunchArgsFilePath}"`);
 			}
@@ -643,13 +647,17 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 	}
 
+	private getRelaunchArgumentsFilePath(cachePath: string, version: string): string {
+		return path.join(cachePath, `${RELAUNCH_ARGUMENTS_FILE_PREFIX}${version}`);
+	}
+
 	/**
 	 * Writes the arguments from {@link getRelaunchArguments} to a file in the update cache and returns its path (or
 	 * `undefined` when there is nothing to carry forward). The installer reads it and passes the arguments to `Code.exe`.
 	 */
-	private writeRelaunchArgumentsFile(cachePath: string): string | undefined {
-		const relaunchArguments = getRelaunchArguments(this.environmentMainService.args);
-		const relaunchArgsFilePath = path.join(cachePath, 'relaunch-args');
+	private writeRelaunchArgumentsFile(cachePath: string, version: string): string | undefined {
+		const relaunchArguments = getRelaunchArguments(this.environmentMainService.args, process.argv);
+		const relaunchArgsFilePath = this.getRelaunchArgumentsFilePath(cachePath, version);
 
 		if (!relaunchArguments) {
 			try {

@@ -20,13 +20,10 @@ const RELAUNCH_STRING_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
 	'agents-user-data-dir',
 	'agents-extensions-dir',
 	'agent-plugins-dir',
-	'profile',
 	// Localization
 	'locale',
 	// Diagnostics
 	'crash-reporter-directory',
-	'crash-reporter-id',
-	'logsPath',
 	// Secret storage
 	'password-store',
 	// Proxy
@@ -54,12 +51,10 @@ const RELAUNCH_FLAG_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
 	'disable-chromium-sandbox',
 	'disable-gpu-sandbox',
 	'disable-dev-shm-usage',
-	'no-sandbox',
 	'enable-coi',
 	'force-renderer-accessibility',
 	'enable-rdp-display-tracking',
 	// Networking
-	'no-proxy-server',
 	'ignore-certificate-errors',
 	'allow-insecure-localhost',
 	// Persistent opt-outs / environment
@@ -69,9 +64,13 @@ const RELAUNCH_FLAG_ARGUMENTS: readonly (keyof NativeParsedArgs)[] = [
 	'disable-workspace-trust',
 	'disable-experiments',
 	'disable-layout-restore',
-	'profile-temp',
 	'use-inmemory-secretstorage',
 ];
+
+const RELAUNCH_NEGATED_FLAG_ARGUMENTS = [
+	'no-sandbox',
+	'no-proxy-server',
+] as const;
 
 /**
  * Quotes a single argument per `CommandLineToArgvW` rules so it survives being appended to the relaunched `Code.exe`
@@ -104,18 +103,24 @@ export function quoteWindowsArgument(arg: string): string {
  * Builds the Windows-quoted command line tail carrying the curated persistent arguments forward across an update
  * relaunch. Returns an empty string when there are no such arguments.
  */
-export function getRelaunchArguments(args: NativeParsedArgs): string {
+export function getRelaunchArguments(args: NativeParsedArgs, rawArgs: readonly string[]): string {
 	const argv: string[] = [];
 
 	for (const key of RELAUNCH_STRING_ARGUMENTS) {
 		const value = args[key];
 		if (typeof value === 'string' && value.length > 0) {
-			argv.push(`--${key}`, value);
+			argv.push(`--${key}=${value}`);
 		}
 	}
 
 	for (const key of RELAUNCH_FLAG_ARGUMENTS) {
 		if (args[key] === true) {
+			argv.push(`--${key}`);
+		}
+	}
+
+	for (const key of RELAUNCH_NEGATED_FLAG_ARGUMENTS) {
+		if (rawArgs.includes(`--${key}`)) {
 			argv.push(`--${key}`);
 		}
 	}

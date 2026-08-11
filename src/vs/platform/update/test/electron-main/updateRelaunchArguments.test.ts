@@ -16,6 +16,10 @@ suite('Win32UpdateService - relaunch arguments', () => {
 		return { _: [], ...overrides } as NativeParsedArgs;
 	}
 
+	function getArguments(overrides: Partial<NativeParsedArgs>, rawArgs: readonly string[] = []): string {
+		return getRelaunchArguments(args(overrides), rawArgs);
+	}
+
 	test('quoteWindowsArgument', () => {
 		assert.strictEqual(quoteWindowsArgument('--disable-gpu'), '--disable-gpu');
 		assert.strictEqual(quoteWindowsArgument('C:\\Users\\test\\ext'), 'C:\\Users\\test\\ext');
@@ -25,48 +29,68 @@ suite('Win32UpdateService - relaunch arguments', () => {
 	});
 
 	test('carries forward curated path and flag arguments', () => {
-		const result = getRelaunchArguments(args({
+		const result = getArguments({
 			'user-data-dir': 'C:\\data',
 			'extensions-dir': 'C:\\path with space\\ext',
 			'disable-gpu': true,
 			'disable-lcd-text': true
-		}));
+		});
 
-		assert.strictEqual(result, '--user-data-dir C:\\data --extensions-dir "C:\\path with space\\ext" --disable-gpu --disable-lcd-text');
+		assert.strictEqual(result, '--user-data-dir=C:\\data "--extensions-dir=C:\\path with space\\ext" --disable-gpu --disable-lcd-text');
 	});
 
 	test('returns empty string when no relevant arguments are present', () => {
-		assert.strictEqual(getRelaunchArguments(args({})), '');
+		assert.strictEqual(getArguments({}), '');
 	});
 
 	test('ignores transient and one-shot arguments', () => {
-		const result = getRelaunchArguments(args({
+		const result = getArguments({
 			_: ['C:\\some\\file.txt'],
 			wait: true,
 			'new-window': true,
 			'install-extension': ['some.extension'],
+			'profile': 'work',
+			'profile-temp': true,
+			'crash-reporter-id': 'derived-id',
+			'logsPath': 'C:\\logs',
 			'extensions-dir': 'C:\\ext'
-		}));
+		});
 
-		assert.strictEqual(result, '--extensions-dir C:\\ext');
+		assert.strictEqual(result, '--extensions-dir=C:\\ext');
 	});
 
 	test('carries forward additional environment string and boolean arguments', () => {
-		const result = getRelaunchArguments(args({
-			'profile': 'work',
+		const result = getArguments({
 			'proxy-server': 'http://localhost:8080',
-			'no-sandbox': true,
 			'disable-updates': true
-		}));
+		}, ['--no-sandbox']);
 
-		assert.strictEqual(result, '--profile work --proxy-server http://localhost:8080 --no-sandbox --disable-updates');
+		assert.strictEqual(result, '--proxy-server=http://localhost:8080 --disable-updates --no-sandbox');
+	});
+
+	test('carries forward explicit negated flags from raw arguments', () => {
+		const result = getArguments({
+			'no-sandbox': false,
+			'no-proxy-server': false
+		}, ['--no-sandbox', '--no-proxy-server']);
+
+		assert.strictEqual(result, '--no-sandbox --no-proxy-server');
+	});
+
+	test('carries forward string values that start with a hyphen', () => {
+		const result = getArguments({
+			'js-flags': '--max-old-space-size=8192',
+			'enable-tracing': '-*,v8'
+		});
+
+		assert.strictEqual(result, '--js-flags=--max-old-space-size=8192 --enable-tracing=-*,v8');
 	});
 
 	test('ignores flag arguments that are not set to true', () => {
-		const result = getRelaunchArguments(args({
+		const result = getArguments({
 			'disable-gpu': false,
 			'user-data-dir': ''
-		}));
+		});
 
 		assert.strictEqual(result, '');
 	});
