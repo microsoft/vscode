@@ -51,9 +51,13 @@ suite('Voice Mode onboarding', () => {
 	}
 
 	function register(service: VoiceModeOnboardingService, host: ITestHost) {
-		return service.registerHost(host.container, host.root, () => {
-			host.focused++;
-			host.root.focus();
+		return service.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => {
+				host.focused++;
+				host.root.focus();
+			},
 		});
 	}
 
