@@ -1213,17 +1213,10 @@ export function createActiveAgentHostSubscriptionObs<T>(
 	subscriptionOwner: string,
 ): IObservable<IObservable<T | Error | undefined | null>> {
 	return derived(owner, reader => {
-		const connection = getConnection();
-		if (!connection) {
-			return constObservable(null);
-		}
-
 		const resource = resourceObs.read(reader);
-		if (!resource) {
-			return constObservable(null);
-		}
-
-		if (!isActiveObs.read(reader)) {
+		const isActive = isActiveObs.read(reader);
+		const connection = getConnection();
+		if (!connection || !resource || !isActive) {
 			return constObservable(null);
 		}
 

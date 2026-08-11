@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../common/agentService.js';
@@ -139,6 +139,58 @@ suite('createActiveAgentHostSubscriptionObs', () => {
 			observedValues: [42, 1, 2, null, 2],
 			acquired: 2,
 			released: 2,
+		});
+	});
+
+	test('acquires after a connection-dependent resource becomes available', () => {
+		const subscription: IAgentSubscription<{ value: number }> = {
+			value: { value: 42 },
+			verifiedValue: { value: 42 },
+			onDidChange: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		let acquired = 0;
+		let released = 0;
+		const connection = {
+			getSubscription: <T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> => {
+				acquired++;
+				return {
+					object: subscription as unknown as IAgentSubscription<ComponentToState[T]>,
+					dispose: () => released++,
+				};
+			},
+		} as IAgentConnection;
+		const connected = observableValue('connected', false);
+		const resource = derived(reader => {
+			connected.read(reader);
+			return URI.parse('ahp-session:/test/changeset/branch');
+		});
+		const observed = createActiveAgentHostSubscriptionObs<{ value: number }>(
+			{},
+			() => connected.get() ? connection : undefined,
+			constObservable(true),
+			StateComponents.Changeset,
+			resource,
+			'test',
+		);
+		const observedValues: Array<number | null | undefined> = [];
+		const observer = disposables.add(autorun(reader => {
+			const state = observed.read(reader).read(reader);
+			observedValues.push(state === null ? null : state instanceof Error ? undefined : state?.value);
+		}));
+
+		connected.set(true, undefined);
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			observedValues,
+			acquired,
+			released,
+		}, {
+			observedValues: [null, 42],
+			acquired: 1,
+			released: 1,
 		});
 	});
 });
