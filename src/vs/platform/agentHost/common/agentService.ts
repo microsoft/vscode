@@ -1706,9 +1706,6 @@ export interface IAgent {
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
-	/** Recover a historical backing that predates host-owned provider-data persistence. */
-	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
-
 	/** Update the exact chat's pending steering message; queued messages are host-owned. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void;
 
@@ -1759,6 +1756,9 @@ export interface IAgent {
 
 	/** Adopt a legacy provider-native chat into Agent Host metadata. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
+
+	/** Recover a historical backing that predates host-owned provider-data persistence. */
+	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
 	/** Enumerate provider-native chats for one-time registry migration. */
 	listLegacyChats(): Promise<readonly IAgentChatMetadata[]>;
