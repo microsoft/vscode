@@ -5,13 +5,14 @@
 
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { IPCServer, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IPCServer, IServerChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { BrowserViewGroupRemoteService } from './browserViewGroupRemoteService.js';
 import { PlaywrightService } from './playwrightService.js';
+import { IBrowserViewService, ipcBrowserViewChannelName } from '../common/browserView.js';
 
 /**
  * IPC channel for the Playwright service.
@@ -26,6 +27,7 @@ export class PlaywrightChannel extends Disposable implements IServerChannel<stri
 
 	private readonly _instances = this._register(new DisposableMap<string, PlaywrightService>());
 	private readonly browserViewGroupRemoteService: BrowserViewGroupRemoteService;
+	private readonly browserViewService: IBrowserViewService;
 
 	constructor(
 		ipcServer: IPCServer<string>,
@@ -36,6 +38,7 @@ export class PlaywrightChannel extends Disposable implements IServerChannel<stri
 	) {
 		super();
 		this.browserViewGroupRemoteService = new BrowserViewGroupRemoteService(mainProcessService);
+		this.browserViewService = ProxyChannel.toService<IBrowserViewService>(mainProcessService.getChannel(ipcBrowserViewChannelName));
 		this._register(ipcServer.onDidRemoveConnection(c => {
 			this._instances.deleteAndDispose(c.ctx);
 		}));
@@ -61,7 +64,7 @@ export class PlaywrightChannel extends Disposable implements IServerChannel<stri
 			}
 			if (!this._instances.has(ctx)) {
 				const windowId = arg as number;
-				this._instances.set(ctx, new PlaywrightService(windowId, this.browserViewGroupRemoteService, this.logService, this.agentNetworkFilterService, this.telemetryService));
+				this._instances.set(ctx, new PlaywrightService(windowId, this.browserViewGroupRemoteService, this.browserViewService, this.logService, this.agentNetworkFilterService, this.telemetryService));
 			}
 			return Promise.resolve(undefined as T);
 		}

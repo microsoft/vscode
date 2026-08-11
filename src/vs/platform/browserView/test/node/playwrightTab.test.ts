@@ -25,6 +25,7 @@ class TestFrame {
 class TestPage extends EventEmitter {
 	private currentFrames: TestFrame[];
 	readonly ariaSnapshotCalls: boolean[] = [];
+	onAriaSnapshot: (() => void) | undefined;
 
 	constructor(
 		mainUrl: string,
@@ -61,6 +62,7 @@ class TestPage extends EventEmitter {
 
 	async ariaSnapshot(options?: { _track?: string }): Promise<string> {
 		this.ariaSnapshotCalls.push(options?._track === 'response');
+		this.onAriaSnapshot?.();
 		return this.snapshot;
 	}
 
@@ -133,6 +135,38 @@ suite('PlaywrightTab network policy', () => {
 			}),
 			/Access to denied\.example is blocked by network domain policy/
 		);
+	});
+
+	test('summary returns only the policy error when the page navigates during extraction', async () => {
+		const page = new TestPage('https://allowed.example');
+		const tab = createTab(page);
+		page.onAriaSnapshot = () => page.setFrames('https://denied.example/private');
+
+		const summary = await tab.getSummary(true);
+
+		assert.strictEqual(summary, 'Access to denied.example is blocked by network domain policy.');
+	});
+
+	test('does not retain console logs collected while page content is denied', async () => {
+		const page = new TestPage('https://denied.example/private');
+		const tab = createTab(page);
+		page.emit('console', {
+			type: () => 'error',
+			timestamp: () => Date.now(),
+			text: () => 'DENIED_CONSOLE_CONTENT',
+		} satisfies Pick<playwright.ConsoleMessage, 'type' | 'timestamp' | 'text'>);
+
+		const blockedSummary = await tab.getSummary(true);
+		page.setFrames('https://allowed.example');
+		const allowedSummary = await tab.getSummary(true);
+
+		assert.deepStrictEqual({
+			blockedSummary,
+			allowedSummaryContainsDeniedLog: allowedSummary.includes('DENIED_CONSOLE_CONTENT'),
+		}, {
+			blockedSummary: 'Access to denied.example is blocked by network domain policy.',
+			allowedSummaryContainsDeniedLog: false,
+		});
 	});
 
 	test('does not expose denied request URLs through recent-event logs', async () => {

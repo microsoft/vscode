@@ -116,6 +116,9 @@ export class PlaywrightTab {
 	}
 
 	private async _handleDownload(download: playwright.Download) {
+		if (this._getBlockedURLMessage(download.url())) {
+			return;
+		}
 		this._logs.push({ type: 'download', time: Date.now(), description: `${download.suggestedFilename()}` });
 	}
 
@@ -128,12 +131,18 @@ export class PlaywrightTab {
 	}
 
 	private _handleConsoleMessage(message: playwright.ConsoleMessage) {
+		if (this._getBlockedURLErrorMessage()) {
+			return;
+		}
 		if (message.type() === 'error' || message.type() === 'warning') {
 			this._logs.push({ type: 'console', time: message.timestamp(), description: `[${message.type()}] ${message.text()}` });
 		}
 	}
 
 	private _handlePageError(error: Error) {
+		if (this._getBlockedURLErrorMessage()) {
+			return;
+		}
 		this._logs.push({ type: 'pageError', time: Date.now(), description: error.stack ?? error.message });
 	}
 
@@ -176,6 +185,7 @@ export class PlaywrightTab {
 	 * E.g. file dialogs should appear when the user triggers one, but not when the agent does.
 	 */
 	async safeRunAgainstPage<T>(action: (page: playwright.Page, token: CancellationToken) => Promise<T>): Promise<T> {
+		await this._initialized;
 		if (this._dialog) {
 			throw new Error(`Cannot perform action while a dialog is open`);
 		}
@@ -228,7 +238,7 @@ export class PlaywrightTab {
 		// When the current page or any frame is blocked by network policy, return only a
 		// policy error — do not expose title, URL, console logs, or snapshot to
 		// avoid prompt-injection via blocked content.
-		const blockedError = this._getBlockedURLErrorMessage();
+		const blockedError = this._getBlockedSummaryError();
 		if (blockedError) {
 			return blockedError;
 		}
@@ -242,6 +252,10 @@ export class PlaywrightTab {
 			return undefined;
 		});
 		const title = await this.safeRunAgainstPage((page) => page.title()).catch(() => '');
+		const postSummaryBlockedError = this._getBlockedSummaryError();
+		if (postSummaryBlockedError) {
+			return postSummaryBlockedError;
+		}
 
 		const logs = this._logs;
 		this._logs = [];
@@ -259,6 +273,15 @@ export class PlaywrightTab {
 			] : []),
 			`Snapshot: ${snapshotFromPage !== undefined ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
 		].join('\n');
+	}
+
+	private _getBlockedSummaryError(): string | undefined {
+		const error = this._getBlockedURLErrorMessage();
+		if (error) {
+			this._logs = [];
+			this._needsFullSnapshot = true;
+		}
+		return error;
 	}
 
 	private getAiSnapshot(page: playwright.Page, full: boolean): Promise<string> {

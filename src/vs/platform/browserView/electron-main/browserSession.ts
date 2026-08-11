@@ -263,8 +263,12 @@ export class BrowserSession {
 		this._agentNetworkFilter.setFiltering(webContentsId, enabled);
 	}
 
-	getAgentNetworkPolicyError(webContentsId: number): string | undefined {
-		return this._agentNetworkFilter.getPolicyError(webContentsId);
+	setAgentNetworkAction(webContentsId: number, sourceId: string, enabled: boolean): void {
+		this._agentNetworkFilter.setAgentAction(webContentsId, sourceId, enabled);
+	}
+
+	getAgentNetworkPolicyError(webContentsId: number, navigationOnly?: boolean): string | undefined {
+		return this._agentNetworkFilter.getPolicyError(webContentsId, navigationOnly);
 	}
 
 	/**

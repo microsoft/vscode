@@ -60,6 +60,7 @@ export class BrowserView extends Disposable {
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
 	private readonly _agentNetworkFilterSources = new BrowserViewAgentNetworkFilterSources();
+	private readonly _agentNetworkActionSources = new Set<string>();
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
@@ -588,8 +589,17 @@ export class BrowserView extends Disposable {
 		this.session.setAgentNetworkFiltering(this.webContents.id, this._agentNetworkFilterSources.set(sourceId, enabled));
 	}
 
-	getAgentNetworkPolicyError(): string | undefined {
-		return this.session.getAgentNetworkPolicyError(this.webContents.id);
+	setAgentNetworkAction(sourceId: string, enabled: boolean): void {
+		if (enabled) {
+			this._agentNetworkActionSources.add(sourceId);
+		} else {
+			this._agentNetworkActionSources.delete(sourceId);
+		}
+		this.session.setAgentNetworkAction(this.webContents.id, sourceId, enabled);
+	}
+
+	getAgentNetworkPolicyError(navigationOnly?: boolean): string | undefined {
+		return this.session.getAgentNetworkPolicyError(this.webContents.id, navigationOnly);
 	}
 
 	/**
@@ -1000,6 +1010,10 @@ export class BrowserView extends Disposable {
 		this._isDisposed = true;
 		this._agentNetworkFilterSources.clear();
 		this.session.setAgentNetworkFiltering(this.webContents.id, false);
+		for (const sourceId of this._agentNetworkActionSources) {
+			this.session.setAgentNetworkAction(this.webContents.id, sourceId, false);
+		}
+		this._agentNetworkActionSources.clear();
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();

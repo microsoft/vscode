@@ -47,6 +47,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 		allowedServer = http.createServer((request, response) => {
 			switch (request.url) {
+				case '/allowed':
+					response.setHeader('Content-Type', 'text/html');
+					response.end(`<html><body>${allowedPageMarker}</body></html>`);
+					break;
 				case '/hidden-iframe':
 					response.setHeader('Content-Type', 'text/html');
 					response.end(`<html><body>${allowedPageMarker}<iframe style="position:absolute;width:1px;height:1px;opacity:0" src="http://127.0.0.1:${deniedPort}/private"></iframe></body></html>`);
@@ -316,6 +320,144 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			openContainsDeniedMarker: false,
 			readContainsDeniedMarker: false,
 			readContainsDeniedUrl: false,
+		});
+	});
+
+	test('browser tools network policy blocks transient denied navigation from run_playwright_code', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/allowed`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const runOutput = await invokeTool('run_playwright_code', {
+			pageId,
+			code: `await page.unrouteAll();
+				await page.evaluate(url => window.open(url), 'http://127.0.0.1:${deniedPort}/popup');
+				await page.waitForTimeout(100);
+				let deniedContent;
+				try {
+					const response = await page.goto('http://127.0.0.1:${deniedPort}/private');
+					deniedContent = await response?.text();
+				} catch {}
+				await page.goto('http://localhost:${allowedPort}/allowed');
+				return deniedContent;`,
+		});
+
+		assert.deepStrictEqual({
+			deniedRequestCount,
+			runWasBlocked: runOutput.includes('blocked by network domain policy'),
+			runContainsDeniedMarker: runOutput.includes(deniedFrameMarker),
+		}, {
+			deniedRequestCount: 0,
+			runWasBlocked: true,
+			runContainsDeniedMarker: false,
+		});
+	});
+
+	test('browser tools network policy blocks Playwright API request contexts', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/allowed`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const runOutput = await invokeTool('run_playwright_code', {
+			pageId,
+			code: `const errors = [];
+				for (const getBlockedApi of [() => page.request, () => page.context().request, () => page.context().browser()]) {
+					try {
+						const api = getBlockedApi();
+						await api.get?.('http://127.0.0.1:${deniedPort}/private');
+					} catch (error) {
+						errors.push(String(error));
+					}
+				}
+				return errors.join('\\n');`,
+		});
+
+		assert.deepStrictEqual({
+			deniedRequestCount,
+			blockedErrorCount: runOutput.match(/blocked by network domain policy/g)?.length,
+			contextTraversalWasBlocked: runOutput.includes('unavailable in page-scoped automation'),
+		}, {
+			deniedRequestCount: 0,
+			blockedErrorCount: 2,
+			contextTraversalWasBlocked: true,
+		});
+	});
+
+	test('browser tools isolate Playwright callables from the host realm', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/allowed`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const runOutput = await invokeTool('run_playwright_code', {
+			pageId,
+			code: `let escaped = false;
+				for (const getFunction of [
+					() => this?.constructor,
+					() => args.constructor,
+					() => page.constructor,
+					() => page.goto.constructor,
+				]) {
+					try {
+						const candidate = getFunction().constructor('return process')();
+						escaped ||= !!candidate?.versions?.node;
+					} catch {}
+				}
+				return escaped ? 'escaped' : 'blocked';`,
+		});
+
+		assert.match(runOutput, /Result: "blocked"/, `Expected host-realm escape attempts to be blocked, got: ${runOutput}`);
+	});
+
+	test('browser tools network policy blocks delayed Playwright and page-realm work', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/allowed`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const runOutput = await invokeTool('run_playwright_code', {
+			pageId,
+			code: `void page.waitForTimeout(200).then(async () => {
+					try {
+						const response = await page.goto('http://127.0.0.1:${deniedPort}/delayed-private');
+						await response?.text();
+					} catch {}
+				});
+				await page.evaluate(url => {
+					setTimeout(() => location.assign(url), 300);
+				}, 'http://127.0.0.1:${deniedPort}/page-delayed-private');
+				return 'scheduled';`,
+		});
+		await new Promise(resolve => setTimeout(resolve, 700));
+
+		assert.deepStrictEqual({
+			deniedRequestCount,
+			runCompleted: runOutput.includes('scheduled'),
+		}, {
+			deniedRequestCount: 0,
+			runCompleted: true,
 		});
 	});
 

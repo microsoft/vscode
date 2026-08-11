@@ -41,24 +41,58 @@ suite('BrowserSession network filter', () => {
 		return result;
 	}
 
-	test('filters only explicitly shared webContents in a shared Electron session', () => {
+	test('filters shared webContents without affecting known unshared webContents', () => {
 		const { filter } = createFilter();
 		filter.setFiltering(1, true);
 
 		assert.deepStrictEqual({
 			sharedDenied: invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame', webContentsId: 1 }),
 			unsharedDenied: invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame', webContentsId: 2 }),
-			missingOwnerDenied: invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame' }),
 			sharedAllowed: invokeRequest(filter, { url: 'https://allowed.example/frame', resourceType: 'subFrame', webContentsId: 1 }),
+			sharedNavigationPolicyError: filter.getPolicyError(1, true),
 			sharedPolicyError: filter.getPolicyError(1),
 			unsharedPolicyError: filter.getPolicyError(2),
 		}, {
 			sharedDenied: { cancel: true },
 			unsharedDenied: { cancel: false },
-			missingOwnerDenied: { cancel: false },
 			sharedAllowed: { cancel: false },
+			sharedNavigationPolicyError: undefined,
 			sharedPolicyError: 'Access to denied.example is blocked by network domain policy.',
 			unsharedPolicyError: undefined,
+		});
+	});
+
+	test('attributes ownerless worker requests using their referrer origin', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+		invokeRequest(filter, { url: 'https://shared.example/page', resourceType: 'mainFrame', webContentsId: 1 });
+		invokeRequest(filter, { url: 'https://unshared.example/page', resourceType: 'mainFrame', webContentsId: 2 });
+
+		assert.deepStrictEqual({
+			sharedWorkerDenied: invokeRequest(filter, { url: 'https://denied.example/worker', resourceType: 'xhr', referrer: 'https://shared.example/worker.js' }),
+			unsharedWorkerDenied: invokeRequest(filter, { url: 'https://denied.example/worker', resourceType: 'xhr', referrer: 'https://unshared.example/worker.js' }),
+			policyError: filter.getPolicyError(1),
+		}, {
+			sharedWorkerDenied: { cancel: true },
+			unsharedWorkerDenied: { cancel: false },
+			policyError: 'Access to denied.example is blocked by network domain policy.',
+		});
+	});
+
+	test('fails closed for ownerless requests without attributing errors to unrelated views', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+
+		assert.deepStrictEqual({
+			missingOwnerDenied: invokeRequest(filter, { url: 'https://denied.example/worker', resourceType: 'xhr' }),
+			invalidOwnerDenied: invokeRequest(filter, { url: 'https://denied.example/worker', resourceType: 'xhr', webContentsId: -1 }),
+			missingOwnerAllowed: invokeRequest(filter, { url: 'https://allowed.example/worker', resourceType: 'xhr' }),
+			policyError: filter.getPolicyError(1),
+		}, {
+			missingOwnerDenied: { cancel: true },
+			invalidOwnerDenied: { cancel: true },
+			missingOwnerAllowed: { cancel: false },
+			policyError: undefined,
 		});
 	});
 
@@ -78,7 +112,7 @@ suite('BrowserSession network filter', () => {
 		});
 	});
 
-	test('main-frame navigation remains loadable and resets retained subframe errors', () => {
+	test('main-frame navigation resets retained subframe errors and enforces policy while shared', () => {
 		const { filter } = createFilter();
 		filter.setFiltering(1, true);
 		invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame', webContentsId: 1 });
@@ -89,14 +123,82 @@ suite('BrowserSession network filter', () => {
 			result,
 			policyError: filter.getPolicyError(1),
 		}, {
-			result: { cancel: false },
-			policyError: undefined,
+			result: { cancel: true },
+			policyError: 'Access to denied.example is blocked by network domain policy.',
+		});
+	});
+
+	test('filters shared and action-related main-frame requests without affecting known unshared views', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+		invokeRequest(filter, { url: 'https://unshared.example/page', resourceType: 'mainFrame', webContentsId: 2 });
+
+		const unsharedNavigation = invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 2 });
+		const sharedNavigation = invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 1 });
+		const sharedNavigationError = filter.getPolicyError(1);
+		invokeRequest(filter, { url: 'https://allowed.example/page', resourceType: 'mainFrame', webContentsId: 1 });
+		filter.setAgentAction(1, 'action', true);
+		const unsharedRequestDuringAction = invokeRequest(filter, { url: 'https://denied.example/data', resourceType: 'xhr', webContentsId: 2, referrer: 'https://unshared.example/page' });
+		const popupNavigation = invokeRequest(filter, { url: 'https://denied.example/popup', resourceType: 'mainFrame', webContentsId: 3 });
+		const allowedReturnNavigation = invokeRequest(filter, { url: 'https://allowed.example/page', resourceType: 'mainFrame', webContentsId: 1 });
+		const retainedActionError = filter.getPolicyError(1);
+		filter.setAgentAction(1, 'action', false);
+
+		assert.deepStrictEqual({
+			unsharedNavigation,
+			sharedNavigation,
+			sharedNavigationError,
+			unsharedRequestDuringAction,
+			popupNavigation,
+			allowedReturnNavigation,
+			retainedActionError,
+			errorAfterAction: filter.getPolicyError(1),
+		}, {
+			unsharedNavigation: { cancel: false },
+			sharedNavigation: { cancel: true },
+			sharedNavigationError: 'Access to denied.example is blocked by network domain policy.',
+			unsharedRequestDuringAction: { cancel: false },
+			popupNavigation: { cancel: true },
+			allowedReturnNavigation: { cancel: false },
+			retainedActionError: 'Access to denied.example is blocked by network domain policy.',
+			errorAfterAction: undefined,
+		});
+	});
+
+	test('does not attribute known same-origin unshared requests to an agent action', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+		invokeRequest(filter, { url: 'https://same.example/shared', resourceType: 'mainFrame', webContentsId: 1 });
+		invokeRequest(filter, { url: 'https://same.example/unshared', resourceType: 'mainFrame', webContentsId: 2 });
+		filter.setAgentAction(1, 'action', true);
+
+		const unsharedRequest = invokeRequest(filter, {
+			url: 'https://denied.example/data',
+			resourceType: 'xhr',
+			webContentsId: 2,
+			referrer: 'https://same.example/unshared',
+		});
+		const unsharedNavigation = invokeRequest(filter, {
+			url: 'https://denied.example/page',
+			resourceType: 'mainFrame',
+			webContentsId: 2,
+			referrer: 'https://same.example/unshared',
+		});
+
+		assert.deepStrictEqual({
+			unsharedRequest,
+			unsharedNavigation,
+			actionPolicyError: filter.getPolicyError(1),
+		}, {
+			unsharedRequest: { cancel: false },
+			unsharedNavigation: { cancel: false },
+			actionPolicyError: undefined,
 		});
 	});
 
 	test('uses the webContents object when webContentsId is omitted', () => {
 		const { filter } = createFilter();
-		const webContents = { id: 1 } as unknown as Electron.WebContents;
+		const webContents = { id: 1, once: () => { } } as unknown as Electron.WebContents;
 		filter.setFiltering(1, true);
 
 		const deniedSubframe = invokeRequest(filter, {
@@ -119,8 +221,8 @@ suite('BrowserSession network filter', () => {
 		}, {
 			deniedSubframe: { cancel: true },
 			retainedPolicyError: 'Access to denied.example is blocked by network domain policy.',
-			mainFrame: { cancel: false },
-			policyErrorAfterNavigation: undefined,
+			mainFrame: { cancel: true },
+			policyErrorAfterNavigation: 'Access to denied.example is blocked by network domain policy.',
 		});
 	});
 
@@ -129,12 +231,16 @@ suite('BrowserSession network filter', () => {
 		filter.setFiltering(1, true);
 
 		const initiallyDenied = invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame', webContentsId: 1 });
+		const retainedErrorWhileDenied = filter.getPolicyError(1);
 		setDeniedAuthority(undefined);
 		const allowedAfterPolicyChange = invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame', webContentsId: 1 });
+		const retainedErrorAfterPolicyChange = filter.getPolicyError(1);
 
-		assert.deepStrictEqual({ initiallyDenied, allowedAfterPolicyChange }, {
+		assert.deepStrictEqual({ initiallyDenied, retainedErrorWhileDenied, allowedAfterPolicyChange, retainedErrorAfterPolicyChange }, {
 			initiallyDenied: { cancel: true },
+			retainedErrorWhileDenied: 'Access to denied.example is blocked by network domain policy.',
 			allowedAfterPolicyChange: { cancel: false },
+			retainedErrorAfterPolicyChange: undefined,
 		});
 	});
 

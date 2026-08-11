@@ -4,16 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewAgentNetworkFilterSources, IAgentNetworkFilterableBrowserView, setBrowserViewGroupAgentNetworkFiltering } from '../../electron-main/browserViewAgentNetworkFilter.js';
+import { BrowserViewAgentNetworkFilterSources } from '../../electron-main/browserViewAgentNetworkFilter.js';
 
-suite('BrowserView network filter lifecycle', () => {
+suite('BrowserView network filter sources', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	teardown(() => {
-		sinon.restore();
-	});
 
 	test('keeps filtering enabled until every agent source releases the view', () => {
 		const sources = new BrowserViewAgentNetworkFilterSources();
@@ -39,30 +34,5 @@ suite('BrowserView network filter lifecycle', () => {
 		sources.clear();
 
 		assert.strictEqual(sources.set('agent-three', false), false);
-	});
-
-	test('agent group add and remove transitions update filtering with the session source', () => {
-		const setAgentNetworkFiltering = sinon.stub();
-		const view: IAgentNetworkFilterableBrowserView = { setAgentNetworkFiltering };
-		const owner = { mainWindowId: 1, sessionId: 'agent-session' };
-
-		setBrowserViewGroupAgentNetworkFiltering(view, owner, true);
-		setBrowserViewGroupAgentNetworkFiltering(view, owner, false);
-
-		assert.deepStrictEqual(setAgentNetworkFiltering.args, [
-			['agent-session', true],
-			['agent-session', false],
-		]);
-	});
-
-	test('non-agent groups do not change request filtering', () => {
-		const setAgentNetworkFiltering = sinon.stub();
-		const view: IAgentNetworkFilterableBrowserView = { setAgentNetworkFiltering };
-		const owner = { mainWindowId: 1 };
-
-		setBrowserViewGroupAgentNetworkFiltering(view, owner, true);
-		setBrowserViewGroupAgentNetworkFiltering(view, owner, false);
-
-		assert.strictEqual(setAgentNetworkFiltering.callCount, 0);
 	});
 });

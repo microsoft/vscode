@@ -15,6 +15,7 @@ import { IBrowserViewGroup } from '../common/browserViewGroup.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
 import { CDPRequest, CDPResponse } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { IBrowserViewService } from '../common/browserView.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Browser, BrowserContext, ConnectOverCDPTransport, Page } from 'playwright-core';
@@ -24,6 +25,43 @@ import type { Browser, BrowserContext, ConnectOverCDPTransport, Page } from 'pla
  */
 export interface IPlaywrightActionScope {
 	activeCalls: number;
+}
+
+type PageApiSandboxBridge = {
+	createFunction(callback: (...args: unknown[]) => unknown): (...args: unknown[]) => unknown;
+	createArray(): unknown[];
+	createObject(): Record<PropertyKey, unknown>;
+	throwError(message: string): never;
+};
+
+type CompiledPlaywrightFunction = {
+	run(page: Page, args: unknown[]): unknown;
+	readonly bridge: PageApiSandboxBridge;
+};
+
+function clonePageApiArguments(value: unknown, bridge: PageApiSandboxBridge, seen = new WeakMap<object, unknown>()): unknown {
+	if (value === null || typeof value !== 'object') {
+		return value;
+	}
+	const existing = seen.get(value);
+	if (existing !== undefined) {
+		return existing;
+	}
+	if (Array.isArray(value)) {
+		const result = bridge.createArray();
+		seen.set(value, result);
+		result.push(...value.map(item => clonePageApiArguments(item, bridge, seen)));
+		return result;
+	}
+	const result = bridge.createObject();
+	seen.set(value, result);
+	for (const key of Reflect.ownKeys(value)) {
+		const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+		if (descriptor?.enumerable) {
+			result[key] = clonePageApiArguments(Reflect.get(value, key), bridge, seen);
+		}
+	}
+	return result;
 }
 
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
@@ -71,6 +109,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	/** Global set of tracked page IDs (shared across all sessions). */
 	private readonly _trackedPages = new Set<string>();
+	private readonly _pagesBeingUntracked = new Set<string>();
+	private readonly _pageTrackingOperations = new Map<string, Promise<void>>();
+	private readonly _networkFilterSourceId = generateUuid();
 
 	private readonly _onDidChangeTrackedPages = this._register(new Emitter<readonly string[]>());
 	readonly onDidChangeTrackedPages: Event<readonly string[]> = this._onDidChangeTrackedPages.event;
@@ -78,6 +119,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	constructor(
 		private readonly windowId: number,
 		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
+		private readonly browserViewService: Pick<IBrowserViewService, 'setAgentNetworkFiltering' | 'setAgentNetworkAction' | 'getNetworkPolicyError'>,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		private readonly telemetryService: ITelemetryService,
@@ -119,7 +161,11 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	private async _initSession(sessionId: string): Promise<PlaywrightSession> {
 		this.logService.debug(`[PlaywrightService] Initializing session ${sessionId}`);
 
-		const group = await this.browserViewGroupRemoteService.createGroup({ mainWindowId: this.windowId, sessionId });
+		const group = await this.browserViewGroupRemoteService.createGroup({
+			mainWindowId: this.windowId,
+			sessionId,
+			agentNetworkFilterSourceId: this._networkFilterSourceId,
+		});
 
 		const actionScope: IPlaywrightActionScope = { activeCalls: 0 };
 
@@ -179,6 +225,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			this.agentNetworkFilterService,
 			this.telemetryService,
 			viewId => this.startTrackingPage(viewId),
+			this.browserViewService,
 		);
 
 		// Keep the global tracked set in sync with group events. When a
@@ -199,8 +246,14 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			}
 		}));
 		session.registerDisposable(group.onDidRemoveView(e => {
+			if (this._pagesBeingUntracked.has(e.viewId)) {
+				return;
+			}
 			if (this._trackedPages.delete(e.viewId)) {
 				this._fireTrackedPages();
+				void this.browserViewService.setAgentNetworkFiltering(e.viewId, this._networkFilterSourceId, false).catch(error => {
+					this.logService.error(`[PlaywrightService] Failed to disable network filtering for untracked page ${e.viewId}`, error);
+				});
 			}
 		}));
 
@@ -234,24 +287,106 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	// --- Page tracking (global) ---
 
 	async startTrackingPage(viewId: string): Promise<void> {
+		return this.enqueuePageTrackingOperation(viewId, () => this._startTrackingPage(viewId));
+	}
+
+	private async _startTrackingPage(viewId: string): Promise<void> {
+		if (this._store.isDisposed) {
+			throw new Error('Cannot track a page after PlaywrightService is disposed');
+		}
 		// Update the canonical set directly so tracking works even when
 		// no sessions exist yet. The Set makes the double-add from
 		// the group's onDidAddView listener harmless.
-		if (!this._trackedPages.has(viewId)) {
+		const newlyTracked = !this._trackedPages.has(viewId);
+		if (newlyTracked) {
+			await this.browserViewService.setAgentNetworkFiltering(viewId, this._networkFilterSourceId, true);
+			if (this._store.isDisposed) {
+				await this.browserViewService.setAgentNetworkFiltering(viewId, this._networkFilterSourceId, false);
+				throw new Error('PlaywrightService was disposed while tracking a page');
+			}
 			this._trackedPages.add(viewId);
 			this._fireTrackedPages();
 		}
-		for (const session of this._sessions.values()) {
-			session.group.addView(viewId);
+		const sessions = [...this._sessions.values()];
+		try {
+			await Promise.all(sessions.map(session => session.group.addView(viewId)));
+			if (this._store.isDisposed) {
+				throw new Error('PlaywrightService was disposed while attaching a tracked page');
+			}
+		} catch (error) {
+			if (newlyTracked) {
+				this._pagesBeingUntracked.add(viewId);
+				try {
+					const cleanupResults = await Promise.allSettled(sessions.map(session => session.group.removeView(viewId)));
+					for (let index = 0; index < cleanupResults.length; index++) {
+						const result = cleanupResults[index];
+						if (result.status === 'rejected') {
+							this.logService.error(`[PlaywrightService] Failed to detach page ${viewId} while rolling back tracking`, result.reason);
+							const sessionId = sessions[index].sessionId;
+							this._sessions.deleteAndDispose(sessionId);
+							this._inactivityTimers.deleteAndDispose(sessionId);
+						}
+					}
+					this._trackedPages.delete(viewId);
+					this._fireTrackedPages();
+					await this.browserViewService.setAgentNetworkFiltering(viewId, this._networkFilterSourceId, false);
+				} finally {
+					this._pagesBeingUntracked.delete(viewId);
+				}
+			}
+			throw error;
 		}
 	}
 
 	async stopTrackingPage(viewId: string): Promise<void> {
-		if (this._trackedPages.delete(viewId)) {
-			this._fireTrackedPages();
+		return this.enqueuePageTrackingOperation(viewId, () => this._stopTrackingPage(viewId));
+	}
+
+	private async _stopTrackingPage(viewId: string): Promise<void> {
+		const wasTracked = this._trackedPages.has(viewId);
+		this._pagesBeingUntracked.add(viewId);
+		try {
+			await Promise.all([...this._sessions.values()].map(session => session.group.removeView(viewId)));
+			await this.browserViewService.setAgentNetworkFiltering(viewId, this._networkFilterSourceId, false);
+			if (wasTracked) {
+				this._trackedPages.delete(viewId);
+				this._fireTrackedPages();
+			}
+		} finally {
+			this._pagesBeingUntracked.delete(viewId);
 		}
-		for (const session of this._sessions.values()) {
-			session.group.removeView(viewId);
+	}
+
+	private async enqueuePageTrackingOperation(viewId: string, operation: () => Promise<void>): Promise<void> {
+		const previous = this._pageTrackingOperations.get(viewId);
+		const current = (async () => {
+			if (previous) {
+				try {
+					await previous;
+				} catch (error) {
+					this.logService.debug(`[PlaywrightService] Previous page tracking operation failed for ${viewId}`, error);
+				}
+			}
+			await operation();
+		})();
+		this._pageTrackingOperations.set(viewId, current);
+		try {
+			await current;
+		} finally {
+			if (this._pageTrackingOperations.get(viewId) === current) {
+				this._pageTrackingOperations.delete(viewId);
+			}
+		}
+	}
+
+	override dispose(): void {
+		const trackedPages = [...this._trackedPages];
+		this._trackedPages.clear();
+		super.dispose();
+		for (const viewId of trackedPages) {
+			void this.browserViewService.setAgentNetworkFiltering(viewId, this._networkFilterSourceId, false).catch(error => {
+				this.logService.error(`[PlaywrightService] Failed to release network filtering for tracked page ${viewId}`, error);
+			});
 		}
 	}
 
@@ -368,6 +503,7 @@ class PlaywrightSession extends Disposable {
 		promise: Promise<unknown>;
 		logCtx?: IExecutionLogContext;
 	} & IDisposable>());
+	private readonly _activeNetworkActions = new Map<string, string>();
 
 	constructor(
 		readonly sessionId: string,
@@ -378,6 +514,7 @@ class PlaywrightSession extends Disposable {
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly onDidCreatePage: (viewId: string) => Promise<void>,
+		private readonly browserViewService: Pick<IBrowserViewService, 'setAgentNetworkAction' | 'getNetworkPolicyError'>,
 	) {
 		super();
 
@@ -409,6 +546,10 @@ class PlaywrightSession extends Disposable {
 			try {
 				await page.goto(url, { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
 			} catch (error) {
+				const policyError = await this.browserViewService.getNetworkPolicyError(viewId, true);
+				if (policyError) {
+					return { pageId: viewId, summary: policyError };
+				}
 				if (!isNavigationTimeoutError(error)) {
 					throw error;
 				}
@@ -427,7 +568,8 @@ class PlaywrightSession extends Disposable {
 
 	async invokeFunctionRaw<T>(pageId: string, fnDef: string, ...args: unknown[]): Promise<T> {
 		const fn = await this._compileFunction(fnDef);
-		return this._runAgainstPage(pageId, (page) => fn(page, args) as T);
+		const sandboxArgs = clonePageApiArguments(args, fn.bridge) as unknown[];
+		return this._runAgainstPage(pageId, page => Reflect.apply(fn.run, undefined, [page, sandboxArgs]) as T);
 	}
 
 	async invokeFunction(pageId: string, fnDef: string, args: unknown[] = [], timeoutMs?: number): Promise<IInvokeFunctionResult> {
@@ -443,7 +585,7 @@ class PlaywrightSession extends Disposable {
 			logged: false,
 		};
 
-		let fn;
+		let fn: CompiledPlaywrightFunction;
 		try {
 			fn = await this._compileFunction(fnDef);
 		} catch (err: unknown) {
@@ -452,7 +594,15 @@ class PlaywrightSession extends Disposable {
 			const summary = await this._getSummary(pageId);
 			return { error: err instanceof Error ? err.message : String(err), summary };
 		}
-		const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, logCtx.pageMethodsCalled), args);
+		const wrappedCallback = async (page: Page) => {
+			const membrane = createPageApiProxy(page, logCtx.pageMethodsCalled, fn.bridge);
+			const sandboxArgs = clonePageApiArguments(args, fn.bridge) as unknown[];
+			try {
+				return await Reflect.apply(fn.run, undefined, [membrane.proxy, sandboxArgs]);
+			} finally {
+				membrane.revoke();
+			}
+		};
 
 		if (timeoutMs !== undefined) {
 			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, logCtx);
@@ -509,12 +659,18 @@ class PlaywrightSession extends Disposable {
 	// --- Private: page operations ---
 
 	private async _getSummary(pageId: string, full = false): Promise<string> {
+		const policyError = await this.browserViewService.getNetworkPolicyError(pageId, true);
+		if (policyError) {
+			return policyError;
+		}
 		const page = await this._getPage(pageId);
 		const tab = this._tabs.get(page);
 		if (!tab) {
 			throw new Error('Failed to get page summary');
 		}
-		return tab.getSummary(full);
+		const summary = await tab.getSummary(full);
+		const postSummaryPolicyError = await this.browserViewService.getNetworkPolicyError(pageId, true);
+		return postSummaryPolicyError ?? summary;
 	}
 
 	private async _runAgainstPage<T>(pageId: string, callback: (page: Page) => T | Promise<T>): Promise<T> {
@@ -523,7 +679,32 @@ class PlaywrightSession extends Disposable {
 		if (!tab) {
 			throw new Error('Failed to execute function against page');
 		}
-		return tab.safeRunAgainstPage(async () => callback(page));
+		const actionId = generateUuid();
+		await this.browserViewService.setAgentNetworkAction(pageId, actionId, true);
+		if (this._store.isDisposed) {
+			await this.browserViewService.setAgentNetworkAction(pageId, actionId, false);
+			throw new Error('PlaywrightSession was disposed while starting an action');
+		}
+		this._activeNetworkActions.set(actionId, pageId);
+		try {
+			try {
+				const result = await tab.safeRunAgainstPage(async () => callback(page));
+				const policyError = await this.browserViewService.getNetworkPolicyError(pageId);
+				if (policyError) {
+					throw new Error(policyError);
+				}
+				return result;
+			} catch (error) {
+				const policyError = await this.browserViewService.getNetworkPolicyError(pageId);
+				if (policyError) {
+					throw new Error(policyError);
+				}
+				throw error;
+			}
+		} finally {
+			this._activeNetworkActions.delete(actionId);
+			await this.browserViewService.setAgentNetworkAction(pageId, actionId, false);
+		}
 	}
 
 	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string, logCtx?: IExecutionLogContext): Promise<IInvokeFunctionResult> {
@@ -605,9 +786,32 @@ class PlaywrightSession extends Disposable {
 		);
 	}
 
-	private async _compileFunction(fnDef: string): Promise<(page: Page, args: unknown[]) => unknown> {
+	private async _compileFunction(fnDef: string): Promise<CompiledPlaywrightFunction> {
 		const vm = await import('vm');
-		return vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() }) as (page: Page, args: unknown[]) => unknown;
+		const context = vm.createContext(Object.create(null), { codeGeneration: { strings: false, wasm: false } });
+		const run = vm.compileFunction(`"use strict"; return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: context }) as (page: Page, args: unknown[]) => unknown;
+		const createBridge = vm.compileFunction(`
+			const toError = error => new Error(error && typeof error.message === 'string' ? error.message : String(error));
+			return {
+				createFunction(callback) {
+					return function (...args) {
+						try {
+							const result = callback(...args);
+							if (result && typeof result.then === 'function') {
+								return Promise.resolve(result).catch(error => { throw toError(error); });
+							}
+							return result;
+						} catch (error) {
+							throw toError(error);
+						}
+					};
+				},
+				createArray() { return []; },
+				createObject() { return Object.create(null); },
+				throwError(message) { throw new Error(message); },
+			};
+		`, [], { parsingContext: context });
+		return { run, bridge: createBridge() as PageApiSandboxBridge };
 	}
 
 	// --- Private: page matching (view ↔ page pairing) ---
@@ -753,6 +957,8 @@ class PlaywrightSession extends Disposable {
 	}
 
 	override dispose(): void {
+		const activeNetworkActions = [...this._activeNetworkActions];
+		this._activeNetworkActions.clear();
 		this._stopScanning();
 		this._browser?.close().catch(() => { /* ignore */ });
 		for (const { page } of this._viewIdQueue) {
@@ -764,6 +970,11 @@ class PlaywrightSession extends Disposable {
 		this._viewIdQueue = [];
 		this._pageQueue = [];
 		super.dispose();
+		for (const [actionId, pageId] of activeNetworkActions) {
+			void this.browserViewService.setAgentNetworkAction(pageId, actionId, false).catch(error => {
+				this.logService.error(`[PlaywrightSession] Failed to release network filtering for action on page ${pageId}`, error);
+			});
+		}
 	}
 }
 
@@ -826,72 +1037,197 @@ type RunPlaywrightCodeClassification = {
 	comment: 'Tracks how the run_playwright_code chat tool is exercised.';
 };
 
-/**
- * Property names that are skipped by {@link createPageApiProxy} so that JS
- * runtime/idiomatic accesses don't show up as fake API usage. Includes
- * `then`/`catch`/`finally` (so awaiting the proxy never records noise),
- * conversion hooks, and `constructor`.
- */
-const PAGE_PROXY_IGNORED_PROPS = new Set<string>([
-	'then',
-	'catch',
-	'finally',
-	'toJSON',
-	'toString',
-	'valueOf',
-	'constructor',
-]);
+const PAGE_PROXY_SERIALIZED_CALLBACK_METHODS = new Set(['$eval', '$$eval', 'addInitScript', 'evaluate', 'evaluateAll', 'evaluateHandle', 'waitForFunction']);
 
-/**
- * Maximum nesting depth for the recursive page proxy. The Playwright `page`
- * surface only nests one level deep in practice (e.g. `page.keyboard.press`),
- * so 3 is generously above any real workload while preventing pathological
- * cases on cyclic structures.
- */
-const PAGE_PROXY_MAX_DEPTH = 3;
+type PageApiProxyContext = {
+	readonly proxies: WeakMap<object, object>;
+	readonly targets: WeakMap<object, object>;
+	readonly values: WeakMap<object, object>;
+	readonly callbacks: WeakMap<Function, Function>;
+	readonly bridge: PageApiSandboxBridge;
+	active: boolean;
+};
 
-/**
- * Wrap a Playwright `page` so every call through the proxy increments a counter
- * in {@link methodCalls}, keyed by the dotted path from `page` (e.g. `click`,
- * `keyboard.press`). Object properties are proxied recursively (capped at
- * {@link PAGE_PROXY_MAX_DEPTH}) so calls on namespaces like `keyboard` and
- * `mouse` are visible; symbol keys, `_`-prefixed internals, and
- * {@link PAGE_PROXY_IGNORED_PROPS} are skipped to avoid noise.
- *
- * Wrappers and nested proxies are cached per property so repeated reads return
- * the same value, preserving Playwright's object identity (e.g.
- * `page.keyboard === page.keyboard`).
- */
-function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string, number>, prefix: string = '', depth: number = 0): T {
-	if (depth >= PAGE_PROXY_MAX_DEPTH) {
-		return target;
+function wrapPageApiValue(value: unknown, methodCalls: Map<string, number>, prefix: string, context: PageApiProxyContext): unknown {
+	assertPageApiProxyActive(context);
+	if (value === null || typeof value !== 'object') {
+		return value;
 	}
-	const cache = new Map<string, unknown>();
-	return new Proxy(target, {
-		get(t, prop, receiver) {
-			const value = Reflect.get(t, prop, receiver);
-			if (typeof prop !== 'string' || prop.startsWith('_') || PAGE_PROXY_IGNORED_PROPS.has(prop)) {
-				return value;
+	if (typeof (value as PromiseLike<unknown>).then === 'function') {
+		return Promise.resolve(value).then(result => wrapPageApiValue(result, methodCalls, prefix, context));
+	}
+	const existingProxy = context.proxies.get(value);
+	if (existingProxy) {
+		return existingProxy;
+	}
+	const existingValue = context.values.get(value);
+	if (existingValue) {
+		return existingValue;
+	}
+	if (Array.isArray(value)) {
+		const result = context.bridge.createArray();
+		context.values.set(value, result);
+		result.push(...value.map(item => wrapPageApiValue(item, methodCalls, prefix, context)));
+		return result;
+	}
+	const prototype = Object.getPrototypeOf(value);
+	if (isPlainPageApiObject(prototype)) {
+		const result = context.bridge.createObject();
+		context.values.set(value, result);
+		for (const key of Reflect.ownKeys(value)) {
+			const descriptor = Reflect.getOwnPropertyDescriptor(value, key);
+			if (descriptor?.enumerable) {
+				const propertyValue = Reflect.get(value, key);
+				if (typeof propertyValue === 'function') {
+					result[key] = context.bridge.createFunction((...args: unknown[]) => {
+						assertPageApiProxyActive(context);
+						const preparedArgs = args.map(arg => preparePageApiArgument(arg, methodCalls, prefix, context, false));
+						return wrapPageApiValue(Reflect.apply(propertyValue, value, preparedArgs), methodCalls, prefix, context);
+					});
+				} else {
+					result[key] = wrapPageApiValue(propertyValue, methodCalls, prefix, context);
+				}
+			}
+		}
+		return result;
+	}
+	return createPageApiProxyInternal(value, methodCalls, prefix, context);
+}
+
+function preparePageApiArgument(value: unknown, methodCalls: Map<string, number>, prefix: string, context: PageApiProxyContext, wrapCallbacks: boolean): unknown {
+	if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+		return value;
+	}
+	if (typeof value === 'object') {
+		const target = context.targets.get(value);
+		if (target) {
+			return target;
+		}
+	}
+	if (wrapCallbacks && typeof value === 'function') {
+		let callback = context.callbacks.get(value);
+		if (!callback) {
+			callback = function (this: unknown, ...args: unknown[]) {
+				if (!context.active) {
+					const route = args[0];
+					if (route && typeof route === 'object') {
+						const fallback = Reflect.get(route, 'fallback');
+						if (typeof fallback === 'function') {
+							return Reflect.apply(fallback, route, []);
+						}
+						const connectToServer = Reflect.get(route, 'connectToServer');
+						if (typeof connectToServer === 'function') {
+							return Reflect.apply(connectToServer, route, []);
+						}
+					}
+					return undefined;
+				}
+				const callbackThis = wrapPageApiValue(this, methodCalls, prefix, context);
+				return Reflect.apply(value, callbackThis, args.map(arg => wrapPageApiValue(arg, methodCalls, prefix, context)));
+			};
+			context.callbacks.set(value, callback);
+		}
+		return callback;
+	}
+	if (typeof value === 'object') {
+		if (Array.isArray(value)) {
+			return value.map(item => preparePageApiArgument(item, methodCalls, prefix, context, wrapCallbacks));
+		}
+		const prototype = Object.getPrototypeOf(value);
+		if (isPlainPageApiObject(prototype)) {
+			const result: Record<PropertyKey, unknown> = Object.create(null);
+			for (const key of Reflect.ownKeys(value)) {
+				result[key] = preparePageApiArgument(Reflect.get(value, key), methodCalls, prefix, context, wrapCallbacks);
+			}
+			return result;
+		}
+	}
+	return value;
+}
+
+/**
+ * Wrap a Playwright page in a membrane that records method calls and blocks private APIs and request contexts.
+ * Returned values and callback arguments are wrapped so raw Playwright objects cannot escape.
+ */
+export function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string, number>, bridge: PageApiSandboxBridge): { readonly proxy: T; revoke(): void } {
+	const context: PageApiProxyContext = {
+		proxies: new WeakMap(),
+		targets: new WeakMap(),
+		values: new WeakMap(),
+		callbacks: new WeakMap(),
+		bridge,
+		active: true,
+	};
+	return {
+		proxy: createPageApiProxyInternal(target, methodCalls, '', context),
+		revoke: () => context.active = false,
+	};
+}
+
+function createPageApiProxyInternal<T extends object>(target: T, methodCalls: Map<string, number>, prefix: string, context: PageApiProxyContext): T {
+	const existing = context.proxies.get(target);
+	if (existing) {
+		return existing as T;
+	}
+	const cache = new Map<PropertyKey, unknown>();
+	const facade = Object.create(null);
+	const proxy = new Proxy(facade, {
+		get(_facade, prop) {
+			assertPageApiProxyActive(context);
+			if (prop === 'constructor') {
+				return undefined;
+			}
+			if (typeof prop === 'string' && prop.startsWith('_')) {
+				context.bridge.throwError('Private Playwright APIs are unavailable.');
+			}
+			if (prop === 'browser' || prop === 'newCDPSession') {
+				context.bridge.throwError(`Playwright API '${prop}' is unavailable in page-scoped automation.`);
+			}
+			let value: unknown;
+			try {
+				value = Reflect.get(target, prop, target);
+			} catch (error) {
+				context.bridge.throwError(error instanceof Error ? error.message : String(error));
+			}
+			if (prop === 'request' && value !== null && typeof value === 'object') {
+				context.bridge.throwError('Playwright API request contexts are blocked by network domain policy.');
 			}
 			const cached = cache.get(prop);
 			if (cached !== undefined) {
 				return cached;
 			}
 			if (typeof value === 'function') {
-				const name = prefix + prop;
-				const wrapper = function (this: unknown, ...args: unknown[]) {
+				const name = prefix + String(prop);
+				const wrapper = context.bridge.createFunction((...args: unknown[]) => {
+					assertPageApiProxyActive(context);
 					methodCalls.set(name, (methodCalls.get(name) ?? 0) + 1);
-					return Reflect.apply(value as Function, t, args);
-				};
+					const wrapCallbacks = typeof prop !== 'string' || !PAGE_PROXY_SERIALIZED_CALLBACK_METHODS.has(prop);
+					const preparedArgs = args.map(arg => preparePageApiArgument(arg, methodCalls, `${name}.`, context, wrapCallbacks));
+					const result = Reflect.apply(value as Function, target, preparedArgs);
+					return wrapPageApiValue(result, methodCalls, `${name}.`, context);
+				});
 				cache.set(prop, wrapper);
 				return wrapper;
 			}
 			if (value !== null && typeof value === 'object') {
-				const nested = createPageApiProxy(value as object, methodCalls, `${prefix}${prop}.`, depth + 1);
+				const nested = wrapPageApiValue(value, methodCalls, `${prefix}${String(prop)}.`, context);
 				cache.set(prop, nested);
 				return nested;
 			}
 			return value;
 		},
 	});
+	context.proxies.set(target, proxy);
+	context.targets.set(proxy, target);
+	return proxy;
+}
+
+function assertPageApiProxyActive(context: PageApiProxyContext): void {
+	if (!context.active) {
+		context.bridge.throwError('The Playwright page API is no longer available after the action completed.');
+	}
+}
+
+function isPlainPageApiObject(prototype: object | null): boolean {
+	return prototype === null || Object.getPrototypeOf(prototype) === null;
 }
