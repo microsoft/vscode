@@ -10,6 +10,7 @@ import { Disposable, DisposableMap, DisposableStore } from '../../../base/common
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
@@ -355,6 +356,7 @@ export class ProtocolServerHandler extends Disposable {
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker;
+	private readonly _managedSettingsOwnerId = generateUuid();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -480,7 +482,7 @@ export class ProtocolServerHandler extends Disposable {
 					if (client) {
 						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
 						if (isManagedSettingsPermissions(permissions)) {
-							this._managedSettingsService.setClientPermissions(client.clientId, permissions);
+							this._managedSettingsService.setClientPermissions(this._managedSettingsContributionId(client.clientId), permissions);
 						} else {
 							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
 						}
@@ -922,7 +924,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (record?.state === 'grace') {
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
-				this._managedSettingsService.removeClientPermissions(clientId);
+				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -1775,9 +1777,13 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
+	private _managedSettingsContributionId(clientId: string): string {
+		return `${this._managedSettingsOwnerId}:${clientId}`;
+	}
+
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
-			this._managedSettingsService.removeClientPermissions(clientId);
+			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;
