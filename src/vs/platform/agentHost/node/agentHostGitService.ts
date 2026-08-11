@@ -139,17 +139,20 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		const output = await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']);
-		if (!output) {
+		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+	}
+
+	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
+		if (!porcelainOutput) {
 			return [];
 		}
-		return output.split(/\r?\n/g)
+		return porcelainOutput.split(/\r?\n/g)
 			.filter(line => line.startsWith('worktree '))
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
-		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint, track) ?? startPoint;
 
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
@@ -240,7 +243,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * So we: retry with a capped exponential backoff to let the racing process
 	 * finish; switch to `prune` once the working tree is already gone; only retry
 	 * transient lock / "directory not empty" failures (a dirty-tree "use --force"
-	 * still fails fast); and verify the worktree is truly de-registered before
+	 * still fails fast); treat a non-retryable failure as success when git no
+	 * longer tracks the worktree (idempotent re-removal of an already-removed or
+	 * archived worktree); and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
@@ -270,6 +275,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
+					// Idempotent: if git no longer tracks the worktree the removal goal is already met (e.g. an archived session removed it earlier).
+					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+						this._logService.trace(`[agentHostGitService] worktree '${worktree.fsPath}' already de-registered; treating removal as complete`);
+						return;
+					}
 					throw error;
 				}
 			}
@@ -292,9 +302,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	/** Whether `worktree` is still registered with git (its admin entry survives). */
+	/**
+	 * Whether `worktree` is still registered with git (its admin entry survives).
+	 * Fails closed (returns `true`) if the registry cannot be read, so an unrelated
+	 * `git worktree list` failure is never mistaken for a completed removal.
+	 */
 	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
-		const registered = await this.getWorktreeRoots(repositoryRoot);
+		let registered: URI[];
+		try {
+			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+		} catch {
+			return true;
+		}
 		if (registered.length === 0) {
 			return false;
 		}
@@ -523,10 +542,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}) !== undefined;
 	}
 
-	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
-		const remoteBranch = `origin/${branch}`;
-		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
-		return output !== undefined ? remoteBranch : undefined;
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string, fetchIfMissing = false): Promise<string | undefined> {
+		const trackingRef = getRemoteTrackingRef(branch);
+		if (!trackingRef) {
+			return undefined;
+		}
+		const { branchName, remoteBranch, remoteRef, sourceRef } = trackingRef;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', remoteRef]);
+		if (output !== undefined) {
+			return remoteBranch;
+		}
+		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName)) {
+			return undefined;
+		}
+
+		this._logService.info(`[AgentHostGitService] Fetching tracked branch '${branchName}' from origin.`);
+		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `${sourceRef}:${remoteRef}`], {
+			timeout: 60_000,
+			throwOnError: true,
+		});
+		return remoteBranch;
 	}
 
 	/**
@@ -895,7 +930,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
-		const githubHeadRepo = upstreamRemote ? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote) : undefined;
+		// `gh pr checkout` can create a local branch whose head lives on a fork but
+		// has no upstream tracking ref; Git still reports the branch's push remote,
+		// which can be a remote name or the literal fork URL.
+		const pushRemote = !upstreamRemote && status.branchName
+			? (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${status.branchName}`]))?.trim() || undefined
+			: undefined;
+		const githubHeadRepo = upstreamRemote
+			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
+			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -974,6 +1017,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
+	const pullRequestRef = /^refs\/pull\/(?<number>\d+)\/head$/.exec(branch);
+	const branchName = pullRequestRef?.groups
+		? `pull/${pullRequestRef.groups.number}/head`
+		: branch
+			.replace(/^refs\/remotes\/origin\//, '')
+			.replace(/^origin\//, '')
+			.replace(/^refs\/heads\//, '');
+	if (branchName.startsWith('refs/')) {
+		return undefined;
+	}
+	const remoteBranch = `origin/${branchName}`;
+	return {
+		branchName,
+		remoteBranch,
+		remoteRef: `refs/remotes/${remoteBranch}`,
+		sourceRef: pullRequestRef ? branch : `refs/heads/${branchName}`,
+	};
 }
 
 /**
@@ -1482,6 +1545,13 @@ export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, rem
 		}
 	}
 	return undefined;
+}
+
+function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefined, remoteSelection: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remoteSelection) {
+		return undefined;
+	}
+	return parseGitHubRepoFromRemote(remotesOutput, remoteSelection) ?? parseGitHubOwnerRepoFromUrl(remoteSelection);
 }
 
 /**
