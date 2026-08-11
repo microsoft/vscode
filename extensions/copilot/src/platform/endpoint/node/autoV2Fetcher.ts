@@ -75,11 +75,6 @@ export class AutoV2Fetcher {
 			vscodeRequestId?: string;
 			/** Routing profile for the session. Omitted lets the server pick its own default. */
 			tier?: AutoModeTier;
-			/**
-			 * Set when the call only reads `discounted_costs` for the picker.
-			 * Keeps the placeholder prompt out of telemetry and the request log.
-			 */
-			isDiscountProbe?: boolean;
 		} = {},
 	): Promise<AutoV2Response> {
 		const startTime = Date.now();
@@ -123,11 +118,6 @@ export class AutoV2Fetcher {
 
 		const result = await response.json() as AutoV2Response;
 		const e2eLatencyMs = Date.now() - startTime;
-		if (options.isDiscountProbe) {
-			// Only `discounted_costs` is consumed; the selection is discarded.
-			this._logService.trace(`[AutoV2Fetcher] Discount probe resolved in ${e2eLatencyMs}ms`);
-			return result;
-		}
 		if (!result.selected_model?.id) {
 			throw new AutoV2Error('Auto response did not contain a selected model', response.status);
 		}
