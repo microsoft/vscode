@@ -41,6 +41,11 @@ interface EvidenceStep {
 	captures: EvidenceCapture[];
 }
 
+interface LogFileSnapshot {
+	size: number;
+	mtimeMs: number;
+}
+
 interface EvidenceRun {
 	id: string;
 	scenarioId: string;
@@ -55,7 +60,8 @@ interface EvidenceRun {
 	runPath: string;
 	videos: Set<{ saveAs(path: string): Promise<void> }>;
 	pageListener?: (page: Page) => void;
-	logFilesBefore: Map<string, number>;
+	logFilesBefore: Map<string, LogFileSnapshot>;
+	releaseProfileCleanup: () => void;
 	artifacts: {
 		report?: string;
 		videos: string[];
@@ -91,8 +97,21 @@ export class EvidenceService {
 		const runPath = path.join(evidenceRootPath, id);
 		fs.mkdirSync(runPath, { recursive: true });
 
-		const logFilesBefore = new Map(listFiles(logsRootPath).map(file => [file, fs.statSync(file).size]));
-		const app = await this.appService.getOrCreateApplication({ recordVideo: true, workspacePath, userSettings, extraArgs });
+		const logFilesBefore = new Map<string, LogFileSnapshot>(listFiles(logsRootPath).map(file => {
+			const stat = fs.statSync(file);
+			return [file, { size: stat.size, mtimeMs: stat.mtimeMs }];
+		}));
+		let releaseProfileCleanup!: () => void;
+		const profileCleanupReady = new Promise<void>(resolve => releaseProfileCleanup = resolve);
+		this.appService.deferProfileCleanup(profileCleanupReady);
+		let app: Awaited<ReturnType<ApplicationService['getOrCreateApplication']>>;
+		try {
+			app = await this.appService.getOrCreateApplication({ recordVideo: true, workspacePath, userSettings, extraArgs });
+		} catch (error) {
+			releaseProfileCleanup();
+			await this.appService.waitForProfileCleanup();
+			throw error;
+		}
 		this.currentRun = {
 			id,
 			scenarioId,
@@ -104,6 +123,7 @@ export class EvidenceService {
 			runPath,
 			videos: new Set(),
 			logFilesBefore,
+			releaseProfileCleanup,
 			artifacts: { videos: [], logs: [] },
 			environment: {
 				platform: process.platform,
@@ -150,6 +170,8 @@ export class EvidenceService {
 				// Preserve the startup error.
 			} finally {
 				this.currentRun = undefined;
+				run.releaseProfileCleanup();
+				await this.appService.waitForProfileCleanup();
 			}
 			throw error;
 		}
@@ -164,6 +186,7 @@ export class EvidenceService {
 		run.pageListener?.(app.code.driver.currentPage);
 		let step = run.steps.find(candidate => candidate.id === id);
 
+		let isNewStep = false;
 		if (status === 'started') {
 			if (step) {
 				throw new Error(`Step '${id}' has already started.`);
@@ -174,6 +197,7 @@ export class EvidenceService {
 			}
 			step = { id, title, captures: [] };
 			run.steps.push(step);
+			isNewStep = true;
 		} else if (!step && status === 'skipped') {
 			const activeStep = run.steps.find(candidate => candidate.captures.at(-1)?.status === 'started');
 			if (activeStep) {
@@ -181,25 +205,41 @@ export class EvidenceService {
 			}
 			step = { id, title, captures: [] };
 			run.steps.push(step);
+			isNewStep = true;
 		} else if (!step || step.captures.at(-1)?.status !== 'started') {
 			throw new Error(`Step '${id}' must be started before it can be marked '${status}'.`);
 		}
 
-		await this.showOverlay(id, title, status);
-		await wait(status === 'started' ? 500 : 250);
-		const sequence = String(run.steps.indexOf(step) + 1).padStart(2, '0');
-		const screenshotName = `${sequence}-${sanitizePathSegment(id)}-${status}.png`;
-		const screenshot = await this.capture(screenshotName);
-		step.captures.push({
-			status,
-			timestamp: new Date().toISOString(),
-			screenshot: screenshotName,
-			windowUrl: this.appService.application!.code.driver.currentPage.url(),
-			details
-		});
-		this.writeManifest();
+		let screenshotName: string | undefined;
+		try {
+			await this.showOverlay(id, title, status);
+			await wait(status === 'started' ? 500 : 250);
+			const sequence = String(run.steps.indexOf(step) + 1).padStart(2, '0');
+			screenshotName = `${sequence}-${sanitizePathSegment(id)}-${status}.png`;
+			const screenshot = await this.capture(screenshotName);
+			step.captures.push({
+				status,
+				timestamp: new Date().toISOString(),
+				screenshot: screenshotName,
+				windowUrl: this.appService.application!.code.driver.currentPage.url(),
+				details
+			});
+			this.writeManifest();
 
-		return { screenshot, screenshotPath: path.join(run.runPath, screenshotName) };
+			return { screenshot, screenshotPath: path.join(run.runPath, screenshotName) };
+		} catch (error) {
+			if (isNewStep && !step.captures.length) {
+				run.steps.splice(run.steps.indexOf(step), 1);
+				if (screenshotName) {
+					try {
+						fs.rmSync(path.join(run.runPath, screenshotName), { force: true });
+					} catch {
+						// Preserve the capture error.
+					}
+				}
+			}
+			throw error;
+		}
 	}
 
 	async finish(outcome: RunOutcome, notes?: string): Promise<string> {
@@ -293,6 +333,8 @@ export class EvidenceService {
 				// Preserve the primary result or finalization error.
 			}
 			this.currentRun = undefined;
+			run.releaseProfileCleanup();
+			await this.appService.waitForProfileCleanup();
 		}
 	}
 
@@ -353,16 +395,19 @@ export class EvidenceService {
 	private copyLogArtifacts(): void {
 		const run = this.requireRun();
 		for (const file of listFiles(logsRootPath)) {
-			const previousSize = run.logFilesBefore.get(file) ?? 0;
+			const previous = run.logFilesBefore.get(file);
+			const stat = fs.statSync(file);
 			const contents = fs.readFileSync(file);
-			if (contents.length <= previousSize) {
+			const wasReplacedArchive = path.extname(file).toLowerCase() === '.zip' && previous?.mtimeMs !== stat.mtimeMs;
+			const offset = wasReplacedArchive ? 0 : previous?.size ?? 0;
+			if (contents.length <= offset) {
 				continue;
 			}
 			const relativeSource = path.relative(logsRootPath, file);
 			const relativeDestination = path.join('logs', relativeSource);
 			const destination = path.join(run.runPath, relativeDestination);
 			fs.mkdirSync(path.dirname(destination), { recursive: true });
-			fs.writeFileSync(destination, contents.subarray(previousSize));
+			fs.writeFileSync(destination, contents.subarray(offset));
 			run.artifacts.logs.push(relativeDestination.replaceAll(path.sep, '/'));
 		}
 	}

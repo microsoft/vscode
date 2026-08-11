@@ -273,9 +273,32 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 		],
 		extensionDevelopmentPath: opts.extensionDevelopmentPath,
 	});
-	await preseedUserData(application.userDataPath, userSettings, !!opts.web);
-	await application.start();
-	return application;
+	try {
+		await preseedUserData(application.userDataPath, userSettings, !!opts.web);
+		await application.start();
+		return application;
+	} catch (error) {
+		try {
+			await application.stop();
+		} catch {
+			// Preserve the startup error.
+		}
+		await removeProfileData(application.userDataPath);
+		throw error;
+	}
+}
+
+async function removeProfileData(userDataPath: string | undefined): Promise<void> {
+	if (!userDataPath) {
+		return;
+	}
+	for (const profilePath of [userDataPath, `${userDataPath}-server`]) {
+		try {
+			await fs.promises.rm(profilePath, { recursive: true, force: true, maxRetries: 10 });
+		} catch (error) {
+			logger.log(`Failed to remove test profile '${profilePath}': ${error}`);
+		}
+	}
 }
 
 async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, JSONValue> | undefined, web: boolean): Promise<void> {
@@ -307,6 +330,8 @@ async function preseedUserData(userDataDir: string | undefined, userSettings: Re
 export class ApplicationService {
 	private _application: Application | undefined;
 	private _closing: Promise<void> | undefined;
+	private _profileCleanup: Promise<void> | undefined;
+	private readonly _profileCleanupDelays = new Set<Promise<void>>();
 	private _listeners: ((app: Application | undefined) => Promise<void> | void)[] = [];
 
 	onApplicationChange(listener: (app: Application | undefined) => Promise<void> | void): void {
@@ -324,22 +349,26 @@ export class ApplicationService {
 		return this._application;
 	}
 
+	deferProfileCleanup(until: Promise<void>): void {
+		this._profileCleanupDelays.add(until);
+		void until.finally(() => this._profileCleanupDelays.delete(until));
+	}
+
+	async waitForProfileCleanup(): Promise<void> {
+		await this._profileCleanup;
+	}
+
 	async getOrCreateApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
+		if (this._profileCleanup) {
+			await this._profileCleanup;
+		}
 		if (!this._application) {
 			this._application = await getApplication({ recordVideo, workspacePath, userSettings, extraArgs });
-			this._application.code.driver.currentPage.on('close', () => {
-				this._closing = (async () => {
-					if (this._application) {
-						this._application.code.driver.browserContext.removeAllListeners();
-						await this._application.stop();
-						this._application = undefined;
-						await this._runAllListeners();
-					}
-				})();
-			});
+			const application = this._application;
+			application.code.driver.currentPage.on('close', () => void this._closeApplication(application).catch(error => logger.log(`Failed to close application: ${error}`)));
 			await this._runAllListeners();
 		}
 		return this._application;
@@ -361,11 +390,57 @@ export class ApplicationService {
 
 	async stopApplication(): Promise<void> {
 		if (this._application) {
-			await this._application.stop();
-		}
-		if (this._closing) {
+			await this._closeApplication(this._application);
+		} else if (this._closing) {
 			await this._closing;
 		}
+	}
+
+	private async _closeApplication(application: Application): Promise<void> {
+		if (this._application !== application) {
+			await this._closing;
+			return;
+		}
+		if (!this._closing) {
+			const closing = (async () => {
+				try {
+					application.code.driver.browserContext.removeAllListeners();
+					await application.stop();
+				} finally {
+					if (this._application === application) {
+						this._application = undefined;
+						await this._runAllListeners();
+						this._scheduleProfileCleanup(application.userDataPath);
+					}
+				}
+			})();
+			this._closing = closing;
+			try {
+				await closing;
+			} finally {
+				if (this._closing === closing) {
+					this._closing = undefined;
+				}
+			}
+		} else {
+			await this._closing;
+		}
+	}
+
+	private _scheduleProfileCleanup(userDataPath: string | undefined): void {
+		const previousCleanup = this._profileCleanup ?? Promise.resolve();
+		const cleanupDelays = [...this._profileCleanupDelays];
+		const cleanup = (async () => {
+			await previousCleanup;
+			await Promise.all(cleanupDelays);
+			await removeProfileData(userDataPath);
+		})();
+		this._profileCleanup = cleanup;
+		void cleanup.finally(() => {
+			if (this._profileCleanup === cleanup) {
+				this._profileCleanup = undefined;
+			}
+		});
 	}
 
 	private async _runAllListeners() {
