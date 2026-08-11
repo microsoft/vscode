@@ -138,7 +138,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
 		provider.updateModels([
 			{ id: '@provider=vscode-proxy:gpt-5.6-sol', provider: 'copilot', name: 'GPT-5.6 Sol' },
-			{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' },
+			{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol', _meta: { modelSourceId: 'chatgptSubscription' } },
 		]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
@@ -148,7 +148,40 @@ suite('AgentHostLanguageModelProvider', () => {
 			group: info.metadata.modelGroup,
 		})), [
 			{ identifier: 'codex:@provider=vscode-proxy:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'copilot' } },
-			{ identifier: 'codex:@provider=openai:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'chatgpt', source: 'chatgptSubscription' } },
+			{ identifier: 'codex:@provider=openai:gpt-5.6-sol', name: 'GPT-5.6 Sol', group: { id: 'chatgpt', sourceId: 'chatgptSubscription' } },
+		]);
+	});
+
+	test('does not infer a trusted source from provider names', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-codex', 'codex'));
+		provider.updateModels([{ id: '@provider=openai:gpt-5.6-sol', provider: 'chatgpt', name: 'GPT-5.6 Sol' }]);
+
+		const info = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+		assert.deepStrictEqual(info.metadata.modelGroup, { id: 'chatgpt' });
+	});
+
+	test('groups Claude models by transport provider: Copilot-routed vs native Anthropic', async () => {
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-claude', 'claude'));
+		// Per-session provider selection: the agent host's merged catalog keeps each
+		// model's `provider` as the routing owner (`claude`) and carries the transport
+		// (`copilot` for the Copilot-CAPI proxy, `anthropic` for the user's own Anthropic
+		// account) in `_meta.modelGroupId`, qualifying the id the same way. The picker
+		// buckets by that group token, so the same model offered by both transports
+		// yields two distinct rows in two distinct groups — and, unlike Codex, native
+		// Claude carries no `chatgptSubscription` source.
+		provider.updateModels([
+			{ id: '@provider=copilot:claude-opus-4.6', provider: 'claude', name: 'Claude Opus 4.6', _meta: { modelGroupId: 'copilot' } },
+			{ id: '@provider=anthropic:claude-opus-4.6', provider: 'claude', name: 'Claude Opus 4.6', _meta: { modelGroupId: 'anthropic' } },
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => ({
+			identifier: info.identifier,
+			name: info.metadata.name,
+			group: info.metadata.modelGroup,
+		})), [
+			{ identifier: 'claude:@provider=copilot:claude-opus-4.6', name: 'Claude Opus 4.6', group: { id: 'copilot' } },
+			{ identifier: 'claude:@provider=anthropic:claude-opus-4.6', name: 'Claude Opus 4.6', group: { id: 'anthropic' } },
 		]);
 	});
 

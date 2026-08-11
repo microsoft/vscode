@@ -13,17 +13,21 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, SessionStatus, withSessionGitState, type Changeset } from '../../common/state/sessionState.js';
+import { ChangesetStatus, FileEditKind, SessionStatus, withSessionGitState, type Changeset, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
+import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
-import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 /**
  * Builds a test subscription service backed by a mutable set of subscribed
@@ -56,6 +60,30 @@ function createOperationService(): IAgentHostChangesetOperationService {
 		invokeChangesetOperation: async () => { throw new Error('not implemented'); },
 		dispose: () => { },
 	};
+}
+
+/** Captures `publicLog2` telemetry events so tests can assert on emitted fields. */
+class CapturingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sessionId = 'test-session';
+	readonly machineId = 'test-machine';
+	readonly sqmId = 'test-sqm';
+	readonly devDeviceId = 'test-dev-device';
+	readonly firstSessionDate = 'test-first-session-date';
+	readonly sendErrorTelemetry = false;
+	readonly events: { eventName: string; data: Record<string, unknown> }[] = [];
+
+	publicLog(): void { }
+	publicLog2(eventName: string, data?: Record<string, unknown>): void {
+		this.events.push({ eventName, data: data ?? {} });
+	}
+	publicLogError(): void { }
+	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
+		this.events.push({ eventName, data: data ?? {} });
+	}
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 }
 
 suite.skip('AgentHostChangesetService', () => {
@@ -93,6 +121,7 @@ suite.skip('AgentHostChangesetService', () => {
 			createOperationService(),
 			createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())),
 			NULL_REVIEW_SERVICE,
+			NullTelemetryService,
 		));
 	});
 
@@ -277,7 +306,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -355,7 +384,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE, NullTelemetryService));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -391,7 +420,7 @@ suite.skip('AgentHostChangesetService', () => {
 				},
 			} as unknown as IAgentHostGitService;
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE, NullTelemetryService));
 			const sessionStr = sessionUri.toString();
 
 			localStateManager.createSession({
@@ -424,7 +453,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			localStateManager.createSession({
 				resource: sessionUri.toString(),
@@ -484,7 +513,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -558,7 +587,7 @@ suite.skip('AgentHostChangesetService', () => {
 			} as unknown as IAgentHostGitService;
 			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE));
+				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE, disposables.add(new AgentConfigurationService(localStateManager, new NullLogService())), createOperationService(), createSubscriptionService(buildUncommittedChangesetUri(sessionUri.toString())), NULL_REVIEW_SERVICE, NullTelemetryService));
 
 			const sessionStr = sessionUri.toString();
 			localStateManager.createSession({
@@ -608,6 +637,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				subscriptionService,
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 			return { service, localStateManager, computes, subscriptions: subscriptionService.subscriptions };
 		}
@@ -930,6 +960,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				subscriptionService,
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 		}
 		test('onTurnComplete schedules a per-turn recompute when someone is subscribed', async () => {
@@ -1038,6 +1069,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				createSubscriptionService(buildTurnChangesetUri(sessionUri.toString(), 'turn-1')),
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 
 			localStateManager.createSession({
@@ -1116,6 +1148,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1150,6 +1183,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1181,6 +1215,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1210,6 +1245,7 @@ suite.skip('AgentHostChangesetService', () => {
 				createOperationService(),
 				createSubscriptionService(),
 				NULL_REVIEW_SERVICE,
+				NullTelemetryService,
 			));
 
 			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, 'orig', 'mod');
@@ -1218,6 +1254,771 @@ suite.skip('AgentHostChangesetService', () => {
 			const state = snapshot?.state as { status: string; error?: { message: string } } | undefined;
 			assert.strictEqual(state?.status, 'error');
 			assert.ok(state?.error?.message.includes('git'), `expected git-failure error message, got ${state?.error?.message}`);
+		});
+	});
+});
+
+/**
+ * A log service that records every warning/error message so multi-root tests
+ * can assert the never-hard-fail path logged the expected per-folder failure.
+ */
+class RecordingLogService extends NullLogService {
+	readonly errors: string[] = [];
+	readonly warnings: string[] = [];
+	override error(message: string | Error): void {
+		this.errors.push(message instanceof Error ? message.message : message);
+	}
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
+
+/**
+ * Multi-root turn changeset aggregation (AC-2). A separate top-level suite so
+ * these run against the current service (the older `AgentHostChangesetService`
+ * suite above is skipped pending an unrelated catalogue refresh).
+ */
+suite('AgentHostChangesetService - multi-root turn changeset', () => {
+
+	const disposables = new DisposableStore();
+	const sessionStr = AgentSession.uri('mock', 'session-mr').toString();
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function gitDiff(path: string, added = 1, removed = 0): ISessionFileDiff {
+		const uri = URI.file(path).toString();
+		return { after: { uri, content: { uri } }, diff: { added, removed } };
+	}
+
+	/** Builds a checkpoint service whose per-repo pair is derived from the working directory. */
+	function makeCheckpoint(pairFor: (workingDirectory: string | undefined) => { parent: string; current: string } | undefined): IAgentHostCheckpointService {
+		return {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async (_session: URI, _turnId: string, workingDirectory?: URI) => pairFor(workingDirectory?.toString()),
+		};
+	}
+
+	function build(options: {
+		workingDirectories: string[];
+		git: IAgentHostGitService;
+		checkpoint: IAgentHostCheckpointService;
+		db?: TestSessionDatabase;
+		log?: RecordingLogService;
+		telemetry?: ITelemetryService;
+		subscriptions?: string[];
+	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
+		const log = options.log ?? new RecordingLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const db = options.db ?? new TestSessionDatabase();
+		// The production diff-count worker runs an ESM module in a raw
+		// worker_thread, which the unit-test harness cannot load, so substitute
+		// the shared synchronous in-process computer via the factory seam.
+		const diffService = new TestDiffComputeService();
+		class TestableChangesetService extends AgentHostChangesetService {
+			protected override _createDiffComputeService() {
+				return diffService;
+			}
+		}
+		const svc = disposables.add(new TestableChangesetService(
+			stateManager,
+			log,
+			createSessionDataService(db),
+			options.git,
+			options.checkpoint,
+			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
+			createOperationService(),
+			createSubscriptionService(...(options.subscriptions ?? [])),
+			NULL_REVIEW_SERVICE,
+			options.telemetry ?? NullTelemetryService,
+		));
+		stateManager.createSession({
+			resource: sessionStr,
+			provider: 'mock',
+			title: 'Test',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+			workingDirectories: options.workingDirectories,
+		});
+		return { svc, stateManager, log };
+	}
+
+	test('aggregates turn diffs across all folders of a multi-root session', async () => {
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async wd => {
+			const root = wd.toString();
+			if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts')]; }
+			if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts')]; }
+			return undefined;
+		};
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.strictEqual(state?.status, ChangesetStatus.Ready);
+		assert.deepStrictEqual(
+			new Set(state?.files.map(f => f.id)),
+			new Set([URI.file('/repoA/a.ts').toString(), URI.file('/repoB/b.ts').toString()]),
+			'the turn changeset must contain files from every folder',
+		);
+	});
+
+	test('partitions git vs non-git folders so git-folder edits are not double-counted by the DB', async () => {
+		const db = new TestSessionDatabase();
+		// The DB edit tracker is path-based (no folder column) so it records
+		// edits from BOTH folders, including two under the git-backed repoB.
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tcX', filePath: '/folderA/x.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tcY', filePath: '/repoB/y.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('c'), afterContent: encodeString('c\nd') });
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tcZ', filePath: '/repoB/z.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('e'), afterContent: encodeString('e\nf') });
+
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => wd.toString() === 'file:///repoB' ? URI.parse('file:///repoB') : undefined;
+		// git reports only y.txt for repoB (not z.txt) — if the DB partition
+		// leaked git-folder edits, z.txt would wrongly appear.
+		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoB/y.txt', 2, 0)];
+		const checkpoint = makeCheckpoint(() => ({ parent: 'p', current: 'c' }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///folderA', 'file:///repoB'], git, checkpoint, db });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.strictEqual(state?.status, ChangesetStatus.Ready);
+		const ids = state!.files.map(f => f.id);
+		assert.deepStrictEqual(
+			[...ids].sort(),
+			[URI.file('/folderA/x.txt').toString(), URI.file('/repoB/y.txt').toString()].sort(),
+			'non-git folderA comes from the DB; repoB comes from git only (no leaked z.txt)',
+		);
+		assert.strictEqual(
+			ids.filter(id => id === URI.file('/repoB/y.txt').toString()).length,
+			1,
+			'the git-backed file must appear exactly once',
+		);
+	});
+
+	test('diffs a repository shared by two working directories exactly once (dedup by repo root)', async () => {
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async () => URI.parse('file:///repo');
+		let diffCalls = 0;
+		git.computeFileDiffsBetweenRefs = async () => { diffCalls++; return [gitDiff('/repo/shared.ts')]; };
+		const checkpoint = makeCheckpoint(() => ({ parent: 'p', current: 'c' }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo', 'file:///repo/sub'], git, checkpoint });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		assert.strictEqual(diffCalls, 1, 'the shared repository is diffed exactly once');
+		const state = stateManager.getChangesetState(turnUri);
+		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/repo/shared.ts').toString()]);
+	});
+
+	test('keeps the turn changeset ready and logs an error when one folder git diff throws', async () => {
+		const log = new RecordingLogService();
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async wd => {
+			if (wd.toString() === 'file:///repoBad') { throw new Error('git exploded'); }
+			return [gitDiff('/repoGood/g.ts')];
+		};
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoBad', 'file:///repoGood'], git, checkpoint, log });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.strictEqual(state?.status, ChangesetStatus.Ready, 'one folder failure must not error the whole changeset');
+		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/repoGood/g.ts').toString()]);
+		assert.ok(log.errors.some(e => e.includes('repoBad')), `expected an error naming the failing repository, got ${JSON.stringify(log.errors)}`);
+	});
+
+	test('a git repository whose turn diff fails falls back to that folder\'s DB edits', async () => {
+		const log = new RecordingLogService();
+		const db = new TestSessionDatabase();
+		// repoBad is git-backed but its git turn diff throws; the edit under it is
+		// tracked only in the path-based DB, so the per-folder DB fallback must
+		// surface it instead of the folder being dropped.
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tcBad', filePath: '/repoBad/x.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		git.computeFileDiffsBetweenRefs = async wd => {
+			if (wd.toString() === 'file:///repoBad') { throw new Error('git exploded'); }
+			return [gitDiff('/repoGood/g.ts')];
+		};
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoBad', 'file:///repoGood'], git, checkpoint, db, log });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.strictEqual(state?.status, ChangesetStatus.Ready);
+		assert.deepStrictEqual(
+			[...state!.files.map(f => f.id)].sort(),
+			[URI.file('/repoBad/x.ts').toString(), URI.file('/repoGood/g.ts').toString()].sort(),
+			'the failed git repo contributes its DB-tracked edits instead of dropping the folder',
+		);
+		assert.ok(log.errors.some(e => e.includes('repoBad') && e.includes('falling back to tracked edits')), `expected a fallback error naming the repo, got ${JSON.stringify(log.errors)}`);
+	});
+
+	test('a folder whose repository-root lookup throws is treated as non-git (DB fallback) without dropping the whole turn', async () => {
+		const log = new RecordingLogService();
+		const db = new TestSessionDatabase();
+		// repoBad's ROOT resolution fails (not its git diff). Its edit is tracked
+		// only in the path-based DB, so it must surface via the non-git fallback
+		// while repoGood still contributes its git diff — before Issue 10 a single
+		// root-resolution failure dropped the WHOLE turn to an empty changeset.
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tcBad', filePath: '/repoBad/x.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => {
+			if (wd.toString() === 'file:///repoBad') { throw new Error('rev-parse exploded'); }
+			return URI.parse(wd.toString());
+		};
+		git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repoGood/g.ts')];
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoBad', 'file:///repoGood'], git, checkpoint, db, log });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.deepStrictEqual({
+			status: state?.status,
+			files: [...state!.files.map(f => f.id)].sort(),
+			loggedRepoBad: log.errors.some(e => e.includes('repoBad')),
+		}, {
+			status: ChangesetStatus.Ready,
+			files: [URI.file('/repoBad/x.ts').toString(), URI.file('/repoGood/g.ts').toString()].sort(),
+			loggedRepoBad: true,
+		}, 'the failed-root folder falls back to its DB edits; the healthy folder is unaffected');
+	});
+
+	test('multi-folder turn diffs fan out over every repository with bounded concurrency and no cap', async () => {
+		const log = new RecordingLogService();
+		const repoCount = 25;
+		const workingDirectories = Array.from({ length: repoCount }, (_, i) => `file:///repo${i}`);
+		const diffCalls: string[] = [];
+		let active = 0;
+		let maxActive = 0;
+		const pending: Array<() => void> = [];
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+		// Each diff parks on its own gate so we can observe how many run at once.
+		git.computeFileDiffsBetweenRefs = async wd => {
+			diffCalls.push(wd.toString());
+			active++;
+			maxActive = Math.max(maxActive, active);
+			await new Promise<void>(resolve => pending.push(() => { active--; resolve(); }));
+			return [];
+		};
+		const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+		const { svc, stateManager } = build({ workingDirectories, git, checkpoint, log });
+
+		const turnPromise = svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		// With every diff gated, only the concurrency limit start at once; the
+		// rest stay queued in the limiter (they are not dropped).
+		for (let i = 0; i < 500 && diffCalls.length < 5; i++) {
+			await timeout(1);
+		}
+		await timeout(10); // give a (wrongly) unbounded 6th diff a chance to start
+		const dispatchedWhileGated = diffCalls.length;
+
+		// Release the gated diffs one at a time, yielding so the limiter starts
+		// the next queued diff, until the whole turn compute settles.
+		let settled = false;
+		void turnPromise.then(() => { settled = true; });
+		while (!settled) {
+			pending.shift()?.();
+			await timeout(0);
+		}
+		const turnUri = await turnPromise;
+
+		assert.deepStrictEqual({
+			dispatchedWhileGated,
+			maxActive,
+			totalDiffed: diffCalls.length,
+			warnedAboutCapping: log.warnings.some(w => w.includes('capping')),
+			status: stateManager.getChangesetState(turnUri)?.status,
+		}, {
+			dispatchedWhileGated: 5,
+			maxActive: 5,
+			totalDiffed: repoCount,
+			warnedAboutCapping: false,
+			status: ChangesetStatus.Ready,
+		});
+	});
+
+	test('single-folder checkpoint path is byte-for-byte unchanged', async () => {
+		const checkpointCalls: Array<{ turnId: string; workingDirectory: string | undefined }> = [];
+		const checkpoint: IAgentHostCheckpointService = {
+			...NULL_CHECKPOINT_SERVICE,
+			getTurnCheckpointPair: async (_session: URI, turnId: string, workingDirectory?: URI) => {
+				checkpointCalls.push({ turnId, workingDirectory: workingDirectory?.toString() });
+				return { parent: 'p', current: 'c' };
+			},
+		};
+		const git = createNoopGitService();
+		let repoRootCalls = 0;
+		git.getRepositoryRoot = async () => { repoRootCalls++; return undefined; };
+		const diffCalls: Array<{ wd: string; fromRef: string; toRef: string }> = [];
+		git.computeFileDiffsBetweenRefs = async (wd, opts) => { diffCalls.push({ wd: wd.toString(), fromRef: opts.fromRef, toRef: opts.toRef }); return [gitDiff('/wd/only.ts')]; };
+		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.strictEqual(state?.status, ChangesetStatus.Ready);
+		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/wd/only.ts').toString()]);
+		assert.strictEqual(repoRootCalls, 0, 'single-folder path must not resolve per-folder repositories');
+		assert.deepStrictEqual(checkpointCalls, [{ turnId: 'turn-1', workingDirectory: undefined }], 'checkpoint pair is requested session-wide, not per-repo');
+		assert.deepStrictEqual(diffCalls, [{ wd: 'file:///wd', fromRef: 'p', toRef: 'c' }]);
+	});
+
+	test('single-folder DB fallback path is byte-for-byte unchanged', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/wd/tracked.ts', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('1'), afterContent: encodeString('1\n2') });
+		const checkpoint: IAgentHostCheckpointService = { ...NULL_CHECKPOINT_SERVICE, getTurnCheckpointPair: async () => undefined };
+		const git = createNoopGitService();
+		let repoRootCalls = 0;
+		git.getRepositoryRoot = async () => { repoRootCalls++; return undefined; };
+		const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint, db });
+
+		const turnUri = await svc.computeTurnChangeset(sessionStr, 'turn-1');
+
+		const state = stateManager.getChangesetState(turnUri);
+		assert.strictEqual(state?.status, ChangesetStatus.Ready);
+		assert.deepStrictEqual(state?.files.map(f => f.id), [URI.file('/wd/tracked.ts').toString()], 'fallback returns all of the turn edits, exactly as today');
+		assert.strictEqual(repoRootCalls, 0, 'single-folder fallback must not resolve repositories');
+	});
+
+	/**
+	 * All-folder branch summary (AC-3). In a multi-folder session the
+	 * `summary.changes` chip must reflect EVERY folder's branch delta, computed
+	 * independently of the primary-only branch changeset, and must survive a
+	 * subsequent branch recompute. Single-folder sessions stay branch-derived
+	 * (byte-for-byte unchanged).
+	 */
+	suite('all-folder branch summary', () => {
+
+		/** Polls until the live session summary carries a `changes` aggregate. */
+		async function waitForSummaryChanges(stateManager: AgentHostStateManager): Promise<ChangesSummary | undefined> {
+			for (let i = 0; i < 500; i++) {
+				const changes = stateManager.getSessionSummary(sessionStr)?.changes;
+				if (changes) {
+					return changes;
+				}
+				await timeout(1);
+			}
+			return stateManager.getSessionSummary(sessionStr)?.changes;
+		}
+
+		/** Polls until `count()` reaches (at least) `target`. */
+		async function waitForCount(count: () => number, target: number): Promise<void> {
+			for (let i = 0; i < 500 && count() < target; i++) {
+				await timeout(1);
+			}
+		}
+
+		test('sums every repository branch diff, not just the primary', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts', 3, 1)]; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 5, 2), gitDiff('/repoB/c.ts', 1, 0)]; }
+				return undefined;
+			};
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			// repoA => 1 file / +3 / -1; repoB => 2 files / +6 / -2.
+			assert.deepStrictEqual(changes, { additions: 9, deletions: 3, files: 3 }, 'the chip counts every folder, not only the primary');
+			assert.deepStrictEqual(
+				JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				{ additions: 9, deletions: 3, files: 3 },
+				'the persisted META_CHANGES_SUMMARY carries the all-folder aggregate for the inactive-list path',
+			);
+		});
+
+		test('all-folder summary survives a subsequent branch recompute, reusing the primary diff (not clobbered, not re-diffed)', async () => {
+			const calls: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async wd => {
+				calls.push(wd.toString());
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts', 1, 0)]; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 1, 0)]; }
+				return undefined;
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const first = await waitForSummaryChanges(stateManager);
+			assert.deepStrictEqual(first, { additions: 2, deletions: 0, files: 2 }, 'first recompute yields the all-folder aggregate');
+
+			// F7: the primary repo's branch diff is REUSED by the summary, so each
+			// branch recompute issues exactly 2 `computeSessionFileDiffs` calls for
+			// a 2-repo session (primary once for the branch changeset + secondary
+			// once for the chip), not 3. Drain the second recompute, then allow a
+			// beat for any (unwanted) extra diff to surface.
+			const callsAfterFirst = calls.length;
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCount(() => calls.length, callsAfterFirst + 2);
+			await timeout(10);
+
+			const secondRecompute = calls.slice(callsAfterFirst);
+			assert.strictEqual(secondRecompute.filter(c => c === 'file:///repoA').length, 1, 'the primary repo is diffed exactly once per recompute (reused by the summary, not re-diffed)');
+			assert.strictEqual(secondRecompute.length, 2, 'a 2-repo session issues 2 diffs per branch recompute, not 3');
+
+			assert.deepStrictEqual(
+				stateManager.getSessionSummary(sessionStr)?.changes,
+				{ additions: 2, deletions: 0, files: 2 },
+				'branch recompute must not clobber the all-folder aggregate back to the primary-only count',
+			);
+		});
+
+		test('all-folder chip survives idle eviction (evicted-but-warm): not clobbered to primary-only', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts', 3, 1)]; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 5, 2)]; }
+				return undefined;
+			};
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			// Warm the session: persist the all-folder summary and make the branch
+			// + session changesets Ready (idle eviction keeps changesets cached).
+			svc.refreshBranchChangeset(sessionStr);
+			svc.refreshSessionChangeset(sessionStr);
+			const warm = await waitForSummaryChanges(stateManager);
+			assert.deepStrictEqual(warm, { additions: 8, deletions: 3, files: 2 }, 'all-folder chip while the session is warm');
+			await waitForCount(() => stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.status === ChangesetStatus.Ready ? 1 : 0, 1);
+			const persistedSummary = (await db.getMetadata(META_CHANGES_SUMMARY))!;
+
+			// Idle eviction: drops the live summary but KEEPS the changesets cached.
+			stateManager.removeSession(sessionStr);
+			assert.strictEqual(stateManager.getSessionSummary(sessionStr)?.changes, undefined, 'live summary is gone after eviction');
+			assert.strictEqual(stateManager.getChangesetState(buildSessionChangesetUri(sessionStr))?.status, ChangesetStatus.Ready, 'session changeset stays cached after eviction (LRU keeps the on-screen chip)');
+
+			// The list overlay must still request the persisted summary key — before
+			// the fix it returned undefined here (session changeset Ready), skipping
+			// META_CHANGES_SUMMARY and falling back to the primary-only branch count.
+			const keys = svc.getListMetadataKeys(sessionStr);
+			assert.ok(keys && keys[META_CHANGES_SUMMARY], `getListMetadataKeys must request the persisted summary post-eviction, got ${JSON.stringify(keys)}`);
+
+			// ... and prefer it (all-folder), never deriving+persisting the
+			// primary-only branch count (repoA-only would be 3/1/1).
+			const overlay = svc.computeListEntryChanges(sessionStr, { [META_CHANGES_SUMMARY]: persistedSummary });
+			assert.deepStrictEqual(overlay, { additions: 8, deletions: 3, files: 2 }, 'evicted chip stays all-folder, not primary-only');
+			assert.deepStrictEqual(JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!), { additions: 8, deletions: 3, files: 2 }, 'persisted all-folder summary is not clobbered');
+		});
+
+		test('multi-folder branch changeset DATA stays primary-only (AC-8 data fence)', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts', 1, 0)]; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 1, 0)]; }
+				return undefined;
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForSummaryChanges(stateManager);
+
+			// The chip aggregates ALL folders, but the branch CHANGESET data itself
+			// must remain primary-only — AC-8: only the turn changeset and the chip
+			// change in multi-folder sessions; branch/session/uncommitted/compare
+			// data is untouched.
+			const branch = stateManager.getChangesetState(buildBranchChangesetUri(sessionStr));
+			assert.deepStrictEqual(branch?.files.map(f => f.id), [URI.file('/repoA/a.ts').toString()], 'branch changeset data stays primary-only in a multi-root session');
+		});
+
+		test('single-folder summary stays branch-derived (characterization: byte-for-byte unchanged)', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async () => [gitDiff('/wd/only.ts', 4, 2)];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			// The single primary branch diff IS the whole session footprint, exactly as today.
+			assert.deepStrictEqual(changes, { additions: 4, deletions: 2, files: 1 });
+			assert.deepStrictEqual(
+				JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+				{ additions: 4, deletions: 2, files: 1 },
+			);
+		});
+
+		test('a repository whose branch diff throws is skipped and logged, without failing the aggregate', async () => {
+			const log = new RecordingLogService();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoBad') { throw new Error('branch diff exploded'); }
+				if (root === 'file:///repoGood1') { return [gitDiff('/repoGood1/a.ts', 2, 0)]; }
+				if (root === 'file:///repoGood2') { return [gitDiff('/repoGood2/b.ts', 5, 1)]; }
+				return undefined;
+			};
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoGood1', 'file:///repoBad', 'file:///repoGood2'], git, checkpoint: NULL_CHECKPOINT_SERVICE, log });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			// repoBad is skipped; the aggregate is the sum of the two good repos.
+			assert.deepStrictEqual(changes, { additions: 7, deletions: 1, files: 2 }, 'the failing repository is excluded, the rest still counted');
+			assert.ok(log.errors.some(e => e.includes('repoBad')), `expected an error naming the failing repository, got ${JSON.stringify(log.errors)}`);
+		});
+
+		test('threads a base branch per repository (primary uses the session base, secondaries their default)', async () => {
+			const calls: { wd: string; baseBranch: string | undefined }[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.getDefaultBranch = async wd => wd.toString() === 'file:///repoB' ? { name: 'develop', startPoint: 'origin/develop' } : undefined;
+			git.computeSessionFileDiffs = async (wd, opts) => {
+				calls.push({ wd: wd.toString(), baseBranch: opts.baseBranch });
+				return wd.toString() === 'file:///repoA' ? [gitDiff('/repoA/a.ts', 1, 0)] : [gitDiff('/repoB/b.ts', 1, 0)];
+			};
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+			// The session's configured base branch applies to the PRIMARY repo only.
+			stateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForSummaryChanges(stateManager);
+
+			const repoA = calls.filter(c => c.wd === 'file:///repoA');
+			const repoB = calls.filter(c => c.wd === 'file:///repoB');
+			assert.ok(repoA.length > 0 && repoA.every(c => c.baseBranch === 'main'), `primary repo must use the session base branch, got ${JSON.stringify(repoA)}`);
+			assert.ok(repoB.length > 0 && repoB.every(c => c.baseBranch === 'develop'), `secondary repo must use its own default branch (not HEAD), got ${JSON.stringify(repoB)}`);
+		});
+
+		test('all-folder summary is computed even when the primary branch diff is unavailable', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			// The PRIMARY repo (repoA) has no resolvable branch diff; repoB does.
+			git.computeSessionFileDiffs = async wd => wd.toString() === 'file:///repoB' ? [gitDiff('/repoB/b.ts', 4, 1)] : undefined;
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			assert.deepStrictEqual(changes, { additions: 4, deletions: 1, files: 1 }, 'the all-folder chip is independent of the primary branch changeset succeeding');
+		});
+
+		test('folds non-git folder edits into the all-folder chip', async () => {
+			const db = new TestSessionDatabase();
+			// folderA is not git-backed; its edits are tracked only in the DB.
+			db.addEdit({ turnId: 'turn-1', toolCallId: 'tcA', filePath: '/folderA/x.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => wd.toString() === 'file:///repoB' ? URI.parse('file:///repoB') : undefined;
+			git.computeSessionFileDiffs = async wd => wd.toString() === 'file:///repoB' ? [gitDiff('/repoB/y.txt', 5, 2)] : undefined;
+			const { svc, stateManager } = build({ workingDirectories: ['file:///folderA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			// repoB git branch diff => 1 file / +5 / -2; folderA DB edit => 1 file / +1 / -0.
+			assert.deepStrictEqual(changes, { additions: 6, deletions: 2, files: 2 }, 'non-git folder DB edits count toward the chip alongside git repos');
+		});
+
+		test('total git failure preserves the cached all-folder summary (not clobbered to zero)', async () => {
+			let available = true;
+			const calls: string[] = [];
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeSessionFileDiffs = async wd => {
+				calls.push(wd.toString());
+				if (!available) { return undefined; }
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts', 3, 1)]; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 5, 2)]; }
+				return undefined;
+			};
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			// Warm the summary to Ready with a real all-folder aggregate.
+			svc.refreshBranchChangeset(sessionStr);
+			const warm = await waitForSummaryChanges(stateManager);
+			assert.deepStrictEqual(warm, { additions: 8, deletions: 3, files: 2 }, 'warm all-folder aggregate');
+			await timeout(10);
+			const callsAfterWarm = calls.length;
+
+			// Every repository now fails: refresh and let the recompute settle.
+			// Observe completion via the git call count, NOT the (already-truthy)
+			// live summary, which would false-positive on the warm value.
+			available = false;
+			svc.refreshBranchChangeset(sessionStr);
+			await waitForCount(() => calls.length, callsAfterWarm + 1);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				live: stateManager.getSessionSummary(sessionStr)?.changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+			}, {
+				live: { additions: 8, deletions: 3, files: 2 },
+				persisted: { additions: 8, deletions: 3, files: 2 },
+			}, 'total failure preserves the live and persisted summary instead of overwriting it with zeros');
+		});
+
+		test('all repositories succeeding with no changes writes a zero summary (no over-preserve)', async () => {
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			// Both repos succeed with an EMPTY diff (genuinely no changes) — this
+			// is an available source, so the aggregate must be written as zero,
+			// never preserved as if it were unavailable.
+			git.computeSessionFileDiffs = async () => [];
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			assert.deepStrictEqual({
+				live: changes,
+				persisted: JSON.parse((await db.getMetadata(META_CHANGES_SUMMARY))!),
+			}, {
+				live: { additions: 0, deletions: 0, files: 0 },
+				persisted: { additions: 0, deletions: 0, files: 0 },
+			}, 'a genuinely empty all-folder aggregate is written as zero, not preserved');
+		});
+
+		test('a secondary default-branch lookup rejection yields a partial summary and keeps the branch changeset Ready (never Error)', async () => {
+			const log = new RecordingLogService();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			// The SECONDARY repo's default-branch probe rejects (git spawn failure).
+			git.getDefaultBranch = async wd => {
+				if (wd.toString() === 'file:///repoB') { throw new Error('default branch lookup exploded'); }
+				return undefined;
+			};
+			git.computeSessionFileDiffs = async wd => {
+				const root = wd.toString();
+				if (root === 'file:///repoA') { return [gitDiff('/repoA/a.ts', 3, 1)]; }
+				if (root === 'file:///repoB') { return [gitDiff('/repoB/b.ts', 5, 2)]; }
+				return undefined;
+			};
+			const db = new TestSessionDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db, log });
+
+			svc.refreshBranchChangeset(sessionStr);
+			const changes = await waitForSummaryChanges(stateManager);
+
+			assert.deepStrictEqual({
+				changes,
+				branchStatus: stateManager.getChangesetState(buildBranchChangesetUri(sessionStr))?.status,
+				loggedRepoB: log.errors.some(e => e.includes('repoB')),
+			}, {
+				// repoB is unavailable (its default-branch probe threw); only the
+				// primary repoA contributes to the partial aggregate.
+				changes: { additions: 3, deletions: 1, files: 1 },
+				branchStatus: ChangesetStatus.Ready,
+				loggedRepoB: true,
+			}, 'a secondary default-branch failure must not flip the published branch changeset to Error');
+		});
+	});
+
+	suite('telemetry emission', () => {
+		async function waitForTelemetry(telemetry: CapturingTelemetryService, eventName: string, match?: (data: Record<string, unknown>) => boolean): Promise<Record<string, unknown>> {
+			const find = () => telemetry.events.find(e => e.eventName === eventName && (!match || match(e.data)));
+			for (let i = 0; i < 200 && !find(); i++) {
+				await timeout(0);
+			}
+			const event = find();
+			assert.ok(event, `expected telemetry event ${eventName}`);
+			return event.data;
+		}
+
+		test('changesetComputed (turn) carries correlation and omits multi-root fields for a single-root turn', async () => {
+			const telemetry = new CapturingTelemetryService();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repo/a.ts')];
+			const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+			const { svc } = build({
+				workingDirectories: ['file:///repo'],
+				git,
+				checkpoint,
+				telemetry,
+				subscriptions: [buildTurnChangesetUri(sessionStr, 'turn-1')],
+			});
+
+			svc.onTurnComplete(sessionStr, 'turn-1');
+			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', d => d.kind === 'turn');
+
+			assert.deepStrictEqual({
+				provider: data.provider,
+				agentSessionId: data.agentSessionId,
+				turnId: data.turnId,
+				kind: data.kind,
+				outcome: data.outcome,
+				isMultiRoot: data.isMultiRoot,
+				folderCount: data.folderCount,
+				hasFileCount: data.fileCount !== undefined,
+				hasMultiRootFields: data.uniqueGitFolderCount !== undefined || data.trackedEditFallbackFolderCount !== undefined,
+			}, {
+				provider: URI.parse(sessionStr).scheme,
+				agentSessionId: AgentSession.id(sessionStr),
+				turnId: 'turn-1',
+				kind: 'turn',
+				outcome: 'computed',
+				isMultiRoot: false,
+				folderCount: 1,
+				hasFileCount: true,
+				hasMultiRootFields: false,
+			});
+		});
+
+		test('changesetComputed (turn) carries the multi-root fan-out fields for a multi-root turn', async () => {
+			const telemetry = new CapturingTelemetryService();
+			const git = createNoopGitService();
+			git.getRepositoryRoot = async wd => URI.parse(wd.toString());
+			git.computeFileDiffsBetweenRefs = async wd => wd.toString() === 'file:///repoA' ? [gitDiff('/repoA/a.ts')] : [gitDiff('/repoB/b.ts')];
+			const checkpoint = makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` }));
+			const { svc } = build({
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				git,
+				checkpoint,
+				telemetry,
+				subscriptions: [buildTurnChangesetUri(sessionStr, 'turn-1')],
+			});
+
+			svc.onTurnComplete(sessionStr, 'turn-1');
+			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', d => d.kind === 'turn');
+
+			assert.deepStrictEqual({
+				kind: data.kind,
+				outcome: data.outcome,
+				isMultiRoot: data.isMultiRoot,
+				folderCount: data.folderCount,
+				uniqueGitFolderCount: data.uniqueGitFolderCount,
+				nonGitFolderCount: data.nonGitFolderCount,
+				trackedEditFallbackFolderCount: data.trackedEditFallbackFolderCount,
+			}, {
+				kind: 'turn',
+				outcome: 'computed',
+				isMultiRoot: true,
+				folderCount: 2,
+				uniqueGitFolderCount: 2,
+				nonGitFolderCount: 0,
+				trackedEditFallbackFolderCount: 0,
+			});
 		});
 	});
 });

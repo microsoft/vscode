@@ -168,7 +168,7 @@ suite('SessionModelSelectionModel', () => {
 		};
 		const chatGPTModel = {
 			...model('codex:@provider=openai:gpt-test'),
-			metadata: { ...model('codex:@provider=openai:gpt-test').metadata, modelGroup: { id: 'openai', source: 'chatgptSubscription' as const } },
+			metadata: { ...model('codex:@provider=openai:gpt-test').metadata, modelGroup: { id: 'openai', sourceId: 'chatgptSubscription' } },
 		};
 		const storage = disposables.add(new InMemoryStorageService());
 		storeSelectedModel(storage, ChatAgentLocation.Chat, codexModelTarget, chatGPTModel.identifier);

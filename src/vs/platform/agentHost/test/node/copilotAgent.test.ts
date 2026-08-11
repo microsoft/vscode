@@ -30,12 +30,13 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -47,8 +48,9 @@ import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../c
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
+import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
@@ -78,6 +80,10 @@ import { injectSideChatContext } from '../../node/agentPeerChats.js';
  */
 function sessionsMap(agent: CopilotAgent): Map<string, CopilotSessionEntry> {
 	return (agent as unknown as { _sessions: Map<string, CopilotSessionEntry> })._sessions;
+}
+
+function sdkSessionsMap(agent: CopilotAgent): Map<string, CopilotAgentSession> {
+	return (agent as unknown as { _sdkSessionsById: Map<string, CopilotAgentSession> })._sdkSessionsById;
 }
 
 function defaultChatUri(session: URI): URI {
@@ -363,6 +369,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	startCallCount = 0;
 	stopCallCount = 0;
 	startGate: Promise<void> | undefined;
+	startError: Error | undefined;
 	listSessionCallCount = 0;
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly modelListErrors: Error[] = [];
@@ -382,6 +389,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	async start(): Promise<void> {
 		this.startCallCount++;
 		await this.startGate;
+		if (this.startError) {
+			throw this.startError;
+		}
 	}
 	async stop(): ReturnType<ITestCopilotClient['stop']> {
 		this.stopCallCount++;
@@ -400,6 +410,19 @@ class TestCopilotClient implements ITestCopilotClient {
 	}
 	createSession: ITestCopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
 	resumeSession: ITestCopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
+}
+
+class RecordingTelemetryService extends NullTelemetryServiceShape {
+	readonly events: Array<{ eventName: string; data: unknown }> = [];
+	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		this.events.push({ eventName: eventName ?? '', data });
+	}
+
+	override publicLogError2(eventName?: string, data?: unknown): void {
+		this.errorEvents.push({ eventName: eventName ?? '', data });
+	}
 }
 
 interface IFakeAgentSession {
@@ -519,7 +542,6 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
 		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
-		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -552,7 +574,6 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
 		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
-		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1150,6 +1171,40 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('queries managed settings with pre-resolved token authentication', async () => {
+		let receivedInput: { authInfo?: { type: 'token'; host: string; token: string }; token?: string; signal?: AbortSignal } | undefined;
+		const runtimeSdk = {
+			getManagedSettings: async (input?: typeof receivedInput) => {
+				receivedInput = input;
+				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
+			},
+		};
+		const signal = new AbortController().signal;
+
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal);
+
+		assert.deepStrictEqual({
+			authInfo: receivedInput?.authInfo,
+			token: receivedInput?.token,
+			signalForwarded: receivedInput?.signal === signal,
+		}, {
+			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
+			token: 'token',
+			signalForwarded: true,
+		});
+	});
+
+	test('identifies a stalled managed settings query', async () => {
+		const runtimeSdk = {
+			getManagedSettings: () => new Promise<never>(() => { }),
+		};
+
+		await assert.rejects(
+			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
+			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
+		);
+	});
+
 	test('returns empty models and lists sessions before authentication', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const ownedSession = AgentSession.uri('copilotcli', 'owned-before-auth');
@@ -1268,6 +1323,363 @@ suite('CopilotAgent', () => {
 			}, {
 				modelNames: ['GPT-4o'],
 				requestCount: 2,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('recovers the client and reports telemetry when the SDK connection is closed', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		client.modelListErrors.push(new Error('Connection is closed.'));
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, m => m.length > 0);
+			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
+			const recovery = telemetryService.events[0].data as Record<string, unknown>;
+
+			assert.deepStrictEqual({
+				modelNames: models.map(model => model.name),
+				startCount: client.startCallCount,
+				stopCount: client.stopCallCount,
+				requestCount: client.modelListRequests.length,
+				failure: {
+					...failure,
+					clientFailureId: typeof failure.clientFailureId,
+					callstack: typeof failure.callstack,
+				},
+				recovery: {
+					...recovery,
+					clientFailureIdMatches: recovery.clientFailureId === failure.clientFailureId,
+					clientFailureId: typeof recovery.clientFailureId,
+					durationMs: typeof recovery.durationMs,
+				},
+			}, {
+				modelNames: ['GPT-4o'],
+				startCount: 2,
+				stopCount: 1,
+				requestCount: 2,
+				failure: {
+					clientFailureId: 'string',
+					failureKind: 'connectionClosed',
+					operation: 'modelRefresh',
+					activeTurnCount: 0,
+					recoveryStarted: true,
+					errorName: 'Error',
+					errorCode: undefined,
+					msg: 'Connection is closed.',
+					callstack: 'string',
+				},
+				recovery: {
+					clientFailureId: 'string',
+					failureKind: 'connectionClosed',
+					durationMs: 'number',
+					failedTurnCount: 0,
+					stopSucceeded: true,
+					clientFailureIdMatches: true,
+				},
+			});
+
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reports a classified Copilot client startup failure', async () => {
+		const client = new TestCopilotClient([]);
+		client.startError = new Error('Failed to start CLI server: spawn failed');
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		try {
+			await assert.rejects(agent.listSessions(), /Failed to start CLI server/);
+			assert.strictEqual(telemetryService.errorEvents.length, 1);
+			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
+			assert.deepStrictEqual({
+				...failure,
+				clientFailureId: typeof failure.clientFailureId,
+				callstack: typeof failure.callstack,
+			}, {
+				clientFailureId: 'string',
+				failureKind: 'startupFailed',
+				operation: 'startClient',
+				startupFailureCause: 'spawnFailed',
+				startupFailureResource: 'other',
+				startupExitCode: undefined,
+				activeTurnCount: 0,
+				recoveryStarted: false,
+				errorName: 'Error',
+				errorCode: undefined,
+				msg: 'Failed to start CLI server: spawn failed',
+				callstack: 'string',
+			});
+		} finally {
+			client.startError = undefined;
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reports bounded Copilot client startup failure details', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const cases = [{
+			message: 'CLI server exited with code 1\nNative addon "runtime" not found. prebuilds/win32-x64/runtime.node: The specified procedure could not be found. runtime.win32-x64-msvc.node: Cannot find module',
+			expected: { startupFailureCause: 'nativeModuleProcedureNotFound', startupFailureResource: 'runtime', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 3221226505\nprebuilds/win32-x64/runtime.node: A dynamic link library (DLL) initialization routine failed.',
+			expected: { startupFailureCause: 'nativeModuleInitializationFailed', startupFailureResource: 'runtime', startupExitCode: 3221226505 },
+		}, {
+			message: 'CLI server exited with code 1\nPermission denied',
+			expected: { startupFailureCause: 'permissionDenied', startupFailureResource: 'other', startupExitCode: 1 },
+		}, {
+			message: 'Failed to start CLI server: spawn EACCES',
+			expected: { startupFailureCause: 'permissionDenied', startupFailureResource: 'other', startupExitCode: undefined },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module conpty.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'conpty', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module cli-native.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'cliNative', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module wxc-exec.exe',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'sandbox', startupExitCode: 1 },
+		}, {
+			message: 'CLI server exited with code 1\nCannot find module /Users/wxc/project/helper.node',
+			expected: { startupFailureCause: 'nativeModuleNotFound', startupFailureResource: 'other', startupExitCode: 1 },
+		}, {
+			message: 'Timeout waiting for CLI server to start',
+			expected: { startupFailureCause: 'timeout', startupFailureResource: 'other', startupExitCode: undefined },
+		}, {
+			message: 'CLI server exited unexpectedly with code 3221225477',
+			expected: { startupFailureCause: 'processExitedUnexpectedly', startupFailureResource: 'other', startupExitCode: 3221225477 },
+		}, {
+			message: 'CLI server exited with code 0',
+			expected: { startupFailureCause: 'processExited', startupFailureResource: 'other', startupExitCode: 0 },
+		}, {
+			message: 'CLI server exited with code 9007199254740992',
+			expected: { startupFailureCause: 'processExited', startupFailureResource: 'other', startupExitCode: undefined },
+		}];
+
+		try {
+			for (const testCase of cases) {
+				client.startError = new Error(testCase.message);
+				await assert.rejects(agent.listSessions());
+			}
+
+			assert.deepStrictEqual(telemetryService.errorEvents.map(event => {
+				const data = event.data as Record<string, unknown>;
+				return {
+					startupFailureCause: data.startupFailureCause,
+					startupFailureResource: data.startupFailureResource,
+					startupExitCode: data.startupExitCode,
+				};
+			}), cases.map(testCase => testCase.expected));
+		} finally {
+			client.startError = undefined;
+			await disposeAgent(agent);
+		}
+	});
+
+	test('coalesces closed connection recovery and preserves an already-cancelled turn', async () => {
+		type RecoveryInternals = {
+			_recoverFromClosedConnection(error: unknown, operation: 'modelRefresh'): Promise<{ failedTurnIds: ReadonlySet<string> } | undefined>;
+		};
+		class GatedStopClient extends TestCopilotClient {
+			readonly stopGate = new DeferredPromise<void>();
+
+			override async stop(): ReturnType<ITestCopilotClient['stop']> {
+				await this.stopGate.p;
+				return super.stop();
+			}
+		}
+		const client = new GatedStopClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const cancelledChat = defaultChatUri(AgentSession.uri('copilotcli', 'cancelled'));
+		const failedChat = defaultChatUri(AgentSession.uri('copilotcli', 'failed'));
+		const calls = {
+			cancelled: { discard: 0, fail: 0, dispose: 0 },
+			failed: { discard: 0, fail: 0, dispose: 0 },
+		};
+		let cancelledActive = true;
+		let failedActive = true;
+		setDefaultSessionStub(agent, 'cancelled', {
+			sessionId: 'cancelled',
+			sessionUri: AgentSession.uri('copilotcli', 'cancelled'),
+			chatUri: cancelledChat,
+			get hasActiveTurn() { return cancelledActive; },
+			abort: async () => { throw new Error('Connection is closed.'); },
+			discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; },
+			failActiveTurn: () => {
+				if (!cancelledActive) {
+					return undefined;
+				}
+				calls.cancelled.fail++;
+				cancelledActive = false;
+				return 'cancelled-turn';
+			},
+			dispose: () => calls.cancelled.dispose++,
+		});
+		setDefaultSessionStub(agent, 'failed', {
+			sessionId: 'failed',
+			sessionUri: AgentSession.uri('copilotcli', 'failed'),
+			chatUri: failedChat,
+			get hasActiveTurn() { return failedActive; },
+			discardActiveTurn: () => { calls.failed.discard++; failedActive = false; },
+			failActiveTurn: () => {
+				if (!failedActive) {
+					return undefined;
+				}
+				calls.failed.fail++;
+				failedActive = false;
+				return 'failed-turn';
+			},
+			dispose: () => calls.failed.dispose++,
+		});
+		sdkSessionsMap(agent).set('cancelled-sdk-session', sessionsMap(agent).get('cancelled')!.defaultChat!);
+		sdkSessionsMap(agent).set('failed-sdk-session', sessionsMap(agent).get('failed')!.defaultChat!);
+		try {
+			await agent.listSessions();
+			const abort = agent.chats.abort(cancelledChat);
+			for (let i = 0; i < 100 && calls.cancelled.discard === 0; i++) {
+				await timeout(0);
+			}
+			const internals = agent as unknown as RecoveryInternals;
+			const second = internals._recoverFromClosedConnection(new Error('Connection is closed.'), 'modelRefresh');
+			client.stopGate.complete();
+			const [, secondResult] = await Promise.all([abort, second]);
+			const failures = telemetryService.errorEvents
+				.filter(event => event.eventName === 'agentHost.copilotClientFailure')
+				.map(event => event.data as Record<string, unknown>);
+			const recoveryTurns = telemetryService.errorEvents
+				.filter(event => event.eventName === 'agentHost.copilotClientRecoveryTurnFailed')
+				.map(event => event.data as Record<string, unknown>);
+			const recovery = telemetryService.events[0].data as Record<string, unknown>;
+
+			assert.deepStrictEqual({
+				calls,
+				secondFailedTurnIds: [...(secondResult?.failedTurnIds ?? [])],
+				stopCount: client.stopCallCount,
+				remainingSessions: sessionsMap(agent).size,
+				remainingSdkSessions: sdkSessionsMap(agent).size,
+				failures: failures.map(failure => ({
+					...failure,
+					clientFailureId: typeof failure.clientFailureId,
+					callstack: typeof failure.callstack,
+				})),
+				recoveryTurns: recoveryTurns.map(recoveryTurn => ({
+					...recoveryTurn,
+					clientFailureIdMatches: recoveryTurn.clientFailureId === recovery.clientFailureId,
+					clientFailureId: typeof recoveryTurn.clientFailureId,
+				})),
+				recovery: {
+					...recovery,
+					clientFailureIdMatches: failures.every(failure => failure.clientFailureId === recovery.clientFailureId),
+					clientFailureId: typeof recovery.clientFailureId,
+					durationMs: typeof recovery.durationMs,
+				},
+			}, {
+				calls: {
+					cancelled: { discard: 1, fail: 0, dispose: 1 },
+					failed: { discard: 0, fail: 1, dispose: 1 },
+				},
+				secondFailedTurnIds: ['failed-turn'],
+				stopCount: 1,
+				remainingSessions: 0,
+				remainingSdkSessions: 0,
+				failures: [{
+					clientFailureId: 'string',
+					failureKind: 'connectionClosed',
+					operation: 'abort',
+					agentSessionId: 'cancelled',
+					chatSessionId: getTelemetryChatSessionId(cancelledChat),
+					turnId: undefined,
+					sdkSessionId: 'cancelled',
+					activeTurnCount: 1,
+					recoveryStarted: true,
+					errorName: 'Error',
+					errorCode: undefined,
+					msg: 'Connection is closed.',
+					callstack: 'string',
+				}, {
+					clientFailureId: 'string',
+					failureKind: 'connectionClosed',
+					operation: 'modelRefresh',
+					activeTurnCount: 0,
+					recoveryStarted: false,
+					errorName: 'Error',
+					errorCode: undefined,
+					msg: 'Connection is closed.',
+					callstack: 'string',
+				}],
+				recoveryTurns: [{
+					clientFailureId: 'string',
+					agentSessionId: 'failed',
+					chatSessionId: getTelemetryChatSessionId(failedChat),
+					turnId: 'failed-turn',
+					sdkSessionId: 'failed',
+					clientFailureIdMatches: true,
+				}],
+				recovery: {
+					clientFailureId: 'string',
+					failureKind: 'connectionClosed',
+					durationMs: 'number',
+					failedTurnCount: 1,
+					stopSucceeded: true,
+					clientFailureIdMatches: true,
+				},
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('reports but does not recover or discard for another classified abort failure', async () => {
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
+		const chat = defaultChatUri(AgentSession.uri('copilotcli', 'abort-failure'));
+		let discardCount = 0;
+		setDefaultSessionStub(agent, 'abort-failure', {
+			chatUri: chat,
+			hasActiveTurn: true,
+			abort: async () => { throw new Error('Client not connected'); },
+			discardActiveTurn: () => discardCount++,
+			dispose: () => { },
+		});
+		try {
+			await assert.rejects(agent.chats.abort(chat), /Client not connected/);
+			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
+			assert.deepStrictEqual({
+				discardCount,
+				remainingSessions: sessionsMap(agent).size,
+				failure: {
+					...failure,
+					clientFailureId: typeof failure.clientFailureId,
+					callstack: typeof failure.callstack,
+				},
+			}, {
+				discardCount: 0,
+				remainingSessions: 1,
+				failure: {
+					clientFailureId: 'string',
+					failureKind: 'clientNotConnected',
+					operation: 'abort',
+					agentSessionId: 'abort-failure',
+					chatSessionId: getTelemetryChatSessionId(chat),
+					turnId: undefined,
+					sdkSessionId: 'abort-failure',
+					activeTurnCount: 1,
+					recoveryStarted: false,
+					errorName: 'Error',
+					errorCode: undefined,
+					msg: 'Client not connected',
+					callstack: 'string',
+				},
 			});
 		} finally {
 			await disposeAgent(agent);
@@ -2687,7 +3099,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -2743,7 +3155,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -2792,7 +3204,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3026,6 +3438,133 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('createSession fork', () => {
+		test('rejects a fork targeting its source session', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const session = AgentSession.uri('copilotcli', 'same-session');
+
+			try {
+				await assert.rejects(() => agent.createSession({
+					session,
+					fork: { session, turnIndex: 0, turnId: 'turn-1' },
+				}), /Cannot fork Copilot session same-session onto itself/);
+				assert.strictEqual(client.startCallCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes provider history under the client-chosen session ID', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'source-session');
+			const target = AgentSession.uri('copilotcli', 'target-session');
+			const sourceWorkingDirectory = URI.file('/source-workspace');
+			const sourceEventId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: 'source-turn',
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [{ ...sourceTurn, id: sourceEventId }],
+				getTurnEventId: async (turnId: string) => turnId === sourceTurn.id ? sourceEventId : undefined,
+				workingDirectory: sourceWorkingDirectory,
+				dispose: () => { },
+			});
+
+			let imported: { config: IAgentCreateSessionConfig; sessionId: string; workingDirectory: URI } | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async (config, sessionId, directory) => {
+				imported = { config, sessionId, workingDirectory: directory };
+				return { session: target, resolvedWorkingDirectory: directory };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				const result = await agent.createSession({
+					session: target,
+					workingDirectories: [URI.file('/ignored-client-workspace')],
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurn.id,
+						turnIdMapping: new Map([[sourceTurn.id, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual({
+					resultSession: result.session.toString(),
+					importSessionId: imported?.sessionId,
+					importWorkingDirectory: imported?.workingDirectory.toString(),
+					importWorkingDirectories: imported?.config.workingDirectories?.map(directory => directory.toString()),
+					importFork: imported?.config.fork,
+					importedTurnIds: imported?.config.importConversation?.turns.map(turn => turn.id),
+				}, {
+					resultSession: target.toString(),
+					importSessionId: AgentSession.id(target),
+					importWorkingDirectory: sourceWorkingDirectory.toString(),
+					importWorkingDirectories: [sourceWorkingDirectory.toString()],
+					importFork: undefined,
+					importedTurnIds: [forkedTurnId],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes restored provider history without a persisted turn event mapping', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'restored-source-session');
+			const target = AgentSession.uri('copilotcli', 'restored-target-session');
+			const sourceTurnId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: sourceTurnId,
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [sourceTurn],
+				getTurnEventId: async () => undefined,
+				workingDirectory: URI.file('/source-workspace'),
+				dispose: () => { },
+			});
+
+			let importedTurnIds: readonly string[] | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async config => {
+				importedTurnIds = config.importConversation?.turns.map(turn => turn.id);
+				return { session: target, resolvedWorkingDirectory: URI.file('/source-workspace') };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				await agent.createSession({
+					session: target,
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurnId,
+						turnIdMapping: new Map([[sourceTurnId, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual(importedTurnIds, [forkedTurnId]);
+			} finally {
 				await disposeAgent(agent);
 			}
 		});
@@ -3801,6 +4340,13 @@ suite('CopilotAgent', () => {
 				const systemMessage = capturedConfig.systemMessage;
 				assert.deepStrictEqual(systemMessage, {
 					...COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
+					sections: {
+						...COPILOT_AGENT_HOST_SYSTEM_MESSAGE.sections,
+						tool_instructions: {
+							action: 'append',
+							content: `\n${COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION}`,
+						},
+					},
 					content: COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS,
 				});
 				if (!systemMessage || systemMessage.mode !== 'customize') {
@@ -5909,15 +6455,16 @@ suite('CopilotAgent', () => {
 			// already been disposed' warning this PR exists to eliminate.
 			const agent = createTestAgent(disposables);
 			const internals = agent as unknown as {
-				_registerInitializedSession: (id: string, s: CopilotAgentSession) => void;
+				_registerInitializedSession: (id: string, s: CopilotAgentSession, client: CopilotClient) => void;
 				_shutdownPromise: Promise<void> | undefined;
 			};
 			let disposed = 0;
 			const fakeSession = { dispose: () => { disposed++; } } as unknown as CopilotAgentSession;
+			const client = new TestCopilotClient([]) as unknown as CopilotClient;
 			internals._shutdownPromise = Promise.resolve();
 			try {
 				assert.throws(
-					() => internals._registerInitializedSession('s1', fakeSession),
+					() => internals._registerInitializedSession('s1', fakeSession, client),
 					(err: unknown) => isCancellationError(err),
 				);
 				assert.strictEqual(disposed, 1, 'session should be disposed by the guard');
@@ -5925,6 +6472,30 @@ suite('CopilotAgent', () => {
 				// Clear the fake shutdown promise so disposeAgent doesn't
 				// short-circuit and leave real state behind.
 				internals._shutdownPromise = undefined;
+				await disposeAgent(agent);
+			}
+		});
+
+		test('post-init client replacement race disposes the stale session', async () => {
+			const currentClient = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: currentClient });
+			const internals = agent as unknown as {
+				_throwIfClientReplaced: (client: CopilotClient, session: CopilotAgentSession) => void;
+			};
+			let disposed = 0;
+			const staleSession = {
+				sessionId: 'stale-session',
+				dispose: () => { disposed++; },
+			} as unknown as CopilotAgentSession;
+			try {
+				await agent.listSessions();
+				assert.doesNotThrow(() => internals._throwIfClientReplaced(currentClient as unknown as CopilotClient, staleSession));
+				assert.throws(
+					() => internals._throwIfClientReplaced(new TestCopilotClient([]) as unknown as CopilotClient, staleSession),
+					(error: unknown) => isCancellationError(error),
+				);
+				assert.strictEqual(disposed, 1);
+			} finally {
 				await disposeAgent(agent);
 			}
 		});
@@ -6421,7 +6992,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ first, second, configValues },
-					{ first: true, second: false, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+					{ first: { adopted: true, eligible: true }, second: { adopted: false, eligible: false }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6450,7 +7021,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, customTitle },
-					{ adopted: true, customTitle: 'My Legacy Session' },
+					{ adopted: { adopted: true, eligible: true }, customTitle: 'My Legacy Session' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6474,7 +7045,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: false, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -6501,7 +7072,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls },
-					{ adopted: false, getSessionMetadataCalls: [] },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

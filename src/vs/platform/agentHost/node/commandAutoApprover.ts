@@ -15,6 +15,7 @@ import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/com
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
+import { sortAutoApproveRules } from '../../terminal/common/autoApprove/sortAutoApproveRules.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
@@ -639,12 +640,21 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 	rg: true,
 	'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
+	// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 	sed: true,
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-	'/^sed\\b.*;W/': false,
-	'/^sort\\b(?!-)/': true,
-	'/^sort\\b.*\\s-(o|S)\\b/': false,
+	// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+	// captured so the closing quote must match it, and whitespace and `!` are allowed
+	// around the optional address since sed ignores them. The option prefix also skips
+	// the separate operand consumed by -l/--line-length.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+	// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+	// Escaped characters are consumed before testing for the matching closing quote.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+	// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
+	...sortAutoApproveRules,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,
 	'/^xxd$/': true,
