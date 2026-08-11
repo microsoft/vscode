@@ -50,6 +50,23 @@ interface IGitHubReferenceContext {
 	readonly value: GitHubIssueOrPullRequest;
 }
 
+/** Everything the utility model is told about when asked for a title. */
+interface ITitlePromptContext {
+	/** The request or conversation to title. */
+	readonly content: string;
+	/** Whether {@link content} is a whole conversation rather than a single request. */
+	readonly isConversation: boolean;
+	/**
+	 * Text scanned for GitHub issue / pull request links whose title and body
+	 * are appended to {@link content}. Usually the user's request: links the
+	 * agent merely mentioned in its response should not pull in context.
+	 * Omitted when no enrichment should happen.
+	 */
+	readonly gitHubReferenceSource?: string;
+	/** The title in place already, offered to the model as the incumbent. */
+	readonly currentTitle?: string;
+}
+
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly getGitHubCopilotToken?: () => string | undefined;
@@ -109,8 +126,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 		this._generateTitleSoon(
 			key,
-			userPrompt,
-			false,
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
 			fallbackTitle,
 			title => this._applySeedTitle(channel, additionalChat, title),
 			() => this._currentSeedTitle(channel, additionalChat) === this._lastAppliedTitle.get(key),
@@ -209,6 +225,14 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * this controller last applied — a manual `/rename`, a user edit, or a
 	 * forked session's inherited title all suppress it.
 	 *
+	 * The request is re-scanned for GitHub issue / pull request links and the
+	 * referenced titles and bodies are appended, exactly as when the opening
+	 * message was titled: a request that is little more than an issue link
+	 * carries all of its meaning there, and dropping that context made this
+	 * pass regress such titles to a generic restatement of the link. The
+	 * incumbent title is passed along too, so the model only replaces it when
+	 * the completed turn is genuinely more informative.
+	 *
 	 * Only normal text response parts are considered (tool calls, reasoning,
 	 * and other parts are ignored). If the context still exceeds the budget
 	 * the middle is removed (marked with `...`). The user's first request is
@@ -225,15 +249,15 @@ export class AgentHostSessionTitleController extends Disposable {
 			if (lastApplied === undefined || chatState.title !== lastApplied) {
 				return;
 			}
-			const context = this._buildFirstTurnContext(chatState.turns[0]);
+			const turn = chatState.turns[0];
+			const context = this._buildFirstTurnContext(turn);
 			if (!context) {
 				return;
 			}
 			const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
 			this._generateTitleSoon(
 				chatChannel,
-				context,
-				true,
+				{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
 				lastApplied,
 				apply,
 				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
@@ -250,7 +274,8 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (lastApplied === undefined || state.title !== lastApplied) {
 			return;
 		}
-		const context = this._buildFirstTurnContext(state.turns[0]);
+		const turn = state.turns[0];
+		const context = this._buildFirstTurnContext(turn);
 		if (!context) {
 			return;
 		}
@@ -260,8 +285,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}));
 		this._generateTitleSoon(
 			channel,
-			context,
-			true,
+			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
 			lastApplied,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
@@ -298,8 +322,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			const apply = (title: string) => this._applyTitle(key, title, t => this._stateManager.updateChatTitle(channel, key, t));
 			this._generateTitleSoon(
 				key,
-				context,
-				true,
+				{ content: context, isConversation: true },
 				fallbackTitle,
 				apply,
 				() => this._stateManager.getChatState(key)?.title === this._lastAppliedTitle.get(key),
@@ -315,8 +338,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}));
 		this._generateTitleSoon(
 			channel,
-			context,
-			true,
+			{ content: context, isConversation: true },
 			fallbackTitle,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
@@ -335,8 +357,7 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	private _generateTitleSoon(
 		key: ProtocolURI,
-		promptContent: string,
-		isConversation: boolean,
+		prompt: ITitlePromptContext,
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
@@ -345,7 +366,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		this._cancelTitleGeneration(key);
 		const source = new CancellationTokenSource();
 		this._titleGenerationCancellationSources.set(key, source);
-		void this._generateTitle(key, promptContent, isConversation, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
+		void this._generateTitle(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
 			if (!source.token.isCancellationRequested) {
 				this._logService.warn(`[AgentHostSessionTitleController] Failed to apply generated title for ${key}`, err);
 			}
@@ -359,15 +380,14 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	private async _generateTitle(
 		key: ProtocolURI,
-		promptContent: string,
-		isConversation: boolean,
+		prompt: ITitlePromptContext,
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
 		persist: (title: string) => void,
 		token: CancellationToken,
 	): Promise<void> {
-		const generatedTitle = await this._generateTitleFromPrompt(promptContent, isConversation, token);
+		const generatedTitle = await this._generateTitleFromPrompt(prompt, token);
 		if (token.isCancellationRequested || !generatedTitle) {
 			return;
 		}
@@ -382,7 +402,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		persist(generatedTitle);
 	}
 
-	private async _generateTitleFromPrompt(promptContent: string, isConversation: boolean, token: CancellationToken): Promise<string | undefined> {
+	private async _generateTitleFromPrompt(prompt: ITitlePromptContext, token: CancellationToken): Promise<string | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -396,14 +416,14 @@ export class AgentHostSessionTitleController extends Disposable {
 		const abortController = new AbortController();
 		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 		try {
-			const titlePromptContent = isConversation
-				? promptContent
-				: await this._appendGitHubContext(promptContent, abortController.signal, token);
+			const titlePromptContent = prompt.gitHubReferenceSource === undefined
+				? prompt.content
+				: await this._appendGitHubContext(prompt.content, prompt.gitHubReferenceSource, abortController.signal, token);
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
 			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
-				messages: this._buildTitlePrompt(titlePromptContent, isConversation),
+				messages: this._buildTitlePrompt(titlePromptContent, prompt),
 				maxTokens: MAX_TITLE_TOKENS,
 			}, {
 				signal: abortController.signal,
@@ -420,8 +440,14 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 	}
 
-	private async _appendGitHubContext(promptContent: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
-		const references = this._parseGitHubReferences(promptContent);
+	/**
+	 * Appends the title and body of every GitHub issue / pull request linked
+	 * from `referenceSource` to `promptContent`. The two differ when titling a
+	 * conversation: the links are taken from the user's request alone, while
+	 * the enriched text is the whole conversation.
+	 */
+	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
+		const references = this._parseGitHubReferences(referenceSource);
 		const githubToken = this._options.getGitHubToken?.();
 		const octoKitService = this._options.octoKitService;
 		if (references.length === 0 || !githubToken || !octoKitService) {
@@ -517,10 +543,14 @@ export class AgentHostSessionTitleController extends Disposable {
 		].join('\n');
 	}
 
-	private _buildTitlePrompt(promptContent: string, isConversation: boolean): ICopilotUtilityChatMessage[] {
-		const userInstruction = isConversation
+	private _buildTitlePrompt(promptContent: string, prompt: ITitlePromptContext): ICopilotUtilityChatMessage[] {
+		const request = prompt.isConversation
 			? `Please write a brief title for the following conversation:\n\n${promptContent}`
 			: `Please write a brief title for the following request:\n\n${promptContent}`;
+		const currentTitle = prompt.currentTitle?.trim();
+		const userInstruction = currentTitle
+			? `${request}\n\nIts current title is: ${currentTitle}\nReply with that same title unless the text above supports a clearly more accurate one.`
+			: request;
 		return [
 			{
 				role: 'system',
