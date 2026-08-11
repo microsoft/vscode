@@ -17,7 +17,7 @@ suite('Win32UpdateService - relaunch arguments', () => {
 	}
 
 	function getArguments(overrides: Partial<NativeParsedArgs>, rawArgs: readonly string[] = []): string {
-		return getRelaunchArguments(args(overrides), rawArgs);
+		return getRelaunchArguments(args(overrides), rawArgs, 'C:\\cwd');
 	}
 
 	test('quoteWindowsArgument', () => {
@@ -93,5 +93,24 @@ suite('Win32UpdateService - relaunch arguments', () => {
 		});
 
 		assert.strictEqual(result, '');
+	});
+
+	test('resolves relative path arguments against the current working directory', () => {
+		const result = getArguments({
+			'extensions-dir': '.\\extensions',
+			'user-data-dir': '..\\data',
+			'trace-startup-file': 'trace.json',
+			'locale': 'de'
+		});
+
+		assert.strictEqual(result, '--user-data-dir=C:\\data --extensions-dir=C:\\cwd\\extensions --locale=de --trace-startup-file=C:\\cwd\\trace.json');
+	});
+
+	test('ignores negated flags that appear after the end-of-options marker', () => {
+		const result = getArguments({
+			'extensions-dir': 'C:\\ext'
+		}, ['--no-proxy-server', '--', '--no-sandbox']);
+
+		assert.strictEqual(result, '--extensions-dir=C:\\ext --no-proxy-server');
 	});
 });

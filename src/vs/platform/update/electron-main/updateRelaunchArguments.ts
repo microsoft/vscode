@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { win32 } from '../../../base/common/path.js';
+import { cwd } from '../../../base/common/process.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 
 /**
@@ -73,6 +75,24 @@ const RELAUNCH_NEGATED_FLAG_ARGUMENTS = [
 ] as const;
 
 /**
+ * Subset of {@link RELAUNCH_STRING_ARGUMENTS} whose values are file system paths. The installer relaunches the
+ * application from the install directory, so relative values would resolve against a different working directory and
+ * must be made absolute before they are carried forward.
+ */
+const RELAUNCH_PATH_ARGUMENTS: ReadonlySet<keyof NativeParsedArgs> = new Set([
+	'user-data-dir',
+	'extensions-dir',
+	'builtin-extensions-dir',
+	'extensions-download-dir',
+	'shared-data-dir',
+	'agents-user-data-dir',
+	'agents-extensions-dir',
+	'agent-plugins-dir',
+	'crash-reporter-directory',
+	'trace-startup-file',
+]);
+
+/**
  * Quotes a single argument per `CommandLineToArgvW` rules so it survives being appended to the relaunched `Code.exe`
  * command line even when it contains spaces or quotes (e.g. a path).
  */
@@ -100,16 +120,25 @@ export function quoteWindowsArgument(arg: string): string {
 }
 
 /**
+ * Resolves a path-valued argument against the current working directory of this process, so it keeps pointing at the
+ * same location once the installer relaunches the application from the install directory. Windows path semantics are
+ * used explicitly because these arguments are only ever consumed by the Windows installer.
+ */
+function toAbsolutePath(value: string, currentWorkingDirectory: string): string {
+	return win32.isAbsolute(value) ? value : win32.resolve(currentWorkingDirectory, value);
+}
+
+/**
  * Builds the Windows-quoted command line tail carrying the curated persistent arguments forward across an update
  * relaunch. Returns an empty string when there are no such arguments.
  */
-export function getRelaunchArguments(args: NativeParsedArgs, rawArgs: readonly string[]): string {
+export function getRelaunchArguments(args: NativeParsedArgs, rawArgs: readonly string[], currentWorkingDirectory: string = cwd()): string {
 	const argv: string[] = [];
 
 	for (const key of RELAUNCH_STRING_ARGUMENTS) {
 		const value = args[key];
 		if (typeof value === 'string' && value.length > 0) {
-			argv.push(`--${key}=${value}`);
+			argv.push(`--${key}=${RELAUNCH_PATH_ARGUMENTS.has(key) ? toAbsolutePath(value, currentWorkingDirectory) : value}`);
 		}
 	}
 
@@ -119,8 +148,13 @@ export function getRelaunchArguments(args: NativeParsedArgs, rawArgs: readonly s
 		}
 	}
 
+	// Everything after the `--` end-of-options marker is a positional argument (e.g. a file literally named
+	// `--no-sandbox`) and must not be mistaken for a switch the user opted into.
+	const endOfOptions = rawArgs.indexOf('--');
+	const rawOptions = endOfOptions === -1 ? rawArgs : rawArgs.slice(0, endOfOptions);
+
 	for (const key of RELAUNCH_NEGATED_FLAG_ARGUMENTS) {
-		if (rawArgs.includes(`--${key}`)) {
+		if (rawOptions.includes(`--${key}`)) {
 			argv.push(`--${key}`);
 		}
 	}
