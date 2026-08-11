@@ -123,4 +123,22 @@ suite('Chat Accessibility Help', () => {
 			panelChat: false,
 		});
 	});
+
+	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			quickChat: false,
+		});
+	});
 });
