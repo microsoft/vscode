@@ -35,6 +35,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 const STATEFUL_MARKER_MIME_TYPE = 'stateful_marker';
 const USAGE_MIME_TYPE = 'usage';
 const REASONING_METADATA_PREFIX = 'vscode-reasoning-metadata:';
+const VSCODE_REASONING_SUMMARY_PART_DONE = 'vscode_reasoning_summary_part_done';
 const CLIENT_BYOK_CONTEXT_KEYS = new Set([ChatEntitlementContextKeys.clientByokEnabled.key]);
 
 /**
@@ -106,6 +107,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 
 			const output: IByokLmOutputItem[] = [];
 			const customToolNames = new Set(request.tools?.filter(tool => tool.type === 'custom').map(tool => tool.name));
+			const completedReasoningSummaryParts = new Set<string | undefined>();
 			let responseId: string | undefined;
 			let usage: IByokLmChatResult['usage'];
 			const streaming = (async () => {
@@ -115,7 +117,12 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 						if (p.type === 'text') {
 							this._appendTextOutput(output, p.value);
 						} else if (p.type === 'thinking') {
-							this._appendReasoningOutput(output, p);
+							if (p.metadata?.[VSCODE_REASONING_SUMMARY_PART_DONE] === true) {
+								completedReasoningSummaryParts.add(p.id);
+							} else {
+								const startsNewSummaryPart = p.value.length > 0 && completedReasoningSummaryParts.delete(p.id);
+								this._appendReasoningOutput(output, p, startsNewSummaryPart);
+							}
 						} else if (p.type === 'tool_use') {
 							if (customToolNames.has(p.name)) {
 								output.push({
@@ -333,7 +340,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		}
 	}
 
-	private _appendReasoningOutput(output: IByokLmOutputItem[], part: Extract<IChatMessagePart, { type: 'thinking' }>): void {
+	private _appendReasoningOutput(output: IByokLmOutputItem[], part: Extract<IChatMessagePart, { type: 'thinking' }>, startsNewSummaryPart: boolean): void {
 		if (part.metadata?.vscode_reasoning_done === true) {
 			return;
 		}
@@ -350,13 +357,22 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (previous?.type === 'reasoning' && previous.id === reasoning.id) {
 			output[output.length - 1] = {
 				...previous,
-				summary: [...previous.summary, ...reasoning.summary],
+				summary: startsNewSummaryPart || Array.isArray(part.value)
+					? [...previous.summary, ...reasoning.summary]
+					: this._mergeReasoningSummary(previous.summary, part.value),
 				encryptedContent: reasoning.encryptedContent ?? previous.encryptedContent,
 				metadata: previous.metadata || reasoning.metadata ? { ...previous.metadata, ...reasoning.metadata } : undefined,
 			};
 		} else {
 			output.push(reasoning);
 		}
+	}
+
+	private _mergeReasoningSummary(summary: readonly string[], value: string): string[] {
+		if (summary.length === 0) {
+			return [value];
+		}
+		return [...summary.slice(0, -1), summary[summary.length - 1] + value];
 	}
 
 	private _encodeReasoningMetadata(metadata: Readonly<Record<string, unknown>> | undefined): string | undefined {

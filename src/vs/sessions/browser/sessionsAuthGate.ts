@@ -52,6 +52,11 @@ export function shouldForceGitHubSignIn(allowSignedOutWhenUsable: boolean): bool
 	return !allowSignedOutWhenUsable;
 }
 
+/** Whether the GitHub workspace group should offer sign-in. */
+export function shouldShowGitHubWorkspaceGroupSignIn(signedIn: boolean, allowSignedOutWhenUsable: boolean): boolean {
+	return !signedIn && allowSignedOutWhenUsable;
+}
+
 /**
  * How the conditional-auth UI should treat the current default-account snapshot.
  * The crucial distinction is {@link Unresolved}: on startup

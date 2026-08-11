@@ -14,9 +14,151 @@ export const OmniChatEnabledSettingId = 'chat.omni.enabled';
 
 /** Existing sessions must exceed this confidence to be shown or selected. */
 export const SESSION_ROUTE_CONFIDENCE_THRESHOLD = 0.8;
+export const COMMAND_INTENT_CONFIDENCE_THRESHOLD = 0.8;
+export const COMMAND_INTENT_MAX_CANDIDATES = 80;
+const COMMAND_INTENT_LABEL_CLIP_LENGTH = 120;
+const commandIntentSegmenter = typeof Intl.Segmenter === 'function'
+	? new Intl.Segmenter(undefined, { granularity: 'word' })
+	: undefined;
 
 export function isHighConfidenceSessionRoute(result: ISessionRouteResult): boolean {
 	return result.confidence > SESSION_ROUTE_CONFIDENCE_THRESHOLD;
+}
+
+export function isHighConfidenceCommandIntent(result: ICommandIntentResult): result is ICommandIntentCommandResult {
+	return result.kind === 'command' && result.confidence > COMMAND_INTENT_CONFIDENCE_THRESHOLD;
+}
+
+export interface ICommandIntentCandidate {
+	readonly commandId: string;
+	readonly label: string;
+}
+
+export interface ICommandIntentRequest {
+	readonly utterance: string;
+	readonly commands: readonly ICommandIntentCandidate[];
+}
+
+const omniCommandIntentAllowlist = new Set([
+	'workbench.action.focusAuxiliaryBar',
+	'workbench.action.focusPanel',
+	'workbench.action.focusSideBar',
+	'workbench.action.openGlobalKeybindings',
+	'workbench.action.openSettings',
+	'workbench.action.quickOpen',
+	'workbench.action.selectIconTheme',
+	'workbench.action.selectProductIconTheme',
+	'workbench.action.selectTheme',
+	'workbench.action.showCommands',
+	'workbench.action.terminal.toggleTerminal',
+	'workbench.action.toggleAuxiliaryBar',
+	'workbench.action.toggleFullScreen',
+	'workbench.action.togglePanel',
+	'workbench.action.toggleSidebarVisibility',
+	'workbench.action.toggleZenMode',
+]);
+
+const omniCommandIntentPhrases = new Map<string, readonly string[]>([
+	['workbench.action.focusAuxiliaryBar', ['focus auxiliary bar', 'focus secondary side bar', 'focus secondary sidebar']],
+	['workbench.action.focusPanel', ['focus panel']],
+	['workbench.action.focusSideBar', ['focus primary side bar', 'focus primary sidebar', 'focus side bar', 'focus sidebar']],
+	['workbench.action.openGlobalKeybindings', ['open keyboard shortcuts', 'show keyboard shortcuts']],
+	['workbench.action.openSettings', ['open settings', 'show settings']],
+	['workbench.action.quickOpen', ['open quick open', 'quick open']],
+	['workbench.action.selectTheme', ['change theme', 'change color theme', 'choose theme', 'choose color theme', 'select theme', 'select color theme', 'switch theme', 'switch color theme']],
+	['workbench.action.selectIconTheme', ['change file icon theme', 'choose file icon theme', 'select file icon theme', 'switch file icon theme']],
+	['workbench.action.selectProductIconTheme', ['change product icon theme', 'choose product icon theme', 'select product icon theme', 'switch product icon theme']],
+	['workbench.action.showCommands', ['open command palette', 'show command palette']],
+	['workbench.action.terminal.toggleTerminal', ['toggle terminal']],
+	['workbench.action.toggleAuxiliaryBar', ['toggle auxiliary bar', 'toggle secondary side bar', 'toggle secondary sidebar']],
+	['workbench.action.toggleFullScreen', ['toggle full screen', 'toggle fullscreen']],
+	['workbench.action.togglePanel', ['toggle panel']],
+	['workbench.action.toggleSidebarVisibility', ['toggle primary side bar', 'toggle primary sidebar', 'toggle side bar', 'toggle sidebar']],
+	['workbench.action.toggleZenMode', ['toggle zen mode']],
+]);
+
+export function filterOmniCommandIntentCandidates(commands: readonly ICommandIntentCandidate[]): ICommandIntentCandidate[] {
+	return commands.filter(command => omniCommandIntentAllowlist.has(command.commandId));
+}
+
+export interface ICommandIntentCommandResult {
+	readonly kind: 'command';
+	readonly commandId: string;
+	readonly confidence: number;
+	readonly reason?: string;
+}
+
+export interface ICommandIntentChatResult {
+	readonly kind: 'chat';
+}
+
+export type ICommandIntentResult = ICommandIntentCommandResult | ICommandIntentChatResult;
+
+export function selectCommandIntentCandidates(
+	utterance: string,
+	commands: readonly ICommandIntentCandidate[],
+	limit: number = COMMAND_INTENT_MAX_CANDIDATES,
+): ICommandIntentCandidate[] {
+	const utteranceTerms = new Set(tokenizeCommandIntent(utterance));
+	if (!utteranceTerms.size) {
+		return [];
+	}
+	return commands
+		.map(command => {
+			const commandTerms = new Set(tokenizeCommandIntent(command.label));
+			let matches = 0;
+			for (const term of commandTerms) {
+				if (utteranceTerms.has(term)) {
+					matches++;
+				}
+			}
+			const coverage = commandTerms.size ? matches / commandTerms.size : 0;
+			const precision = matches / utteranceTerms.size;
+			return { command, score: matches * 4 + coverage * 2 + precision };
+		})
+		.filter(candidate => candidate.score > 0)
+		.sort((a, b) => b.score - a.score
+			|| a.command.label.localeCompare(b.command.label)
+			|| a.command.commandId.localeCompare(b.command.commandId))
+		.slice(0, limit)
+		.map(candidate => candidate.command);
+}
+
+export function detectExactCommandTitleIntent(utterance: string, commands: readonly ICommandIntentCandidate[]): ICommandIntentCommandResult | undefined {
+	const utteranceTerms = tokenizeCommandIntent(utterance);
+	if (!utteranceTerms.length) {
+		return undefined;
+	}
+	const exactTitleMatches = commands.filter(command => {
+		const titleSeparator = command.label.indexOf(':');
+		const title = titleSeparator >= 0 ? command.label.slice(titleSeparator + 1) : command.label;
+		const titleTerms = tokenizeCommandIntent(title);
+		return titleTerms.length === utteranceTerms.length && titleTerms.every((term, index) => term === utteranceTerms[index]);
+	});
+	if (exactTitleMatches.length === 1) {
+		return {
+			kind: 'command',
+			commandId: exactTitleMatches[0].commandId,
+			confidence: 1,
+			reason: 'Exact command title match',
+		};
+	}
+	if (exactTitleMatches.length > 1) {
+		return undefined;
+	}
+	const phraseMatches = commands.filter(command => omniCommandIntentPhrases.get(command.commandId)?.some(phrase => {
+		const phraseTerms = tokenizeCommandIntent(phrase);
+		return phraseTerms.length === utteranceTerms.length && phraseTerms.every((term, index) => term === utteranceTerms[index]);
+	}));
+	if (new Set(phraseMatches.map(command => command.commandId)).size !== 1) {
+		return undefined;
+	}
+	return {
+		kind: 'command',
+		commandId: phraseMatches[0].commandId,
+		confidence: 1,
+		reason: 'Exact built-in command phrase match',
+	};
 }
 
 /**
@@ -73,6 +215,12 @@ export interface ISessionRouter {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * First determine whether the utterance asks to run an available VS Code
+	 * command. Chat intent continues to session routing.
+	 */
+	detectIntent(request: ICommandIntentRequest, token: CancellationToken): Promise<ICommandIntentResult>;
+
+	/**
 	 * Rank the candidate sessions for the given utterance, best match first.
 	 * Returns no matches when model scoring is unavailable so callers safely
 	 * create a new session instead of guessing from lexical overlap.
@@ -86,6 +234,90 @@ export interface ISessionRouter {
 export interface ISessionRouterMessage {
 	readonly role: 'system' | 'user';
 	readonly content: string;
+}
+
+export function buildCommandIntentMessages(request: ICommandIntentRequest): ISessionRouterMessage[] {
+	const commandLines = request.commands
+		.slice(0, COMMAND_INTENT_MAX_CANDIDATES)
+		.map((command, index) => `- candidate=c${index} title=${JSON.stringify(clip(command.label, COMMAND_INTENT_LABEL_CLIP_LENGTH))}`)
+		.join('\n');
+	const system = [
+		'Determine whether the user wants to run one available VS Code command or continue to a coding chat.',
+		'Choose command only for a clear application or editor action that exactly matches one listed command and needs no arguments.',
+		'An imperative directive that controls the VS Code user interface is command intent when a matching command is listed. This includes opening, closing, showing, hiding, toggling, focusing, or navigating VS Code views, panels, editors, and settings UI.',
+		'For a direct match such as "toggle terminal" with a listed Toggle Terminal command, choose command with high confidence.',
+		'Changing the VS Code color theme, file icon theme, or product icon theme through a listed theme picker is command intent.',
+		'Distinguish UI directives from coding tasks: "toggle terminal" is command, while "fix terminal toggling" is chat.',
+		'Questions, explanations, coding tasks, repository work, file edits, debugging, and requests that need command arguments are chat.',
+		'When uncertain, choose chat.',
+		'Respond with ONLY one JSON object and no prose:',
+		'{"intent":"command","candidate":string,"confidence":number,"reason":string}',
+		'or {"intent":"chat"}.',
+	].join('\n');
+	return [
+		{ role: 'system', content: system },
+		{ role: 'user', content: `Request: ${JSON.stringify(request.utterance)}\nAvailable commands:\n${commandLines}` },
+	];
+}
+
+function tokenizeCommandIntent(text: string): string[] {
+	const normalized = text
+		.replace(/([\p{Ll}\p{Nd}])([\p{Lu}])/gu, '$1 $2')
+		.replace(/\bvs\s+code\b/giu, 'vscode')
+		.toLocaleLowerCase();
+	const terms = commandIntentSegmenter
+		? [...commandIntentSegmenter.segment(normalized)]
+			.filter(segment => segment.isWordLike)
+			.map(segment => segment.segment)
+		: normalized.split(/[^\p{L}\p{N}]+/u);
+	return terms
+		.map(term => term.trim())
+		.filter(term => term.length > 0 && (term.length > 1 || /[^\x00-\x7f]/.test(term)))
+		.filter(term => !COMMAND_INTENT_STOP_WORDS.has(term));
+}
+
+const COMMAND_INTENT_STOP_WORDS = new Set([
+	'action', 'and', 'can', 'command', 'could', 'execute', 'for', 'in', 'my', 'of', 'on', 'please', 'run', 'the', 'to', 'vscode', 'want', 'workbench', 'would',
+]);
+
+export function parseCommandIntentResponse(text: string, commands: readonly ICommandIntentCandidate[]): ICommandIntentResult | undefined {
+	const start = text.indexOf('{');
+	const end = text.lastIndexOf('}');
+	if (start < 0 || end <= start) {
+		return undefined;
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text.slice(start, end + 1));
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	const record = parsed as Record<string, unknown>;
+	if (record.intent === 'chat') {
+		return { kind: 'chat' };
+	}
+	if (record.intent !== 'command'
+		|| typeof record.candidate !== 'string'
+		|| typeof record.confidence !== 'number'
+		|| !isFinite(record.confidence)) {
+		return undefined;
+	}
+	const candidateMatch = /^c(?<index>\d+)$/.exec(record.candidate);
+	const candidateIndex = candidateMatch?.groups?.index ? Number(candidateMatch.groups.index) : NaN;
+	const command = commands[candidateIndex];
+	if (!command) {
+		return undefined;
+	}
+	return {
+		kind: 'command',
+		commandId: command.commandId,
+		confidence: Math.max(0, Math.min(1, record.confidence)),
+		reason: typeof record.reason === 'string' ? record.reason : undefined,
+	};
 }
 
 /**
