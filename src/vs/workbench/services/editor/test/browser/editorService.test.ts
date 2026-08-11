@@ -15,7 +15,7 @@ import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
 import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from '../../common/editorService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { FileEditorInput } from '../../../../contrib/files/browser/editors/fileEditorInput.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { FileOperationEvent, FileOperation } from '../../../../../platform/files/common/files.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -2367,6 +2367,46 @@ suite('EditorService', () => {
 			executable: false,
 			children: undefined
 		}));
+		await activeEditorChangePromise;
+
+		assert.strictEqual(part.activeGroup.activeEditor, movedInput);
+	});
+
+	test('file move waits for input replacement before handling delete', async function () {
+		const [part, service, accessor] = await createEditorService();
+		const resource = URI.parse('my://resource1');
+		const target = URI.parse('my://resource2');
+		const movedInput = createTestFileEditorInput(target, TEST_EDITOR_INPUT_ID);
+		const renameBarrier = new DeferredPromise<void>();
+		const input = disposables.add(new class extends TestFileEditorInput {
+			override async rename() {
+				await renameBarrier.p;
+				return { editor: movedInput };
+			}
+		}(resource, TEST_EDITOR_INPUT_ID));
+		await service.openEditor(input, { pinned: true });
+
+		const activeEditorChangePromise = awaitActiveEditorChange(service);
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, {
+			resource: target,
+			ctime: 0,
+			etag: '',
+			isDirectory: false,
+			isFile: true,
+			mtime: 0,
+			name: 'resource2',
+			size: 0,
+			isSymbolicLink: false,
+			readonly: false,
+			locked: false,
+			executable: false,
+			children: undefined
+		}));
+		await timeout(0);
+
+		assert.strictEqual(input.gotDisposed, false);
+
+		renameBarrier.complete();
 		await activeEditorChangePromise;
 
 		assert.strictEqual(part.activeGroup.activeEditor, movedInput);

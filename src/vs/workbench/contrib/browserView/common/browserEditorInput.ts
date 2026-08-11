@@ -81,7 +81,7 @@ export class BrowserEditorInput extends EditorInput {
 	static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
-	private _associatedResource: URI | undefined;
+	private readonly _associatedResource: URI | undefined;
 	private _initialData: IBrowserEditorInputData;
 
 	private _model: IBrowserViewModel | undefined;
@@ -154,15 +154,8 @@ export class BrowserEditorInput extends EditorInput {
 		return this._id;
 	}
 
-	setAssociatedResource(resource: URI): void {
-		if (this._associatedResource && !isEqual(this._associatedResource, resource)) {
-			throw new Error(`Browser editor ${this._id} is already associated with another resource.`);
-		}
-		if (this._associatedResource) {
-			return;
-		}
-		this._associatedResource = resource;
-		this._onDidChangeLabel.fire();
+	get associatedResource(): URI | undefined {
+		return this._associatedResource;
 	}
 
 	get url(): string | undefined {
