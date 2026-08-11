@@ -594,14 +594,14 @@ suite('ExternalIngestIndex search 404 handling', () => {
 		return Promise.all([vi.runAllTimersAsync(), promise]).then(([, result]) => result);
 	}
 
-	test('returns empty result when the fileset is still not ready (404) after the retry', async () => {
+	test('returns index-not-ready (undefined) when the fileset is still not ready (404) after the retry', async () => {
 		const { index, mockClient } = setupIndex({
 			onSearchFilesets: async () => { throw createRequestError(404); },
 		});
 
 		const result = await runSearch(index);
 
-		assert.deepStrictEqual({ result, searchCallCount: mockClient.searchCalls.length }, { result: [], searchCallCount: 2 });
+		assert.deepStrictEqual({ result, searchCallCount: mockClient.searchCalls.length }, { result: undefined, searchCallCount: 2 });
 	});
 
 	test('rethrows when the retry fails with a non-404 error so the catch does not broaden silently', async () => {
