@@ -179,7 +179,13 @@ suite('resolveSdkTarget', () => {
  * These run against whatever `process.platform` the test host is — the
  * pure `resolveSdkTarget` suite above covers the cross-host matrix.
  */
-suite('AgentSdkDownloader', () => {
+suite('AgentSdkDownloader', function () {
+
+	// These tests do real HTTP downloads and gzip tar extraction against a
+	// loopback server. On Windows CI that work regularly exceeds mocha's
+	// 2000ms default and produces flaky timeouts, so give the whole suite
+	// headroom (the cancel test opts into an even longer timeout locally).
+	this.timeout(20_000);
 
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
