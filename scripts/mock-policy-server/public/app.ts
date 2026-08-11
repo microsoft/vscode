@@ -448,6 +448,10 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 				setStatus('Load a schema first.', 'error');
 				return;
 			}
+			const endpoint = activeEndpoint();
+			if (endpoint) {
+				endpoint.status = 200;
+			}
 			editor.value = JSON.stringify(hydrateFromSchema(schema), null, '\t');
 			drafts[activeId] = editor.value;
 			saveDrafts();
