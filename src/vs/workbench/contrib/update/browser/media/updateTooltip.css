@@ -97,7 +97,7 @@
 .update-tooltip .release-notes-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
-	border: 1px solid var(--vscode-button-border, transparent);
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
 }
 
 .update-tooltip .release-notes-button:hover {
