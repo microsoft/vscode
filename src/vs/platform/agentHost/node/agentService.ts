@@ -1632,6 +1632,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
+		await this._checkpointService.discardChatTurnStartCheckpoints(session, chat);
 		this._sideEffects.clearQueuedMessageSenders(chat.toString());
 		this._sideEffects.cancelSubagentSessions(chat.toString());
 		this._sideEffects.clearChannelTelemetry(chat.toString());

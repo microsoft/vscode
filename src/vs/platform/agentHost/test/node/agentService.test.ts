@@ -4111,6 +4111,8 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('disposeChat removes the chat from the catalog and tears down the chat', async () => {
 			const disposed: string[] = [];
+			const cleanupStarted = new DeferredPromise<void>();
+			const releaseCleanup = new DeferredPromise<void>();
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, _chat: URI): Promise<void> { }
 				override async disposeChat(_session: URI, chat: URI): Promise<void> {
@@ -4122,8 +4124,26 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await service.createChat(session, chatUri);
+			const originalDiscard = service.checkpointService.discardChatTurnStartCheckpoints.bind(service.checkpointService);
+			disposables.add(toDisposable(() => service.checkpointService.discardChatTurnStartCheckpoints = originalDiscard));
+			service.checkpointService.discardChatTurnStartCheckpoints = async (checkpointSession, checkpointChat) => {
+				assert.deepStrictEqual({
+					session: checkpointSession.toString(),
+					chat: checkpointChat.toString(),
+				}, {
+					session: session.toString(),
+					chat: chatUri.toString(),
+				});
+				cleanupStarted.complete();
+				await releaseCleanup.p;
+				await originalDiscard(checkpointSession, checkpointChat);
+			};
 
-			await service.disposeChat(session, chatUri);
+			const disposing = service.disposeChat(session, chatUri);
+			await cleanupStarted.p;
+			assert.strictEqual(service.stateManager.getSessionState(session.toString())?.chats.some(c => c.resource.toString() === chatUri.toString()), true);
+			releaseCleanup.complete();
+			await disposing;
 
 			const state = service.stateManager.getSessionState(session.toString());
 			assert.deepStrictEqual({
