@@ -136,6 +136,7 @@ jobs:
       - script: npm run download-builtin-extensions-cg
         displayName: Download component details of built-in extensions
         continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
       - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
         displayName: "Component Detection"
@@ -143,13 +144,16 @@ jobs:
           sourceScanPath: $(Build.SourcesDirectory)
           alertWarningLevel: Medium
         continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
       - task: notice@0
         displayName: "Generate ThirdPartyNotices (CG)"
         inputs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
         retryCountOnTaskFailure: 3
+        timeoutInMinutes: 10
         continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
       # =========================================================================
       # Cached-NOTICE fallback
@@ -195,6 +199,7 @@ jobs:
           fi
         displayName: "Cache: detect whether CG NOTICE needs fallback"
         continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 
       - task: DownloadBuildArtifacts@1
         displayName: "Cache: download last good NOTICE (same branch)"
@@ -217,7 +222,7 @@ jobs:
             **/notice-meta.txt
           downloadPath: $(Pipeline.Workspace)/cached-notice-branch
         continueOnError: true
-        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), ne(variables.CG_NOTICE_OK, 'true'))
 
       - task: DownloadBuildArtifacts@1
         displayName: "Cache: download last good NOTICE (main fallback)"
@@ -236,7 +241,7 @@ jobs:
             **/notice-meta.txt
           downloadPath: $(Pipeline.Workspace)/cached-notice-main
         continueOnError: true
-        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), ne(variables.CG_NOTICE_OK, 'true'), ne(variables['Build.SourceBranch'], 'refs/heads/main'))
 
       - script: |
           set -u
@@ -290,7 +295,7 @@ jobs:
           echo "##vso[task.setvariable variable=NOTICE_FROM_CACHE]none"
         displayName: "Cache: apply NOTICE fallback if CG failed"
         continueOnError: true
-        condition: and(succeeded(), ne(variables.CG_NOTICE_OK, 'true'))
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), ne(variables.CG_NOTICE_OK, 'true'))
 
       - script: |
           set -u
@@ -341,7 +346,7 @@ jobs:
           fi
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$META_OUT"
         displayName: "Upload CG NOTICE artifact (fresh or carried-forward)"
-        condition: and(succeeded(), or(eq(variables.CG_NOTICE_OK, 'true'), in(variables.NOTICE_FROM_CACHE, 'branch', 'main')))
+        condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'), or(eq(variables.CG_NOTICE_OK, 'true'), in(variables.NOTICE_FROM_CACHE, 'branch', 'main')))
         continueOnError: true
 
       - script: |
@@ -362,6 +367,7 @@ jobs:
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
           echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
         displayName: "Build merged NOTICE (scan extensions + merge into .new.txt)"
+        timeoutInMinutes: 10
         continueOnError: true
 
       - task: AzureCLI@2

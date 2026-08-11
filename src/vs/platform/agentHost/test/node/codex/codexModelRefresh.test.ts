@@ -14,8 +14,9 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
@@ -36,7 +37,9 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Pr
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
+	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
@@ -87,6 +90,31 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')]);
 	});
 
+	test('applies authentication received while the connection is starting to the proxy', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_queueModelRefresh'] = async () => { };
+		agent['_refreshProviderConfiguration'] = async () => { };
+
+		const appliedTokens: string[] = [];
+		const ready = {
+			client: { dispose() { } },
+			proxyHandle: {
+				setToken: (token: string) => appliedTokens.push(token),
+				dispose() { },
+			},
+			child: { kill: () => true },
+		};
+		let resolveStart!: (value: typeof ready) => void;
+		agent['_startConnection'] = () => new Promise<typeof ready>(resolve => resolveStart = resolve) as never;
+
+		const connection = agent['_ensureConnection']();
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token-arriving-during-start');
+		resolveStart(ready);
+		await connection;
+
+		assert.deepStrictEqual(appliedTokens, ['token-arriving-during-start']);
+	});
+
 	test('surfaces current ChatGPT subscription models under the ChatGPT provider', async () => {
 		const agent = createAgent(disposables, async () => []);
 		agent['_connection'] = {
@@ -115,10 +143,12 @@ suite('CodexAgent model refresh', () => {
 			provider: model.provider,
 			id: model.id,
 			name: model.name,
+			meta: model._meta,
 		})), [{
 			provider: 'chatgpt',
 			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 			name: 'GPT-5.6-Sol',
+			meta: { modelSourceId: 'chatgptSubscription' },
 		}]);
 	});
 
@@ -166,9 +196,70 @@ suite('CodexAgent model refresh', () => {
 
 		await agent['_refreshCodexModels']();
 
-		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id })), [{
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, id: model.id, meta: model._meta })), [{
 			provider: 'custom-provider',
 			id: toCodexModelSelectionId('custom-provider', 'gpt-5.6-sol'),
+			meta: undefined,
+		}]);
+	});
+
+	test('does not treat a custom provider named chatgpt as a ChatGPT subscription', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'apiKey' }, requiresOpenaiAuth: false };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'chatgpt' } };
+					}
+					if (method === 'model/list') {
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent['_refreshCodexModels']();
+
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
+			provider: 'chatgpt',
+			meta: undefined,
+		}]);
+	});
+
+	test('does not relabel a custom provider when ChatGPT authentication is available', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: false };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'custom-provider' } };
+					}
+					if (method === 'model/list') {
+						return modelListResponse;
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent['_refreshCodexModels']();
+
+		assert.deepStrictEqual(agent['_codexModels'].map(model => ({ provider: model.provider, meta: model._meta })), [{
+			provider: 'custom-provider',
+			meta: undefined,
 		}]);
 	});
 

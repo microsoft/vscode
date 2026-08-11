@@ -212,7 +212,9 @@ suite('LanguageModelAccess model info', () => {
 			_serviceBrand: undefined,
 			resolveAutoModeEndpoint: async () => endpoint,
 			resolveAutoModePickerEndpoint: async () => endpoint,
-			getAutoPickerMetadata: async () => undefined,
+			getAutoPickerMetadata: () => ({ discountRange: { low: 0, high: 0 } }),
+			areAutoModeTiersSupported: () => false,
+			onDidChangeAutoModeTierSupport: Event.None,
 			consumeLastRoutingDecision: () => undefined,
 			invalidateRouterCache: () => { },
 		} as unknown as IAutomodeService);

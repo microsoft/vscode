@@ -315,7 +315,22 @@ export function activeDictationEditor(): ICodeEditor | undefined {
 
 /** Start dictating into `editor`, rendering the transcript live. */
 export async function startDictation(service: IChatSpeechToTextService, editor: ICodeEditor, window: Window & typeof globalThis, logService: ILogService, surface: ChatDictationSurface = 'chat'): Promise<void> {
-	if (_active || service.state !== ChatSpeechToTextState.Idle) {
+	// Already dictating into this exact editor: nothing to do (callers toggle
+	// stopping separately).
+	if (_active?.editor === editor) {
+		return;
+	}
+	// Only one surface can use the shared on-device engine at a time. If a
+	// dictation is already running — in the chat input, another editor, or the
+	// terminal — cancel it so this surface can take over. The previous surface
+	// clears its own state and UI when it observes the engine go Idle, keeping
+	// whatever transcript it had already inserted.
+	if (_active || service.isBusy) {
+		await service.cancel();
+	}
+	// If the engine did not return to Idle (an unexpected busy state), do not
+	// attach this surface's listeners to it.
+	if (service.state !== ChatSpeechToTextState.Idle) {
 		return;
 	}
 	const inserter = new LiveTranscriptInserter(editor, logService);
@@ -488,7 +503,7 @@ export function cancelDictation(): void {
 	// the input exactly as it was before dictation started.
 	active.inserter.revert();
 	active.disposables.dispose();
-	active.service.cancel();
+	void active.service.cancel();
 }
 
 /**

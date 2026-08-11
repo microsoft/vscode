@@ -55,7 +55,13 @@ export function toolSourceKindFromContributor(contributor: ToolCallContributor |
 	}
 }
 
-function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
+/**
+ * Whether `next` is a safe refinement of the currently recorded contributor.
+ * A client contributor may only be refined by the same client, and a client
+ * contributor is never replaced by a non-client one, so execution ownership
+ * cannot be reassigned by a later, less specific signal.
+ */
+export function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
 	if (current?.kind === ToolCallContributorKind.Client) {
 		return next.kind === ToolCallContributorKind.Client && next.clientId === current.clientId;
 	}
@@ -181,6 +187,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
+			toolCallId,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
 			resultSizeInCharacters,
@@ -195,7 +202,6 @@ export class AgentHostToolCallTracker extends Disposable {
 			pending.push(report);
 			this._pendingToolReports.set(turnKey, pending);
 		}
-
 		const stalled = this._stalledToolCalls.get(key);
 		if (stalled) {
 			this._stalledToolCalls.delete(key);

@@ -13,6 +13,7 @@ import type { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkSer
 import {
 	buildServerToolMcpServer,
 	CLAUDE_SERVER_TOOL_MCP_SERVER_NAME,
+	extractServerToolName,
 	serverToolAllowList,
 } from '../../node/claude/claudeServerToolMcpServer.js';
 
@@ -49,7 +50,9 @@ class FakeServerToolHost implements IAgentServerToolHost {
 
 	advertise(): void { }
 
-	requiresConfirmation(_toolName: string): boolean { return false; }
+	canRequireConfirmation(_toolName: string): boolean { return false; }
+
+	requiresConfirmation(_sessionUri: string, _toolName: string): boolean { return false; }
 
 	executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 		this.executions.push({ sessionUri, toolName, rawArgs });
@@ -112,5 +115,17 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			serverToolAllowList(['serverToolA', 'serverToolB']),
 			[`mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__serverToolA`, `mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__serverToolB`],
 		);
+	});
+
+	test('extractServerToolName returns only host MCP tool names', () => {
+		assert.deepStrictEqual({
+			hostTool: extractServerToolName(`mcp__${CLAUDE_SERVER_TOOL_MCP_SERVER_NAME}__serverToolA`),
+			otherMcpTool: extractServerToolName('mcp__other__serverToolA'),
+			bareTool: extractServerToolName('serverToolA'),
+		}, {
+			hostTool: 'serverToolA',
+			otherMcpTool: undefined,
+			bareTool: undefined,
+		});
 	});
 });

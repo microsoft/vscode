@@ -168,7 +168,7 @@ export class PromptTimelineModel extends Disposable {
 
 	/**
 	 * One tick per user prompt — unbucketed and uncapped, decorated with per-prompt diff stats. The
-	 * dock rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
+	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
 	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
 	 */
 	private readonly _promptTicks = derived<readonly PromptTick[]>(this, reader => {
@@ -191,7 +191,7 @@ export class PromptTimelineModel extends Disposable {
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
 
-	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the dock rail's active row. */
+	/** The exact request currently scrolled to the top, unbucketed — drives the sticky header's label/position and the gutter rail's active row. */
 	private readonly _activePromptId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activePromptId(): IObservable<string | undefined> { return this._activePromptId; }
 
@@ -399,22 +399,35 @@ export class PromptTimelineModel extends Disposable {
 		// ordered, so the search stops at the first request below the viewport top
 		// instead of walking the whole (potentially long) transcript on every scroll.
 		const scrollTop = this.widget.scrollTop;
+		const isScrolledToBottom = scrollTop + this.widget.viewportHeight >= this.widget.scrollHeight - 2;
 		const threshold = 24;
 		let activeRequestId: string | undefined;
 		let activeTimestamp = 0;
 		let activeTop = -1;
-		for (const item of items) {
-			if (isRequestVM(item)) {
-				const top = this.widget.getElementTop(item);
-				if (top === undefined) {
-					continue;
-				}
-				if (top > scrollTop + threshold) {
+		if (isScrolledToBottom) {
+			for (let i = items.length - 1; i >= 0; i--) {
+				const item = items[i];
+				if (isRequestVM(item)) {
+					activeRequestId = item.id;
+					activeTimestamp = item.timestamp;
+					activeTop = this.widget.getElementTop(item) ?? -1;
 					break;
 				}
-				activeRequestId = item.id;
-				activeTimestamp = item.timestamp;
-				activeTop = top;
+			}
+		} else {
+			for (const item of items) {
+				if (isRequestVM(item)) {
+					const top = this.widget.getElementTop(item);
+					if (top === undefined) {
+						continue;
+					}
+					if (top > scrollTop + threshold) {
+						break;
+					}
+					activeRequestId = item.id;
+					activeTimestamp = item.timestamp;
+					activeTop = top;
+				}
 			}
 		}
 

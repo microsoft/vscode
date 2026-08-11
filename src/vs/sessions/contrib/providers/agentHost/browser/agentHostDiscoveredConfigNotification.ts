@@ -16,7 +16,7 @@ import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSe
 import { SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
-import { isAllowSignedOutWhenUsableEnabled, shouldShowDiscoveredConfigNudge } from '../../../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, isAllowSignedOutWhenUsableEnabled, shouldShowDiscoveredConfigNudge } from '../../../../browser/sessionsAuthGate.js';
 
 const DISCOVERED_CONFIG_NOTIFICATION_ID = 'agentHost.discoveredConfig.claude';
 
@@ -54,6 +54,13 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 	static readonly ID = 'sessions.contrib.agentHostDiscoveredConfigNotification';
 
 	private _shown = false;
+	/**
+	 * Set once the initial default-account resolution has completed. Until then
+	 * {@link IDefaultAccountService.currentDefaultAccount} reads as `null` even for
+	 * a signed-in user, so the nudge stays suppressed to avoid flashing at a
+	 * signed-in user during the startup gap.
+	 */
+	private _accountResolved = false;
 
 	constructor(
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
@@ -81,10 +88,28 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 			this._storageService.onDidChangeValue(StorageScope.APPLICATION, MUTED_STORAGE_KEY, this._store),
 		)(() => this._update()));
 
-		this._update();
+		// Until the account resolves, `currentDefaultAccount === null` reads as
+		// "signed out" and would flash this signed-out nudge at a signed-in user
+		// during startup. The account loads silently (no change event fires), so
+		// await the first resolution, then re-evaluate.
+		this._defaultAccountService.getDefaultAccount().then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._accountResolved = true;
+			this._update();
+		});
 	}
 
 	private _update(): void {
+		// While the account is unresolved, `currentDefaultAccount` is null for
+		// everyone; treating that as "signed out" flashes the nudge at a signed-in
+		// user. Nothing is shown yet, so there is nothing to tear down — just wait.
+		const authState = conditionalAuthState(this._accountResolved, this._defaultAccountService.currentDefaultAccount !== null);
+		if (authState === ConditionalAuthState.Unresolved) {
+			return;
+		}
+
 		// The Claude agent-host session type, once the host has advertised it.
 		// Two providers (local / remote agent host) can offer the same id, so
 		// prefer a usable instance and fall back to any for the display label.
@@ -94,7 +119,7 @@ export class AgentHostDiscoveredConfigNotificationContribution extends Disposabl
 		const claude = claudeTypes.find(type => type.authRequirement === SessionTypeAuthRequirement.None) ?? claudeTypes[0];
 
 		const show = shouldShowDiscoveredConfigNudge({
-			signedIn: this._defaultAccountService.currentDefaultAccount !== null,
+			signedIn: authState === ConditionalAuthState.SignedIn,
 			allowSignedOutWhenUsable: isAllowSignedOutWhenUsableEnabled(this._configurationService),
 			usableWithoutGitHub: claude?.authRequirement === SessionTypeAuthRequirement.None,
 			muted: this._storageService.getBoolean(MUTED_STORAGE_KEY, StorageScope.APPLICATION, false),
