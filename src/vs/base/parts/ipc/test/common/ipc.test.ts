@@ -384,6 +384,17 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
 		});
 
+		test('deserialize reports framing context for a truncated object payload', () => {
+			const writer = new BufferWriter();
+			serialize(writer, { hello: 'world', value: 42 });
+
+			const truncated = writer.buffer.slice(0, writer.buffer.byteLength - 4);
+			assert.throws(
+				() => deserialize(new BufferReader(truncated)),
+				/Truncated IPC object payload: expected \d+ bytes, received \d+/
+			);
+		});
+
 		test('BufferWriter releases its buffers on dispose', () => {
 			const writer = new BufferWriter();
 			serialize(writer, ['a', 'b', 'c']);
