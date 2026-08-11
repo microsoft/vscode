@@ -10,10 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import {
-	AgentChatKind,
 	AgentSession,
-	deriveAgentChatKind,
-	resolveAgentChatKind,
 	resolveAgentChatOrigin,
 	resolveAgentHostCustomizations,
 	resolveSubagentChatParent,
@@ -23,7 +20,6 @@ import {
 	buildChatUri,
 	buildDefaultChatUri,
 	buildSubagentChatUri,
-	buildSubagentSessionUri,
 	ChatOriginKind,
 	CustomizationType,
 	SessionLifecycle,
@@ -78,51 +74,16 @@ suite('Agent Host provider seams', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// ---- Explicit provisioning intent (AgentChatKind) -----------------------
-
-	suite('chat kind', () => {
-
-		test('derives an exhaustive kind for every chat address shape', () => {
-			assert.deepStrictEqual({
-				defaultChat: deriveAgentChatKind(defaultChat),
-				peerChat: deriveAgentChatKind(peerChat),
-				subagentChat: deriveAgentChatKind(subagentChat),
-				legacySubagentSession: deriveAgentChatKind(URI.parse(buildSubagentSessionUri(sessionKey, 'tool-1'))),
-			}, {
-				defaultChat: AgentChatKind.Session,
-				peerChat: AgentChatKind.Peer,
-				subagentChat: AgentChatKind.Subagent,
-				legacySubagentSession: AgentChatKind.Subagent,
-			});
-		});
-
-		test('prefers the explicit host-supplied kind over URI shape and falls back otherwise', () => {
-			// A host that provisions a peer chat addressed by a default-chat URI
-			// (e.g. a migrated legacy backing) is authoritative over the shape.
-			const explicit: IAgentChatContext = { session, resource: session, kind: AgentChatKind.Peer };
-			assert.deepStrictEqual({
-				explicit: resolveAgentChatKind(defaultChat, explicit),
-				legacySessionOnlyContext: resolveAgentChatKind(peerChat, session),
-				noContext: resolveAgentChatKind(subagentChat),
-			}, {
-				explicit: AgentChatKind.Peer,
-				legacySessionOnlyContext: AgentChatKind.Peer,
-				noContext: AgentChatKind.Subagent,
-			});
-		});
-	});
-
 	// ---- Exhaustive origin + customizations on every context ---------------
 
 	suite('createAgentChatContext', () => {
 
-		test('stamps kind, resource, and origin for the session-backed default chat', () => {
+		test('stamps resource and origin for the session-backed default chat', () => {
 			manager.createSession(summary());
 			const context = createAgentChatContext(manager, session, defaultChat);
 			assert.deepStrictEqual({
 				session: context.session.toString(),
 				resource: context.resource.toString(),
-				kind: context.kind,
 				origin: context.origin,
 				parent: resolveSubagentChatParent(context),
 				customizations: context.customizations,
@@ -130,7 +91,6 @@ suite('Agent Host provider seams', () => {
 				session: sessionKey,
 				// The default chat's provider-owned storage scope is its session.
 				resource: sessionKey,
-				kind: AgentChatKind.Session,
 				origin: { kind: ChatOriginKind.User },
 				parent: undefined,
 				customizations: undefined,
@@ -147,13 +107,11 @@ suite('Agent Host provider seams', () => {
 			const context = createAgentChatContext(manager, session, subagentChat);
 			assert.deepStrictEqual({
 				resource: context.resource.toString(),
-				kind: context.kind,
 				origin: context.origin,
 				parent: resolveSubagentChatParent(context)?.toolCallId,
 				customizations: context.customizations?.map(c => [c.id, c.enabled]),
 			}, {
 				resource: subagentChat.toString(),
-				kind: AgentChatKind.Subagent,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-1' },
 				parent: 'tool-1',
 				customizations: [['alpha', true], ['beta', false]],
@@ -204,13 +162,11 @@ suite('Agent Host provider seams', () => {
 			const fork: IAgentChatContext = {
 				session,
 				resource: peerChat,
-				kind: AgentChatKind.Peer,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 			};
 			const tool: IAgentChatContext = {
 				session,
 				resource: subagentChat,
-				kind: AgentChatKind.Subagent,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
 			};
 			assert.deepStrictEqual({

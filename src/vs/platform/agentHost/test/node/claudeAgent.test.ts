@@ -45,7 +45,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatKind, IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentInheritedChatContext, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, deriveAgentChatKind } from '../../common/agentService.js';
+import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentInheritedChatContext, IAgentMaterializeSessionEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, isAgentCreateSessionResult } from '../../common/agentService.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -132,7 +132,6 @@ function chatContext(chat: URI, overrides?: Partial<IAgentChatContext>): IAgentC
 	return {
 		session,
 		resource: isDefaultChatUri(chat) ? session : chat,
-		kind: deriveAgentChatKind(chat),
 		...overrides,
 	};
 }
@@ -140,15 +139,23 @@ function chatContext(chat: URI, overrides?: Partial<IAgentChatContext>): IAgentC
 /**
  * Provisions a session the way Agent Host does: the host mints both the session
  * URI and its session-backed default chat URI and provisions them together
- * through the single {@link IAgentChats.createSessionChat} seam. Also surfaces
+ * through an initializing {@link IAgentChats.createChat} call. Also surfaces
  * the SDK conversation id the provider bound to that chat — independent of the
  * AH session id — which tests need to drive the fake SDK.
  */
 async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult & { readonly sdkSessionId: string }> {
 	const session = config.session ?? AgentSession.uri('claude', generateUuid());
 	const chat = defaultChatUri(session);
-	const created = await agent.chats.createSessionChat(chat, chatContext(chat), { ...config, session });
+	const created = await initializeChat(agent, chat, chatContext(chat), { ...config, session });
 	return { ...created, sdkSessionId: AgentSession.id(created.chat!.backingSession!) };
+}
+
+async function initializeChat(agent: ClaudeAgent, chat: URI, context: IAgentChatContext, config: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
+	const result = await agent.chats.createChat(chat, context, { initialization: config });
+	if (!result || !isAgentCreateSessionResult(result)) {
+		throw new Error('Expected initialized chat metadata');
+	}
+	return result;
 }
 
 /**
@@ -8342,7 +8349,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const chat = defaultChatUri(session);
 		const context = { session, resource: session };
 
-		const created = await agent.chats.createSessionChat!(chat, context, { session, workingDirectories: [URI.file('/work')] });
+		const created = await initializeChat(agent, chat, context, { session, workingDirectories: [URI.file('/work')] });
 		const sdkSessionId = AgentSession.id(created.chat!.backingSession!);
 		sdk.nextQueryMessages = [makeSystemInitMessage(sdkSessionId), makeResultSuccess(sdkSessionId)];
 		await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1', undefined, undefined, context);
@@ -8376,7 +8383,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const targetChat = defaultChatUri(targetSession);
 		const targetContext = { session: targetSession, resource: targetSession };
 
-		const created = await agent.chats.createSessionChat!(targetChat, targetContext, {
+		const created = await initializeChat(agent, targetChat, targetContext, {
 			session: targetSession,
 			fork: { session: sourceUri, chat: defaultChatUri(sourceUri), turnIndex: 0, turnId: 'u1' },
 		});
@@ -8416,7 +8423,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const sourceSession = AgentSession.uri('claude', 'ah-source');
 		const sourceChat = defaultChatUri(sourceSession);
 		const sourceContext = { session: sourceSession, resource: sourceSession };
-		const sourceCreated = await agent.chats.createSessionChat!(sourceChat, sourceContext, { session: sourceSession, workingDirectories: [URI.file('/work')] });
+		const sourceCreated = await initializeChat(agent, sourceChat, sourceContext, { session: sourceSession, workingDirectories: [URI.file('/work')] });
 		const sourceSdkId = AgentSession.id(sourceCreated.chat!.backingSession!);
 		assert.notStrictEqual(sourceSdkId, 'ah-source');
 
@@ -8431,7 +8438,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const targetSession = AgentSession.uri('claude', 'ah-target-2');
 		const targetChat = defaultChatUri(targetSession);
 		const targetContext = { session: targetSession, resource: targetSession };
-		const created = await agent.chats.createSessionChat!(targetChat, targetContext, {
+		const created = await initializeChat(agent, targetChat, targetContext, {
 			session: targetSession,
 			// `fork.session`/`fork.chat` route to the source's exact chat, not
 			// its AH session id, exercising source-side exact-chat resolution.
@@ -8468,7 +8475,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const targetSession = AgentSession.uri('claude', 'ah-target-overlay');
 		const targetChat = defaultChatUri(targetSession);
 		const targetContext = { session: targetSession, resource: targetSession };
-		const created = await agent.chats.createSessionChat!(targetChat, targetContext, {
+		const created = await initializeChat(agent, targetChat, targetContext, {
 			session: targetSession,
 			fork: { session: sourceUri, chat: defaultChatUri(sourceUri), turnIndex: 0, turnId: 'u1' },
 		});
@@ -8491,7 +8498,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const chat = defaultChatUri(session);
 		const context = { session, resource: session };
 
-		const created = await agent.chats.createSessionChat!(chat, context, {
+		const created = await initializeChat(agent, chat, context, {
 			session,
 			workingDirectories: [URI.file('/work')],
 			// Mutually exclusive with `fork`; Claude has no native
@@ -8524,7 +8531,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const session = AgentSession.uri('claude', 'ah-session');
 		const defaultChat = defaultChatUri(session);
-		const created = await agent.chats.createSessionChat!(defaultChat, { session, resource: session }, { session, workingDirectories: [URI.file('/work')] });
+		const created = await initializeChat(agent, defaultChat, { session, resource: session }, { session, workingDirectories: [URI.file('/work')] });
 		const peer = URI.parse(buildChatUri(session, 'peer'));
 		const peerResult = await agent.chats.createChat(peer, { session, resource: peer }, { inheritedContext: inheritedChatContext() });
 		const handle = agent.getOrCreateActiveClient(session, { clientId: 'client' }, [defaultChat, peer]);
@@ -9532,7 +9539,6 @@ suite('ClaudeAgent — host seams', () => {
 		const turns = await agent.chats.getMessages(subagentChat, {
 			session,
 			resource: subagentChat,
-			kind: AgentChatKind.Subagent,
 		});
 
 		assert.deepStrictEqual({
@@ -9564,14 +9570,12 @@ suite('ClaudeAgent — host seams', () => {
 		agent.onClientToolCallComplete(created.session, subagentChat, 'tu_1', { success: true, pastTenseMessage: 'ran' }, {
 			session: created.session,
 			resource: subagentChat,
-			kind: AgentChatKind.Subagent,
 			origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-call-1' },
 		});
 		// Without an origin there is nothing to route to — silent no-op.
 		agent.onClientToolCallComplete(created.session, subagentChat, 'tu_2', { success: true, pastTenseMessage: 'ran' }, {
 			session: created.session,
 			resource: subagentChat,
-			kind: AgentChatKind.Subagent,
 		});
 
 		assert.deepStrictEqual(completed, ['tu_1']);

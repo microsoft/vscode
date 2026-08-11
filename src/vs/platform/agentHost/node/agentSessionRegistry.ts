@@ -23,9 +23,13 @@ export interface IRegisteredSession {
  * registry is authoritative on the AH side and does not depend on the agent
  * exposing a session whose SDK id equals the session id.
  *
- * Stage 1 (this component) is purely additive: it is populated alongside the
- * existing create/delete paths and validated against the live `listSessions`
- * output, but does NOT yet drive enumeration.
+ * The registry drives Agent Host enumeration. Its one-time provider backfill is
+ * restart-safe: individual registrations and the completion marker are
+ * idempotent, and the marker is written only after the full sweep succeeds. A
+ * crash or transient failure before that point simply repeats the additive
+ * sweep. Concurrent callers in one host share a single in-flight sweep in
+ * `AgentService`; concurrently running host processes are outside the supported
+ * database contract.
  */
 export class AgentSessionRegistry extends Disposable {
 
@@ -56,16 +60,15 @@ export class AgentSessionRegistry extends Disposable {
 	}
 
 	/**
-	 * Whether the one-time provider backfill has completed for this host. Gated
-	 * by a persisted marker rather than emptiness so a registry that a
-	 * `createSession` has already populated is still backfilled from the legacy
-	 * provider enumeration exactly once.
+	 * Whether the one-time provider backfill has completed. The persisted marker
+	 * is independent of registry emptiness so concurrent normal registration
+	 * cannot accidentally suppress migration.
 	 */
 	async isBackfilled(): Promise<boolean> {
 		return this._database.isSessionRegistryBackfilled();
 	}
 
-	/** Records that the one-time provider backfill has completed. */
+	/** Records completion idempotently after every provider entry was registered. */
 	async markBackfilled(): Promise<void> {
 		await this._database.markSessionRegistryBackfilled();
 	}

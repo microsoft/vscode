@@ -27,7 +27,7 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSch
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentChatKind, AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatKind, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -193,8 +193,6 @@ interface IResolvedClaudeChatContext {
 	readonly resource: URI;
 	readonly chat: URI;
 	readonly chatKey: string;
-	/** Host-supplied provisioning intent for {@link chat}. */
-	readonly kind: AgentChatKind;
 	/**
 	 * The spawning chat + tool call when {@link chat} is a provider-spawned
 	 * subagent, read off the host-supplied origin. `undefined` for every other
@@ -466,7 +464,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			resource: resolved.resource,
 			chat,
 			chatKey,
-			kind: resolveAgentChatKind(chat, resolved),
 			spawnedFrom: resolveSubagentChatParent(resolved),
 			customizations: resolveAgentHostCustomizations(resolved),
 			sdkSessionId,
@@ -969,7 +966,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Claude (unlike Copilot's JSONL event-log import): there is no SDK API
 		// to seed a conversation from arbitrary `Turn[]`. The exact target chat
 		// is still bound immediately below exactly like any other fresh
-		// session, so `createSessionChat` never leaves an unbound runtime; the
+		// session, so initializing `createChat` never leaves an unbound runtime; the
 		// imported turns' display is the host-level catalog's responsibility
 		// (`seedDefaultChatTurns` in `agentService.ts`) until the chat's own
 		// first real `sendMessage` starts a genuine SDK transcript.
@@ -1124,11 +1121,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	readonly chats: IAgentChats = {
 		createChat: (chat, context, options) => {
-			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
-		},
-		createSessionChat: (chat, context, config) => {
 			const resolved = resolveAgentChatContext(context, chat);
-			return this._createSession({ ...(config ?? {}), session: resolved.session }, resolved.session, chat);
+			if (options?.initialization) {
+				return this._createSession({ ...options.initialization, session: resolved.session }, resolved.session, chat);
+			}
+			return this._createChat(chat, resolved, options);
 		},
 		fork: (chat, context, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions) =>
 			this._createChat(chat, resolveAgentChatContext(context, chat), { ...options, fork: source }),
@@ -1161,7 +1158,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 *
 	 * The forked SDK conversation is always bound directly to an exact chat,
 	 * mirroring the fresh-session path, so no runtime is ever left unbound and
-	 * no later bind step exists: {@link IAgentChats.createSessionChat} forks
+	 * no later bind step exists: initializing {@link IAgentChats.createChat} forks
 	 * into the host-minted session and its exact target chat, and the real
 	 * forked SDK id is exposed only via `chat.backingSession` / `providerData`.
 	 */
@@ -1853,7 +1850,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._logService.info('[Claude] SDK not downloaded yet; deferring session messages until a session triggers the download');
 			return [];
 		}
-		if (context.kind === AgentChatKind.Subagent) {
+		if (context.spawnedFrom) {
 			return this._readSubagentMessages(context);
 		}
 

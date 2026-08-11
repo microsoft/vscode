@@ -51,7 +51,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentSession, deriveAgentChatKind, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentSession, isAgentCreateSessionResult, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind, ToolResultContentType, ChatInputResponseKind, ChatInputAnswerState, ChatInputAnswerValueKind, type ChatInputRequest, type ClientPluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -641,14 +641,17 @@ function parseSseFrames(raw: string): { type: string; data: unknown }[] {
 /**
  * Provisions a session the way Agent Host does: the host mints both the session
  * URI and its session-backed default chat URI and provisions them together
- * through the single `IAgentChats.createSessionChat` seam. Returns the chat URI
+ * through an initializing `IAgentChats.createChat` call. Returns the chat URI
  * plus the SDK conversation id the provider bound to it — independent of the
  * AH session id — which these tests need to stage the fake SDK transcript.
  */
 async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConfig): Promise<{ session: URI; chat: URI; sessionId: string }> {
 	const session = AgentSession.uri('claude', generateUuid());
 	const chat = URI.parse(buildDefaultChatUri(session));
-	const created = await agent.chats.createSessionChat(chat, chatContext(chat, session), { ...config, session });
+	const created = await agent.chats.createChat(chat, chatContext(chat, session), { initialization: { ...config, session } });
+	if (!created || !isAgentCreateSessionResult(created)) {
+		throw new Error('Expected initialized chat metadata');
+	}
 	return { session, chat, sessionId: AgentSession.id(created.chat!.backingSession!) };
 }
 
@@ -658,7 +661,7 @@ async function createSession(agent: ClaudeAgent, config: IAgentCreateSessionConf
  * resource, mirroring the orchestrator's own context builder.
  */
 function chatContext(chat: URI, session: URI): IAgentChatContext {
-	return { session, resource: session, kind: deriveAgentChatKind(chat) };
+	return { session, resource: session };
 }
 
 // #endregion
@@ -717,7 +720,7 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		// Create a provisional session — no SDK contact yet.
 		const created = await createSession(agent, { workingDirectories: [URI.file('/integration-cwd')] });
-		assert.strictEqual(sdk.capturedStartupOptions.length, 0, 'createSessionChat does not touch the SDK');
+		assert.strictEqual(sdk.capturedStartupOptions.length, 0, 'initializing createChat does not touch the SDK');
 
 		// Stage a transcript on the SDK so `sendMessage` resolves.
 		const sessionId = created.sessionId;

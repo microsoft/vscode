@@ -24,7 +24,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatKind, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, SubagentChatSignal, isAgentCreateSessionResult, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -71,14 +71,29 @@ function getChatSurface(agent: IAgent): IAgentChats {
 
 /**
  * Provision a session directly on an agent through the exact-chat seam
- * {@link IAgentChats.createSessionChat}, mirroring what
+ * an initializing {@link IAgentChats.createChat} call, mirroring what
  * `AgentService.createSession` does. Used by tests that need a session to
  * exist on the agent backend without going through the orchestrator.
  */
 async function createAgentSession(agent: IAgent, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 	const session = config?.session ?? AgentSession.uri(agent.id, generateUuid());
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	return agent.chats.createSessionChat(defaultChat, session, { ...config, session });
+	return expectInitializedChat(agent.chats.createChat(defaultChat, session, { initialization: { ...config, session } }));
+}
+
+async function expectInitializedChat(result: Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void>): Promise<IAgentCreateSessionResult> {
+	const created = await result;
+	if (!created || !isAgentCreateSessionResult(created)) {
+		throw new Error('Expected initialized chat metadata');
+	}
+	return created;
+}
+
+async function createProvisionalChat(base: IAgentChats, chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> {
+	if (!options?.initialization) {
+		return base.createChat(chat, context, options);
+	}
+	return { ...await expectInitializedChat(base.createChat(chat, context, options)), provisional: true };
 }
 
 /**
@@ -556,13 +571,17 @@ suite('AgentService (node dispatcher)', () => {
 		let failCreate = false;
 		class PrewarmingAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-				createSessionChat: async (chat, context, config) => {
+				createChat: async (chat, context, options) => {
+					const config = options?.initialization;
+					if (!config) {
+						return base.createChat(chat, context, options);
+					}
 					pendingDuringCreate.push(localService.configurationService.isWorkingDirectoryPending(config!.session!.toString()));
 					providerCreateConfigs.push(config?.config);
 					if (failCreate) {
 						throw new Error('create failed');
 					}
-					return { ...await base.createSessionChat(chat, context, config), provisional: true };
+					return { ...await expectInitializedChat(base.createChat(chat, context, options)), provisional: true };
 				},
 			}));
 		}
@@ -666,7 +685,7 @@ suite('AgentService (node dispatcher)', () => {
 			readonly onDidMaterializeSession = this._onDidMaterialize.event;
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-				createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
+				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
 			}));
 
 			materialize(session: URI, workingDirectories: readonly URI[]): void {
@@ -742,7 +761,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		class ProvisionalAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-				createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
+				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
 			}));
 		}
 
@@ -1677,7 +1696,7 @@ suite('AgentService (node dispatcher)', () => {
 			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
 			class ProvisionalCustomizationAgent extends MockAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
 				}));
 
 				override getSessionCustomizations = async (session: URI) => {
@@ -1709,9 +1728,9 @@ suite('AgentService (node dispatcher)', () => {
 					return { ...super.getDescriptor(), capabilities: this._caps };
 				}
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: (chat, context, config) => {
-						this.lastConfig = config;
-						return base.createSessionChat(chat, context, config);
+					createChat: (chat, context, options) => {
+						this.lastConfig = options?.initialization;
+						return base.createChat(chat, context, options);
 					},
 				}));
 			}
@@ -1959,6 +1978,41 @@ suite('AgentService (node dispatcher)', () => {
 			// The one-time backfill has now imported it into the registry.
 			const registered = new Set((await svc.getRegisteredSessions()).map(s => s.toString()));
 			assert.deepStrictEqual(registered, new Set([legacy.toString()]));
+		});
+
+		test('concurrent listSessions calls share one registry backfill sweep', async () => {
+			const gate = new DeferredPromise<void>();
+			class GatedListAgent extends MockAgent {
+				listCalls = 0;
+				override async listSessions(): Promise<IAgentSessionMetadata[]> {
+					this.listCalls++;
+					await gate.p;
+					return super.listSessions();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedListAgent('copilot'));
+			svc.registerProvider(agent);
+			const legacy = AgentSession.uri('copilot', 'legacy-concurrent');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+
+			const first = svc.listSessions();
+			const second = svc.listSessions();
+			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
+				await timeout(0);
+			}
+			gate.complete();
+
+			const [firstResult, secondResult] = await Promise.all([first, second]);
+			assert.deepStrictEqual({
+				listCalls: agent.listCalls,
+				first: firstResult.map(session => session.session.toString()),
+				second: secondResult.map(session => session.session.toString()),
+			}, {
+				listCalls: 1,
+				first: [legacy.toString()],
+				second: [legacy.toString()],
+			});
 		});
 
 		test('listSessions retries registry backfill after a transient provider failure', async () => {
@@ -2298,7 +2352,7 @@ suite('AgentService (node dispatcher)', () => {
 			// then the only thing that could surface it.
 			class ProvisionalMockAgent extends MockAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
 				}));
 				override async listSessions() {
 					return [];
@@ -4273,7 +4327,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.createChat(session, URI.parse(peerChat));
 
 			const recorded = agent.chatContexts
-				.filter(entry => entry.boundary === 'createSessionChat' || entry.boundary === 'createChat')
+				.filter(entry => entry.boundary === 'createChat')
 				.map(entry => {
 					const context = entry.context as IAgentChatContext;
 					return {
@@ -4281,25 +4335,22 @@ suite('AgentService (node dispatcher)', () => {
 						chat: entry.chat.toString(),
 						session: context.session.toString(),
 						resource: context.resource.toString(),
-						kind: context.kind,
 					};
 				});
 
 			assert.deepStrictEqual(recorded, [
 				{
-					boundary: 'createSessionChat',
+					boundary: 'createChat',
 					chat: defaultChat,
 					session: session.toString(),
 					// The session-backed chat's provider storage scope is the session.
 					resource: session.toString(),
-					kind: AgentChatKind.Session,
 				},
 				{
 					boundary: 'createChat',
 					chat: peerChat,
 					session: session.toString(),
 					resource: peerChat,
-					kind: AgentChatKind.Peer,
 				},
 			]);
 		});
@@ -4984,15 +5035,14 @@ suite('AgentService (node dispatcher)', () => {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions) => {
 					const { session } = resolveAgentChatContext(context, chat);
+					if (options?.initialization) {
+						this.chatCalls.push({ op: 'createChat', args: [session.toString(), chat.toString()] });
+						const result = await expectInitializedChat(base.createChat(chat, context, options));
+						this.sessionCreateCalls.push(result.session);
+						return result;
+					}
 					this.chatCalls.push({ op: 'createChat', args: [session.toString(), chat.toString(), options?.title ?? '', options?.model?.id ?? ''] });
 					return { providerData: 'pd' };
-				},
-				createSessionChat: async (chat: URI, context: URI | IAgentChatContext, config) => {
-					const { session } = resolveAgentChatContext(context, chat);
-					this.chatCalls.push({ op: 'createSessionChat', args: [session.toString(), chat.toString()] });
-					const result = await base.createSessionChat(chat, context, config);
-					this.sessionCreateCalls.push(result.session);
-					return result;
 				},
 				fork: async (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource) => {
 					const { session } = resolveAgentChatContext(context, chat);
@@ -5036,14 +5086,14 @@ suite('AgentService (node dispatcher)', () => {
 				sessionDispose: agent.sessionDisposeCalls.map(s => s.toString()),
 				legacyCreateChat: agent.legacyCreateChatCalls.length,
 				chatOps: agent.chatCalls.map(c => c.op),
-				createDefaultChatArgs: agent.chatCalls.filter(c => c.op === 'createSessionChat')[0]?.args,
-				peerChatArgs: agent.chatCalls.filter(c => c.op === 'createChat')[0]?.args,
+				createDefaultChatArgs: agent.chatCalls.filter(c => c.op === 'createChat')[0]?.args,
+				peerChatArgs: agent.chatCalls.filter(c => c.op === 'createChat')[1]?.args,
 				disposeChatArgs: agent.chatCalls.filter(c => c.op === 'disposeChat').map(c => c.args[0]),
 			}, {
 				sessionCreate: [session.toString()],
 				sessionDispose: [session.toString()],
 				legacyCreateChat: 0,
-				chatOps: ['createSessionChat', 'createChat', 'disposeChat', 'disposeChat', 'finalizeSession'],
+				chatOps: ['createChat', 'createChat', 'disposeChat', 'disposeChat', 'finalizeSession'],
 				createDefaultChatArgs: [session.toString(), defaultChatUri],
 				peerChatArgs: [session.toString(), chatUri.toString(), 'Peer', ''],
 				disposeChatArgs: [chatUri.toString(), defaultChatUri],
@@ -5056,9 +5106,11 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: { op: string; providerData?: string }[] = [];
 			class ExactDefaultChatAgent extends MockAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createChat: async () => undefined,
-					createSessionChat: async (chat, context, config) => {
-						const result = await base.createSessionChat(chat, context, config);
+					createChat: async (chat, context, options) => {
+						if (!options?.initialization) {
+							return undefined;
+						}
+						const result = await expectInitializedChat(base.createChat(chat, context, options));
 						const { session } = resolveAgentChatContext(context, chat);
 						assert.strictEqual(result.session.toString(), session.toString());
 						return {
@@ -5280,10 +5332,9 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createNullSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			class BackingChatSurfaceAgent extends ChatSurfaceAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: async (chat, context, config) => ({
-						...await base.createSessionChat(chat, context, config),
-						chat: { providerData: 'pd-default' },
-					}),
+					createChat: async (chat, context, options) => options?.initialization
+						? { ...await expectInitializedChat(base.createChat(chat, context, options)), chat: { providerData: 'pd-default' } }
+						: base.createChat(chat, context, options),
 				}));
 			}
 			const agent = disposables.add(new BackingChatSurfaceAgent('copilot'));
@@ -5932,9 +5983,11 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: (chat, context, config) => {
-						this.createSessionConfigs.push(config);
-						return base.createSessionChat(chat, context, config);
+					createChat: (chat, context, options) => {
+						if (options?.initialization) {
+							this.createSessionConfigs.push(options.initialization);
+						}
+						return base.createChat(chat, context, options);
 					},
 				}));
 
@@ -6021,9 +6074,11 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: (chat, context, config) => {
-						this.createSessionConfigs.push(config);
-						return base.createSessionChat(chat, context, config);
+					createChat: (chat, context, options) => {
+						if (options?.initialization) {
+							this.createSessionConfigs.push(options.initialization);
+						}
+						return base.createChat(chat, context, options);
 					},
 				}));
 			}
@@ -7825,7 +7880,7 @@ suite('AgentService (node dispatcher)', () => {
 	test('provisional workspace session advertises Uncommitted Changes before materialization', async () => {
 		class ProvisionalMockAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-				createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
+				createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
 			}));
 		}
 
@@ -7987,7 +8042,7 @@ suite('AgentService (node dispatcher)', () => {
 				private readonly _onDidMaterialize = new Emitter<{ session: URI; resource: URI; workingDirectories: readonly URI[] | undefined; project: { uri: URI; displayName: string } | undefined }>();
 				readonly onDidMaterializeSession = this._onDidMaterialize.event;
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
 				}));
 				materialize(session: URI, workingDirectory?: URI): void {
 					this._onDidMaterialize.fire({ session, resource: URI.parse(buildDefaultChatUri(session)), workingDirectories: workingDirectory ? [workingDirectory] : undefined, project: undefined });

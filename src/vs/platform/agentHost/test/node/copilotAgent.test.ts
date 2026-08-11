@@ -36,7 +36,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentChatKind, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentChatContext, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentMaterializeSessionEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, isAgentCreateSessionResult, type AgentSignal, type IAgentChatContext, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentMaterializeSessionEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -83,12 +83,16 @@ function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgent
 
 /**
  * Provisions a session and its session-backed (default) chat the way Agent
- * Host does: one {@link IAgentChats.createSessionChat} call addressed to the
+ * Host does: one initializing {@link IAgentChats.createChat} call addressed to the
  * exact default-chat URI, with the owning session as the persistence scope.
  */
-function createSessionChat(agent: CopilotAgent, config: IAgentCreateSessionConfig & { readonly session: URI }): Promise<IAgentCreateSessionResult> {
+async function createSessionChat(agent: CopilotAgent, config: IAgentCreateSessionConfig & { readonly session: URI }): Promise<IAgentCreateSessionResult> {
 	const chat = defaultChatUri(config.session);
-	return agent.chats.createSessionChat(chat, exactChatContext(config.session, chat, config.session), config);
+	const result = await agent.chats.createChat(chat, exactChatContext(config.session, chat, config.session), { initialization: config });
+	if (!result || !isAgentCreateSessionResult(result)) {
+		throw new Error('Expected initialized chat metadata');
+	}
+	return result;
 }
 
 /**
@@ -1101,13 +1105,12 @@ suite('CopilotAgent', () => {
 
 			try {
 				assert.deepStrictEqual({
-					withoutOrigin: await agent.chats.getMessages(childChat, { session, resource: childChat, kind: AgentChatKind.Subagent }),
+					withoutOrigin: await agent.chats.getMessages(childChat, { session, resource: childChat }),
 					withoutContext: await agent.chats.getMessages(childChat),
 					subagentCalls,
 					withOrigin: await agent.chats.getMessages(childChat, {
 						session,
 						resource: childChat,
-						kind: AgentChatKind.Subagent,
 						origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
 					}),
 				}, {
@@ -3775,7 +3778,7 @@ suite('CopilotAgent', () => {
 			};
 
 			try {
-				const result = await agent.chats.createSessionChat(targetChat, exactChatContext(target, targetChat, target), {
+				const result = await createSessionChat(agent, {
 					session: target,
 					fork: {
 						session: source,
@@ -3919,7 +3922,7 @@ suite('CopilotAgent', () => {
 					const repoB = URI.file('/repo-b');
 					const session = AgentSession.uri('copilotcli', `multi-root-sdk-${multiRootEnabled}`);
 					const chat = defaultChatUri(session);
-					const result = await agent.chats.createSessionChat(chat, exactChatContext(session, chat, session), { session, workingDirectories: [repoA, repoB] });
+					const result = await createSessionChat(agent, { session, workingDirectories: [repoA, repoB] });
 					await agent.chats.sendMessage(chat, 'hello', [repoA, repoB], undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
 					return { workingDirectory: capturedConfig?.workingDirectory, additionalDirectories: (capturedConfig as unknown as { additionalDirectories?: string[] } | undefined)?.additionalDirectories };
 				} finally {
@@ -3948,7 +3951,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'ah-session');
 				const chat = defaultChatUri(session);
-				const result = await agent.chats.createSessionChat(chat, exactChatContext(session, chat, session), { session, workingDirectories: [URI.file('/workspace')] });
+				const result = await createSessionChat(agent, { session, workingDirectories: [URI.file('/workspace')] });
 				await agent.chats.sendMessage(chat, 'hello', [URI.file('/workspace')], undefined, 'turn-1', undefined, exactChatContext(session, chat, session));
 
 				const sdkSessionId = JSON.parse(result.chat!.providerData!).sdkSessionId as string;
@@ -3981,7 +3984,7 @@ suite('CopilotAgent', () => {
 				const materialized: IAgentMaterializeSessionEvent[] = [];
 				disposables.add(agent.onDidMaterializeSession(e => materialized.push(e)));
 
-				const result = await agent.chats.createSessionChat(chat, exactChatContext(session, chat, session), {
+				const result = await createSessionChat(agent, {
 					session,
 					workingDirectories: [workingDirectory],
 				});
@@ -4508,7 +4511,7 @@ suite('CopilotAgent', () => {
 					usage: {},
 				};
 
-				await agent.chats.createSessionChat(chat, exactChatContext(session, chat, session), {
+				await createSessionChat(agent, {
 					session,
 					workingDirectories: [URI.file('/workspace')],
 					importConversation: { turns: [turn] },
@@ -4549,7 +4552,7 @@ suite('CopilotAgent', () => {
 					usage: {},
 				};
 
-				const result = await agent.chats.createSessionChat(chat, exactChatContext(session, chat, session), {
+				const result = await createSessionChat(agent, {
 					session,
 					workingDirectories: [workingDirectory],
 					importConversation: { turns: [turn] },
@@ -5279,7 +5282,6 @@ suite('CopilotAgent', () => {
 				agent.onClientToolCallComplete(sessionUri, subagentChat, 'tc-subagent', result, {
 					session: sessionUri,
 					resource: subagentChat,
-					kind: AgentChatKind.Subagent,
 					origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-1' },
 				});
 
@@ -5303,7 +5305,6 @@ suite('CopilotAgent', () => {
 				agent.onClientToolCallComplete(sessionUri, subagentChat, 'tc-fallback', result, {
 					session: sessionUri,
 					resource: subagentChat,
-					kind: AgentChatKind.Subagent,
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
 				});
 

@@ -24,7 +24,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, AuthRequiredParams, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, ChatInputResponseKind, ChatOriginKind, SessionStatus, StateComponents, buildSubagentChatUri, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, ChatInputResponseKind, ChatOriginKind, SessionStatus, StateComponents, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type RootState, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -784,7 +784,7 @@ export interface IAgentSessionProjectInfo {
 	readonly displayName: string;
 }
 
-export interface IAgentCreateSessionResult {
+export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 	readonly session: URI;
 	readonly project?: IAgentSessionProjectInfo;
 	/** Opaque provider backing for the session's initial chat, when it has one. */
@@ -1031,33 +1031,6 @@ export interface IAgentCreateSessionConfig {
 }
 
 /**
- * Explicit, host-owned provisioning intent for an addressed chat. Agent Host
- * mints every chat URI and therefore knows, without inspecting URI shape, why a
- * chat exists. Providers switch on this instead of re-deriving the answer from
- * {@link isDefaultChatUri} / `chatId.startsWith('subagent/')`.
- */
-export const enum AgentChatKind {
-	/**
-	 * The session-backed default chat provisioned together with its session via
-	 * {@link IAgentChats.createSessionChat}. Exactly one per session; it is the
-	 * chat a provider may treat as "the session" for process/thread bring-up,
-	 * server-tool advertisement, and materialization events.
-	 */
-	Session = 'session',
-	/**
-	 * An additional chat with its own provider backing — created by the user,
-	 * forked from another chat, or branched as a side chat.
-	 */
-	Peer = 'peer',
-	/**
-	 * A worker chat the provider itself spawned from a tool call (a subagent).
-	 * Its {@link IAgentChatContext.origin} is always a
-	 * {@link ChatOriginKind.Tool} origin naming the spawning chat and tool call.
-	 */
-	Subagent = 'subagent',
-}
-
-/**
  * Host-owned transient context for an addressed chat operation.
  *
  * `session` is the chat's owning session. `resource` is the provider-owned
@@ -1065,21 +1038,13 @@ export const enum AgentChatKind {
  * owning session URI or the concrete chat URI). Providers must not derive
  * either value from `chat` themselves.
  *
- * Agent Host populates {@link kind}, {@link origin}, and {@link customizations}
- * on every context it hands to a provider (create, materialize, send, and every
- * other addressed chat operation). They stay optional on the type only so
- * provider-internal and test-constructed contexts can omit them; use
- * {@link resolveAgentChatKind} and {@link resolveAgentChatOrigin} to read them
- * with the documented fallback instead of parsing the chat URI.
+ * Agent Host populates {@link origin} and {@link customizations} on every
+ * context it hands to a provider (create, materialize, send, and every other
+ * addressed chat operation).
  */
 export interface IAgentChatContext {
 	readonly session: URI;
 	readonly resource: URI;
-	/**
-	 * Host-owned provisioning intent for the addressed chat. Always supplied by
-	 * Agent Host; see {@link resolveAgentChatKind}.
-	 */
-	readonly kind?: AgentChatKind;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -1118,40 +1083,6 @@ export function resolveAgentChatContext(sessionOrContext: URI | IAgentChatContex
 		throw new Error(`Chat context resource must be the owning session or addressed chat: ${context.resource.toString()}`);
 	}
 	return context;
-}
-
-/**
- * Resolves the {@link AgentChatKind} for an addressed chat operation.
- *
- * Prefers the explicit host-supplied {@link IAgentChatContext.kind}. When it is
- * absent (a provider-internal or test-constructed context, or a legacy
- * session-only context) the kind is derived once, here, from the chat URI — so
- * the URI-shape fallback exists in exactly one place instead of at every
- * provider gate.
- */
-export function resolveAgentChatKind(chat: URI, context?: URI | IAgentChatContext): AgentChatKind {
-	if (context && !URI.isUri(context) && context.kind !== undefined) {
-		return context.kind;
-	}
-	return deriveAgentChatKind(chat);
-}
-
-/**
- * Derives an {@link AgentChatKind} from a chat channel URI. The single
- * URI-shape derivation in the system: Agent Host uses it to stamp
- * {@link IAgentChatContext.kind}, and {@link resolveAgentChatKind} uses it as
- * the fallback for contexts that predate the explicit field.
- *
- * Also recognizes the legacy subagent *session* addresses that a few restore
- * paths still use, so a subagent is classified consistently however it is
- * addressed.
- */
-export function deriveAgentChatKind(chat: URI | string): AgentChatKind {
-	const key = typeof chat === 'string' ? chat : chat.toString();
-	if (isSubagentChatUri(key) || isSubagentSession(key)) {
-		return AgentChatKind.Subagent;
-	}
-	return isDefaultChatUri(key) ? AgentChatKind.Session : AgentChatKind.Peer;
 }
 
 /**
@@ -1195,6 +1126,11 @@ export function resolveAgentHostCustomizations(context?: URI | IAgentChatContext
 
 /** Options for creating an additional chat within a session. */
 export interface IAgentCreateChatOptions {
+	/**
+	 * Initial provider configuration when this chat creates its owning runtime.
+	 * Absent when adding another independently-backed chat to an existing runtime.
+	 */
+	readonly initialization?: IAgentCreateSessionConfig;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
@@ -1275,6 +1211,8 @@ export interface IAgentCreateChatSideChatSource {
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
 export interface IAgentCreateChatResult {
+	/** Owning session when this call initialized its provider runtime. */
+	readonly session?: URI;
 	/**
 	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
 	 * catalog and hands back to {@link IAgent.materializeChat} on
@@ -1291,6 +1229,10 @@ export interface IAgentCreateChatResult {
 	 * separately-enumerable backing session.
 	 */
 	readonly backingSession?: URI;
+}
+
+export function isAgentCreateSessionResult(result: IAgentCreateChatResult): result is IAgentCreateSessionResult {
+	return result.session !== undefined;
 }
 
 /** Payload of {@link IAgent.onDidChangeChatData}. */
@@ -1422,27 +1364,11 @@ export interface IAgentChats {
 	 * client-chosen channel URI the new chat is addressed by. The orchestrator
 	 * supplies the owning session plus the provider-owned persistence scope via
 	 * `context`, so the agent never has to recover either by parsing `chat`.
-	 * The owning session was already provisioned through
-	 * {@link createSessionChat}, so this method only adds a chat. Returns the
-	 * opaque {@link IAgentCreateChatResult} blob to persist for restore (or
-	 * `void` when the agent keeps no resumable backing).
+	 * When {@link IAgentCreateChatOptions.initialization} is present, this call
+	 * also initializes the provider runtime for the owning session. Otherwise it
+	 * adds an independently-backed chat to an existing runtime.
 	 */
 	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
-
-	/**
-	 * Provision a session and bind its session-backed (default) `chat` in one
-	 * call.
-	 * The orchestrator mints the session URI and the default-chat URI, supplies
-	 * the owning session (plus persistence scope) via `context`, and passes the
-	 * same {@link IAgentCreateSessionConfig} `createSession` used to receive
-	 * (including `fork`/`importConversation`, which produce a new session whose
-	 * default chat carries the copied/imported history). The returned
-	 * {@link IAgentCreateSessionResult.chat} is persisted for exact restore when
-	 * the provider uses an SDK identity independent of the owning session.
-	 * All session creation forms, including fresh, fork, and import, use this
-	 * exact-chat provisioning seam.
-	 */
-	createSessionChat(chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
 	/**
 	 * Fork a new chat from an existing one. The new `chat`

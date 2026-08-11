@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { deriveAgentChatKind, type IAgentChatContext } from '../common/agentService.js';
+import type { IAgentChatContext } from '../common/agentService.js';
 import { buildDefaultChatUri, isDefaultChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -26,9 +26,6 @@ function toUri(resource: URI | ProtocolURI): URI {
  * facts:
  *
  * - `resource` — the provider-owned persistence/configuration scope;
- * - `kind` — the explicit provisioning intent, so providers never re-derive
- *   "is this the session's default chat?" or "is this a subagent?" from URI
- *   shape;
  * - `origin` — the catalog's record of how the chat came into existence, read
  *   from the chat's authoritative `ChatSummary`. Restored chats register their
  *   summary before any state is resolved, and provider-spawned subagent chats
@@ -50,7 +47,6 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	return {
 		session: sessionUri,
 		resource: isDefaultChatUri(chatKey) ? sessionUri : toUri(chat),
-		kind: deriveAgentChatKind(chatKey),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 	};

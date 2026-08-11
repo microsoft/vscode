@@ -42,7 +42,7 @@ import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
-import { AgentChatKind, AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatKind, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, AuthenticateParams, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentLegacyChat, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -193,7 +193,7 @@ export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
 /**
  * A session that has been requested by a client but has not yet been
  * materialized into a real Copilot SDK session, worktree, or persisted
- * metadata. Created by {@link IAgentChats.createSessionChat} when no fork is
+ * metadata. Created by an initializing {@link IAgentChats.createChat} call when no fork is
  * requested, and consumed by {@link CopilotAgent._materializeProvisional}
  * on the first {@link CopilotAgent.sendMessage}.
  *
@@ -2048,7 +2048,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Resolves the working directory for a {@link IAgentChats.createSessionChat} call: the caller-supplied folder, else a
+	 * Resolves the working directory for an initializing {@link IAgentChats.createChat} call: the caller-supplied folder, else a
 	 * still-provisional session's folder for an idempotent re-create, else — when the session is workspace-less
 	 * (no `workingDirectory` supplied) — a stable per-session scratch directory.
 	 */
@@ -2250,14 +2250,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
-		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			this._noteHostCustomizations(context);
-			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
-		},
-		createSessionChat: async (chat: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
+		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> => {
 			this._noteHostCustomizations(context);
 			const resolved = resolveAgentChatContext(context, chat);
-			return this._createSession({ ...(config ?? {}), session: resolved.session }, chat);
+			if (options?.initialization) {
+				return this._createSession({ ...options.initialization, session: resolved.session }, chat);
+			}
+			return this._createChat(chat, resolved, options);
 		},
 		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			this._noteHostCustomizations(context);
@@ -2405,7 +2404,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (sessionConfig.session && !this._findSessionBySdkId(sessionId) && !this._provisionalSessions.has(sessionId)) {
 				this._resetSessionLifetime(sessionId);
 			}
-			// Thread the exact target `chat` through so `createSessionChat`
+			// Thread the exact target `chat` through so initializing `createChat`
 			// binds the imported session's default chat directly during resume.
 			return this._importConversation(sessionConfig, sessionId, workingDirectory, chat);
 		}
@@ -2419,19 +2418,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 
 		// Idempotency for already-materialized sessions: a duplicate
-		// `createSessionChat` for a chat that has already been promoted to a
+		// An initializing `createChat` for a chat that has already been promoted to a
 		// real SDK session (or restored from disk) is a no-op; we return the
 		// non-provisional result so the caller doesn't re-fire `SessionAdded`.
 		// This guards against client retries that race a successful first
 		// message.
 		const existing = this._findChatByUri(chat);
 		if (existing) {
-			this._logService.info(`[Copilot] createSessionChat is a no-op: session already materialized: ${sessionUri.toString()}`);
+			this._logService.info(`[Copilot] initializing createChat is a no-op: session already materialized: ${sessionUri.toString()}`);
 			const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
 			return { session: sessionUri, resolvedWorkingDirectory: workingDirectory, ...(project ? { project } : {}), chat: this._createChatResult(existing.sessionId) };
 		}
 
-		// Idempotent: a duplicate `createSessionChat` for a still-provisional
+		// Idempotent: a duplicate initializing `createChat` for a still-provisional
 		// URI (e.g. a client retried on reconnect with the same URI) keeps the
 		// existing record. We deliberately do NOT overwrite `model` or
 		// `workingDirectory`: a re-create payload from a fresh connection sends
@@ -2641,7 +2640,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Promotes a {@link IProvisionalSession} into a real Copilot SDK session
-	 * by performing the work that {@link IAgentChats.createSessionChat} previously did
+	 * by performing the work that initializing {@link IAgentChats.createChat} previously did
 	 * eagerly: resolves the working directory (creating a worktree if
 	 * `isolation === 'worktree'`), instantiates the {@link CopilotAgentSession},
 	 * persists session metadata, and notifies the {@link IAgentService} via
@@ -2656,7 +2655,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link changeModel}). The latest provider-owned session config is read
 	 * straight from the state manager via
 	 * {@link IAgentConfigurationService.getSessionConfigValues} so any
-	 * `SessionConfigChanged` actions that arrived after `createSessionChat` are
+	 * `SessionConfigChanged` actions that arrived after initializing `createChat` are
 	 * honoured without bespoke forwarding.
 	 */
 	private async _materializeProvisional(sessionId: string, resolvedWorkingDirectories?: readonly URI[]): Promise<CopilotAgentSession> {
@@ -3069,12 +3068,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._isShuttingDown) {
 			return [];
 		}
-		// A subagent chat has no provider backing of its own: the spawning
-		// chat's SDK event log holds its turns. Route it by the host's explicit
-		// provisioning intent plus the `Tool` spawn edge on its origin — never
-		// by recognizing a subagent shape in the addressed URI.
-		if (resolveAgentChatKind(chat, sessionOrContext) === AgentChatKind.Subagent) {
+		// A subagent transcript is identified by its host-supplied tool spawn
+		// edge, never by recognizing a shape in the addressed URI.
+		if (resolveSubagentChatParent(sessionOrContext)) {
 			return this._getSubagentChatMessages(chat, sessionOrContext);
+		}
+		if (!sessionOrContext && !this._chatBackings.has(chat.toString()) && !this._findChatByUri(chat)) {
+			return [];
 		}
 		const context = this._resolveChatContext(chat, sessionOrContext);
 		if (this._provisionalSessions.has(context.sessionId) && isEqual(context.resource, context.session)) {

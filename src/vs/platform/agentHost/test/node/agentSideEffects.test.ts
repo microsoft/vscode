@@ -19,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentChatKind, AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -131,14 +131,14 @@ function createTestSideEffects(
 
 /**
  * Provision a session directly on an agent through the exact-chat seam
- * {@link IAgentChats.createSessionChat}, mirroring what
+ * an initializing {@link IAgentChats.createChat} call, mirroring what
  * `AgentService.createSession` does. Used by tests that need a session to
  * exist on the agent backend without going through the orchestrator.
  */
 async function createAgentSession(agent: IAgent): Promise<URI> {
 	const session = AgentSession.uri(agent.id, generateUuid());
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	await agent.chats.createSessionChat(defaultChat, session, { session });
+	await agent.chats.createChat(defaultChat, session, { initialization: { session } });
 	return session;
 }
 
@@ -328,7 +328,6 @@ suite('AgentSideEffects', () => {
 					chat: entry.chat.toString(),
 					session: context.session.toString(),
 					resource: context.resource.toString(),
-					kind: context.kind,
 					origin: context.origin,
 					customizations: context.customizations?.map(c => c.id),
 				};
@@ -336,7 +335,6 @@ suite('AgentSideEffects', () => {
 				chat: peerChatUri,
 				session: sessionUri.toString(),
 				resource: peerChatUri,
-				kind: AgentChatKind.Peer,
 				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
 				customizations: [hostCustomization.id],
 			}]);
@@ -3672,7 +3670,6 @@ suite('AgentSideEffects', () => {
 					// recover the spawning chat + tool call from it. Stamping the
 					// routing target here instead would make that unresolvable.
 					contextResource: c.context?.resource.toString(),
-					contextKind: c.context?.kind,
 					parent: resolveSubagentChatParent(c.context)?.chat.toString(),
 					parentToolCallId: resolveSubagentChatParent(c.context)?.toolCallId,
 				})),
@@ -3681,7 +3678,6 @@ suite('AgentSideEffects', () => {
 					chat: peerChatUri,
 					toolCallId: 'tc-inner',
 					contextResource: subagentChatUri,
-					contextKind: AgentChatKind.Subagent,
 					parent: peerChatUri,
 					parentToolCallId: 'tc-parent',
 				}],

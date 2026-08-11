@@ -131,7 +131,7 @@ export class MockAgent implements IAgent {
 		return { session, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides };
 	}
 
-	/** Optional override for the working directory returned by createSessionChat. */
+	/** Optional override for the working directory returned by initializing createChat. */
 	resolvedWorkingDirectory: URI | undefined;
 
 	/**
@@ -142,7 +142,7 @@ export class MockAgent implements IAgent {
 	sendMessageError: Error | undefined;
 	lastCreateSessionConfig: IAgentCreateSessionConfig | undefined;
 
-	/** Backing helper for {@link chats}.createSessionChat: registers and returns a new session record. */
+	/** Backing helper for an initializing {@link chats}.createChat call. */
 	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateSessionResult {
 		this.lastCreateSessionConfig = config;
 		this._sessions.set(AgentSession.id(session), session);
@@ -261,14 +261,13 @@ export class MockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> => {
 			this._recordContext('createChat', chatUri, context);
-			return this.createChat(resolveAgentChatContext(context, chatUri).session, chatUri, options);
-		},
-		createSessionChat: (chatUri: URI, context: URI | IAgentChatContext, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
-			this._recordContext('createSessionChat', chatUri, context);
 			const session = resolveAgentChatContext(context, chatUri).session;
-			return Promise.resolve(this._createSessionRecord(session, config));
+			if (options?.initialization) {
+				return Promise.resolve(this._createSessionRecord(session, options.initialization));
+			}
+			return this.createChat(session, chatUri, options);
 		},
 		fork: (chatUri: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			this._recordContext('fork', chatUri, context);
@@ -966,12 +965,12 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (_chat: URI, _context: URI | IAgentChatContext, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
+		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> => {
+			if (options?.initialization) {
+				const session = resolveAgentChatContext(context, chatUri).session;
+				return Promise.resolve(this._createSessionRecord(session));
+			}
 			throw new Error('Scripted mock agent does not support multiple chats');
-		},
-		createSessionChat: (chatUri: URI, context: URI | IAgentChatContext, _config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> => {
-			const session = resolveAgentChatContext(context, chatUri).session;
-			return Promise.resolve(this._createSessionRecord(session));
 		},
 		fork: (_chat: URI, _context: URI | IAgentChatContext, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			throw new Error('Scripted mock agent does not support chat forking');

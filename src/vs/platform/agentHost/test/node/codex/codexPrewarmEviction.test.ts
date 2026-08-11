@@ -27,7 +27,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentChatKind, AgentSession, type AgentSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult } from '../../../common/agentService.js';
+import { AgentSession, isAgentCreateSessionResult, type AgentSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult } from '../../../common/agentService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
@@ -219,15 +219,17 @@ function defaultChatOf(session: URI): URI {
 }
 
 /**
- * Provision a session through the agent's only session-provisioning seam:
- * {@link IAgentChats.createSessionChat}, which mints the runtime already bound
- * to the exact session-backed chat Agent Host addresses it by. Mirrors the
- * host, which mints both the session URI and its default-chat URI up front.
+ * Provision a session through an initializing {@link IAgentChats.createChat}
+ * call, already addressed by the exact chat URI Agent Host minted.
  */
-function createSession(agent: CodexAgent, config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
+async function createSession(agent: CodexAgent, config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
 	const session = config.session ?? AgentSession.uri(agent.id, generateUuid());
 	const chat = defaultChatOf(session);
-	return agent.chats.createSessionChat(chat, { session, resource: chat, kind: AgentChatKind.Session }, { ...config, session });
+	const result = await agent.chats.createChat(chat, { session, resource: chat }, { initialization: { ...config, session } });
+	if (!result || !isAgentCreateSessionResult(result)) {
+		throw new Error('Expected initialized chat metadata');
+	}
+	return result;
 }
 
 async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'add'>, completePrewarmBeforeSend: boolean): Promise<void> {
@@ -1294,7 +1296,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// session, so the test mints the target chat the way the host does.
 		const forkSession = AgentSession.uri(agent.id, generateUuid());
 		const forkChat = defaultChatOf(forkSession);
-		const forking = agent.chats.createSessionChat(forkChat, { session: forkSession, resource: forkChat, kind: AgentChatKind.Session }, {
+		const forking = createSession(agent, {
 			session: forkSession,
 			fork: { session: source.session, chat: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 		});
@@ -1328,7 +1330,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// session-data service backs every session with one shared database, so
 		// finalizing the source here would read the fork's overlay and delete
 		// the fork's directory.
-		const disposingSource = agent.chats.disposeChat(sourceChat, { session: source.session, resource: sourceChat, kind: AgentChatKind.Session });
+		const disposingSource = agent.chats.disposeChat(sourceChat, { session: source.session, resource: sourceChat });
 		const sourceUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: sourceUnsubscribe.id, result: {} });
 		await disposingSource;
@@ -1347,7 +1349,7 @@ suite('CodexAgent prewarm eviction', () => {
 			copiedMarker: 'fork me',
 		});
 
-		const disposingFork = agent.chats.disposeChat(forkChat, { session: forked.session, resource: forkChat, kind: AgentChatKind.Session });
+		const disposingFork = agent.chats.disposeChat(forkChat, { session: forked.session, resource: forkChat });
 		const forkUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: forkUnsubscribe.id, result: {} });
 		await disposingFork;
@@ -1415,7 +1417,7 @@ suite('CodexAgent prewarm eviction', () => {
 			// session-addressed seam: Agent Host addresses it by its exact chat
 			// URI plus the transient owning-session context.
 			const restoredChat = defaultChatOf(created.session);
-			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { session: created.session, resource: restoredChat, kind: AgentChatKind.Session });
+			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { session: created.session, resource: restoredChat });
 			const resume = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: resume.id,
