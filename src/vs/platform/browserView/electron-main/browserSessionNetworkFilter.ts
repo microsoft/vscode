@@ -16,6 +16,8 @@ export class BrowserSessionNetworkFilter {
 	private readonly policyErrors = new Map<number, RetainedPolicyErrors>();
 	private readonly navigationPolicyErrors = new Map<number, RetainedPolicyErrors>();
 	private readonly agentActions = new Map<string, AgentAction>();
+	private readonly derivedFilterOwners = new Map<number, Set<number>>();
+	private readonly derivedWebContentsByOwner = new Map<number, Set<number>>();
 	private readonly webContentsByOrigin = new Map<string, Set<number>>();
 	private readonly originsByWebContents = new Map<number, Set<string>>();
 	private readonly observedWebContents = new Set<number>();
@@ -27,6 +29,7 @@ export class BrowserSessionNetworkFilter {
 			this.filteredWebContents.add(webContentsId);
 		} else {
 			this.filteredWebContents.delete(webContentsId);
+			this.clearDerivedFilteringOwner(webContentsId);
 			this.policyErrors.delete(webContentsId);
 			this.navigationPolicyErrors.delete(webContentsId);
 			this.clearWebContentsOrigins(webContentsId);
@@ -67,10 +70,11 @@ export class BrowserSessionNetworkFilter {
 		const webContents = details.webContents;
 		const webContentsId = this.getWebContentsId(details, webContents);
 		const webContentsWasKnown = webContentsId !== undefined && (
-			this.filteredWebContents.has(webContentsId)
+			this.isWebContentsFiltered(webContentsId)
 			|| this.observedWebContents.has(webContentsId)
 			|| this.originsByWebContents.has(webContentsId)
 		);
+		const referrerOwners = this.getReferrerOwners(details.referrer);
 		if (webContentsId !== undefined) {
 			this.recordRequestOrigins(webContentsId, details);
 			if (webContents && !this.observedWebContents.has(webContentsId)) {
@@ -78,6 +82,8 @@ export class BrowserSessionNetworkFilter {
 				webContents.once('destroyed', () => {
 					this.observedWebContents.delete(webContentsId);
 					this.filteredWebContents.delete(webContentsId);
+					this.clearDerivedFilteringOwner(webContentsId);
+					this.removeDerivedWebContents(webContentsId);
 					this.policyErrors.delete(webContentsId);
 					this.navigationPolicyErrors.delete(webContentsId);
 					for (const [sourceId, action] of this.agentActions) {
@@ -91,8 +97,7 @@ export class BrowserSessionNetworkFilter {
 				});
 			}
 		}
-		const referrerOwners = this.getReferrerOwners(details.referrer);
-		const filteredReferrerOwners = referrerOwners ? [...referrerOwners].filter(id => this.filteredWebContents.has(id)) : [];
+		const filteredReferrerOwners = referrerOwners ? [...referrerOwners].filter(id => this.isWebContentsFiltered(id)) : [];
 		const shouldUseReferrerOwnership = webContentsId === undefined || !webContentsWasKnown;
 		const attributableFilteredReferrerOwners = shouldUseReferrerOwnership ? filteredReferrerOwners : [];
 		const isMainFrame = details.resourceType === 'mainFrame';
@@ -111,12 +116,13 @@ export class BrowserSessionNetworkFilter {
 		if (isMainFrame && webContentsId !== undefined) {
 			for (const action of matchingAgentActions) {
 				action.webContentsIds.add(webContentsId);
+				this.addDerivedWebContents(action.webContentsId, webContentsId);
 			}
 		}
 		const isAgentRequest = matchingAgentActions.length > 0;
 		const shouldFilterMainFrame = isMainFrame && (
 			isAgentRequest
-			|| (webContentsId !== undefined && this.filteredWebContents.has(webContentsId))
+			|| (webContentsId !== undefined && this.isWebContentsFiltered(webContentsId))
 			|| attributableFilteredReferrerOwners.length > 0
 			|| (!webContentsWasKnown && referrerOwners === undefined && this.filteredWebContents.size > 0)
 		);
@@ -134,12 +140,12 @@ export class BrowserSessionNetworkFilter {
 		const policyErrorTargets = isAgentRequest ? []
 			: isMainFrame
 				? [...new Set([
-					...(webContentsId !== undefined && (this.filteredWebContents.has(webContentsId) || !webContentsWasKnown) ? [webContentsId] : []),
+					...(webContentsId !== undefined && (this.isWebContentsFiltered(webContentsId) || !webContentsWasKnown) ? [webContentsId] : []),
 					...attributableFilteredReferrerOwners,
 				])]
 				: webContentsId === undefined
 					? referrerOwners ? filteredReferrerOwners : []
-					: this.filteredWebContents.has(webContentsId) ? [webContentsId] : [];
+					: this.isWebContentsFiltered(webContentsId) ? [webContentsId] : [];
 		const shouldFilter = shouldFilterMainFrame || isAgentRequest || policyErrorTargets.length > 0 || (webContentsId === undefined && referrerOwners === undefined && this.filteredWebContents.size > 0);
 		if (!shouldFilter) {
 			callback({ cancel: false });
@@ -160,6 +166,65 @@ export class BrowserSessionNetworkFilter {
 			this.addPolicyErrors(policyErrorTargets, matchingAgentActions, uri, isMainFrame);
 		}
 		callback({ cancel: !allowed });
+	}
+
+	private isWebContentsFiltered(webContentsId: number): boolean {
+		if (this.filteredWebContents.has(webContentsId)) {
+			return true;
+		}
+		return [...this.derivedFilterOwners.get(webContentsId) ?? []].some(ownerId => this.filteredWebContents.has(ownerId));
+	}
+
+	private addDerivedWebContents(ownerId: number, webContentsId: number): void {
+		if (ownerId === webContentsId) {
+			return;
+		}
+		let owners = this.derivedFilterOwners.get(webContentsId);
+		if (!owners) {
+			owners = new Set();
+			this.derivedFilterOwners.set(webContentsId, owners);
+		}
+		owners.add(ownerId);
+		let derivedWebContents = this.derivedWebContentsByOwner.get(ownerId);
+		if (!derivedWebContents) {
+			derivedWebContents = new Set();
+			this.derivedWebContentsByOwner.set(ownerId, derivedWebContents);
+		}
+		derivedWebContents.add(webContentsId);
+	}
+
+	private clearDerivedFilteringOwner(ownerId: number): void {
+		const derivedWebContents = this.derivedWebContentsByOwner.get(ownerId);
+		if (!derivedWebContents) {
+			return;
+		}
+		this.derivedWebContentsByOwner.delete(ownerId);
+		for (const webContentsId of derivedWebContents) {
+			const owners = this.derivedFilterOwners.get(webContentsId);
+			owners?.delete(ownerId);
+			if (owners?.size === 0) {
+				this.derivedFilterOwners.delete(webContentsId);
+				if (!this.filteredWebContents.has(webContentsId)) {
+					this.policyErrors.delete(webContentsId);
+					this.navigationPolicyErrors.delete(webContentsId);
+				}
+			}
+		}
+	}
+
+	private removeDerivedWebContents(webContentsId: number): void {
+		const owners = this.derivedFilterOwners.get(webContentsId);
+		if (!owners) {
+			return;
+		}
+		this.derivedFilterOwners.delete(webContentsId);
+		for (const ownerId of owners) {
+			const derivedWebContents = this.derivedWebContentsByOwner.get(ownerId);
+			derivedWebContents?.delete(webContentsId);
+			if (derivedWebContents?.size === 0) {
+				this.derivedWebContentsByOwner.delete(ownerId);
+			}
+		}
 	}
 
 	private getWebContentsId(details: OnBeforeRequestListenerDetails, webContents: Electron.WebContents | null | undefined): number | undefined {

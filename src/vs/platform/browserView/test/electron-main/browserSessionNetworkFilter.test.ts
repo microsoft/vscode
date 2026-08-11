@@ -196,6 +196,43 @@ suite('BrowserSession network filter', () => {
 		});
 	});
 
+	test('keeps derived popup filtering until the tracked opener is released', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+		filter.setAgentAction(1, 'action', true);
+		const allowedPopup = invokeRequest(filter, {
+			url: 'https://allowed.example/popup',
+			resourceType: 'mainFrame',
+			webContentsId: 3,
+			referrer: 'https://allowed.example/opener',
+		});
+		filter.setAgentAction(1, 'action', false);
+
+		const delayedDeniedNavigation = invokeRequest(filter, {
+			url: 'https://denied.example/delayed',
+			resourceType: 'mainFrame',
+			webContentsId: 3,
+			referrer: 'https://allowed.example/popup',
+		});
+		filter.setFiltering(1, false);
+		const navigationAfterOpenerRelease = invokeRequest(filter, {
+			url: 'https://denied.example/after-release',
+			resourceType: 'mainFrame',
+			webContentsId: 3,
+			referrer: 'https://allowed.example/popup',
+		});
+
+		assert.deepStrictEqual({
+			allowedPopup,
+			delayedDeniedNavigation,
+			navigationAfterOpenerRelease,
+		}, {
+			allowedPopup: { cancel: false },
+			delayedDeniedNavigation: { cancel: true },
+			navigationAfterOpenerRelease: { cancel: false },
+		});
+	});
+
 	test('uses the webContents object when webContentsId is omitted', () => {
 		const { filter } = createFilter();
 		const webContents = { id: 1, once: () => { } } as unknown as Electron.WebContents;

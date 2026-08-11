@@ -59,6 +59,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					response.writeHead(302, { Location: `http://127.0.0.1:${deniedPort}/redirected-private` });
 					response.end();
 					break;
+				case '/delayed-popup':
+					response.setHeader('Content-Type', 'text/html');
+					response.end(`<html><body>allowed popup<script>setTimeout(() => location.assign('http://127.0.0.1:${deniedPort}/popup-delayed-private'), 300);</script></body></html>`);
+					break;
 				case '/complex':
 					response.setHeader('Content-Type', 'text/html');
 					response.end(`<!DOCTYPE html>
@@ -448,6 +452,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				await page.evaluate(url => {
 					setTimeout(() => location.assign(url), 300);
 				}, 'http://127.0.0.1:${deniedPort}/page-delayed-private');
+				await page.evaluate(url => window.open(url), 'http://localhost:${allowedPort}/delayed-popup');
 				return 'scheduled';`,
 		});
 		await new Promise(resolve => setTimeout(resolve, 700));
