@@ -61,7 +61,8 @@ import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
-const CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT = 420;
+const CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT = 260;
+const CHAT_INPUT_WINDOW_ACTION_WIDGET_SURFACE_HEIGHT = 280;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
@@ -120,6 +121,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetVisibilityCount = 0;
 	private _actionWidgetOwner: IAuxiliaryWindow | undefined;
 	private _actionWidgetRestoreBounds: IRectangle | undefined;
+	private _actionWidgetSurface: HTMLElement | undefined;
+	private _actionWidgetSurfaceHeight = 0;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
@@ -431,7 +434,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
 				submitHandler: (query, mode, attachedContext, isVoiceModeInput) => this._routingController?.handleSubmit(query, mode, attachedContext, isVoiceModeInput) ?? Promise.resolve(false),
-				onDidChangeModelPickerVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible),
+				onDidChangeModelPickerVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, surface, visible),
 				inputPickerPosition: AnchorPosition.BELOW,
 				inputPickerContainer: () => auxiliaryWindow.container,
 				inputPickerOpenOnMouseUp: true,
@@ -502,7 +505,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._dismissedPendingRequests.set(dismissed, undefined);
 				this.voiceSessionController.clearRoutedRequest(resource);
 			},
-			onDidChangeActionWidgetVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible),
+			onDidChangeActionWidgetVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, surface, visible),
 			getActionWidgetContainer: () => auxiliaryWindow.container,
 			getActionWidgetAnchor: anchor => anchor,
 			getActionWidgetAnchorPosition: () => AnchorPosition.BELOW,
@@ -1104,7 +1107,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return undefined;
 	}
 
-	private _setActionWidgetVisible(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
+	private _setActionWidgetVisible(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, visible: boolean): Promise<void> {
 		if (!visible) {
 			if (this._actionWidgetOwner !== auxiliaryWindow) {
 				return Promise.resolve();
@@ -1117,15 +1120,21 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			this._actionWidgetOwner = undefined;
 			this._actionWidgetRestoreBounds = undefined;
 			if (!restoreBounds || this._window !== auxiliaryWindow) {
+				this._resetActionWidgetSurface();
 				return Promise.resolve();
 			}
-			return auxiliaryWindow.setBounds(restoreBounds).then(() => this._fitWindowToContent());
+			return auxiliaryWindow.setBounds(restoreBounds).then(() => {
+				this._resetActionWidgetSurface();
+				this._fitWindowToContent();
+			});
 		}
 
 		if (this._actionWidgetOwner !== auxiliaryWindow) {
 			this._actionWidgetVisibilityCount = 0;
 			this._actionWidgetOwner = auxiliaryWindow;
 			this._actionWidgetRestoreBounds = undefined;
+			this._actionWidgetSurface = surface;
+			this._actionWidgetSurfaceHeight = surface.getBoundingClientRect().height;
 		}
 		this._actionWidgetVisibilityCount++;
 		if (this._actionWidgetVisibilityCount > 1) {
@@ -1153,8 +1162,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const displayBottom = display.y + display.height;
 			const height = Math.min(restoreBounds.height + CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT, display.height);
 			const y = Math.max(display.y, Math.min(restoreBounds.y, displayBottom - height));
+			const surfaceHeight = Math.min(height, Math.max(this._actionWidgetSurfaceHeight, CHAT_INPUT_WINDOW_ACTION_WIDGET_SURFACE_HEIGHT));
+			surface.style.setProperty('height', `${surfaceHeight}px`, 'important');
+			surface.style.transform = `translateY(${restoreBounds.y - y}px)`;
 			return auxiliaryWindow.setBounds({ ...restoreBounds, y, height });
 		});
+	}
+
+	private _resetActionWidgetSurface(): void {
+		this._actionWidgetSurface?.style.removeProperty('height');
+		this._actionWidgetSurface?.style.removeProperty('transform');
+		this._actionWidgetSurface = undefined;
+		this._actionWidgetSurfaceHeight = 0;
 	}
 
 	private _disposeWidget(): void {
@@ -1170,6 +1189,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._actionWidgetVisibilityCount = 0;
 		this._actionWidgetOwner = undefined;
 		this._actionWidgetRestoreBounds = undefined;
+		this._resetActionWidgetSurface();
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
 	}
