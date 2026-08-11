@@ -8,6 +8,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -38,9 +39,12 @@ suite('Chat input onboarding', () => {
 		const card = context.container.ownerDocument.createElement('div');
 		card.classList.add('chat-input-onboarding-card');
 		context.container.appendChild(card);
+		card.tabIndex = 0;
 		const disposable = toDisposable(() => card.remove());
 		return {
 			announce: () => { announceCalls++; },
+			hasFocus: () => dom.isAncestorOfActiveElement(card),
+			focus: () => card.focus(),
 			dispose: () => disposable.dispose(),
 		};
 	}
@@ -129,6 +133,74 @@ suite('Chat input onboarding', () => {
 		assert.deepStrictEqual(
 			{ whileBlocked, afterUnblocked, cards: host.container.querySelectorAll('.chat-input-onboarding-card').length },
 			{ whileBlocked: false, afterUnblocked: true, cards: 1 });
+	});
+
+	test('stands down while the space is taken and comes back when it is given up', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.standsDown');
+		const host = createHost(disposables);
+		const blocked = observableValue<boolean>('blocked', false);
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			isBlocked: reader => blocked.read(reader),
+		}));
+
+		let cardsCreated = 0;
+		const factory = (context: IChatInputOnboardingContext) => {
+			cardsCreated++;
+			return createCard(context);
+		};
+
+		onboarding.showIfNeeded(factory);
+		const whileFree = onboarding.isVisible;
+		blocked.set(true, undefined);
+		const whileTaken = onboarding.isVisible;
+		blocked.set(false, undefined);
+
+		assert.deepStrictEqual(
+			{ whileFree, whileTaken, afterGivenUp: onboarding.isVisible, cardsCreated },
+			{ whileFree: true, whileTaken: false, afterGivenUp: true, cardsCreated: 2 });
+	});
+
+	test('shows a deferred first-run card as soon as the space frees', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.deferredReturns');
+		const host = createHost(disposables);
+		const blocked = observableValue<boolean>('blocked', true);
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			isBlocked: reader => blocked.read(reader),
+		}));
+
+		const whileBlocked = onboarding.showIfNeeded(createCard);
+		blocked.set(false, undefined);
+
+		// No second `showIfNeeded` call: the deferred card is put back on its own.
+		assert.deepStrictEqual(
+			{ whileBlocked, afterUnblocked: onboarding.isVisible },
+			{ whileBlocked: false, afterUnblocked: true });
+	});
+
+	test('a dismissed card does not come back when the space frees', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.dismissedStaysGone');
+		const host = createHost(disposables);
+		const blocked = observableValue<boolean>('blocked', false);
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			isBlocked: reader => blocked.read(reader),
+		}));
+
+		let dismiss: (() => void) | undefined;
+		onboarding.showIfNeeded(context => {
+			dismiss = () => context.dismiss(false);
+			return createCard(context);
+		});
+		dismiss!();
+		blocked.set(true, undefined);
+		blocked.set(false, undefined);
+
+		assert.strictEqual(onboarding.isVisible, false);
 	});
 
 	test('shows an explicitly requested card even while blocked', () => {

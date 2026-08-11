@@ -3,17 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, trackFocus } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, isAncestorOfActiveElement, trackFocus } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 
 /** Voice Mode and Dictation introductions never share the input at once. */
 export const CHAT_INPUT_INTRODUCTION_GROUP = 'chatInputIntroduction';
+
+/** A card keyboard focus can be moved into and back out of. */
+export interface IChatInputOnboardingFocusTarget {
+	hasFocus(): boolean;
+	focus(): void;
+}
 
 export interface IChatInputOnboardingHostOptions {
 	/** The element the card is appended to. */
@@ -22,18 +29,24 @@ export interface IChatInputOnboardingHostOptions {
 	readonly focusRoot: HTMLElement;
 	/** Hands focus back to this host's input when the card closes. */
 	readonly focus?: () => void;
-	/** Reports whether a card is currently showing in this host. */
-	readonly onDidChangeVisible?: (visible: boolean) => void;
+	/**
+	 * Reports whether a card is currently showing in this host, and how to reach
+	 * it with the keyboard while it is.
+	 */
+	readonly onDidChangeVisible?: (visible: boolean, focusTarget?: IChatInputOnboardingFocusTarget) => void;
 	/**
 	 * Whether higher-precedence content currently owns the space above the
-	 * input. A first-run card defers rather than consuming its one showing.
+	 * input. Read through the passed reader so the card can stand down when
+	 * something takes the space, and come back when it is given up again.
 	 */
-	readonly isBlocked?: () => boolean;
+	readonly isBlocked?: (reader?: IReader) => boolean;
 }
 
 interface IChatInputOnboardingHost extends IChatInputOnboardingHostOptions {
 	lastFocused: number;
 }
+
+type ChatInputOnboardingFactory = (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner;
 
 export interface IChatInputOnboardingOptions {
 	readonly storageKey: string;
@@ -51,7 +64,7 @@ export interface IChatInputOnboardingContext {
 	readonly dismiss: (restoreFocus?: boolean) => void;
 }
 
-export interface IChatInputOnboardingBanner extends IDisposable {
+export interface IChatInputOnboardingBanner extends IDisposable, IChatInputOnboardingFocusTarget {
 	announce(): void;
 }
 
@@ -79,6 +92,10 @@ export class ChatInputOnboarding extends Disposable {
 	private _consumedFirstRun = false;
 	/** A displaced card reclaims its showing once; more would never terminate. */
 	private _restoredFirstRun = false;
+	/** How to rebuild the showing card, so a displaced one can be put back. */
+	private _activeFactory: ChatInputOnboardingFactory | undefined;
+	/** A card waiting for the space above the input to be given up again. */
+	private _pending: ChatInputOnboardingFactory | undefined;
 
 	/** Cards that may not be visible at the same time, by group. */
 	private static readonly exclusionGroups = new Map<string, Set<ChatInputOnboarding>>();
@@ -114,20 +131,64 @@ export class ChatInputOnboarding extends Disposable {
 		const host: IChatInputOnboardingHost = { ...options, lastFocused: 0 };
 		this.hosts.add(host);
 
-		const focusTracker = trackFocus(options.focusRoot);
-		const focusListener = focusTracker.onDidFocus(() => host.lastFocused = Date.now());
+		const store = new DisposableStore();
+		const focusTracker = store.add(trackFocus(options.focusRoot));
+		store.add(focusTracker.onDidFocus(() => host.lastFocused = Date.now()));
 
-		return toDisposable(() => {
-			focusListener.dispose();
-			focusTracker.dispose();
+		// Precedence is maintained for as long as the card is up, not just when it
+		// is first shown: the card stands down when something takes the space and
+		// comes back when that content goes away.
+		if (options.isBlocked) {
+			store.add(autorun(reader => this.onDidChangeBlocked(host, options.isBlocked!(reader))));
+		}
+
+		store.add(toDisposable(() => {
 			this.hosts.delete(host);
 			if (this.activeHost === host) {
 				this.hide(false);
 			}
-		});
+		}));
+		return store;
 	}
 
-	showIfNeeded(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
+	private onDidChangeBlocked(host: IChatInputOnboardingHost, blocked: boolean): void {
+		if (blocked) {
+			if (this.activeHost === host && this.isVisible) {
+				this.displace();
+			}
+		} else {
+			this.showPending();
+		}
+	}
+
+	/**
+	 * Stand down for higher-precedence content without spending the showing: the
+	 * card is remembered so it can be put back, and its first-run key is given
+	 * back in case the window closes before that happens.
+	 */
+	private displace(): void {
+		const factory = this._activeFactory;
+		this.preempt();
+		this._pending = factory;
+	}
+
+	/** Put back a card that deferred or was displaced, once the space is free. */
+	private showPending(): void {
+		const factory = this._pending;
+		if (!factory) {
+			return;
+		}
+
+		const host = this.getActiveHost();
+		if (!host || host.isBlocked?.()) {
+			return;
+		}
+
+		this._pending = undefined;
+		this.show(factory);
+	}
+
+	showIfNeeded(createOnboarding: ChatInputOnboardingFactory): boolean {
 		if (this.currentOnboarding.value) {
 			return true;
 		}
@@ -135,14 +196,16 @@ export class ChatInputOnboarding extends Disposable {
 			return false;
 		}
 		// Defer rather than consume the one first-run showing: something with
-		// higher precedence owns the space, so try again next time.
+		// higher precedence owns the space. The card is held so it appears as soon
+		// as that content goes away.
 		if (this.getActiveHost()?.isBlocked?.()) {
+			this._pending = createOnboarding;
 			return false;
 		}
 		return this.show(createOnboarding);
 	}
 
-	show(createOnboarding: (context: IChatInputOnboardingContext) => IChatInputOnboardingBanner): boolean {
+	show(createOnboarding: ChatInputOnboardingFactory): boolean {
 		const host = this.getActiveHost();
 		if (!host) {
 			return false;
@@ -169,8 +232,9 @@ export class ChatInputOnboarding extends Disposable {
 		}
 
 		this.currentOnboarding.value = onboardingStore;
+		this._activeFactory = createOnboarding;
 		this._consumedFirstRun = !this.storageService.getBoolean(this.options.storageKey, StorageScope.APPLICATION, false);
-		host.onDidChangeVisible?.(true);
+		host.onDidChangeVisible?.(true, banner);
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 
 		this.preemptOthers();
@@ -216,6 +280,10 @@ export class ChatInputOnboarding extends Disposable {
 		this.activeHost = undefined;
 		this.currentOnboarding.clear();
 		this._consumedFirstRun = false;
+		this._activeFactory = undefined;
+		// A card that is going away is not waiting to come back. `displace` puts
+		// itself back into the queue after calling this.
+		this._pending = undefined;
 		if (wasVisible) {
 			host?.onDidChangeVisible?.(false);
 		}
@@ -261,6 +329,14 @@ export class ChatInputOnboardingCard extends Disposable {
 
 	announce(): void {
 		alert(localize('chatInputOnboarding.focusHint', "{0}. Use Shift+Tab to reach the introduction.", this.ariaLabel));
+	}
+
+	hasFocus(): boolean {
+		return isAncestorOfActiveElement(this.domNode);
+	}
+
+	focus(): void {
+		this.domNode.focus();
 	}
 
 	addAction(options: IChatInputOnboardingActionOptions): HTMLElement {

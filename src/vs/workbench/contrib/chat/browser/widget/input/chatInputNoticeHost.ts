@@ -29,6 +29,10 @@ export interface IChatInputNoticeFocusTarget {
 	focus(): void;
 }
 
+interface IClaim {
+	readonly focusTarget: IChatInputNoticeFocusTarget | undefined;
+}
+
 /**
  * Tracks which kinds of notice occupy the area above a single chat input so
  * lower-precedence content can stand down, instead of each producer reaching
@@ -36,12 +40,9 @@ export interface IChatInputNoticeFocusTarget {
  */
 export class ChatInputNoticeHost extends Disposable {
 
-	private readonly _claims: number[] = new Array(LANE_COUNT).fill(0);
+	private readonly _claims: IClaim[][] = Array.from({ length: LANE_COUNT }, () => []);
 	private readonly _leases = this._register(new DisposableMap<ChatInputNoticeLane>());
 	private readonly _occupiedLane = observableValue<ChatInputNoticeLane | undefined>(this, undefined);
-
-	/** Focus target of the leading notice, when it has one. */
-	private _focusTarget: IChatInputNoticeFocusTarget | undefined;
 
 	constructor(private readonly _focusInput: () => void) {
 		super();
@@ -52,10 +53,8 @@ export class ChatInputNoticeHost extends Disposable {
 	 * so producers sharing a lane do not release each other.
 	 */
 	occupy(lane: ChatInputNoticeLane, focusTarget?: IChatInputNoticeFocusTarget): IDisposable {
-		this._claims[lane]++;
-		if (focusTarget) {
-			this._focusTarget = focusTarget;
-		}
+		const claim: IClaim = { focusTarget };
+		this._claims[lane].push(claim);
 		this._update();
 
 		let released = false;
@@ -64,20 +63,20 @@ export class ChatInputNoticeHost extends Disposable {
 				return;
 			}
 			released = true;
-			this._claims[lane]--;
-			if (focusTarget && this._focusTarget === focusTarget) {
-				this._focusTarget = undefined;
+			const claims = this._claims[lane];
+			const index = claims.indexOf(claim);
+			if (index !== -1) {
+				claims.splice(index, 1);
 			}
 			this._update();
 		});
 	}
 
 	/** Claim or release `lane` on behalf of a producer that reports visibility. */
-	setOccupied(lane: ChatInputNoticeLane, occupied: boolean): void {
-		if (!occupied) {
-			this._leases.deleteAndDispose(lane);
-		} else if (!this._leases.has(lane)) {
-			this._leases.set(lane, this.occupy(lane));
+	setOccupied(lane: ChatInputNoticeLane, occupied: boolean, focusTarget?: IChatInputNoticeFocusTarget): void {
+		this._leases.deleteAndDispose(lane);
+		if (occupied) {
+			this._leases.set(lane, this.occupy(lane, focusTarget));
 		}
 	}
 
@@ -92,20 +91,40 @@ export class ChatInputNoticeHost extends Disposable {
 	 * already has focus. Returns false when there is nothing to focus.
 	 */
 	toggleFocus(): boolean {
-		if (!this._focusTarget) {
+		const focusTarget = this._leadingFocusTarget();
+		if (!focusTarget) {
 			return false;
 		}
 
-		if (this._focusTarget.hasFocus()) {
+		if (focusTarget.hasFocus()) {
 			this._focusInput();
 		} else {
-			this._focusTarget.focus();
+			focusTarget.focus();
 		}
 		return true;
 	}
 
+	/**
+	 * The focus target of the notice that is actually leading. Scoped to the
+	 * leading lane so focus can never land on a notice that another lane has
+	 * displaced, and so a target cannot outlive the claim that supplied it.
+	 */
+	private _leadingFocusTarget(): IChatInputNoticeFocusTarget | undefined {
+		const lane = this._occupiedLane.get();
+		if (lane === undefined) {
+			return undefined;
+		}
+		const claims = this._claims[lane];
+		for (let i = claims.length - 1; i >= 0; i--) {
+			if (claims[i].focusTarget) {
+				return claims[i].focusTarget;
+			}
+		}
+		return undefined;
+	}
+
 	private _update(): void {
-		const lane = this._claims.findIndex(claims => claims > 0);
+		const lane = this._claims.findIndex(claims => claims.length > 0);
 		this._occupiedLane.set(lane === -1 ? undefined : lane, undefined);
 	}
 }
@@ -123,23 +142,35 @@ export function registerChatInputOnboardingHosts(
 	voiceModeOnboardingService: IVoiceModeOnboardingService,
 	dictationOnboardingService: IDictationOnboardingService,
 ): IDisposable {
-	const onDidChangeVisible = () => host.setOccupied(
-		ChatInputNoticeLane.Onboarding,
-		voiceModeOnboardingService.isVisible || dictationOnboardingService.isVisible);
-	const isBlocked = () => host.isSuppressed(ChatInputNoticeLane.Onboarding, undefined);
+	// Tracked per registration rather than read off the services: a service is
+	// visible window-wide, but a lane is claimed for one input. Aggregating the
+	// services would leave this input's lane claimed by a card docked elsewhere.
+	let voiceVisible: IChatInputNoticeFocusTarget | undefined;
+	let dictationVisible: IChatInputNoticeFocusTarget | undefined;
+	const update = () => {
+		const focusTarget = voiceVisible ?? dictationVisible;
+		host.setOccupied(ChatInputNoticeLane.Onboarding, !!focusTarget, focusTarget);
+	};
+	const isBlocked = (reader?: IReader) => host.isSuppressed(ChatInputNoticeLane.Onboarding, reader);
 
 	const store = new DisposableStore();
 	store.add(voiceModeOnboardingService.registerHost({
 		container: containers.voice,
 		focusRoot,
 		focus: focusInput,
-		onDidChangeVisible,
+		onDidChangeVisible: (visible, focusTarget) => {
+			voiceVisible = visible ? focusTarget : undefined;
+			update();
+		},
 		isBlocked,
 	}));
 	store.add(dictationOnboardingService.registerHost({
 		container: containers.dictation,
 		focusRoot,
-		onDidChangeVisible,
+		onDidChangeVisible: (visible, focusTarget) => {
+			dictationVisible = visible ? focusTarget : undefined;
+			update();
+		},
 		isBlocked,
 	}));
 	return store;

@@ -633,6 +633,14 @@ export class DictationOnboardingBanner extends Disposable implements IChatInputO
 		this.card.announce();
 	}
 
+	hasFocus(): boolean {
+		return this.card.hasFocus();
+	}
+
+	focus(): void {
+		this.card.focus();
+	}
+
 	/**
 	 * What dictation is, and that none of it is fixed. The card is shown once, so
 	 * the two things a user might want to change afterwards - whether dictation
@@ -861,10 +869,6 @@ export interface IDictationOnboardingService {
 	/**
 	 * Register a container that can host the card (a chat input). The most
 	 * recently focused host wins when the card is shown.
-	 *
-	 * @param container the element the card is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
 	 */
 	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 

@@ -63,6 +63,22 @@ suite('ChatInputNoticeHost', () => {
 			{ withNothingShowing: false, movedIntoNotice: true, noticeFocused: true, wentBackToInput: true, inputFocusCount: 1 });
 	});
 
+	test('focuses the leading lane, not whichever notice registered last', () => {
+		const focused: string[] = [];
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const target = (name: string) => ({ hasFocus: () => false, focus: () => focused.push(name) });
+
+		const notification = host.occupy(ChatInputNoticeLane.Notification, target('notification'));
+		// A tip claiming afterwards must not steal focus from the notification.
+		store.add(host.occupy(ChatInputNoticeLane.Tip, target('tip')));
+		host.toggleFocus();
+		notification.dispose();
+		host.toggleFocus();
+
+		assert.deepStrictEqual(focused, ['notification', 'tip']);
+	});
+
 	test('releases a lane only once when its claim is disposed repeatedly', () => {
 		const host = disposables.add(new ChatInputNoticeHost(() => { }));
 		const store = disposables.add(new DisposableStore());

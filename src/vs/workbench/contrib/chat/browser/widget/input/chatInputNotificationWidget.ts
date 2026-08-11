@@ -20,6 +20,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
@@ -68,7 +69,11 @@ export interface IChatInputNotificationDelegate {
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
-	readonly onDidChangeVisibility?: (visible: boolean) => void;
+	/**
+	 * Reports whether a notification is rendered. `focusTarget` is the widget
+	 * itself, so a host can route notice-focus commands into it while it shows.
+	 */
+	readonly onDidChangeVisibility?: (visible: boolean, focusTarget: IChatInputNoticeFocusTarget) => void;
 }
 
 /**
@@ -76,7 +81,7 @@ export interface IChatInputNotificationDelegate {
  * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
  * active notification with severity-colored borders, action buttons, and a dismiss button.
  */
-export class ChatInputNotificationWidget extends Disposable {
+export class ChatInputNotificationWidget extends Disposable implements IChatInputNoticeFocusTarget {
 
 	readonly domNode: HTMLElement;
 
@@ -98,6 +103,11 @@ export class ChatInputNotificationWidget extends Disposable {
 		super();
 
 		this.domNode = $('.chat-input-notification-widget');
+		// Focusable only while a notification renders, so an empty widget does not
+		// add a tab stop between the chat list and the input.
+		this.domNode.tabIndex = -1;
+		this.domNode.setAttribute('role', 'region');
+		this.domNode.setAttribute('aria-roledescription', localize('chatInputNotificationRoleDescription', "notification"));
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
@@ -133,7 +143,16 @@ export class ChatInputNotificationWidget extends Disposable {
 		}
 
 		this._visible = visible;
-		this._delegate?.onDidChangeVisibility?.(visible);
+		this.domNode.tabIndex = visible ? 0 : -1;
+		this._delegate?.onDidChangeVisibility?.(visible, this);
+	}
+
+	hasFocus(): boolean {
+		return dom.isAncestorOfActiveElement(this.domNode);
+	}
+
+	focus(): void {
+		this.domNode.focus();
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {

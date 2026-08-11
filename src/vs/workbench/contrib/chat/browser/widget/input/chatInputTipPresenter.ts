@@ -13,6 +13,12 @@ import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
 import { ChatTipContentPart } from '../chatContentParts/chatTipContentPart.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 
+/**
+ * Marks the tip container while a tip is rendered into it, so surfaces can style
+ * the seam with the input without a descendant-dependent `:has()` selector.
+ */
+const SHOWING_TIP_CLASS = 'showing-chat-tip';
+
 export interface IChatInputTipPresenterOptions {
 	/** The element the tip is rendered into. Hidden while no tip is showing. */
 	readonly container: HTMLElement;
@@ -94,6 +100,7 @@ export class ChatInputTipPresenter extends Disposable {
 		});
 		dom.clearNode(this._options.container);
 		this._options.container.appendChild(tipPart.domNode);
+		this._options.container.classList.add(SHOWING_TIP_CLASS);
 		dom.setVisibility(true, this._options.container);
 	}
 
@@ -102,6 +109,7 @@ export class ChatInputTipPresenter extends Disposable {
 		this._lease.clear();
 		this._part.clear();
 		dom.clearNode(this._options.container);
+		this._options.container.classList.remove(SHOWING_TIP_CLASS);
 		dom.setVisibility(false, this._options.container);
 	}
 }

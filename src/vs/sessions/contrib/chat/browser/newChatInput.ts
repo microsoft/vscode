@@ -506,7 +506,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				modelTargetChatSessionType: this.sessionTypePicker.modelTargetChatSessionType,
 				openModelPicker: () => this._newChatModelPickerService.openModelPicker(),
 				switchToModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
-				onDidChangeVisibility: visible => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible),
+				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 			},
 		));
 		notificationContainer.appendChild(notificationWidget.domNode);

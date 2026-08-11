@@ -1059,6 +1059,14 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		this.card.announce();
 	}
 
+	hasFocus(): boolean {
+		return this.card.hasFocus();
+	}
+
+	focus(): void {
+		this.card.focus();
+	}
+
 	private selectVoice(voice: IVoiceModeVoice): void {
 		if (this.player.playingVoice === voice.id) {
 			this.player.stop();
@@ -1162,13 +1170,6 @@ export interface IVoiceModeOnboardingService {
 	/**
 	 * Register a container that can host the banner (a chat input). The most
 	 * recently focused host wins when the banner is shown.
-	 *
-	 * @param container the element the banner is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
-	 * @param focus hands focus back to this host's input when the banner closes.
-	 * Passed explicitly because `focusRoot` is a container, not a control - the
-	 * host knows where its caret belongs and this service does not.
 	 */
 	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 

@@ -2756,7 +2756,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				sessionResource: this._currentSessionResourceObservable,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
-				onDidChangeVisibility: visible => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible),
+				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 			});
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
