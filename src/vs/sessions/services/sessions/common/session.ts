@@ -201,6 +201,12 @@ export interface ISessionWorkspace {
 	 * Whether this workspace is a virtual
 	 */
 	readonly isVirtualWorkspace: boolean;
+	/**
+	 * Overrides the type icon that would otherwise be inferred from the workspace's shape, for
+	 * providers whose workspaces are not structurally distinguishable. Unlike {@link icon}, which
+	 * identifies the workspace in pickers, this is drawn inline in dense rows.
+	 */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
@@ -905,6 +911,8 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.description !== b.description
 		|| a.group !== b.group
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
+		|| !!a.typeIcon !== !!b.typeIcon
+		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
 		|| a.folders.length !== b.folders.length) {

@@ -34,7 +34,7 @@ import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -106,6 +106,7 @@ export class AutomationsCardsWidget extends Disposable {
 						session,
 						isRead: session.isRead.read(reader),
 						supportsDelete: session.capabilities.read(reader).supportsDelete === true,
+						sessionStatus: run.status === 'running' ? session.status?.read(reader) : undefined,
 					});
 				}
 			}
@@ -476,7 +477,8 @@ class AutomationHistorySection extends Disposable {
 
 		const automation = automationMap.get(run.automationId);
 		const title = automation?.name ?? localize('unknownAutomation', "Unknown");
-		const statusLabel = getRunStatusLabel(run.status);
+		const isNeedsInput = run.status === 'running' && sessionState?.sessionStatus === SessionStatus.NeedsInput;
+		const statusLabel = isNeedsInput ? localize('automationRunNeedsInput', "Needs input") : getRunStatusLabel(run.status);
 		const timestamp = formatTimestamp(run.startedAt, bucketKind);
 		const ariaLabelParts = [title];
 		if (automation?.target.kind === 'workspace') {
@@ -520,7 +522,12 @@ class AutomationHistorySection extends Disposable {
 		if (run.status === 'running' || run.status === 'pending') {
 			const spinnerContainer = DOM.append(statusRow, $('span.automations-run-card-icon'));
 			spinnerContainer.setAttribute('aria-hidden', 'true');
-			this.disposables.add(createPixelSpinner(spinnerContainer, { variant: 'grid' }));
+			this.disposables.add(createPixelSpinner(spinnerContainer, { variant: isNeedsInput ? 'ring' : 'grid' }));
+			if (isNeedsInput) {
+				card.classList.add('needs-input');
+				const needsInputLabel = DOM.append(statusRow, $('span.automations-run-card-needs-input-label'));
+				needsInputLabel.textContent = localize('automationRunNeedsInputLabel', "Input needed");
+			}
 		} else {
 			const statusInfo = runStatusIcon(run.status);
 			const iconEl = DOM.append(statusRow, $('span.automations-run-card-icon.codicon'));
@@ -742,6 +749,7 @@ interface IAutomationRunSessionState {
 	readonly session: ISession;
 	readonly isRead: boolean;
 	readonly supportsDelete: boolean;
+	readonly sessionStatus: SessionStatus | undefined;
 }
 
 function isUnreadAutomationRun(run: IAutomationRun, sessionState: IAutomationRunSessionState | undefined): boolean {

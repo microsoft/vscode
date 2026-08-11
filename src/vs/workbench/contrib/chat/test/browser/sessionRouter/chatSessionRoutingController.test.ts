@@ -6,9 +6,13 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
@@ -401,6 +405,168 @@ suite('ChatSessionRoutingController', () => {
 		}
 	});
 
+	test('shows the selected folder and folder picker for multi-root new sessions', async () => {
+		const clock = sinon.useFakeTimers();
+		const vscode = folder('vscode', '/work/vscode', 0);
+		const docs = folder('docs', '/work/docs', 1);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		let submitted = false;
+		type FolderPickerItem =
+			| { readonly id: string; readonly kind: 'workspace'; readonly folder: IWorkspaceFolder }
+			| { readonly id: 'choose-folder'; readonly kind: 'choose' };
+		let pickerItems: readonly IActionListItem<FolderPickerItem>[] | undefined;
+		let pickerDelegate: IActionListDelegate<FolderPickerItem> | undefined;
+		let pickerAnchor: HTMLElement | undefined;
+		let pickerContainer: HTMLElement | undefined;
+		let pickerOptions: IActionListOptions | undefined;
+		const pickerVisibility: boolean[] = [];
+		let folderDialogDefault: URI | undefined;
+		const actionWidgetService = {
+			show: <T,>(
+				_user: string,
+				_supportsPreview: boolean,
+				items: readonly IActionListItem<T>[],
+				delegate: IActionListDelegate<T>,
+				anchor: HTMLElement,
+				actionWidgetContainer: HTMLElement | undefined,
+				_actionBarActions: undefined,
+				_accessibilityProvider: unknown,
+				listOptions: IActionListOptions,
+			) => {
+				pickerItems = items as readonly IActionListItem<FolderPickerItem>[];
+				pickerDelegate = delegate as unknown as IActionListDelegate<FolderPickerItem>;
+				pickerAnchor = anchor;
+				pickerContainer = actionWidgetContainer;
+				pickerOptions = listOptions;
+			},
+			hide: () => pickerDelegate?.onHide(),
+		} as unknown as IActionWidgetService;
+		const host = {
+			widget: {
+				inputEditor: {
+					onDidChangeModelContent: Event.None,
+					getValue: () => 'create a new session to update docs',
+				},
+				attachmentModel: {
+					onDidChange: Event.None,
+					attachments: [],
+				},
+				input: { setSubmitPending: () => { } },
+				getSelectedModelRequestOptions: () => ({}),
+				getModeRequestOptions: () => ({}),
+			},
+			getOwnSessionResource: () => undefined,
+			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
+			onDidChangeActionWidgetVisibility: (visible: boolean) => pickerVisibility.push(visible),
+			getActionWidgetContainer: () => container,
+			getActionWidgetAnchor: (anchor: HTMLElement) => anchor,
+			getActionWidgetAnchorPosition: () => AnchorPosition.BELOW,
+			pickFolder: async (defaultUri: URI | undefined) => {
+				folderDialogDefault = defaultUri;
+				return URI.file('/outside/external-project');
+			},
+			placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+		} as unknown as IChatSessionRoutingHost;
+		const workspaceContextService = {
+			getWorkspace: () => ({ folders: [vscode, docs] }),
+			getWorkspaceFolder: (resource: URI) => [vscode, docs].find(candidate => candidate.uri.toString() === resource.toString()),
+		} as IWorkspaceContextService;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			{ sendRequest: async () => { submitted = true; return { kind: 'rejected' }; } } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ info: () => { }, warn: () => { } } as never,
+			workspaceContextService,
+			{ getDefaultFolder: () => undefined, setFolder: () => { } } as never,
+			actionWidgetService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+
+		await controller.handleSubmit('create a new session to update docs', undefined!);
+		const label = container.querySelector<HTMLElement>('.chat-routing-badge-name');
+		const changeFolder = container.querySelector<HTMLButtonElement>('.chat-routing-badge-folder-action');
+		const countdown = container.querySelector<HTMLElement>('.chat-routing-badge-countdown');
+		assert.deepStrictEqual({
+			submitted,
+			label: label?.textContent,
+			changeFolder: changeFolder?.textContent,
+			countdown: countdown?.textContent,
+			hasPopup: changeFolder?.getAttribute('aria-haspopup'),
+		}, {
+			submitted: false,
+			label: 'New session in docs',
+			changeFolder: 'docs',
+			countdown: 'sending in 10s',
+			hasPopup: 'menu',
+		});
+
+		try {
+			clock.tick(3_000);
+			assert.strictEqual(countdown?.textContent, 'sending in 7s');
+			changeFolder?.click();
+			await Promise.resolve();
+			assert.strictEqual(countdown?.textContent, 'waiting for you');
+			assert.strictEqual(changeFolder?.getAttribute('aria-expanded'), 'true');
+			assert.strictEqual(pickerAnchor, changeFolder);
+			assert.strictEqual(pickerContainer, container);
+			assert.strictEqual(pickerOptions?.showFilter, true);
+			assert.strictEqual(pickerOptions?.filterPlaceholder, 'Search folders');
+			assert.strictEqual(pickerOptions?.focusFilterOnOpen, true);
+			assert.strictEqual(pickerOptions?.anchorPosition, AnchorPosition.BELOW);
+			assert.deepStrictEqual(pickerItems?.map(item => item.label), ['vscode', 'docs', 'Choose Folder…']);
+			clock.tick(5_000);
+			assert.strictEqual(countdown?.textContent, 'waiting for you');
+			pickerDelegate?.onSelect(pickerItems![0].item!);
+			assert.deepStrictEqual({
+				label: label?.textContent,
+				changeFolder: changeFolder?.textContent,
+				expanded: changeFolder?.getAttribute('aria-expanded'),
+				countdown: countdown?.textContent,
+				pickerVisibility,
+			}, {
+				label: 'New session in vscode',
+				changeFolder: 'vscode',
+				expanded: 'false',
+				countdown: 'sending in 7s',
+				pickerVisibility: [true, false],
+			});
+			changeFolder?.click();
+			await Promise.resolve();
+			const chooseFolder = pickerItems?.find(item => item.item?.kind === 'choose')?.item;
+			assert.ok(chooseFolder);
+			pickerDelegate?.onSelect(chooseFolder);
+			await Promise.resolve();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				label: label?.textContent,
+				changeFolder: changeFolder?.textContent,
+				folderDialogDefault: folderDialogDefault?.toString(),
+				countdown: countdown?.textContent,
+				pickerVisibility,
+			}, {
+				label: 'New session in external-project',
+				changeFolder: 'external-project',
+				folderDialogDefault: vscode.uri.toString(),
+				countdown: 'sending in 7s',
+				pickerVisibility: [true, false, true, false],
+			});
+			clock.tick(1_000);
+			assert.strictEqual(countdown?.textContent, 'sending in 6s');
+		} finally {
+			controller.dispose();
+			container.remove();
+			clock.restore();
+		}
+	});
+
 	test('returns the stable request id for an immediately sent route', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/untitled-route');
 		const chatService = {
@@ -422,7 +588,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			{ setFolder: () => { } } as never,
 			undefined!,
@@ -445,6 +611,53 @@ suite('ChatSessionRoutingController', () => {
 			requestId: 'stable-request-id',
 		});
 		controller.dispose();
+	});
+
+	test('dismisses routed pending input with the delivery badge', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('agent-host-copilotcli:/dismissed-route');
+		let dismissed: { resource: string; requestId: string | undefined } | undefined;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				onDidDismissRoute: (dismissedResource: URI, requestId: string | undefined) => {
+					dismissed = { resource: dismissedResource.toString(), requestId };
+				},
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			{ model: { getSession: () => undefined, onDidChangeSessions: Event.None } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; requestId: string },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'Session', { status: 'sent', resource, requestId: 'request-1' });
+		container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')[1]?.click();
+
+		assert.deepStrictEqual({
+			dismissed,
+			badgeConnected: !!container.querySelector('.chat-routing-badge'),
+		}, {
+			dismissed: { resource: resource.toString(), requestId: 'request-1' },
+			badgeConnected: false,
+		});
+
+		controller.dispose();
+		container.remove();
 	});
 
 	test('keeps an existing session reference until a queued route completes', async () => {
@@ -536,7 +749,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			{ setFolder: () => { } } as never,
 			undefined!,
@@ -586,7 +799,7 @@ suite('ChatSessionRoutingController', () => {
 			{ getChatSessionContribution: () => ({ isReadOnly: false }) } as never,
 			undefined!,
 			undefined!,
-			{ warn: () => { } } as never,
+			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -603,3 +816,8 @@ suite('ChatSessionRoutingController', () => {
 		controller.dispose();
 	});
 });
+
+function folder(name: string, path: string, index: number): IWorkspaceFolder {
+	const uri = URI.file(path);
+	return { uri, name, index, toResource: relativePath => URI.joinPath(uri, relativePath) };
+}
