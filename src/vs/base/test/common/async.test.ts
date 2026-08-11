@@ -141,6 +141,88 @@ suite('Async', () => {
 		});
 	});
 
+	suite('raceCancellablePromises', function () {
+		test('preserves the result and cancels only the losing promises', async function () {
+			let resolveWinner!: (value: number) => void;
+			let winnerCancellations = 0;
+			let loserCancellations = 0;
+			const winner = Object.assign(new Promise<number>(resolve => resolveWinner = resolve), { cancel: () => winnerCancellations++ });
+			const loser = Object.assign(new Promise<number>(() => { }), { cancel: () => loserCancellations++ });
+			const race = async.raceCancellablePromises([winner, loser]);
+
+			resolveWinner(42);
+
+			assert.deepStrictEqual({
+				result: await race,
+				winnerCancellations,
+				loserCancellations
+			}, {
+				result: 42,
+				winnerCancellations: 0,
+				loserCancellations: 1
+			});
+		});
+
+		test('preserves the error, cancels all promises, and handles cleanup rejection', async function () {
+			const expectedError = new Error('expected');
+			let rejectingPromiseCancellations = 0;
+			let pendingPromiseCancellations = 0;
+			const unhandledRejections: unknown[] = [];
+			const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
+			process.on('unhandledRejection', onUnhandledRejection);
+			const rejectingPromise = Object.assign(Promise.reject(expectedError), { cancel: () => rejectingPromiseCancellations++ });
+			const pendingPromise = Object.assign(new Promise<void>(() => { }), { cancel: () => pendingPromiseCancellations++ });
+
+			try {
+				let actualError: unknown;
+				try {
+					await async.raceCancellablePromises([rejectingPromise, pendingPromise]);
+				} catch (error) {
+					actualError = error;
+				}
+				await async.timeout(0);
+				assert.deepStrictEqual({
+					preservesError: actualError === expectedError,
+					rejectingPromiseCancellations,
+					pendingPromiseCancellations,
+					unhandledRejections
+				}, {
+					preservesError: true,
+					rejectingPromiseCancellations: 1,
+					pendingPromiseCancellations: 1,
+					unhandledRejections: []
+				});
+			} finally {
+				process.off('unhandledRejection', onUnhandledRejection);
+			}
+		});
+
+		test('explicit cancellation cancels all pending promises', async function () {
+			const cancellationCounts = [0, 0];
+			const promises = cancellationCounts.map((_, index) => async.createCancelablePromise(token => {
+				store.add(token.onCancellationRequested(() => cancellationCounts[index]++));
+				return new Promise<void>(() => { });
+			}));
+			const race = async.raceCancellablePromises(promises);
+
+			race.cancel();
+			let cancellationError: unknown;
+			try {
+				await race;
+			} catch (error) {
+				cancellationError = error;
+			}
+
+			assert.deepStrictEqual({
+				isCancellationError: isCancellationError(cancellationError),
+				cancellationCounts
+			}, {
+				isCancellationError: true,
+				cancellationCounts: [1, 1]
+			});
+		});
+	});
+
 	suite('Throttler', function () {
 		test('non async', function () {
 			let count = 0;
