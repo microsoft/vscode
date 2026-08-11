@@ -1162,14 +1162,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private _createReasoningEffortConfigSchema(
-		supportedEfforts: readonly { readonly reasoningEffort: string; readonly description?: string }[] = CODEX_REASONING_EFFORTS.map(reasoningEffort => ({ reasoningEffort })),
-		declaredDefault = 'medium',
+		supportedEfforts: readonly { readonly reasoningEffort: string; readonly description?: string }[] | undefined,
+		declaredDefault?: string,
 		modelId?: string,
-	): ConfigSchema {
-		const options: readonly { readonly reasoningEffort: string; readonly description?: string }[] = supportedEfforts.length > 0
-			? supportedEfforts
-			: CODEX_REASONING_EFFORTS.map(reasoningEffort => ({ reasoningEffort }));
-		const efforts = options.map(option => option.reasoningEffort);
+	): ConfigSchema | undefined {
+		if (!supportedEfforts?.length) {
+			return undefined;
+		}
+		const efforts = supportedEfforts.map(option => option.reasoningEffort);
 		return {
 			type: 'object',
 			properties: {
@@ -1180,7 +1180,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					default: resolveDefaultReasoningEffort(efforts, declaredDefault, modelId),
 					enum: efforts,
 					enumLabels: efforts.map(getReasoningEffortLabel),
-					enumDescriptions: options.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
+					enumDescriptions: supportedEfforts.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
 				},
 			},
 		};

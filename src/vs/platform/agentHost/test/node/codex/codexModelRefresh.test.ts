@@ -142,6 +142,16 @@ suite('CodexAgent model refresh', () => {
 		}]);
 	});
 
+	test('omits the thinking level when a Copilot model advertises no reasoning efforts', async () => {
+		const model = { id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] } as CCAModel;
+		const agent = createAgent(disposables, async () => [model]);
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+
+		assert.strictEqual(agent.models.get()[0].configSchema, undefined);
+	});
+
 	test('applies authentication received while the connection is starting to the proxy', async () => {
 		const agent = createAgent(disposables, async () => []);
 		agent['_queueModelRefresh'] = async () => { };
@@ -210,6 +220,36 @@ suite('CodexAgent model refresh', () => {
 			},
 			meta: { modelSourceId: 'chatgptSubscription' },
 		}]);
+	});
+
+	test('omits the thinking level when a Codex model advertises no reasoning efforts', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'openai' } };
+					}
+					if (method === 'model/list') {
+						return {
+							...modelListResponse,
+							data: modelListResponse.data.map(model => ({ ...model, supportedReasoningEfforts: [] })),
+						};
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent.refreshModels();
+
+		assert.strictEqual(agent.models.get()[0].configSchema, undefined);
 	});
 
 	test('removes ChatGPT models when account/read reports signed out', async () => {
