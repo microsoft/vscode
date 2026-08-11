@@ -350,13 +350,23 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		if (previous?.type === 'reasoning' && previous.id === reasoning.id) {
 			output[output.length - 1] = {
 				...previous,
-				summary: [...previous.summary, ...reasoning.summary],
+				summary: this._mergeReasoningSummary(previous.summary, part.value),
 				encryptedContent: reasoning.encryptedContent ?? previous.encryptedContent,
 				metadata: previous.metadata || reasoning.metadata ? { ...previous.metadata, ...reasoning.metadata } : undefined,
 			};
 		} else {
 			output.push(reasoning);
 		}
+	}
+
+	private _mergeReasoningSummary(summary: readonly string[], value: string | string[]): string[] {
+		if (Array.isArray(value)) {
+			return [...summary, ...value];
+		}
+		if (summary.length === 0) {
+			return [value];
+		}
+		return [...summary.slice(0, -1), summary[summary.length - 1] + value];
 	}
 
 	private _encodeReasoningMetadata(metadata: Readonly<Record<string, unknown>> | undefined): string | undefined {

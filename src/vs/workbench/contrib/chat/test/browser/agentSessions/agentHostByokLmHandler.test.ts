@@ -368,6 +368,31 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
+	test('combines streamed thinking chunks into one summary entry', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-deepseek', byokModel('customendpoint', 'deepseek')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'Analy' },
+				{ type: 'thinking', value: 'zing' },
+			]),
+		);
+		const handler = createHandler(service);
+
+		const result = await handler.chat({
+			vendor: 'customendpoint',
+			modelId: 'deepseek',
+			input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(result.output, [{
+			type: 'reasoning',
+			id: undefined,
+			summary: ['Analyzing'],
+			encryptedContent: undefined,
+			metadata: undefined,
+		}]);
+	});
+
 	test('maps ordered Responses input and options to LM API chat messages', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),
