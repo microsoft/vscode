@@ -10,8 +10,8 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { NullLogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import type { IAgentService } from '../../common/agentService.js';
-import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, readSessionGitHubState, readSessionGitState, SESSION_META_GITHUB_KEY, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
-import { META_GIT_STATE, META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
+import { getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, SessionStatus, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -230,6 +230,48 @@ suite('AgentHostGitStateService', () => {
 			stateManager.setSessionMeta(SESSION, withSessionGitHubState(stateManager.getSessionState(SESSION)?._meta, options.gitHubState));
 		}
 	}
+
+	test('preserves merge provenance when a later pull request becomes the latest outcome', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+
+		await h.service.recordSessionMerge(SESSION, 'merge-commit');
+		const afterMerge = readSessionSourceControlState(h.stateManager.getSessionState(SESSION)?._meta);
+		const persistedAfterMerge = await h.db.getMetadata(META_SOURCE_CONTROL_STATE);
+
+		await h.service.setSessionGitHubState(SESSION, {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			pullRequestBranchName: 'feature',
+		});
+		const afterPullRequest = readSessionSourceControlState(h.stateManager.getSessionState(SESSION)?._meta);
+		const persistedAfterPullRequest = await h.db.getMetadata(META_SOURCE_CONTROL_STATE);
+
+		assert.deepStrictEqual({
+			afterMerge,
+			persistedAfterMerge: persistedAfterMerge ? JSON.parse(persistedAfterMerge) : undefined,
+			afterPullRequest,
+			persistedAfterPullRequest: persistedAfterPullRequest ? JSON.parse(persistedAfterPullRequest) : undefined,
+		}, {
+			afterMerge: {
+				merge: { commit: 'merge-commit' },
+				latestOutcome: SessionSourceControlOutcome.Merge,
+			},
+			persistedAfterMerge: {
+				merge: { commit: 'merge-commit' },
+				latestOutcome: SessionSourceControlOutcome.Merge,
+			},
+			afterPullRequest: {
+				merge: { commit: 'merge-commit' },
+				latestOutcome: SessionSourceControlOutcome.PullRequest,
+			},
+			persistedAfterPullRequest: {
+				merge: { commit: 'merge-commit' },
+				latestOutcome: SessionSourceControlOutcome.PullRequest,
+			},
+		});
+	});
 
 	test('does nothing when no working directory can be resolved', async () => {
 		const h = createHarness();

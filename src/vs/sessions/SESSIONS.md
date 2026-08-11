@@ -275,6 +275,10 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
 
 Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
 
+Changesets can also advertise scoped operations. The Changes view uses `IChangesViewService.activeSessionChangesetOperationsObs` as the canonical visible operation list; this applies client-owned policy before toolbar and context-key consumers read it. In particular, an Agent Host `merge` operation is hidden when the session repository reports a protected base branch, leaving pull-request operations to lead the toolbar.
+
+Providers may expose `ISession.completedStateIcon` for a completed source-control workflow. The sessions list and picker prefer this observable over the legacy pull-request icon lookup. Agent Host derives it from durable source-control provenance: a successful direct merge shows `git-merge` with the merged-PR purple, while a pull request discovered afterward restores its live PR-state icon. Quick Pick items carry `iconColor` separately from their codicon class so the picker preserves the same theme color, and its item autorun keeps an open picker synchronized with outcome changes.
+
 ---
 
 ## Data Flow
@@ -431,6 +435,14 @@ previous repository cannot be inserted into the new workspace. Clearing the
 workspace cancels the active lookup, removes only untouched/generated option
 text, and hides the widget so stale results cannot reappear.
 
+Repository-backed cards lead with the issue or pull-request title beside its
+state icon. A quiet secondary row starts at the same content edge as that title
+and combines the option label, repository number, and a trailing directional
+affordance (for example, **Tackle issue #123 →**) so the generic action cannot
+be mistaken for the repository content title. The full action and content title
+remain available through the card's ARIA label and managed hover when either
+visible line is truncated.
+
 Selecting the first option focuses the input immediately and animates its prompt
 into an empty input. Later selections replace the generated prompt immediately.
 A different option can replace the input only while it is empty, exactly matches
@@ -444,8 +456,9 @@ action that cancels an in-flight lookup, hides the widget for the lifetime of
 that composer, preserves inserted or partially typed text, and returns focus to
 the input. GitHub numbers and repository titles use the standard foreground so
 they retain contrast across themes. Standard prompts contain action-specific
-editable placeholders and the same inspect, explain, implement, and validate
-guidance as the prompt variation.
+editable placeholders followed by concise, task-specific guidance to ask the
+user questions when the intended behavior, bug context, or CI remediation is
+unclear.
 
 Successful option insertions and the close action emit
 `onboarding.promptOptionInteraction`. The event records only the interaction and
