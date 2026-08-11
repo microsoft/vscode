@@ -1776,7 +1776,8 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	override dispose(): void {
-		for (const record of this._clients.values()) {
+		for (const [clientId, record] of this._clients) {
+			this._managedSettingsService.removeClientPermissions(clientId);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

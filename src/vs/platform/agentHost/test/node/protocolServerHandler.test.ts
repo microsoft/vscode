@@ -2483,6 +2483,27 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('removes managed settings contributions for active and grace clients on dispose', () => {
+		const activeTransport = connectClient('client-managed-settings-active');
+		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { ask: ['Shell'] },
+		}));
+		const graceTransport = connectClient('client-managed-settings-grace');
+		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		graceTransport.simulateClose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+
+		handler.dispose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {});
+	});
+
 	test('removes a managed settings contribution after disconnect grace expires', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const transport = connectClient('client-managed-settings-disconnect');
