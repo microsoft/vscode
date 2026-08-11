@@ -196,6 +196,10 @@
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
+.chat-input-window .chat-input-window-pending-header.hidden {
+	display: none;
+}
+
 .chat-input-window .chat-input-window-pending-marker {
 	display: flex;
 	align-items: center;
@@ -418,4 +422,9 @@
 	border: 0;
 	border-radius: 0;
 	background: transparent;
+	min-height: 120px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.question .chat-question-carousel-content {
+	flex: 1;
 }
