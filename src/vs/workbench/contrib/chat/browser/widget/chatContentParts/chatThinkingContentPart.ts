@@ -2091,6 +2091,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	private updateExternalResourceParts(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		if (toolInvocation.toolSpecificData?.kind === 'terminal') {
+			return;
+		}
+
 		// In fixed scrolling mode, defer rendering aggregated images at the bottom while
 		// the response is still streaming. The images would otherwise overlap the pinned
 		// scrolling viewport. They are flushed once streaming completes.

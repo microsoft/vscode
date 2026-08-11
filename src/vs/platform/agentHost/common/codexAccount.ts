@@ -16,7 +16,7 @@ export interface ICodexAccountRateLimitInfo {
 }
 
 export interface ICodexAccountInfo {
-	readonly status: 'unknown' | 'signedIn' | 'signedOut' | 'unavailable' | 'error';
+	readonly status: 'unknown' | 'downloading' | 'signedIn' | 'signedOut' | 'unavailable' | 'error';
 	readonly email?: string;
 	readonly planType?: string;
 	readonly requiresOpenaiAuth?: boolean;
@@ -33,7 +33,7 @@ export function readCodexAccountInfo(state: RootState | undefined): ICodexAccoun
 		return { status: 'unknown' };
 	}
 	const account = value as Partial<ICodexAccountInfo>;
-	if (account.status !== 'unknown' && account.status !== 'signedIn' && account.status !== 'signedOut' && account.status !== 'unavailable' && account.status !== 'error') {
+	if (account.status !== 'unknown' && account.status !== 'downloading' && account.status !== 'signedIn' && account.status !== 'signedOut' && account.status !== 'unavailable' && account.status !== 'error') {
 		return { status: 'unknown' };
 	}
 	const rateLimit = account.rateLimit;

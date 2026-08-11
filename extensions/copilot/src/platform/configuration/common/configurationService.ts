@@ -887,8 +887,8 @@ export namespace ConfigKey {
 		export const InlineEditsXtabProviderModelConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.modelConfigurationString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderDefaultModelConfigurationString = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabProviderUseVaryingLinesAbove = defineTeamInternalSetting<boolean | undefined>('chat.advanced.inlineEdits.xtabProvider.useVaryingLinesAbove', ConfigType.ExperimentBased, undefined);
-		export const InlineEditsXtabProviderNLinesAbove = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesAbove', ConfigType.ExperimentBased, undefined);
-		export const InlineEditsXtabProviderNLinesBelow = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesBelow', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsXtabProviderNLinesAbove = defineSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesAbove', ConfigType.ExperimentBased, undefined);
+		export const InlineEditsXtabProviderNLinesBelow = defineSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.nLinesBelow', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsAutoExpandEditWindowLines = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.autoExpandEditWindowLines', ConfigType.ExperimentBased, 10);
 		export const InlineEditsXtabNRecentlyViewedDocuments = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.nRecentlyViewedDocuments', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.recentlyViewedDocuments.nDocuments);
 		export const InlineEditsXtabRecentlyViewedDocumentsMaxTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.recentlyViewedDocuments.maxTokens', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.recentlyViewedDocuments.maxTokens);

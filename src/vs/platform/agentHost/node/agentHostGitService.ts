@@ -707,8 +707,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		});
 	}
 
-	async getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
-		return this._computeSessionGitState(workingDirectory);
+	async getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined> {
+		return this._computeSessionGitState(workingDirectory, baseBranchName);
 	}
 
 	async getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined> {
@@ -929,7 +929,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
-	private async _computeSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined> {
+	private async _computeSessionGitState(workingDirectory: URI, configuredBaseBranch?: string): Promise<ISessionGitState | undefined> {
 		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
@@ -944,12 +944,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		] = await Promise.all([
 			this._runGit(repositoryRoot, ['status', '-b', '--porcelain=v2']),
 			this._runGit(repositoryRoot, ['remote', '-v']),
-			this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
+			configuredBaseBranch ? undefined : this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
 
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
-		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
+		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
