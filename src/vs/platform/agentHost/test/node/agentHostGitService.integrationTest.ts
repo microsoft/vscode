@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -635,28 +635,17 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	// Windows is excluded like the other chmod-based tests above: `chmod` does not
-	// convey POSIX directory permissions there, so prune's delete still succeeds
-	// and the masking scenario cannot be reproduced.
-	(hasGit && !isWindows ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async function () {
-		// Root bypasses the directory permission that makes prune fail, so this
-		// masking scenario cannot be reproduced there.
-		if (typeof process.getuid === 'function' && process.getuid() === 0) {
-			this.skip();
-		}
+	(hasGit ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async () => {
 		const dir = initRepo();
 		const suffix = `wt-leak-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
-		const adminParent = join(dir, '.git', 'worktrees');
-		let adminDir: string | undefined;
+		let worktreeLocked = false;
 		try {
 			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/leak-worktree', 'main');
-			adminDir = join(adminParent, readdirSync(adminParent)[0]);
-			// Working tree gone → removeWorktree takes the prune path. Making the
-			// admin dir read-only forces prune's recursive delete to fail; git
-			// can exit 0 while leaving the entry registered (the masking bug).
+			cp.execFileSync('git', ['worktree', 'lock', wtPath], { cwd: dir, env, stdio: 'pipe' });
+			worktreeLocked = true;
+			// A locked missing worktree makes prune exit 0 while retaining the admin entry on every OS.
 			rmSync(wtPath, { recursive: true, force: true });
-			chmodSync(adminDir, 0o500);
 
 			await assert.rejects(
 				svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }),
@@ -666,13 +655,58 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
 			assert.ok(listed.includes(suffix), 'the still-registered worktree must surface as a leak, not be masked');
 		} finally {
-			if (adminDir) {
-				try { chmodSync(adminDir, 0o700); } catch { /* best-effort cleanup */ }
+			if (worktreeLocked) {
+				try { cp.execFileSync('git', ['worktree', 'unlock', wtPath], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 			}
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/leak-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
+	});
+
+	// Residual case of #329982: git can de-register a worktree (drop its
+	// `.git/worktrees/<id>` admin entry) while its directory still remains on
+	// disk. A later removal must still succeed because git no longer tracks the path.
+	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+		const dir = initRepo();
+		const suffix = `wt-orphan-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			// De-register the worktree (delete git's admin entries) while leaving the working-tree directory in place.
+			const adminRoot = join(dir, '.git', 'worktrees');
+			for (const entry of readdirSync(adminRoot)) {
+				rmSync(join(adminRoot, entry), { recursive: true, force: true });
+			}
+			// Pin the precondition so the test cannot silently rot into the prune/verify path.
+			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.deepStrictEqual({
+				dirPresent: existsSync(wtPath),
+				stillRegistered: listed.includes(suffix),
+			}, {
+				dirPresent: true,
+				stillRegistered: false,
+			});
+
+			// Removal must treat an already-de-registered worktree as success.
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+		} finally {
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Fail-closed guard: when git cannot confirm the worktree is unregistered (e.g.
+	// the repository is gone), a failed removal must propagate rather than be
+	// silently reported as success.
+	(hasGit ? test : test.skip)('removeWorktree rethrows when git cannot confirm removal', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-nonrepo-'));
+		const wtPath = join(tmpRoot, 'wt');
+		mkdirSync(wtPath); // exists -> deterministic `git worktree remove` branch
+		await assert.rejects(
+			svc!.removeWorktree(URI.file(tmpRoot), URI.file(wtPath), { force: true }),
+			/exited with code 128/,
+		);
 	});
 
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {

@@ -5,11 +5,21 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ConditionalAuthState, conditionalAuthState, shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, shouldForceGitHubSignIn, shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
 
 suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('blocking sign-in follows the signed-out opt-in only', () => {
+		assert.deepStrictEqual({
+			featureDisabled: shouldForceGitHubSignIn(false),
+			featureEnabled: shouldForceGitHubSignIn(true),
+		}, {
+			featureDisabled: true,
+			featureEnabled: false,
+		});
+	});
 
 	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {
 		// The root-cause distinction: before the account resolves, its snapshot is

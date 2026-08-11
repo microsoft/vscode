@@ -116,6 +116,12 @@ src/vs/sessions/contrib/providers/
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
 
+Providers can expose `automations` to own durable Automation entities and run history. `ProviderAutomationService` aggregates these stores behind `IAutomationService`, routes mutations to the owning store, and keeps the legacy global ledger mounted while equivalent entries migrate idempotently by Automation and run ID. Divergent same-ID snapshots remain in both stores for explicit conflict handling rather than silently discarding legacy data.
+When an update changes the resolved owning provider, the aggregate service transfers the updated Automation and run history before conditionally removing the matching source snapshot.
+Startup recovery attempts every available store independently, so one unavailable provider does not block stale-run recovery in the remaining stores.
+The scheduler activates stale-run recovery only while its window is leader. Provider stores added during that leadership period are recovered after migration, and leadership loss disables recovery for later registrations.
+Legacy migration also isolates failures by Automation and removes a source copy only when it still matches the imported Automation and run snapshot. Concurrent source changes are retried a bounded number of times, while a concurrent deletion rolls back the unchanged destination copy.
+
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
 
 Permission picker labels and descriptions use provider-neutral language and stay aligned across Copilot Chat and Agent Host providers. Agent Host mode and running-session permission pickers use provider-specific list options in both the workbench and Agents window so their descriptive text has a consistent minimum width. `chat.defaultConfiguration.approvals` sets the initial permission level for new sessions using `default`, `assisted`, or `allowAll`; the live session config continues to use the Agent Host protocol's `autoApprove` value.
@@ -203,7 +209,13 @@ A terminal parent response is authoritative for active subagent timing. Stop can
 
 History restoration must also repair parent tool calls whose persisted `_meta`/subagent result content was lost. `AgentHostSessionHandler._enrichHistoryWithSubagentCalls` treats the session's tool-origin chat catalog as the canonical spawn record: a serialized tool call whose id matches `origin.toolCallId` is upgraded to `toolSpecificData.kind === "subagent"` with the catalog title/resource, so reload renders the pill instead of a generic "Delegating task" row.
 
-**Subagents in the Chats menu.** Subagents spawned by the **currently-active** chat are shown as a separate group (`2_subagents`) at the bottom of the **Chats** (Conversations) submenu, below the session's regular chats (`1_chats`); a separator divides the two groups. Per-chat association uses `IChatOrigin.parentChat` — the sessions-layer origin carries the spawning chat's resource (mapped from the protocol `ChatOrigin.chat` by the agent host provider's `_resolveParentChatResource`) — so the group changes as the active chat changes. Selecting a subagent entry toggles its read-only tab open/closed like any other chat entry. The entries are populated per session by `SessionConversationsMenuContribution` (only when the active chat has subagents). Subagents on their own do **not** show the chat tab strip: `IActiveSession.shouldShowChatTabs` is shown only when there is more than one visible tab (e.g. a subagent explicitly opened as a tab alongside the main chat) — a subagent that has not been opened as a tab is ignored. The **Chats** menu is always surfaced in the **session header meta row** (at the end of the pills), independent of the strip's visibility, kept available by `SessionActiveChatHasSubagentsContext` even when the parent is the only committed chat.
+**Chats dropdown groups.** `SessionConversationsMenuContribution` contributes each visible session's navigation actions to `Menus.SessionConversations`. Ordinary chats, forks, and side chats use `1_chats`; tool-origin chats associated with the active chat use `2_subagents`. These fixed group IDs map directly to local **Chats**/**Subagents** presentation metadata in `SessionConversationsActionViewItem`; no separate group registry or contribution is used. The top-level **Chats** header is hidden because it repeats the dropdown's own label; the existing **Subagents** group title explains the separation from first-level conversations. `SessionConversationsActionViewItemContribution` registers the custom renderer with `IActionViewItemService` for `(Menus.SessionHeaderMeta, Menus.SessionConversations)`, so the generic `MenuWorkbenchToolBar` resolves it before the normal meta-pill fallback. Conversation actions omit `checked`, so Action Widget renders them as ordinary menu items; only actions with an explicit boolean `checked` state use checkbox semantics. On open, `getInitialFocusActionId` focuses the active chat or active subagent directly.
+
+When the menu contains exactly one first-level chat, that row is redundant and is omitted; only the active chat's Subagents group remains. Side chats count as first-level chats, so their presence retains the first-level chat list.
+
+Each row displays the existing Sessions status icon (`ISessionsListModelService.getStatusIcon`). Non-default/actionable states also show localized text: **New**, **In Progress**, **Input Needed**, or **Failed**. **Completed** stays visually quiet (status icon only) because it is the common settled state, but its accessible description still says **State: Completed**; every other state likewise receives an explicit **State: _status_** label so progress is not color/icon-only. The Subagents group title and state indicators cover #329176 in the current design: separation is named, and each conversation exposes its progress without redundant subtitle or completion copy.
+
+Subagent association uses `IChatOrigin.parentChat`. A regular active chat scopes the flat Subagents group to children that name it as parent. When a subagent is active, its `origin.parentChat` is used as the scope so sibling subagents stay listed. Side chats remain ordinary first-level conversations and scope any of their own subagents normally. `SessionActiveChatHasSubagentsContext` uses the same expression so the dropdown remains visible even if no second committed user chat exists. Subagents on their own do **not** show the chat tab strip: `IActiveSession.shouldShowChatTabs` is shown only when there is more than one visible tab (e.g. a subagent explicitly opened as a tab alongside the main chat) — a subagent that has not been opened as a tab is ignored. The **Chats** dropdown is always surfaced in the **session header meta row** (at the end of the pills), independent of the strip's visibility.
 
 **Browsers and background activities above the chat input.** `SessionChatInputToolbar` mounts two independent activity pills, both rendered by the shared `SessionActivityPill` widget (which owns only the button, picker, and visibility — each control supplies its own activities, category titles, icons, and multi-activity summary): a **browsers** pill (`SessionBrowsersControl`) for live integrated browsers, and a **background activities** pill (`SessionBackgroundActivitiesControl`) for the viewed chat's active subagents — the latter is the extension point for further background-activity kinds. Browsers come from `IBrowserViewWorkbenchService.getKnownBrowserViews()` and belong to the viewed chat when their `IBrowserViewOwner.sessionId` matches that chat or one of its direct tool-origin subagents; subagents come from the owning session's tool-origin chats whose `origin.parentChat` is the viewed chat and whose status is active (`InProgress` or `NeedsInput`). Keeping `NeedsInput` visible is important because a pending tool or input confirmation does not end the subagent's active turn. A pill with a single activity shows its kind icon and label (browser page title, falling back to "Browser"; subagent title truncated after 30 characters with `...`). Multiple activities of one kind show **N Active Browsers/Subagents**; a pill holding mixed kinds shows **N Background Activities** with the session-in-progress icon. Any multi-item pill opens `IActionWidgetService` with categorized **Browsers** and **Subagents** sections (browser section first), where every selectable row has its kind icon and label. Opening a browser activity prefers a contextual browser page already **Sharing with Agent** for the same destination (exact URL first, then the browser tools' same-host rule), so the user sees the page the agent is driving; when no shared match exists, it opens the activity's normal browser input. The boolean `chat.turnStatusPills` setting gates the entire status-pills surface; for compatibility, any `true` member in the former per-pill object form enables the whole surface. When enabled, completed-turn pills replace the older checkpoint file-changes summary. Completed `create_session` and `create_chat` result pills are rendered once the response completes and ordered after the final response markdown has drained to the DOM, alongside the completed-turn adjuncts, so they remain visible instead of being folded into the completed-work disclosure or being repositioned while focused. `ChatView` mounts the toolbar in `ChatInputPart.persistentContentContainerElement`, which remains in layout when `ChatWidget.setReadOnly(true)` hides the rest of the composer, so these pills also remain available on read-only chats.
 
@@ -316,9 +328,14 @@ Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Ch
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
   → ChatView clears the embedded ChatWidget before loading a different chat,
-    then locks it to the contributed chat session type (for example
-    agent-host-codex) before setting the model, so follow-up turns keep routing
-    to the provider that owns the session; local chat sessions unlock
+    while its session-target picker keeps the destination chat's exact type
+    (including extension-host Copilot CLI); before any chat is assigned it
+    defaults to Agent Host Copilot. Chat input context keys also derive model
+    targeting from that delegated type while the model resource is absent, so
+    the model picker remains mounted during loading. Before clearing the old
+    model, the view locks to the destination contributed chat session type (for
+    example agent-host-codex), keeping the Agent Host mode and permission
+    pickers mounted too; follow-up turns therefore route to the owning provider
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
@@ -338,6 +355,18 @@ the sent chat the active chat by reacting to the send events. When
 `onWillSendRequest` notification, so the view's send-follow never navigates the
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
+
+When fixing transient picker state during chat loading, keep the fallback in
+`ChatView`'s reactive session-type delegate; it announces the destination as
+soon as `setChat` assigns it, and the rendered target picker and chat input
+context keys react before the model loads. Changing the shared picker's defaults
+or visibility would alter intentional behavior outside that transition.
+All chat-input context derived from the session type must use the same effective
+type (the scoped delegate when provided, otherwise the model resource), or
+individual picker slots can disappear during the handoff.
+Likewise, update the widget's coding-agent lock from the destination type before
+clearing the old model; waiting for the new model to load transiently hides
+Agent Host-only mode and permission actions.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
@@ -742,8 +771,8 @@ context/restore implementation advertise it (currently Claude and Copilot).
 Origin: side chats carry `IChat.origin.kind === ChatOriginKind.SideChat`. They may also carry `IChat.origin.selection`, an immutable `{ text, responsePartId? }` snapshot captured when the side chat was created. It is provenance only, not a live range back into the source chat.
 Unlike subagent (`Tool`) chats, side chats participate in the normal
 user-facing peer-chat surfaces: the chat tab strip
-(`shouldShowChatTabs`/`visibleChatTabs`), the **Conversations** menu
-(`SessionConversationsMenuContribution`), the chats picker, close/reopen, the
+(`shouldShowChatTabs`/`visibleChatTabs`), the **Chats** dropdown's contributed
+**Chats** group (`SessionConversationsMenuContribution`), the chats picker, close/reopen, the
 active-chat fallback, and `committedChatCount`. Tool-origin subagents remain
 the special case: they stay hidden/read-only by default and surface only when
 explicitly opened.

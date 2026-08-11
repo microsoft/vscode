@@ -1565,7 +1565,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostAllowSignedOutWhenUsableSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, the Agents window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
+			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, the Agents window opens without forcing GitHub sign-in. Agents usable without GitHub (for example Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub still prompt for sign-in when selected. When disabled (the default), GitHub sign-in is required before the window opens."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
