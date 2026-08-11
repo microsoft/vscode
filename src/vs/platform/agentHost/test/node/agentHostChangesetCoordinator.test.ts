@@ -48,7 +48,14 @@ suite('ChangesetSessionCoordinator', () => {
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
-	function createEnvironment(root: URI = URI.file('/repo')): {
+	function createMultiRootSession(stateManager: AgentHostStateManager, session: string, workingDirectories: readonly string[]): void {
+		createSession(stateManager, session, workingDirectories[0]);
+		for (const workingDirectory of workingDirectories.slice(1)) {
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workingDirectory });
+		}
+	}
+
+	function createEnvironment(root: URI = URI.file('/repo'), gitServiceOverride?: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> }): {
 		stateManager: AgentHostStateManager;
 		changesets: TestChangesetService;
 		subscriptions: IAgentHostChangesetSubscriptionService;
@@ -64,7 +71,7 @@ suite('ChangesetSessionCoordinator', () => {
 		const subscriptions = new AgentHostChangesetSubscriptionService();
 		const changesets = new TestChangesetService(subscriptions);
 		const monitor = disposables.add(new TestFileMonitorService());
-		const gitService = createGitService(root);
+		const gitService = gitServiceOverride ?? createGitService(root);
 		const gitStateService = disposables.add(new TestGitStateService());
 		const updateOperationsCalls: string[] = [];
 		const operationContributionService: IAgentHostChangesetOperationService = {
@@ -368,9 +375,223 @@ suite('ChangesetSessionCoordinator', () => {
 			disposals: ['file:///repo'],
 		});
 	});
+
+	test('watches every git repository root in a multi-root session', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+
+		assert.deepStrictEqual([...environment.monitor.acquisitions].sort(), [rootA.toString(), rootB.toString()].sort());
+	});
+
+	test('a secondary-root external edit refreshes the summary using the primary working directory', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const primaryRoot = URI.file('/projects/repoA');
+		const secondaryRoot = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[primaryRoot.toString(), primaryRoot],
+			[secondaryRoot.toString(), secondaryRoot],
+		])));
+		createMultiRootSession(environment.stateManager, session, [primaryRoot.toString(), secondaryRoot.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.changesets.clearRefreshes();
+
+		// An external edit in the SECONDARY repo must refresh the all-folder
+		// summary, sourcing git state from the PRIMARY working directory (never
+		// the secondary root that changed).
+		environment.monitor.fire(secondaryRoot);
+		await tick();
+
+		assert.deepStrictEqual({
+			refreshedWith: environment.gitStateService.refreshedWith,
+			recomputed: environment.changesets.recomputed,
+			branchRefreshes: environment.changesets.branchRefreshes,
+		}, {
+			refreshedWith: [{ sessionKey: session, workingDirectory: primaryRoot.toString() }],
+			recomputed: [session],
+			branchRefreshes: [session],
+		});
+	});
+
+	test('a turn suspends and re-attaches every repository root', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.coordinator.onSessionTurnActiveChanged(session, true);
+		await environment.gitService.waitForRootLookups(3);
+		await tick();
+		environment.coordinator.onSessionTurnActiveChanged(session, false);
+		await environment.monitor.waitForAcquisitions(4);
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			disposals: [...environment.monitor.disposals].sort(),
+		}, {
+			acquisitions: [rootA.toString(), rootA.toString(), rootB.toString(), rootB.toString()].sort(),
+			disposals: [rootA.toString(), rootB.toString()].sort(),
+		});
+	});
+
+	test('deduplicates working directories that resolve to the same repository', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const sharedRoot = URI.file('/projects/mono');
+		const dirA = 'file:///projects/mono/packages/a';
+		const dirB = 'file:///projects/mono/packages/b';
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[dirA, sharedRoot],
+			[dirB, sharedRoot],
+		])));
+		createMultiRootSession(environment.stateManager, session, [dirA, dirB]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.gitService.waitForRootLookups(2);
+		await tick();
+
+		assert.deepStrictEqual(environment.monitor.acquisitions, [sharedRoot.toString()]);
+	});
+
+	test('releases every repository root when the last subscriber leaves', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.coordinator.onLastSubscriber(URI.parse(session));
+		await tick();
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			disposals: [...environment.monitor.disposals].sort(),
+		}, {
+			acquisitions: [rootA.toString(), rootB.toString()].sort(),
+			disposals: [rootA.toString(), rootB.toString()].sort(),
+		});
+	});
+
+	test('watches secondary git repositories even when the primary folder is not a git repository', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const nonGitPrimary = 'file:///projects';
+		const secondaryRoot = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map<string, URI | undefined>([
+			[nonGitPrimary, undefined],
+			[secondaryRoot.toString(), secondaryRoot],
+		])));
+		createMultiRootSession(environment.stateManager, session, [nonGitPrimary, secondaryRoot.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(1);
+		environment.changesets.clearRefreshes();
+		environment.monitor.fire(secondaryRoot);
+		await tick();
+
+		assert.deepStrictEqual({
+			acquisitions: environment.monitor.acquisitions,
+			refreshedWith: environment.gitStateService.refreshedWith,
+			recomputed: environment.changesets.recomputed,
+		}, {
+			acquisitions: [secondaryRoot.toString()],
+			refreshedWith: [{ sessionKey: session, workingDirectory: nonGitPrimary }],
+			recomputed: [session],
+		});
+	});
+
+	test('does not refresh from any root while a turn is active', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.coordinator.onSessionTurnActiveChanged(session, true);
+		await environment.gitService.waitForRootLookups(3);
+		await tick();
+		environment.changesets.clearRefreshes();
+
+		// While the turn runs, every root watcher is released; external edits to
+		// any root must not trigger a mid-turn refresh (turn edits are captured
+		// by the turn lifecycle instead).
+		environment.monitor.fire(rootA);
+		environment.monitor.fire(rootB);
+		await tick();
+
+		assert.deepStrictEqual({
+			recomputed: environment.changesets.recomputed,
+			refreshed: environment.gitStateService.refreshed,
+		}, {
+			recomputed: [],
+			refreshed: [],
+		});
+	});
+
+	test('does not refresh an idle session sharing a secondary root while another session runs a turn', async () => {
+		const sessionA = AgentSession.uri('mock', 'session-a').toString();
+		const sessionB = AgentSession.uri('mock', 'session-b').toString();
+		const sharedRoot = URI.file('/projects/shared');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[sharedRoot.toString(), sharedRoot],
+			[rootB.toString(), rootB],
+		])));
+		// A's primary is the shared repo; B watches the shared repo as a secondary.
+		createMultiRootSession(environment.stateManager, sessionA, [sharedRoot.toString()]);
+		createMultiRootSession(environment.stateManager, sessionB, [rootB.toString(), sharedRoot.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(sessionA));
+		environment.coordinator.onFirstSubscriber(URI.parse(sessionB));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.coordinator.onSessionTurnActiveChanged(sessionA, true);
+		await environment.gitService.waitForRootLookups(4);
+		await tick();
+		environment.changesets.clearRefreshes();
+
+		// While A runs a turn the shared root is active, so an external edit
+		// there must NOT refresh the idle sharer B (documented, accepted
+		// shared-root suspension — decision D4).
+		environment.monitor.fire(sharedRoot);
+		await tick();
+
+		assert.deepStrictEqual(environment.changesets.recomputed, []);
+	});
 });
 
 function createGitService(root: URI): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
+	return createGitServiceFromResolver(() => root);
+}
+
+function createRoutingGitService(routes: ReadonlyMap<string, URI | undefined>): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
+	return createGitServiceFromResolver(workingDirectory => routes.get(workingDirectory.toString()));
+}
+
+function createGitServiceFromResolver(resolveRoot: (workingDirectory: URI) => URI | undefined): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
 	const rootLookupCalls: string[] = [];
 	const waiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
 	const releaseWaiters = () => {
@@ -384,10 +605,10 @@ function createGitService(root: URI): IAgentHostGitService & { readonly rootLook
 	return {
 		...createNoopGitService(),
 		rootLookupCalls,
-		async getRepositoryRoot(workingDirectory: URI): Promise<URI> {
+		async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
 			rootLookupCalls.push(workingDirectory.toString());
 			releaseWaiters();
-			return root;
+			return resolveRoot(workingDirectory);
 		},
 		waitForRootLookups(count: number): Promise<void> {
 			if (rootLookupCalls.length >= count) {
@@ -407,11 +628,14 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
 
 	readonly refreshed: string[] = [];
+	readonly refreshedWith: Array<{ readonly sessionKey: string; readonly workingDirectory: string | undefined }> = [];
 
-	async refreshSessionGitState(sessionKey: string, _workingDirectory?: URI): Promise<void> {
-		// Mirror the production service: record the refresh and notify
-		// listeners so the coordinator recomputes the subscribed changesets.
+	async refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void> {
+		// Mirror the production service: record the refresh (and the working
+		// directory it was asked to refresh from) and notify listeners so the
+		// coordinator recomputes the subscribed changesets.
 		this.refreshed.push(sessionKey);
+		this.refreshedWith.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._onDidRefreshSessionGitState.fire(sessionKey);
 	}
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
