@@ -69,6 +69,7 @@ import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
+import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -1009,16 +1010,17 @@ class CapturingLogService extends NullLogService {
 
 function createTestContext(
 	disposables: Pick<DisposableStore, 'add'>,
-	overrides?: { logService?: ILogService; database?: TestSessionDatabase; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService },
+	overrides?: { logService?: ILogService; database?: TestSessionDatabase; sessionDataService?: ISessionDataService; rootConfig?: Record<string, unknown>; userHome?: URI; gitHubEndpointService?: IAgentHostGitHubEndpointService; checkpointService?: IAgentHostCheckpointService },
 ): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
 	api.models = async () => [...ALL_MODELS];
 	const sdk = new FakeClaudeAgentSdkService();
 	const sessionData = new RecordingSessionDataService(
-		overrides?.database
+		overrides?.sessionDataService
+		?? (overrides?.database
 			? createSessionDataService(overrides.database)
-			: createSessionDataService()
+			: createSessionDataService())
 	);
 	const logService = overrides?.logService ?? new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -9369,6 +9371,146 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			resume: 'forked-1',
 			model: 'claude-opus-4-6',
 		});
+	});
+
+	/**
+	 * Per-resource-aware `ISessionDataService` double: unlike the shared
+	 * single-database helper most tests use (fine when only one resource's
+	 * overlay ever matters), this keys a distinct {@link TestSessionDatabase}
+	 * per exact resource string — needed to prove a peer chat's own overlay is
+	 * genuinely distinct from its session's shared configuration scope. The
+	 * backing map may be reused across two `createTestContext` calls to
+	 * simulate a restart that persists per-resource overlays to "disk".
+	 */
+	function createPerResourceSessionDataService(databases = new Map<string, TestSessionDatabase>()): ISessionDataService {
+		const dbFor = (resource: URI) => {
+			const key = resource.toString();
+			let db = databases.get(key);
+			if (!db) {
+				db = new TestSessionDatabase();
+				databases.set(key, db);
+			}
+			return db;
+		};
+		return {
+			_serviceBrand: undefined,
+			getSessionDataDir: session => URI.from({ scheme: Schemas.inMemory, path: `/session-data${session.path}` }),
+			getSessionDataDirById: sessionId => URI.from({ scheme: Schemas.inMemory, path: `/session-data/${sessionId}` }),
+			openDatabase: session => ({ object: dbFor(session), dispose: () => { } }),
+			tryOpenDatabase: async session => ({ object: dbFor(session), dispose: () => { } }),
+			deleteSessionData: async () => { },
+			onWillDeleteSessionData: Event.None,
+			cleanupOrphanedData: async () => { },
+			whenIdle: async () => { },
+		};
+	}
+
+	test('cold peer-chat fork inherits model/agent/permissionMode/workingDirectories from the source PEER chat, not the session-wide scope (regression)', async () => {
+		// Regression coverage for the bug where a fork sourced from a peer
+		// (non-default) chat read the shared session-wide configuration scope
+		// instead of that peer's own persistence resource. A "wrong" overlay is
+		// seeded at the session-wide scope as a trap: if the fix regresses, the
+		// fork below would pick up these decoy values instead of the peer's own.
+		const databases = new Map<string, TestSessionDatabase>();
+
+		const ctxA = createTestContext(disposables, { sessionDataService: createPerResourceSessionDataService(databases) });
+		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctxA.agent, { workingDirectories: [URI.file('/work')] });
+
+		const metaStore = ctxA.instantiationService.createInstance(ClaudeSessionMetadataStore);
+		await metaStore.write(created.session, {
+			model: { id: 'claude-sonnet-4.6' },
+			permissionMode: 'bypassPermissions',
+			agent: { uri: 'claude-internal:/agent/DecoyAgent' },
+			workingDirectories: [URI.file('/session-level-decoy')],
+		});
+
+		// The peer chat: its own model/agent/permissionMode/cwd, all distinct
+		// from the session-wide decoy overlay above.
+		const peerChatUri = URI.parse(buildChatUri(created.session.toString(), 'peer-chat'));
+		const peerCreateResult = await ctxA.agent.chats.createChat(peerChatUri, created.session, {
+			model: { id: 'claude-opus-4.6' },
+			agent: { uri: 'claude-internal:/agent/PeerAgent' },
+			workingDirectories: [URI.file('/peer-work')],
+			config: { [ClaudeSessionConfigKey.PermissionMode]: 'plan' },
+		});
+		const peerProviderData = peerCreateResult?.providerData;
+		const peerSdkId = JSON.parse(peerProviderData!).sdkSessionId as string;
+
+		// Materialize the peer chat so its own settings are persisted to ITS OWN
+		// overlay (keyed by its own resource, not the session-wide scope).
+		ctxA.sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await ctxA.agent.chats.sendMessage(peerChatUri, 'hi peer', undefined, undefined, 'turn-0', undefined, undefined, chatContext(peerChatUri));
+
+		// --- Simulate a restart: a brand-new agent over the SAME database.
+		// Nothing carries over in memory; the peer chat's backing must be
+		// re-attached via `materializeChat` before it can be forked from. ---
+		const ctxB = createTestContext(disposables, { sessionDataService: createPerResourceSessionDataService(databases) });
+		await ctxB.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		await ctxB.agent.materializeChat!(peerChatUri, created.session, peerProviderData);
+
+		ctxB.sdk.sessionMessagesById.set(peerSdkId, forkSourceMessages(peerSdkId));
+		ctxB.sdk.forkSessionResult = { sessionId: 'forked-cold' };
+		// Deliberately no `sessionList` entry for 'forked-cold': the forked
+		// conversation's cwd must fall back to the peer's own overlay, not the
+		// SDK (which has none for a brand-new fork) or the request.
+		const forkChatUri = URI.parse(buildChatUri(created.session.toString(), 'peer-fork'));
+		await ctxB.agent.chats.createChat(forkChatUri, created.session, {
+			fork: { source: peerChatUri, turnId: 'u1' },
+		});
+
+		ctxB.sdk.nextQueryMessages = [makeSystemInitMessage('forked-cold'), makeResultSuccess('forked-cold')];
+		await ctxB.agent.chats.sendMessage(forkChatUri, 'after fork', undefined, undefined, 'turn-1', undefined, undefined, chatContext(forkChatUri));
+
+		assert.deepStrictEqual({
+			model: ctxB.sdk.capturedStartupOptions[0]?.model,
+			agent: ctxB.sdk.capturedStartupOptions[0]?.agent,
+			permissionMode: ctxB.sdk.capturedStartupOptions[0]?.permissionMode,
+			cwd: ctxB.sdk.capturedStartupOptions[0]?.cwd,
+		}, {
+			model: 'claude-opus-4-6',
+			agent: 'PeerAgent',
+			permissionMode: 'plan',
+			cwd: URI.file('/peer-work').fsPath,
+		});
+	});
+
+	test('cold peer-chat fork falls back to the source peer\'s recorded backing model when the peer was never materialized', async () => {
+		// The peer was created (recording a backing model) but never sent a
+		// message before the restart, so it has no overlay entry yet. The
+		// fork must still recover the model from the backing, not lose it.
+		const database = new TestSessionDatabase();
+
+		const ctxA = createTestContext(disposables, { database });
+		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctxA.agent, { workingDirectories: [URI.file('/work')] });
+
+		const peerChatUri = URI.parse(buildChatUri(created.session.toString(), 'peer-chat'));
+		const peerCreateResult = await ctxA.agent.chats.createChat(peerChatUri, created.session, {
+			model: { id: 'claude-opus-4.6' },
+			workingDirectories: [URI.file('/peer-work')],
+		});
+		const peerProviderData = peerCreateResult?.providerData;
+		const peerSdkId = JSON.parse(peerProviderData!).sdkSessionId as string;
+		// Note: no `sendMessage` on the peer chat — it is never materialized,
+		// so `_metadataStore.read` on its resource returns `{}`.
+
+		const ctxB = createTestContext(disposables, { database });
+		await ctxB.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		await ctxB.agent.materializeChat!(peerChatUri, created.session, peerProviderData);
+
+		ctxB.sdk.sessionMessagesById.set(peerSdkId, forkSourceMessages(peerSdkId));
+		ctxB.sdk.forkSessionResult = { sessionId: 'forked-cold-2' };
+		ctxB.sdk.sessionList = [{ sessionId: 'forked-cold-2', summary: 'fork', lastModified: 1, cwd: URI.file('/peer-work').fsPath }];
+		const forkChatUri = URI.parse(buildChatUri(created.session.toString(), 'peer-fork-2'));
+		await ctxB.agent.chats.createChat(forkChatUri, created.session, {
+			fork: { source: peerChatUri, turnId: 'u1' },
+		});
+
+		ctxB.sdk.nextQueryMessages = [makeSystemInitMessage('forked-cold-2'), makeResultSuccess('forked-cold-2')];
+		await ctxB.agent.chats.sendMessage(forkChatUri, 'after fork', undefined, undefined, 'turn-1', undefined, undefined, chatContext(forkChatUri));
+
+		assert.strictEqual(ctxB.sdk.capturedStartupOptions[0]?.model, 'claude-opus-4-6');
 	});
 
 	test('changeModel on an additional chat fires onDidChangeChatData with the refreshed providerData', async () => {
