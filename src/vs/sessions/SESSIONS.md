@@ -431,6 +431,14 @@ previous repository cannot be inserted into the new workspace. Clearing the
 workspace cancels the active lookup, removes only untouched/generated option
 text, and hides the widget so stale results cannot reappear.
 
+Repository-backed cards lead with the issue or pull-request title beside its
+state icon. A quiet secondary row starts at the same content edge as that title
+and combines the option label, repository number, and a trailing directional
+affordance (for example, **Tackle issue #123 →**) so the generic action cannot
+be mistaken for the repository content title. The full action and content title
+remain available through the card's ARIA label and managed hover when either
+visible line is truncated.
+
 Selecting the first option focuses the input immediately and animates its prompt
 into an empty input. Later selections replace the generated prompt immediately.
 A different option can replace the input only while it is empty, exactly matches
@@ -444,8 +452,9 @@ action that cancels an in-flight lookup, hides the widget for the lifetime of
 that composer, preserves inserted or partially typed text, and returns focus to
 the input. GitHub numbers and repository titles use the standard foreground so
 they retain contrast across themes. Standard prompts contain action-specific
-editable placeholders and the same inspect, explain, implement, and validate
-guidance as the prompt variation.
+editable placeholders followed by concise, task-specific guidance to ask the
+user questions when the intended behavior, bug context, or CI remediation is
+unclear.
 
 Successful option insertions and the close action emit
 `onboarding.promptOptionInteraction`. The event records only the interaction and
