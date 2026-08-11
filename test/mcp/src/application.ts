@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
+import * as sqlite3 from '@vscode/sqlite3';
 import { createApp, retry, parseVersion } from './utils';
 import { opts } from './options';
 
@@ -15,6 +16,7 @@ const rootPath = path.join(__dirname, '..', '..', '..');
 const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
 const crashesRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'crashes');
 const videoRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'videos');
+const sourceVersion = (JSON.parse(fs.readFileSync(path.join(rootPath, 'package.json'), 'utf8')) as { version: string }).version;
 
 const logger = createLogger();
 
@@ -139,6 +141,10 @@ else {
 
 logger.log(`VS Code product quality: ${quality}.`);
 
+export function getProductVersion(): string {
+	return version ?? sourceVersion;
+}
+
 async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
@@ -226,7 +232,10 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}) {
+export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, string | number | boolean | null>; extraArgs?: string[] } = {}) {
+	if (opts.web && extraArgs?.length) {
+		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
+	}
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -244,6 +253,8 @@ export async function getApplication({ recordVideo, workspacePath }: { recordVid
 		codePath: opts.build,
 		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
 		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
+		userDataDir: path.join(testDataPath, 'd'),
+		useInMemorySecretStorage: true,
 		logger,
 		logsPath: logsRootPath,
 		crashesPath: crashesRootPath,
@@ -254,14 +265,41 @@ export async function getApplication({ recordVideo, workspacePath }: { recordVid
 		tracing: true,
 		headless: opts.headless,
 		browser: opts.browser,
-		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+		extraArgs: [
+			...(opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+			...(extraArgs ?? [])
+		],
 		extensionDevelopmentPath: opts.extensionDevelopmentPath,
 	});
+	await preseedUserData(application.userDataPath, userSettings, !!opts.web);
 	await application.start();
-	application.code.driver.currentPage.on('close', async () => {
-		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
-	});
 	return application;
+}
+
+async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, string | number | boolean | null> | undefined, web: boolean): Promise<void> {
+	if (!userDataDir) {
+		throw new Error('Cannot pre-seed the MCP test profile without a user data directory.');
+	}
+
+	const userDir = path.join(userDataDir, ...(web ? ['data', 'User'] : ['User']));
+	fs.mkdirSync(userDir, { recursive: true });
+	if (userSettings) {
+		fs.writeFileSync(path.join(userDir, 'settings.json'), JSON.stringify(userSettings, undefined, 2));
+	}
+
+	const globalStorageDir = path.join(userDir, 'globalStorage');
+	fs.mkdirSync(globalStorageDir, { recursive: true });
+	const database = await new Promise<sqlite3.Database>((resolve, reject) => {
+		const instance = new sqlite3.Database(path.join(globalStorageDir, 'state.vscdb'), error => error ? reject(error) : resolve(instance));
+	});
+	try {
+		await new Promise<void>((resolve, reject) => database.exec([
+			'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB);',
+			'INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
+		].join(' '), error => error ? reject(error) : resolve()));
+	} finally {
+		await new Promise<void>((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
+	}
 }
 
 export class ApplicationService {
@@ -284,12 +322,12 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}): Promise<Application> {
+	async getOrCreateApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, string | number | boolean | null>; extraArgs?: string[] } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
 		if (!this._application) {
-			this._application = await getApplication({ recordVideo, workspacePath });
+			this._application = await getApplication({ recordVideo, workspacePath, userSettings, extraArgs });
 			this._application.code.driver.currentPage.on('close', () => {
 				this._closing = (async () => {
 					if (this._application) {
@@ -303,6 +341,15 @@ export class ApplicationService {
 			await this._runAllListeners();
 		}
 		return this._application;
+	}
+
+	async stopApplication(): Promise<void> {
+		if (this._application) {
+			await this._application.stop();
+		}
+		if (this._closing) {
+			await this._closing;
+		}
 	}
 
 	private async _runAllListeners() {
