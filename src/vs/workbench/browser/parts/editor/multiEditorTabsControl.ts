@@ -59,6 +59,8 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
 
+const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
+
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
 
@@ -175,12 +177,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to Alt being held/released to swap in the "Close Others" tab action. Initialize
 		// from the current state too, in case this control is created mid-hold.
-		this.wantsCloseOthersAction = ModifierKeyEmitter.getInstance().keyStatus.altKey;
-		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateTabActionsForAltState()));
+		this.wantsCloseOthersAction = modifierKeyEmitter.keyStatus.altKey;
+		this._register(modifierKeyEmitter.event(() => this.updateTabActionsForAltState()));
 	}
 
 	private updateTabActionsForAltState(): void {
-		const wantsCloseOthersAction = ModifierKeyEmitter.getInstance().keyStatus.altKey;
+		const wantsCloseOthersAction = modifierKeyEmitter.keyStatus.altKey;
 		if (wantsCloseOthersAction === this.wantsCloseOthersAction) {
 			return;
 		}

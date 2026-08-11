@@ -25,11 +25,6 @@ suite('MultiEditorTabsControl - Alt-hold Close Others action', () => {
 		{ resource: URI.file('/project/package.json'), active: true },
 	];
 
-	suiteSetup(() => {
-		// Warm up the singleton before the leak tracker starts, so its long-lived DisposableStore isn't flagged as a leak.
-		ModifierKeyEmitter.getInstance();
-	});
-
 	setup(() => {
 		container = document.createElement('div');
 		document.body.appendChild(container);
