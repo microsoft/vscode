@@ -878,6 +878,7 @@ export class ChatService extends Disposable implements IChatService {
 					undefined, // terminalExecutionId
 					message.isTerminalRequest,
 					message.timestamp ?? null,
+					message.isHidden,
 				);
 			} else {
 				// response
@@ -937,7 +938,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, systemInitiatedLabel, isTerminalRequest }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, timestamp, isSystemInitiated, isHidden, systemInitiatedLabel, isTerminalRequest }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						completeLastResponse();
@@ -964,6 +965,7 @@ export class ChatService extends Disposable implements IChatService {
 						undefined, // terminalExecutionId
 						isTerminalRequest,
 						timestamp,
+						isHidden,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1101,6 +1103,7 @@ export class ChatService extends Disposable implements IChatService {
 			modelId: options.userSelectedModelId,
 			userSelectedTools: options.userSelectedTools?.get(),
 			isSystemInitiated: options.isSystemInitiated,
+			isHiddenFromTranscript: options.hideFromTranscript,
 			systemInitiatedLabel: options.systemInitiatedLabel,
 			terminalExecutionId: options.terminalExecutionId,
 		});
@@ -1547,7 +1550,7 @@ export class ChatService extends Disposable implements IChatService {
 					const initialAgent = agentPart?.agent ?? defaultAgent;
 					const initialCommand = agentSlashCommandPart?.command;
 					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand);
+					request = model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript);
 					const thisRequest = request;
 					completeResponseCreated();
 
@@ -1613,6 +1616,7 @@ export class ChatService extends Disposable implements IChatService {
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isVoiceModeInput: options?.isVoiceModeInput,
 							isSystemInitiated: options?.isSystemInitiated,
+							hideFromTranscript: options?.hideFromTranscript,
 							workingDirectory: model.workingDirectory,
 						};
 

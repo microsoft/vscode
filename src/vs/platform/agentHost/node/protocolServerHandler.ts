@@ -1305,6 +1305,9 @@ export class ProtocolServerHandler extends Disposable {
 			// turn list in the state manager.
 			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
 			if (params.fork) {
+				if (URI.parse(params.fork.session).toString() === URI.parse(params.channel).toString()) {
+					throw new ProtocolError(AhpErrorCodes.SessionAlreadyExists, `Fork target session must differ from source session: ${params.channel}`);
+				}
 				const sourceState = this._stateManager.getSessionState(params.fork.session);
 				if (!sourceState) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);

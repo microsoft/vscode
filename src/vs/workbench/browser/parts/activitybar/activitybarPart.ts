@@ -93,7 +93,12 @@ export class ActivitybarPart extends Part {
 	}
 
 	private get floatingHorizontalGutter(): number {
-		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN * 2 : 0;
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+
+		return ActivitybarPart.FLOATING_MARGIN * 2
+			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_MARGIN : 0);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());

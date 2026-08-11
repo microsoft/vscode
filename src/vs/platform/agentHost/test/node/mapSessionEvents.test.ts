@@ -236,6 +236,35 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
+	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'view the image' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'view_image' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'view_image', arguments: { path: '/repo/image.png' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'Viewed image file successfully.',
+						contents: [{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
+		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
+		]);
+	});
+
 	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -460,7 +489,7 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
-	test('restores an idle system notification as a system-initiated turn', async () => {
+	test('restores an idle system notification and resumed response in the preceding turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Start the background agent' } },
 			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
@@ -486,20 +515,16 @@ suite('mapSessionEvents — history replay', () => {
 			message: turn.message,
 			state: turn.state,
 			parts: partKinds(turn.responseParts),
-		})), [
-			{
-				id: 'user-event',
-				message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
-				state: TurnState.Complete,
-				parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' }],
-			},
-			{
-				id: 'notification-event',
-				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
-				state: TurnState.Complete,
-				parts: [{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' }],
-			},
-		]);
+		})), [{
+			id: 'user-event',
+			message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+			state: TurnState.Complete,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent agent-a is complete' },
+				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
+			],
+		}]);
 	});
 
 	test('does not restore a passive notification outside an assistant turn', async () => {

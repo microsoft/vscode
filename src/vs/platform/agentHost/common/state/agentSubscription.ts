@@ -1088,7 +1088,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
 	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
 	 */
-	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number): void {
+	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number, preservePending = false): void {
 		if (isAhpRootChannel(resource)) {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
@@ -1100,7 +1100,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
-		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
+		if (!preservePending && (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription)) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);

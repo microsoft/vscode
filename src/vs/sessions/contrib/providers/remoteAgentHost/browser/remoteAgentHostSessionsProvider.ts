@@ -209,6 +209,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		}];
 
 		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.branchProtection')) {
+				this._refreshSessionWorkspaces();
+			}
+		}));
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------

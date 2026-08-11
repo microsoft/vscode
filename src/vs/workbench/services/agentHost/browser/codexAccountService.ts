@@ -57,6 +57,9 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 			: localize('chatGPTAccount', "ChatGPT");
 		return [new SubmenuAction('codex.chatgptAccount', accountLabel, [signOut])];
 	}
+	if (account.status === 'downloading') {
+		return [new Action('codex.downloadingAgent', localize('downloadingCodexAgent', "Downloading Codex agent…"), undefined, false)];
+	}
 	if (account.status === 'unknown' || account.status === 'signedOut' || account.status === 'error') {
 		return [new Action('codex.signInToChatGPT', localize('signInToChatGPT', "Sign in to ChatGPT"), undefined, true, () => service.signIn())];
 	}
