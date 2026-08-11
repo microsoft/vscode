@@ -7,7 +7,7 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHu
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
-import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -63,15 +63,6 @@ import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
-
-interface ICopilotRuntimeManagedSettingsSdk {
-	getManagedSettings(input?: { token?: string; host?: string }): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }>;
-}
-
-function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
-	return typeof value === 'object' && value !== null && 'getManagedSettings' in value
-		&& typeof (value as { getManagedSettings?: unknown }).getManagedSettings === 'function';
-}
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
@@ -92,6 +83,41 @@ import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreemen
 import { getAppNodeModulesPath } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { classifyCopilotClientFailure, createCopilotFailureCorrelation, reportCopilotClientFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, type CopilotClientFailureKind, type CopilotClientFailureOperation, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
+
+interface ICopilotRuntimeManagedSettingsInput {
+	authInfo?: { type: 'token'; host: string; token: string };
+	token?: string;
+	signal?: AbortSignal;
+}
+
+interface ICopilotRuntimeManagedSettingsSdk {
+	getManagedSettings(input?: ICopilotRuntimeManagedSettingsInput): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }>;
+}
+
+const COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS = 3500;
+const COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS = 4500;
+
+function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
+	return typeof value === 'object' && value !== null && 'getManagedSettings' in value
+		&& typeof (value as { getManagedSettings?: unknown }).getManagedSettings === 'function';
+}
+
+export async function getCopilotManagedSettingsDiagnostics(
+	runtimeSdk: ICopilotRuntimeManagedSettingsSdk,
+	token: string | undefined,
+	host: string,
+	signal: AbortSignal,
+	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
+): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }> {
+	const result = await raceTimeout(runtimeSdk.getManagedSettings({
+		...(token ? { authInfo: { type: 'token', host, token } as const, token } : {}),
+		signal,
+	}), timeoutMs);
+	if (!result) {
+		throw new Error(`Copilot runtime managed-settings query exceeded ${timeoutMs / 1000} seconds while waiting for native MDM or GitHub policy resolution.`);
+	}
+	return result;
+}
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
@@ -1021,22 +1047,36 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getManagedSettingsDiagnostics(): Promise<IAgentHostManagedSettingsSnapshot> {
-		const nodeModulesUri = FileAccess.asFileUri(getAppNodeModulesPath());
-		const cliPath = await resolveCopilotCliPath(nodeModulesUri);
-		const runtimeSdkPath = join(dirname(cliPath), 'sdk', 'index.js');
-		if (!await fileExists(runtimeSdkPath)) {
-			throw new Error(`Copilot runtime SDK not found at ${runtimeSdkPath}`);
-		}
-		const runtimeSdk: unknown = await import(pathToFileURL(runtimeSdkPath).href);
-		if (!isCopilotRuntimeManagedSettingsSdk(runtimeSdk)) {
-			throw new Error('Copilot runtime SDK does not expose getManagedSettings()');
-		}
+		this._logService.debug('[Copilot] Collecting runtime managed-settings diagnostics');
+		let stage = 'resolving the Copilot CLI path';
+		const diagnostics = (async () => {
+			const nodeModulesUri = FileAccess.asFileUri(getAppNodeModulesPath());
+			const cliPath = await resolveCopilotCliPath(nodeModulesUri);
+			const runtimeSdkPath = join(dirname(cliPath), 'sdk', 'index.js');
+			stage = 'checking the Copilot runtime SDK';
+			if (!await fileExists(runtimeSdkPath)) {
+				throw new Error(`Copilot runtime SDK not found at ${runtimeSdkPath}`);
+			}
+			stage = 'loading the Copilot runtime SDK';
+			const runtimeSdk: unknown = await import(pathToFileURL(runtimeSdkPath).href);
+			if (!isCopilotRuntimeManagedSettingsSdk(runtimeSdk)) {
+				throw new Error('Copilot runtime SDK does not expose getManagedSettings()');
+			}
 
-		const enterpriseHost = this._getEnterpriseHost();
-		const result = await runtimeSdk.getManagedSettings({
-			...(this._githubToken ? { token: this._githubToken } : {}),
-			...(enterpriseHost ? { host: enterpriseHost } : {}),
-		});
+			stage = 'querying native MDM and GitHub managed settings';
+			return getCopilotManagedSettingsDiagnostics(
+				runtimeSdk,
+				this._githubToken,
+				this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com',
+				AbortSignal.timeout(COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS),
+			);
+		})();
+		const result = await raceTimeout(diagnostics, COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS);
+		if (!result) {
+			this._logService.warn(`[Copilot] Runtime managed-settings diagnostics timed out while ${stage}`);
+			throw new Error(`Copilot runtime diagnostics exceeded 4.5 seconds while ${stage}.`);
+		}
+		this._logService.debug('[Copilot] Runtime managed-settings diagnostics collected');
 		return {
 			...result.resolved,
 			...(result.account ? { account: result.account } : {}),
@@ -1933,6 +1973,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * (no `workingDirectory` supplied) — a stable per-session scratch directory.
 	 */
 	private async _resolveCreateWorkingDirectory(sessionConfig: IAgentCreateSessionConfig, sessionId: string, isWorkspaceless: boolean): Promise<URI> {
+		if (sessionConfig.fork) {
+			const sourceSessionId = AgentSession.id(sessionConfig.fork.session);
+			const liveWorkingDirectory = this._findAnySession(sourceSessionId)?.workingDirectory;
+			if (liveWorkingDirectory) {
+				return liveWorkingDirectory;
+			}
+			const storedWorkingDirectory = (await this._readSessionMetadata(sessionConfig.fork.session)).workingDirectory;
+			if (storedWorkingDirectory) {
+				return storedWorkingDirectory;
+			}
+		}
 		const existing = sessionConfig.workingDirectories?.[0] ?? this._provisionalSessions.get(sessionId)?.workingDirectory;
 		if (existing) {
 			return existing;
@@ -2101,6 +2152,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		this._logService.info(`[Copilot] Creating session... ${sessionConfig.model ? `model=${sessionConfig.model.id}` : ''}`);
 		const sessionId = sessionConfig.session ? AgentSession.id(sessionConfig.session) : generateUuid();
+		if (sessionConfig.fork && AgentSession.id(sessionConfig.fork.session) === sessionId) {
+			throw new Error(`Cannot fork Copilot session ${sessionId} onto itself`);
+		}
 		// Workspace-less is inferred at create from an absent input
 		// `workingDirectory`: such a session is run in a stable scratch dir. The
 		// AH service persists the marker centrally (`agentHost.workspaceless`) and
@@ -2110,39 +2164,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// `workingDirectory` is passed.
 		const isWorkspaceless = !sessionConfig.fork && sessionConfig.workingDirectories === undefined;
 		const workingDirectory = await this._resolveCreateWorkingDirectory(sessionConfig, sessionId, isWorkspaceless);
-		const client = await this._ensureClient();
-		// When forking, use the SDK's sessions.fork RPC. Forking from a source
-		// session that has no turns is equivalent to creating a fresh session;
-		// in that case the agent service drops `config.fork` before calling us,
-		// so we never enter this branch with a provisional source.
+		await this._ensureClient();
+		// Forking from a source session that has no turns is equivalent to
+		// creating a fresh session; in that case the agent service drops
+		// `config.fork` before calling us, so we never enter this branch with a
+		// provisional source.
 		if (sessionConfig.fork) {
-			const sourceSessionId = AgentSession.id(sessionConfig.fork.session);
+			const fork = sessionConfig.fork;
+			const sourceSessionId = AgentSession.id(fork.session);
 
 			// Serialize against the source session to prevent concurrent
 			// modifications while we read its state.
 			return this._queueSession(sourceSessionId, async () => {
-				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${sessionConfig.fork!.turnId}`);
+				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at turnId=${fork.turnId}`);
 
 				const sourceEntry = this._findAnySession(sourceSessionId) ?? await this._resumeSession(sourceSessionId);
-
-				// Look up the SDK event ID for the turn *after* the fork point.
-				// toEventId is exclusive — events before it are included.
-				// If there's no next turn, omit toEventId to include all events.
-				const toEventId = await sourceEntry.getNextTurnEventId(sessionConfig.fork!.turnId);
-
-				const forkResult = await client.rpc.sessions.fork({
-					sessionId: sourceSessionId,
-					...(toEventId ? { toEventId } : {}),
-				});
-				const newSessionId = forkResult.sessionId;
+				const sourceTurns = await sourceEntry.getMessages();
+				const sourceTurnEventId = await sourceEntry.getTurnEventId(fork.turnId);
+				const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === fork.turnId || turn.id === sourceTurnEventId);
+				if (sourceTurnIndex < 0) {
+					throw new Error(`Cannot fork Copilot session ${sourceSessionId}: turn ${fork.turnId} is not in the provider history`);
+				}
+				const inheritedTurns = sourceTurns.slice(0, sourceTurnIndex + 1);
+				const turnIdMapping = fork.turnIdMapping;
+				const targetTurnIdByEventId = new Map<string, string>();
+				if (turnIdMapping) {
+					await Promise.all([...turnIdMapping].map(async ([sourceTurnId, targetTurnId]) => {
+						targetTurnIdByEventId.set(sourceTurnId, targetTurnId);
+						const eventId = await sourceEntry.getTurnEventId(sourceTurnId);
+						if (eventId) {
+							targetTurnIdByEventId.set(eventId, targetTurnId);
+						}
+					}));
+				}
+				const importedTurns = inheritedTurns.map(turn => ({ ...turn, id: targetTurnIdByEventId.get(turn.id) ?? turn.id }));
+				const session = AgentSession.uri(this.id, sessionId);
+				const sourceMetadata = await this._readSessionMetadata(fork.session);
+				const inheritedWorkingDirectories = sourceMetadata.workingDirectories
+					?? (sourceEntry.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
+				const model = sessionConfig.model ?? sourceMetadata.model;
+				const agent = sessionConfig.agent ?? sourceMetadata.agent;
 
 				// Copy the source session's database using VACUUM INTO so the
 				// forked session inherits turn event IDs and file-edit snapshots.
 				// VACUUM INTO is safe even while the source DB is open.
-				const targetDbDir = this._sessionDataService.getSessionDataDirById(newSessionId);
+				const targetDbDir = this._sessionDataService.getSessionDataDir(session);
 				const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
 				try {
-					const sourceDbRef = await this._sessionDataService.tryOpenDatabase(sessionConfig.fork!.session);
+					const sourceDbRef = await this._sessionDataService.tryOpenDatabase(fork.session);
 					if (sourceDbRef) {
 						try {
 							await fs.mkdir(targetDbDir.fsPath, { recursive: true });
@@ -2150,40 +2219,44 @@ export class CopilotAgent extends Disposable implements IAgent {
 							// any stale DB left by a previous (e.g. crashed) attempt.
 							await fs.rm(targetDbPath.fsPath, { force: true });
 							await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
+							if (turnIdMapping) {
+								const targetDbRef = this._sessionDataService.openDatabase(session);
+								try {
+									const importedEventIds = new Map(importedTurns.map(turn => [turn.id, turn.id]));
+									await targetDbRef.object.remapTurnIds(turnIdMapping, importedEventIds);
+								} finally {
+									targetDbRef.dispose();
+								}
+							}
 						} finally {
 							sourceDbRef.dispose();
 						}
 					}
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy session database for fork: ${err instanceof Error ? err.message : String(err)}`);
+					await fs.rm(targetDbPath.fsPath, { force: true });
 				}
 
-				// Resume the forked session so the SDK loads the forked history
-				const agentSession = await this._resumeSession(newSessionId);
-
-				// Remap turn IDs to match the new protocol turn IDs
-				if (sessionConfig.fork!.turnIdMapping) {
-					await agentSession.remapTurnIds(sessionConfig.fork!.turnIdMapping);
-				}
-
-				const session = agentSession.sessionUri;
+				const created = await this._importConversation({
+					...sessionConfig,
+					model,
+					agent,
+					workingDirectories: inheritedWorkingDirectories,
+					fork: undefined,
+					importConversation: { turns: importedTurns, model },
+				}, sessionId, workingDirectory);
 				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
 
 				// Copy the source session's reviewed ref so the fork starts with
 				// the parent's review progress (best-effort; a failure just means
 				// the fork starts unreviewed).
 				try {
-					await this._reviewService.copyReviewedRef(sessionConfig.fork!.session.toString(), session.toString(), workingDirectory);
+					await this._reviewService.copyReviewedRef(fork.session.toString(), session.toString(), workingDirectory);
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy reviewed ref for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
 
-				const project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-				await this._storeSessionMetadata(session, sessionConfig.model, workingDirectory, sessionConfig.workingDirectories ?? ([workingDirectory]), workingDirectory, project, true);
-				if (sessionConfig.agent !== undefined) {
-					await this._storeSessionAgentMetadata(session, sessionConfig.agent);
-				}
-				return { session, resolvedWorkingDirectory: workingDirectory, ...(project ? { project } : {}) };
+				return created;
 			});
 		}
 

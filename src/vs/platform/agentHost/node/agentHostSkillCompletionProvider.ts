@@ -49,12 +49,13 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
+		// A skill's synced-bundle copy has a different URI than its on-disk file, so dedupe by name + description, not URI.
 		const skillsSeen = new Set<string>();
 		return candidates
 			.filter(skill => {
-				const uri = skill.uri;
-				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(uri)) {
-					skillsSeen.add(uri);
+				const identity = `${skill.slashCommandName}\0${skill.description ?? ''}`;
+				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(identity)) {
+					skillsSeen.add(identity);
 					return true;
 				}
 				return false;

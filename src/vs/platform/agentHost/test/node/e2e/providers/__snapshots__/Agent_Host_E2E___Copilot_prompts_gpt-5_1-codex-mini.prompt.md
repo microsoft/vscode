@@ -292,7 +292,8 @@ Best practices:
 * Prefer calling in the following order: Code Intelligence Tools (if available) > lsp (if available) > glob > rg with glob pattern
 * PARALLELIZE - make multiple independent search calls in ONE call.
 </code_search_tools>
-</tools>
+
+When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.</tools>
 
 <custom_instruction>${repository_instructions}</custom_instruction>
 
@@ -1081,7 +1082,7 @@ Mark comments for this session as resolved or unresolved.
 ```
 
 #### viewUnreviewedComments
-View pull request or code review comments that the user has not reviewed yet. Calling this asks the user to choose which of those comments to reveal; only the comments the user reveals are returned.
+View pull request or code review comments that the user has not reviewed yet. The user may be asked to choose which comments to reveal, in which case only the comments they select are returned; otherwise every unreviewed comment is returned.
 ```json
 {
   "type": "object",

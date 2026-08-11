@@ -79,8 +79,9 @@ Decoupling these allows copilot sessions from different providers (local CLI, re
 - Remote-host management options do not expose an IPC output channel; remote diagnostics use the host's forwarded logs when available.
 - SSH connection progress notifications are closed when the connect promise settles; keyboard-interactive prompt cancellation rejects the connect promise as cancellation and does not show an error notification.
 - SSH config host connections use resolved `IdentityFile` and `IdentityAgent` values from `ssh -G`; encrypted private keys are prompted for a passphrase through the same quick-input bridge as keyboard-interactive auth.
-- Startup SSH auto-reconnect treats keyboard-interactive cancellation as an intentional pause and does not schedule another reconnect attempt.
+- Startup SSH auto-reconnect treats keyboard-interactive cancellation as an intentional pause and does not schedule another reconnect attempt. Host key denial pauses until an explicit reconnect so background retries cannot repeatedly reject a key that requires user review.
 - A manual SSH reconnect from the host picker bypasses that paused auto-reconnect state and starts a fresh reconnect attempt for stored SSH hosts; host-picker disconnect/cancel for SSH uses the SSH service instead of removing the stored host.
+- `vscodeAgents.sshConnect/attempt` records each complete SSH plus AHP initialization attempt from the initial connection and stored-host reconnect paths, with connect/reconnect, user-initiated, attempt number, duration, success, retry intent, and a bounded failure category. It never records host names, addresses, aliases, or raw error messages.
 - VS Code remote transports declare their route in AHP initialize metadata (`dev_tunnel`, `ssh`, `wsl`, `remote_extension_host`, `direct_websocket`, or `web_pub_sub`). Agent Host product telemetry combines that declaration with the host-observed physical transport and launcher kind; message telemetry retains the initiating client id and route.
 
 ## Stubbed Operations

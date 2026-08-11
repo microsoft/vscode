@@ -12,16 +12,13 @@ import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, GestureEvent, Gesture } from '../../../../base/browser/touch.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
-import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorCommandsContextActionRunner, EditorTabsControl } from './editorTabsControl.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -61,8 +58,6 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -149,6 +144,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		groupView: IEditorGroupView,
 		tabsModel: IReadonlyEditorGroupModel,
 		menuIds: IEditorGroupMenuIds | undefined,
+		breadcrumbsInHeader: boolean,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -163,7 +159,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IHostService hostService: IHostService,
 		@IMenuService menuService: IMenuService,
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, menuIds, breadcrumbsInHeader, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService, menuService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -209,7 +205,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// is created and the last tab remains the last child of the tabs
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
-			this.createAddTabControl(this.menuIds.tabsBarAddTab);
+			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
 		}
 
 		// Create Editor Toolbar
@@ -219,33 +215,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateTabsControlVisibility();
 
 		return this.tabsAndActionsContainer;
-	}
-
-	private createAddTabControl(menuId: MenuId): void {
-		const tabsContainer = assertReturnsDefined(this.tabsContainer);
-		const container = $('.tabs-bar-add-tab');
-		tabsContainer.appendChild(container);
-		this.addTabContainer = container;
-
-		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
-		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
-
-		const addTabAction = toAction({
-			id: 'editor.tabs.addTab',
-			label: localize('addTab', "Add Tab"),
-			class: ThemeIcon.asClassName(Codicon.add),
-			run: () => { }
-		});
-
-		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, this.contextMenuService, {
-			classNames: ThemeIcon.asClassNameArray(Codicon.add),
-			keybindingProvider: action => this.getKeybinding(action)
-		}));
-		dropdown.render(container);
-
-		const updateVisibility = () => this.addTabContainer?.classList.toggle('hidden', getActions().length === 0);
-		updateVisibility();
-		this._register(menu.onDidChange(() => updateVisibility()));
 	}
 
 	private get tabCount(): number {

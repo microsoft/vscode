@@ -7,8 +7,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
@@ -26,6 +26,7 @@ import type { ReasoningSummaryTextDeltaNotification } from './protocol/generated
 import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/ReasoningTextDeltaNotification.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
+import type { TurnError } from './protocol/generated/v2/TurnError.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
@@ -1133,7 +1134,6 @@ export function mapTurnCompleted(
 	const orphanedToolCallActions = completeOrphanedToolCalls(state, status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion');
 	const deferredResponseActions = flushDeferredResponseActions(state);
 	if (status === 'failed' && params.turn.error) {
-		const errMessage = params.turn.error.message ?? 'Codex turn failed';
 		return [
 			...recoveredToolCallActions,
 			...preflightFlush,
@@ -1143,10 +1143,7 @@ export function mapTurnCompleted(
 				type: ActionType.ChatError,
 				turnId,
 				duration,
-				error: {
-					errorType: 'CodexError',
-					...extractForwardedErrorInfo(errMessage),
-				},
+				error: mapCodexTurnError(params.turn.error),
 			},
 			{
 				type: ActionType.ChatTurnComplete,
@@ -1159,6 +1156,15 @@ export function mapTurnCompleted(
 		return [...recoveredToolCallActions, ...preflightFlush, ...orphanedToolCallActions, ...deferredResponseActions, { type: ActionType.ChatTurnCancelled, turnId, duration }];
 	}
 	return [...recoveredToolCallActions, ...preflightFlush, ...orphanedToolCallActions, ...deferredResponseActions, { type: ActionType.ChatTurnComplete, turnId, duration }];
+}
+
+/** Maps Codex's persisted turn error into the same protocol shape used live. */
+export function mapCodexTurnError(error: TurnError): ErrorInfo {
+	return {
+		errorType: 'CodexError',
+		...extractForwardedErrorInfo(error.message || 'Codex turn failed'),
+		...(error.additionalDetails ? { stack: error.additionalDetails } : {}),
+	};
 }
 
 /**

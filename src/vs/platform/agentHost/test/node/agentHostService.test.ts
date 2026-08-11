@@ -26,6 +26,9 @@ class TestChannel implements IChannel {
 class TestAgentHostStarter implements IAgentHostStarter {
 	private readonly _onRequestConnection = new Emitter<void>();
 	readonly onRequestConnection = this._onRequestConnection.event;
+	private readonly _onRequestRestart = new Emitter<void>();
+	readonly onRequestRestart = this._onRequestRestart.event;
+	private readonly _onDidStart = new Emitter<number>();
 
 	private readonly _exitEmitters: Emitter<{ code: number; signal: string }>[] = [];
 	private readonly _channel = new TestChannel();
@@ -34,6 +37,7 @@ class TestAgentHostStarter implements IAgentHostStarter {
 
 	async start(): Promise<IAgentHostConnection> {
 		this.startCount++;
+		this._onDidStart.fire(this.startCount);
 		const exitEmitter = new Emitter<{ code: number; signal: string }>();
 		this._exitEmitters.push(exitEmitter);
 		const store = new DisposableStore();
@@ -53,12 +57,25 @@ class TestAgentHostStarter implements IAgentHostStarter {
 		this._onRequestConnection.fire();
 	}
 
+	requestRestart(): void {
+		this._onRequestRestart.fire();
+	}
+
+	async waitForStartCount(startCount: number): Promise<void> {
+		if (this.startCount >= startCount) {
+			return;
+		}
+		await Event.toPromise(Event.filter(this._onDidStart.event, count => count >= startCount));
+	}
+
 	fireProcessExit(code: number): void {
 		this._exitEmitters.at(-1)?.fire({ code, signal: 'unknown' });
 	}
 
 	dispose(): void {
 		this._onRequestConnection.dispose();
+		this._onRequestRestart.dispose();
+		this._onDidStart.dispose();
 		for (const store of this.connectionStores) {
 			store.dispose();
 		}
@@ -79,12 +96,13 @@ suite('AgentHostProcessManager', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function createManager(platform: NodeJS.Platform = 'linux'): Promise<{
+		manager: AgentHostProcessManager;
 		starter: TestAgentHostStarter;
 		telemetryService: TestTelemetryService;
 	}> {
 		const starter = new TestAgentHostStarter();
 		const telemetryService = new TestTelemetryService();
-		disposables.add(new AgentHostProcessManager(
+		const manager = disposables.add(new AgentHostProcessManager(
 			starter,
 			platform,
 			new NullLogService(),
@@ -92,8 +110,8 @@ suite('AgentHostProcessManager', () => {
 			telemetryService,
 		));
 		starter.requestConnection();
-		await Promise.resolve();
-		return { starter, telemetryService };
+		await starter.waitForStartCount(1);
+		return { manager, starter, telemetryService };
 	}
 
 	for (const [name, code] of [
@@ -122,7 +140,7 @@ suite('AgentHostProcessManager', () => {
 		const { starter, telemetryService } = await createManager('linux');
 
 		starter.fireProcessExit(0xC000026B);
-		await Promise.resolve();
+		await starter.waitForStartCount(2);
 
 		assert.deepStrictEqual({
 			startCount: starter.startCount,
@@ -143,12 +161,61 @@ suite('AgentHostProcessManager', () => {
 		});
 	});
 
+	test('explicit restart disposes the current process and resets crash recovery', async () => {
+		const { manager, starter, telemetryService } = await createManager();
+
+		starter.fireProcessExit(17);
+		await starter.waitForStartCount(2);
+		await manager.restart();
+		starter.fireProcessExit(18);
+		await starter.waitForStartCount(4);
+
+		assert.deepStrictEqual({
+			startCount: starter.startCount,
+			connectionStoresDisposed: starter.connectionStores.map(store => store.isDisposed),
+			errorEvents: telemetryService.errorEvents,
+		}, {
+			startCount: 4,
+			connectionStoresDisposed: [true, true, true, false],
+			errorEvents: [
+				{ eventName: 'agentHost.processError', data: { hostLaunchKind: 'vscode_main_process', kind: 'unexpectedExit', code: 17, restartCount: 0, willRestart: true, isError: true } },
+				{ eventName: 'agentHost.processError', data: { hostLaunchKind: 'vscode_main_process', kind: 'unexpectedExit', code: 18, restartCount: 0, willRestart: true, isError: true } },
+			],
+		});
+	});
+
+	test('handles restart requests from the starter', async () => {
+		const { starter, telemetryService } = await createManager();
+
+		starter.requestRestart();
+		await starter.waitForStartCount(2);
+
+		assert.deepStrictEqual({
+			startCount: starter.startCount,
+			connectionStoresDisposed: starter.connectionStores.map(store => store.isDisposed),
+			errorEvents: telemetryService.errorEvents,
+		}, {
+			startCount: 2,
+			connectionStoresDisposed: [true, false],
+			errorEvents: [],
+		});
+	});
+
+	test('rejects lifecycle work after disposal', async () => {
+		const { manager } = await createManager();
+		manager.dispose();
+
+		assert.throws(() => manager.restart(), /Object has been disposed/);
+	});
+
 	test('stops after the configured number of restarts', async () => {
 		const { starter, telemetryService } = await createManager();
 
 		for (let restartCount = 0; restartCount <= 5; restartCount++) {
 			starter.fireProcessExit(17);
-			await Promise.resolve();
+			if (restartCount < 5) {
+				await starter.waitForStartCount(restartCount + 2);
+			}
 		}
 
 		assert.deepStrictEqual({
