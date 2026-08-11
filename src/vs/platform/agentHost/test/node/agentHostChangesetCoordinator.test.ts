@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildUncommittedChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff, type ISessionGitHubState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -581,6 +581,121 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual(environment.changesets.recomputed, []);
 	});
+
+	test('disposing a session with a live branch subscription clears watch interest', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+
+		// Subscribe via the BRANCH changeset URI (tracks the branch subscription key).
+		environment.coordinator.onFirstSubscriber(URI.parse(buildBranchChangesetUri(session)));
+		await environment.monitor.waitForAcquisitions(1);
+
+		// An abrupt dispose (no onLastSubscriber) must clear the branch watch
+		// interest, so a later materialization retry cannot resurrect a watcher.
+		environment.coordinator.onSessionDisposed(session);
+		environment.coordinator.onSessionMaterialized(session);
+		await tick();
+
+		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals }, {
+			acquisitions: ['file:///repo'],
+			disposals: ['file:///repo'],
+		});
+	});
+
+	test('detaches a repository root watcher when a session stops resolving to it', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+
+		// repoB drops out of the session's working directories; the next
+		// re-attach must detach and dispose only repoB's watcher.
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: rootB.toString() });
+		environment.coordinator.onSessionMaterialized(session);
+		await environment.gitService.waitForRootLookups(3);
+		await tick();
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			disposals: environment.monitor.disposals,
+		}, {
+			acquisitions: [rootA.toString(), rootB.toString()].sort(),
+			disposals: [rootB.toString()],
+		});
+	});
+
+	test('keeps a shared secondary root watched for an idle session while another session runs a turn', async () => {
+		const sessionA = AgentSession.uri('mock', 'session-a').toString();
+		const sessionB = AgentSession.uri('mock', 'session-b').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const sharedRoot = URI.file('/projects/shared');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+			[sharedRoot.toString(), sharedRoot],
+		])));
+		// The shared repo is a SECONDARY root for A (primary repoA) and for B.
+		createMultiRootSession(environment.stateManager, sessionA, [rootA.toString(), sharedRoot.toString()]);
+		createMultiRootSession(environment.stateManager, sessionB, [rootB.toString(), sharedRoot.toString()]);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(sessionA));
+		environment.coordinator.onFirstSubscriber(URI.parse(sessionB));
+		await environment.monitor.waitForAcquisitions(3);
+		environment.coordinator.onSessionTurnActiveChanged(sessionA, true);
+		await environment.gitService.waitForRootLookups(5);
+		await tick();
+		environment.changesets.clearRefreshes();
+
+		// A's active root is its PRIMARY (repoA); the shared secondary stays
+		// watched for the idle sharer B, so an edit there still refreshes B (D4).
+		environment.monitor.fire(sharedRoot);
+		await tick();
+
+		assert.deepStrictEqual(environment.changesets.recomputed, [sessionB]);
+	});
+
+	test('retries a repository root whose watcher acquisition failed on the next re-attach', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createMultiRootSession(environment.stateManager, session, [rootA.toString(), rootB.toString()]);
+
+		// repoB's watcher acquisition fails on the first attempt.
+		environment.monitor.failAcquireFor.add(rootB.toString());
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(2);
+		await tick();
+
+		// The failure clears; a re-attach must retry repoB (not short-circuit on
+		// a cached signature) so an edit there then refreshes the summary.
+		environment.monitor.failAcquireFor.delete(rootB.toString());
+		environment.coordinator.onSessionMaterialized(session);
+		await environment.monitor.waitForAcquisitions(3);
+		environment.changesets.clearRefreshes();
+		environment.monitor.fire(rootB);
+		await tick();
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			recomputed: environment.changesets.recomputed,
+		}, {
+			acquisitions: [rootA.toString(), rootB.toString(), rootB.toString()].sort(),
+			recomputed: [session],
+		});
+	});
 });
 
 function createGitService(root: URI): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
@@ -649,13 +764,14 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 	readonly acquisitions: string[] = [];
 	readonly disposals: string[] = [];
 	failAcquire = false;
+	readonly failAcquireFor = new Set<string>();
 	private readonly _callbacks = new Map<string, Set<() => void>>();
 	private readonly _acquisitionWaiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
 
 	acquire(folder: URI, callback: () => void, _options?: IAgentHostFileMonitorOptions): IDisposable | undefined {
 		const root = folder.toString();
 		this.acquisitions.push(root);
-		if (this.failAcquire) {
+		if (this.failAcquire || this.failAcquireFor.has(root)) {
 			this._releaseAcquisitionWaiters();
 			return undefined;
 		}
