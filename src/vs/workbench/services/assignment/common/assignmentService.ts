@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client';
+import type { IKeyValueStorage, IExperimentationTelemetry, ExperimentationService as TASClient } from 'tas-client';
 import { Memento } from '../../../common/memento.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -13,20 +13,17 @@ import { ITelemetryData } from '../../../../base/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation, VSCodeCoreAssignmentsFilterProvider, WindowKind } from '../../../../platform/assignment/common/assignment.js';
+import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, AssignmentFilterProvider, IAssignmentService, TargetPopulation, WindowKind } from '../../../../platform/assignment/common/assignment.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { CopilotAssignmentFilterProvider, GitHubCoreAssignmentsFilterProvider } from './assignmentFilters.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
 import { AssignmentContextFilter } from './assignmentContextFilter.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 
@@ -126,23 +123,6 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 				"ABExp.queriedFeature": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The experimental feature being queried" }
 			}
 		*/
-		/* __GDPR__
-			"assignments-validation" : {
-				"owner": "sbatten",
-				"comment": "Validation data for the new TAS assignments endpoint, compared against the legacy endpoint",
-				"FeatureVariableCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of feature variables returned by the new assignments endpoint" },
-				"AssignedVariantCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of assigned variants returned by the new assignments endpoint" },
-				"DataVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Data version returned by the new assignments endpoint" },
-				"AssignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Assignment context returned by the new assignments endpoint" }
-			}
-		*/
-		/* __GDPR__
-			"call-assignments-error" : {
-				"owner": "sbatten",
-				"comment": "Logs errors when calling the new TAS assignments endpoint",
-				"ErrorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of error encountered when calling the new assignments endpoint" }
-			}
-		*/
 		this.telemetryService.publicLog(eventName, data);
 	}
 }
@@ -151,15 +131,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	declare readonly _serviceBrand: undefined;
 
-	private tasClient: Promise<TASClient> | undefined;
-	private readonly tasSetupDisposables = this._register(new DisposableStore());
-
-	private assignmentsEndpoint: string | undefined;
+	private readonly tasClient: Promise<TASClient> | undefined;
+	private readonly tasSetupDisposables = new DisposableStore();
 
 	private networkInitialized = false;
-	private setupGeneration = 0;
-	/** Revokes the current setup's storage/telemetry/fetch wrappers, neutralizing a superseded in-flight client. */
-	private revokeCurrentSetup: (() => void) | undefined;
 	private readonly overrideInitDelay: Promise<void>;
 
 	private readonly contextFilter: AssignmentContextFilter;
@@ -178,8 +153,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
 
@@ -187,19 +160,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		if (this.experimentsEnabled) {
 			this.tasClient = this.setupTASClient();
-
-			// The assignments endpoint is sourced from account entitlements, which load
-			// asynchronously. The initial account load resolves the readiness barrier without
-			// firing onDidChangeDefaultAccount, so proactively re-check once it is ready, and
-			// again whenever the account changes later.
-			this.defaultAccountService.getDefaultAccount().then(() => this.recreateTasClientIfEndpointChanged());
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.recreateTasClientIfEndpointChanged()));
-
-			// Stop the final client's auto-polling and revoke its wrappers when the service is disposed.
-			this._register(toDisposable(() => {
-				this.revokeCurrentSetup?.();
-				WorkbenchAssignmentService.disposeTasClient(this.tasClient);
-			}));
 		}
 
 		this.contextFilter = this._register(new AssignmentContextFilter(storageService));
@@ -275,95 +235,8 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		return result;
 	}
 
-	/**
-	 * Resolves the new TAS assignments API URL from the account entitlements `exp` endpoint,
-	 * or `undefined` when no account/endpoint is available.
-	 */
-	private getAssignmentsEndpoint(): string | undefined {
-		const account = this.defaultAccountService.currentDefaultAccount;
-		const endpoints = account?.entitlementsData?.endpoints;
-		const exp = endpoints?.exp;
-		if (!exp) {
-			return undefined;
-		}
-		return `${exp.replace(/\/+$/, '')}/api/v1/assignments`;
-	}
-
-	/** Recreates the TAS client when the resolved assignments endpoint has changed. */
-	private recreateTasClientIfEndpointChanged(): void {
-		if (this._store.isDisposed) {
-			return; // the service was disposed before the (async) account load resolved
-		}
-		const next = this.getAssignmentsEndpoint();
-		if (next !== this.assignmentsEndpoint) {
-			this.tasClient = this.setupTASClient();
-		}
-	}
-
-	/**
-	 * Transport for the new assignments endpoint, backed by the main-process request service
-	 * (avoids renderer CORS). Shape matches tas-client's injectable `assignmentsFetch`.
-	 */
-	private readonly assignmentsFetch = async (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }): Promise<{ status: number; json(): Promise<unknown> }> => {
-		const context = await this.requestService.request({
-			type: init.method,
-			url,
-			data: init.body,
-			headers: init.headers,
-			disableCache: true,
-			callSite: 'assignmentService.assignments',
-		}, CancellationToken.None);
-		return {
-			status: context.res.statusCode ?? 0,
-			json: async () => (await asJson(context)) ?? {},
-		};
-	};
-
 	private async setupTASClient(): Promise<TASClient> {
 		this.tasSetupDisposables.clear();
-
-		// Each setup supersedes the previous client; track a generation so a stale client's
-		// initialFetch cannot flip networkInitialized for a newer client.
-		const generation = ++this.setupGeneration;
-		this.networkInitialized = false;
-
-		// Revoke the previous setup's wrappers, then dispose its client. Revoking neutralizes a
-		// superseded, still-in-flight client: after replacement it can no longer write the shared
-		// memento, emit telemetry, or hit the assignments endpoint. This is needed because the
-		// tas-client's dispose() only stops its polling timer, not an already-running fetch.
-		this.revokeCurrentSetup?.();
-		WorkbenchAssignmentService.disposeTasClient(this.tasClient);
-
-		let revoked = false;
-		this.revokeCurrentSetup = () => { revoked = true; };
-
-		// Reference the shared memento/telemetry/fetch lazily (at call time): they are assigned in
-		// the constructor body after the initial setupTASClient() call has already started.
-		const service = this;
-
-		const keyValueStorage: IKeyValueStorage = {
-			getValue<T>(key: string, defaultValue?: T): Promise<T | undefined> {
-				return service.keyValueStorage.getValue<T>(key, defaultValue);
-			},
-			setValue<T>(key: string, value: T): void {
-				if (!revoked) {
-					service.keyValueStorage.setValue<T>(key, value);
-				}
-			},
-		};
-
-		const telemetry: IExperimentationTelemetry = {
-			setSharedProperty(name: string, value: string): void {
-				if (!revoked) {
-					service.telemetry.setSharedProperty(name, value);
-				}
-			},
-			postEvent(eventName: string, props: Map<string, string>): void {
-				if (!revoked) {
-					service.telemetry.postEvent(eventName, props);
-				}
-			},
-		};
 
 		const targetPopulation = this.productService.quality === 'stable' ?
 			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
@@ -383,33 +256,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.tasSetupDisposables.add(extensionsFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
 
-		// New TAS assignments API. Its endpoint is sourced from account entitlements and it
-		// uses dedicated providers that emit the new userParam key names, so the legacy filter
-		// keys never reach it. Its assignments are merged with the legacy provider's results.
-		const assignmentsEndpoint = this.getAssignmentsEndpoint();
-		this.assignmentsEndpoint = assignmentsEndpoint;
-		let assignmentsFilterProviders: IExperimentationFilterProvider[] | undefined;
-		if (assignmentsEndpoint) {
-			const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
-				this.productService.version,
-				this.productService.nameLong,
-				this.telemetryService.devDeviceId,
-				targetPopulation,
-				this.productService.date ?? '',
-				this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
-			);
-			const githubAssignmentsFilterProvider = this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
-			assignmentsFilterProviders = [coreAssignmentsFilterProvider, githubAssignmentsFilterProvider];
-		}
-
 		const tasConfig = this.productService.tasConfig!;
 
-		// tas-client ships as pure ESM; load it via a runtime-resolved URL so bundlers do not
-		// rewrite the import (mirrors how the editor loads the `@vscode/diff` module).
-		const tasClientUrl = resolveAmdNodeModulePath('tas-client', 'dist/tas-client.min.js');
-		const tasClientModule = await import(/* webpackIgnore: true */ /* @vite-ignore */ `${tasClientUrl}`) as typeof import('tas-client');
+		const tasClientModule = await importAMDNodeModule<typeof import('tas-client')>('tas-client', 'dist/tas-client.min.js');
 
 		// Measure the client-side latency of the first network call to the
 		// Treatment Assignment Service. The fetch is triggered by constructing
@@ -418,27 +267,17 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		const fetchStopWatch = StopWatch.create();
 		const tasClient = new tasClientModule.ExperimentationService({
 			filterProviders: [filterProvider, extensionsFilterProvider],
-			telemetry,
+			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
-			keyValueStorage,
+			keyValueStorage: this.keyValueStorage,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,
-			assignmentsEndpoint,
-			assignmentsFilterProviders,
-			// Route the assignments request through the main-process request service so it is
-			// not subject to renderer CORS (parity with how core reaches api.github.com).
-			assignmentsFetch: assignmentsEndpoint
-				? (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init))
-				: undefined,
 			refetchInterval: ASSIGNMENT_REFETCH_INTERVAL,
 		});
 
 		await tasClient.initializePromise;
 		tasClient.initialFetch.then(() => {
-			if (generation !== this.setupGeneration) {
-				return; // superseded by a newer setup
-			}
 			this.networkInitialized = true;
 			this.logFetchLatency('initial', fetchStopWatch.elapsed());
 		}).catch(() => undefined);
@@ -496,11 +335,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void {
 		this.contextFilter.addFilter(filter);
-	}
-
-	/** Stops a TAS client's auto-polling once it resolves. Safe to call with `undefined`. */
-	private static disposeTasClient(client: Promise<TASClient> | undefined): void {
-		client?.then(c => c.dispose()).catch(() => undefined);
 	}
 }
 
