@@ -2631,11 +2631,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
+		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -2651,6 +2652,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
+			}
+			if (action.type === ActionType.ChatTurnStarted) {
+				await this._resolvePeerChatsForTurnValidation(sessionChannel);
 			}
 			const rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
 				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
@@ -2674,6 +2678,29 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 
 		this._clientDispatchQueues.set(clientId, next);
+	}
+
+	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
+		return this._stateManager.getSessionState(sessionChannel)?.chats
+			.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource))
+			.map(chat => chat.resource);
+	}
+
+	private async _resolvePeerChatsForTurnValidation(sessionChannel: string): Promise<void> {
+		while (true) {
+			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel);
+			if (!unresolvedChats) {
+				throw new Error(`Cannot validate turn id for unknown session: ${sessionChannel}`);
+			}
+			if (unresolvedChats.length === 0) {
+				return;
+			}
+			await Promise.all(unresolvedChats.map(async chat => {
+				if (!await this._stateManager.resolveChatState(chat)) {
+					throw new Error(`Cannot resolve peer chat for turn id validation: ${chat}`);
+				}
+			}));
+		}
 	}
 
 	/**

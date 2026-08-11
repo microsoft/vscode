@@ -306,10 +306,8 @@ export class AgentSideEffects extends Disposable {
 						this._cancelledTurnIds.set(envelope.channel, turnIds);
 					}
 					turnIds.add(envelope.action.turnId);
-					if (isAhpChatChannel(envelope.channel)) {
-						const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
-						void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId);
-					}
+					const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId);
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
 				this._trackTurnUsage(envelope.channel, envelope.action);

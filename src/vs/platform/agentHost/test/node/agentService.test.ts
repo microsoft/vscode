@@ -1011,6 +1011,57 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('rejects a turn id used by an unresolved restored peer before applying it', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const peerChat = buildChatUri(session, 'peer-1');
+			let resolverCalls = 0;
+			svc.stateManager.registerRestoredChatSummary(session.toString(), peerChat, {
+				resolver: async () => {
+					resolverCalls++;
+					return {
+						turns: [{
+							id: 'duplicate-turn',
+							state: TurnState.Complete,
+							message: { text: 'peer', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}],
+					};
+				},
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'default', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+			const defaultChatState = svc.stateManager.getChatState(defaultChat);
+
+			assert.deepStrictEqual({
+				rejected: envelope.rejectionReason !== undefined,
+				resolverCalls,
+				peerResolved: svc.stateManager.getChatState(peerChat) !== undefined,
+				activeTurn: defaultChatState?.activeTurn,
+				turns: defaultChatState?.turns,
+				sendMessageCalls: agent.sendMessageCalls,
+			}, {
+				rejected: true,
+				resolverCalls: 1,
+				peerResolved: true,
+				activeTurn: undefined,
+				turns: [],
+				sendMessageCalls: [],
+			});
+		});
+
 		test('rejects working-directory mutations from non-Editor clients', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
