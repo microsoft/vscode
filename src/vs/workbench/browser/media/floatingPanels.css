@@ -168,7 +168,7 @@
 }
 
 .monaco-workbench.floating-panels .part.activitybar.right {
-	margin-left: var(--vscode-spacing-size20);
+	margin-left: var(--vscode-spacing-size40);
 	margin-right: 0;
 	padding-left: var(--vscode-spacing-size20);
 	padding-right: var(--vscode-spacing-size60);

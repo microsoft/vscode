@@ -237,6 +237,22 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 }
 
 /**
+ * Horizontal margins (in pixels) a floating pane composite reserves, mirroring the
+ * margins in `floatingPanels.css`.
+ */
+export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbenchLayoutService, partId: Parts): { left: number; right: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: 0, right: 0 };
+	}
+
+	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
+	return {
+		left: outerGutter.left ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+		right: outerGutter.right ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
+	};
+}
+
+/**
  * Whether the primary sidebar and auxiliary bar are each in the same grid row as the
  * editor (sibling to the editor) for a horizontal panel. A bar that is a sibling is not
  * full-height; it sits above or below the panel row rather than spanning the full height.
