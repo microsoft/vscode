@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import type { IAutomation, IAutomationRun, AutomationRunStatus } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { IAutomationDescriptor, IAutomationRun, AutomationRunStatus } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -150,7 +150,7 @@ class AutomationCardsSection extends Disposable {
 		this.emptyContainer.style.display = 'none';
 	}
 
-	render(automations: readonly IAutomation[]): void {
+	render(automations: readonly IAutomationDescriptor[]): void {
 		this.disposables.clear();
 		DOM.clearNode(this.container);
 
@@ -169,7 +169,7 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private renderCard(automation: IAutomation): void {
+	private renderCard(automation: IAutomationDescriptor): void {
 		const wrapper = DOM.append(this.container, $('.automations-card-wrapper'));
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('role', 'group');
@@ -245,7 +245,7 @@ class AutomationCardsSection extends Disposable {
 		return button;
 	}
 
-	private async runNow(automation: IAutomation): Promise<void> {
+	private async runNow(automation: IAutomationDescriptor): Promise<void> {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
@@ -315,7 +315,7 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private async openEditDialog(automation: IAutomation): Promise<void> {
+	private async openEditDialog(automation: IAutomationDescriptor): Promise<void> {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
@@ -343,7 +343,7 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private async confirmDelete(automation: IAutomation): Promise<void> {
+	private async confirmDelete(automation: IAutomationDescriptor): Promise<void> {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
@@ -419,7 +419,7 @@ class AutomationHistorySection extends Disposable {
 		this.container = DOM.append(parent, $('.automations-history'));
 	}
 
-	render(runs: readonly IAutomationRun[], automations: readonly IAutomation[], sessions: ReadonlyMap<string, IAutomationRunSessionState>): void {
+	render(runs: readonly IAutomationRun[], automations: readonly IAutomationDescriptor[], sessions: ReadonlyMap<string, IAutomationRunSessionState>): void {
 		this.disposables.clear();
 		DOM.clearNode(this.container);
 		this.runFocusTargets.clear();
@@ -468,7 +468,7 @@ class AutomationHistorySection extends Disposable {
 		this.restoreFocusAfterRender();
 	}
 
-	private renderRunRow(parent: HTMLElement, run: IAutomationRun, automationMap: Map<string, IAutomation>, bucketKind: DateBucketKind, sessionState: IAutomationRunSessionState | undefined): void {
+	private renderRunRow(parent: HTMLElement, run: IAutomationRun, automationMap: Map<string, IAutomationDescriptor>, bucketKind: DateBucketKind, sessionState: IAutomationRunSessionState | undefined): void {
 		const isUnread = isUnreadAutomationRun(run, sessionState);
 		const card = DOM.append(parent, $('.automations-run-card'));
 		if (isUnread) {
@@ -749,7 +749,7 @@ function isUnreadAutomationRun(run: IAutomationRun, sessionState: IAutomationRun
 	return (run.status === 'completed' || run.status === 'failed') && !!sessionState && !sessionState.isRead;
 }
 
-function formatSchedule(automation: IAutomation): string {
+function formatSchedule(automation: IAutomationDescriptor): string {
 	const { interval, scheduleHour, scheduleMinute } = automation.schedule;
 	const time = formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {

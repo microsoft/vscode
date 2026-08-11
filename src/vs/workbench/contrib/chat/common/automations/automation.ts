@@ -56,7 +56,7 @@ export type AutomationTarget =
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
  */
-export interface IAutomation {
+export interface IAutomationDescriptor {
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;

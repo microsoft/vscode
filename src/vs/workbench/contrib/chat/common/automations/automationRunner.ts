@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AutomationRunTrigger, IAutomation, IAutomationRun } from './automation.js';
+import { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from './automation.js';
 
 export const IAutomationRunner = createDecorator<IAutomationRunner>('automationRunner');
 
@@ -50,7 +50,7 @@ export interface IAutomationRunner {
 	 * Never throws. Failures are recorded on the run row in {@link IAutomationService}.
 	 */
 	runOnce(
-		automation: IAutomation,
+		automation: IAutomationDescriptor,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token?: CancellationToken,

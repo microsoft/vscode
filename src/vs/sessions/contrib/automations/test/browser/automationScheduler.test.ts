@@ -17,7 +17,7 @@ import { IAutomationLeaderElection } from '../../browser/automationLeaderElectio
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON, RUN_TIMEOUT_REASON_PREFIX } from '../../browser/automationScheduler.js';
 import { AutomationService } from '../../browser/automationService.js';
-import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
@@ -69,7 +69,7 @@ class RecordingRunner implements IAutomationRunner {
 	constructor(private readonly service: AutomationService) { }
 
 	runOnce(
-		automation: IAutomation,
+		automation: IAutomationDescriptor,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		_token?: CancellationToken,
@@ -95,7 +95,7 @@ class SkippingRunner implements IAutomationRunner {
 
 	readonly runs: RecordedRun[] = [];
 
-	runOnce(automation: IAutomation, trigger: AutomationRunTrigger): IAutomationRunOperation {
+	runOnce(automation: IAutomationDescriptor, trigger: AutomationRunTrigger): IAutomationRunOperation {
 		this.runs.push({ automationId: automation.id, trigger });
 		return {
 			whenDispatched: Promise.resolve({ kind: 'notStarted', reason: 'targetUnavailable' }),
@@ -423,7 +423,7 @@ suite('AutomationSchedulerCore', () => {
 			readonly hung = new DeferredPromise<void>();
 			calls = 0;
 			cancelObserved = false;
-			runOnce(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): IAutomationRunOperation {
+			runOnce(automation: IAutomationDescriptor, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): IAutomationRunOperation {
 				this.calls++;
 				const whenCompleted = this._run(automation, trigger, leaderWindowId, token);
 				return {
@@ -432,7 +432,7 @@ suite('AutomationSchedulerCore', () => {
 				};
 			}
 
-			private async _run(automation: IAutomation, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
+			private async _run(automation: IAutomationDescriptor, trigger: AutomationRunTrigger, leaderWindowId: number, token?: CancellationToken): Promise<void> {
 				if (this.calls === 1) {
 					hungAutomationId = automation.id;
 					await service.recordRunStart(automation.id, trigger, leaderWindowId);
