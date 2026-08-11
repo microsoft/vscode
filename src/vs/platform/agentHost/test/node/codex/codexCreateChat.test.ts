@@ -769,6 +769,80 @@ suite('CodexAgent exact chat routing', () => {
 			peer.dispose();
 		}
 	});
+
+	test('an active client is keyed to the exact addressed chat: no sibling inference, and cleanup on removal/disposal never touches a sibling chat', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-exact-client');
+			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-chat'));
+			const folder = URI.file('/repo/exact-client');
+			const sessionContext = { configurationResource: sessionUri, resource: sessionChat };
+			const peerContext = { configurationResource: sessionUri, resource: peerChat };
+
+			await createSessionBackedChat(agent, sessionChat, sessionContext, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const sessionEntry = agent['_sessions'].get('session-exact-client')!;
+			const sessionStart = await readNextRequest(peer.outbound);
+			peer.push({ id: sessionStart.id, result: { thread: { id: 'session-thread', cwd: folder.fsPath } } });
+			await sessionEntry.materializePromise;
+
+			const creatingPeer = agent.chats.createChat(peerChat, peerContext, {
+				model: { id: COPILOT_TEST_MODEL },
+				workingDirectories: [folder],
+				config: {},
+			});
+			const peerStart = await readNextRequest(peer.outbound);
+			peer.push({ id: peerStart.id, result: { thread: { id: 'peer-thread', cwd: folder.fsPath } } });
+			await creatingPeer;
+			const peerEntry = agent['_sessions'].get('peer-thread')!;
+
+			// The same clientId contributes different tools to each exact chat;
+			// neither handle may leak into the other's runtime.
+			const sessionHandle = agent.getOrCreateActiveClient(sessionChat, sessionContext, { clientId: 'client-exact' });
+			sessionHandle.tools = [{ name: 'session_tool', description: 'session only', inputSchema: { type: 'object' } }];
+			const peerHandle = agent.getOrCreateActiveClient(peerChat, peerContext, { clientId: 'client-exact' });
+			peerHandle.tools = [{ name: 'peer_tool', description: 'peer only', inputSchema: { type: 'object' } }];
+
+			assert.deepStrictEqual({
+				sessionTools: sessionEntry.clientToolSet.merged().map(tool => tool.name),
+				peerTools: peerEntry.clientToolSet.merged().map(tool => tool.name),
+			}, {
+				sessionTools: ['session_tool'],
+				peerTools: ['peer_tool'],
+			});
+
+			// Explicitly removing the session chat's client must not disturb the
+			// peer chat's contribution or its handle.
+			agent.removeActiveClient(sessionChat, sessionContext, 'client-exact');
+
+			const disposing = agent.chats.disposeChat(peerChat, peerContext);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			await disposing;
+
+			assert.deepStrictEqual({
+				sessionTools: sessionEntry.clientToolSet.merged().map(tool => tool.name),
+				peerTools: peerEntry.clientToolSet.merged().map(tool => tool.name),
+				hasSessionHandle: agent['_activeClientHandles'].has(`${sessionChat.toString()}\u0000client-exact`),
+				hasPeerHandle: agent['_activeClientHandles'].has(`${peerChat.toString()}\u0000client-exact`),
+			}, {
+				// Removal clears only the addressed chat's contribution.
+				sessionTools: [],
+				// Disposal cleans up the disposed chat's own handle the same way.
+				peerTools: [],
+				hasSessionHandle: false,
+				hasPeerHandle: false,
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
 });
 
 suite('CodexAgent chat backing durability', () => {

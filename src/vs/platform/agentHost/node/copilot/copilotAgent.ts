@@ -2400,9 +2400,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			ac.getOrCreateHandle(seeded.clientId, seeded.displayName);
 			// A freshly-created session has exactly one chat — the exact target
 			// the host provisioned it with — so seed the eager claimant's
-			// membership with it. The host's first `session/activeClientSet`
-			// fan-out replaces this with the authoritative catalog.
-			this._adoptClientChats(ac, seeded.clientId, [chat]);
+			// membership with it. The host's first `getOrCreateActiveClient`
+			// fan-out for a peer chat adds to this incrementally.
+			this._adoptClientChat(ac, seeded.clientId, chat);
 			if (seeded.customizations !== undefined) {
 				// Eager pre-send claim: no session-state listener is hooked up
 				// yet, so suppress action events. The session reads the final
@@ -2795,33 +2795,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * @param chats The exact chats this client contributes to, owned and fanned
-	 * out by Agent Host and never empty. It is the authoritative *replacement*
-	 * for this client's membership, recorded on the session's
-	 * {@link ActiveClient} and consumed in two places: it scopes the tools a
+	 * @param chat The exact chat this client contributes to. Membership is
+	 * built up incrementally: this call adds `chat` to `client`'s membership
+	 * on the session's {@link ActiveClient} alongside any chats already
+	 * recorded for it, and is consumed in two places — it scopes the tools a
 	 * chat advertises to its SDK session ({@link ActiveClient.toolsForChat},
 	 * applied at launch and reconciled by {@link ActiveClient.requiresRestart}),
 	 * and it filters client-tool ownership at stamp time
 	 * ({@link ActiveClient.contributesTo}) so a tool call issued by one chat is
 	 * never attributed to — and therefore dispatched to — a client the host did
 	 * not fan that chat out to. The provider neither synthesizes a default-chat
-	 * URI nor discovers sibling chats to extend the set; when the catalog grows
-	 * the host re-invokes this with the complete new set.
-	 * @param hostCustomizations The owning session's last host-published
+	 * URI nor discovers sibling chats to extend the set; each additional chat
+	 * the host wants this client to reach arrives as its own call.
+	 * @param context The chat's host-supplied persistence/configuration
+	 * context, resolved to the owning session's {@link ActiveClient} (shared by
+	 * every chat with the same {@link IAgentChatContext.configurationResource}).
+	 * @param hostCustomizations The configuration scope's last host-published
 	 * customization snapshot (Section 8b), retained so provider-internal work reads
 	 * it instead of shared host state. Copilot's customization state is
-	 * session-scoped (one {@link SessionPluginController} shared by every chat
-	 * in the session), so it reaches exactly the chats `chats` enumerates.
+	 * shared by configuration scope (one {@link SessionPluginController}), so
+	 * it reaches every chat that Agent Host addresses with that scope.
 	 */
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[], hostCustomizations?: readonly Customization[]): IActiveClient {
-		this._rememberHostCustomizations(session, hostCustomizations);
-		const activeClient = this._getOrCreateActiveClient(session, undefined);
-		this._adoptClientChats(activeClient, client.clientId, chats);
+	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient {
+		const configurationResource = resolveAgentChatContext(context, chat).configurationResource;
+		this._rememberHostCustomizations(configurationResource, hostCustomizations);
+		const activeClient = this._getOrCreateActiveClient(configurationResource, undefined);
+		this._adoptClientChat(activeClient, client.clientId, chat);
 		// Anchor the customization directory (best-effort, idempotent) so
 		// session-discovered customizations surface alongside this client's,
 		// mirroring the previous eager resolution in `setClientCustomizations`.
 		if (!activeClient.pluginController.directory) {
-			this._getSessionCustomizationAnchors(session).then(
+			this._getSessionCustomizationAnchors(configurationResource).then(
 				anchors => {
 					activeClient.pluginController.setDirectory(anchors.directory);
 					if (anchors.applyAdditional) {
@@ -2835,35 +2839,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Records the host's authoritative chat membership for `clientId`.
-	 *
-	 * An empty set would mean "this client contributes to nothing", which the
-	 * host never publishes — it withholds the fan-out entirely while it has no
-	 * membership to hand over. Treat it as a protocol violation and keep the
-	 * last authoritative set rather than silently dropping the client's
-	 * contributions from every chat.
-	 *
-	 * Chats that newly enter the membership need no eager push: their live
-	 * runtimes advertise a chat-scoped snapshot and reconcile it against the
-	 * new membership on their next interaction (see
+	 * Records the host's authoritative chat membership for `clientId`,
+	 * incrementally: `chat` joins whatever chats the host has already fanned
+	 * this client out to. Chats that newly enter the membership need no eager
+	 * push: their live runtimes advertise a chat-scoped snapshot and reconcile
+	 * it against the new membership on their next interaction (see
 	 * {@link ActiveClient.requiresRestart}), while client-tool ownership is
 	 * resolved against the membership at stamp time.
 	 */
-	private _adoptClientChats(activeClient: ActiveClient, clientId: string, chats: readonly URI[]): void {
-		if (chats.length === 0) {
-			this._logService.warn(`[Copilot] Ignoring empty active-client chat membership for client ${clientId}; keeping the last host-published set`);
-			return;
-		}
-		const added = activeClient.setClientChats(clientId, chats);
-		if (added.length > 0) {
-			this._logService.info(`[Copilot] Active client ${clientId} now contributes to ${chats.length} chat(s); newly reachable: [${added.map(chat => chat.toString()).join(', ')}]`);
+	private _adoptClientChat(activeClient: ActiveClient, clientId: string, chat: URI): void {
+		if (activeClient.addClientChat(clientId, chat)) {
+			this._logService.info(`[Copilot] Active client ${clientId} now contributes to chat ${chat.toString()}`);
 		}
 	}
 
-	removeActiveClient(session: URI, clientId: string): void {
-		const sessionId = AgentSession.id(session);
-		this._logService.info(`[Copilot:${sessionId}] removeActiveClient: clientId=${clientId}`);
-		this._activeClients.get(session)?.removeClient(clientId);
+	/**
+	 * Removes `clientId`'s contributions from one exact `chat`. The client's
+	 * tool and customization contributions are only fully dropped (see
+	 * {@link ActiveClient.removeClient}) once it no longer reaches any chat —
+	 * a client still fanned out to other chats keeps contributing to them.
+	 */
+	removeActiveClient(chat: URI, context: URI | IAgentChatContext, clientId: string): void {
+		const configurationResource = resolveAgentChatContext(context, chat).configurationResource;
+		const configurationId = AgentSession.id(configurationResource);
+		const activeClient = this._activeClients.get(configurationResource);
+		if (!activeClient) {
+			this._logService.info(`[Copilot:${configurationId}] removeActiveClient: no active client state for clientId=${clientId}, chat=${chat.toString()}`);
+			return;
+		}
+		const wasLastChat = activeClient.removeClientChat(clientId, chat);
+		this._logService.info(`[Copilot:${configurationId}] removeActiveClient: clientId=${clientId}, chat=${chat.toString()}, fullyRemoved=${wasLastChat}`);
+		if (wasLastChat) {
+			activeClient.removeClient(clientId);
+		}
 	}
 
 	/**
@@ -3464,6 +3472,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._destroyLiveSession(target, true);
 			}
 
+			// The chat itself is gone: drop it from every active client's
+			// membership so a client left with no remaining chats has its
+			// tool/customization contributions fully released rather than
+			// leaking past the chat's lifetime.
+			this._activeClients.get(current.configurationResource)?.removeChat(chat);
 		});
 	}
 
@@ -5410,14 +5423,15 @@ class ActiveClient extends Disposable {
 	 * Host-owned membership: each client's exact chat set, keyed by `clientId`
 	 * and holding chat-URI strings.
 	 *
-	 * Agent Host owns session→chat membership end to end and republishes the
-	 * complete set through {@link CopilotAgent.getOrCreateActiveClient}
-	 * whenever the session's catalog grows, so every entry here is an
-	 * authoritative *replacement*, never a union with what the provider
-	 * previously believed. Nothing in this class discovers sibling chats or
-	 * extends a set of its own.
+	 * Agent Host owns session→chat membership end to end, addressing exactly
+	 * one chat at a time through {@link CopilotAgent.getOrCreateActiveClient} /
+	 * {@link CopilotAgent.removeActiveClient}, so membership here is built up
+	 * and torn down incrementally — one chat's worth per call — rather than
+	 * replaced wholesale from a complete set. Nothing in this class discovers
+	 * sibling chats or extends a client's membership beyond the exact chat it
+	 * was asked to add or remove.
 	 */
-	private readonly _chatsByClient = new Map<string, ReadonlySet<string>>();
+	private readonly _chatsByClient = new Map<string, Set<string>>();
 
 	/**
 	 * Every chat the host has published membership for, across all clients.
@@ -5444,16 +5458,59 @@ class ActiveClient extends Disposable {
 	}
 
 	/**
-	 * Adopt the host's authoritative chat set for `clientId`, replacing any
-	 * previously published membership wholesale. Returns the chats this client
-	 * newly reaches, so the caller can refresh their live runtimes.
+	 * Adds `chat` to `clientId`'s membership, incrementally, alongside any
+	 * chats already recorded for it. Returns `true` iff this chat was not
+	 * already reachable by this client, so the caller can refresh its live
+	 * runtime only when membership genuinely grew.
 	 */
-	setClientChats(clientId: string, chats: readonly URI[]): readonly URI[] {
-		const previous = this._chatsByClient.get(clientId);
-		const next = new Set(chats.map(chat => chat.toString()));
-		this._chatsByClient.set(clientId, next);
+	addClientChat(clientId: string, chat: URI): boolean {
+		const chatKey = chat.toString();
+		const chats = this._chatsByClient.get(clientId);
+		if (chats?.has(chatKey)) {
+			return false;
+		}
+		if (chats) {
+			chats.add(chatKey);
+		} else {
+			this._chatsByClient.set(clientId, new Set([chatKey]));
+		}
+		this._knownChats.add(chatKey);
+		return true;
+	}
+
+	/**
+	 * Removes `chat` from `clientId`'s membership. Returns `true` iff this was
+	 * the last chat recorded for `clientId`, so the caller knows to fully drop
+	 * the client's tool and customization contributions (see
+	 * {@link removeClient}) rather than leave them live for chats it no longer
+	 * reaches.
+	 */
+	removeClientChat(clientId: string, chat: URI): boolean {
+		const chatKey = chat.toString();
+		const chats = this._chatsByClient.get(clientId);
+		if (!chats?.has(chatKey)) {
+			return false;
+		}
+		chats.delete(chatKey);
+		if (chats.size === 0) {
+			this._chatsByClient.delete(clientId);
+		}
 		this._reindexKnownChats();
-		return chats.filter(chat => !previous?.has(chat.toString()));
+		return !this._chatsByClient.has(clientId);
+	}
+
+	/**
+	 * Drops `chat` from every client's membership when the chat itself is torn
+	 * down (see {@link CopilotAgent._disposeChat}), fully removing any client
+	 * left with no remaining chats so its tool and customization contributions
+	 * do not leak past the chat's lifetime.
+	 */
+	removeChat(chat: URI): void {
+		for (const clientId of [...this._chatsByClient.keys()]) {
+			if (this.removeClientChat(clientId, chat)) {
+				this.removeClient(clientId);
+			}
+		}
 	}
 
 	/** The exact chats `clientId` contributes to, as last published by the host. */

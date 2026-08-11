@@ -71,7 +71,7 @@ export class MockAgent implements IAgent {
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 	readonly setClientToolsCalls: { clientId: string; tools: readonly ToolDefinition[] }[] = [];
-	readonly removeActiveClientCalls: { clientId: string }[] = [];
+	readonly removeActiveClientCalls: { chat: URI; clientId: string }[] = [];
 	/**
 	 * Every host-supplied {@link IAgentChatContext} this agent was handed,
 	 * keyed by the boundary it arrived at. Lets shared tests assert that Agent
@@ -80,7 +80,7 @@ export class MockAgent implements IAgent {
 	 */
 	readonly chatContexts: { boundary: string; chat: URI; context: IAgentChatContext | URI | undefined }[] = [];
 	/** Active-client fan-out recorded exactly as Agent Host supplied it. */
-	readonly activeClientCalls: { session: URI; clientId: string; chats: readonly URI[]; hostCustomizations: readonly Customization[] | undefined }[] = [];
+	readonly activeClientCalls: { chat: URI; context: URI | IAgentChatContext; clientId: string; hostCustomizations: readonly Customization[] | undefined }[] = [];
 	/** Host customizations handed to {@link getSessionCustomizations}. */
 	readonly sessionCustomizationsCalls: { session: URI; hostCustomizations: readonly Customization[] | undefined }[] = [];
 	readonly clientToolCallCompleteCalls: { session: URI; chat: URI; toolCallId: string; result: ToolCallResult; context?: IAgentChatContext }[] = [];
@@ -348,9 +348,9 @@ export class MockAgent implements IAgent {
 		return results;
 	}
 
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[] = [], hostCustomizations?: readonly Customization[]): IActiveClient {
+	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient {
 		const self = this;
-		this.activeClientCalls.push({ session, clientId: client.clientId, chats, hostCustomizations });
+		this.activeClientCalls.push({ chat, context, clientId: client.clientId, hostCustomizations });
 		let tools: readonly ToolDefinition[] = [];
 		let customizations: readonly ClientPluginCustomization[] = [];
 		return {
@@ -364,13 +364,13 @@ export class MockAgent implements IAgent {
 			get customizations() { return customizations; },
 			set customizations(value: readonly ClientPluginCustomization[]) {
 				customizations = value;
-				self.syncClientCustomizations(session, client.clientId, [...value]);
+				self.syncClientCustomizations(resolveAgentChatContext(context, chat).configurationResource, client.clientId, [...value]);
 			},
 		};
 	}
 
-	removeActiveClient(_session: URI, clientId: string): void {
-		this.removeActiveClientCalls.push({ clientId });
+	removeActiveClient(chat: URI, _context: URI | IAgentChatContext, clientId: string): void {
+		this.removeActiveClientCalls.push({ chat, clientId });
 	}
 
 	onClientToolCallComplete(session: URI, chat: URI, toolCallId: string, result: ToolCallResult, context?: IAgentChatContext): void {
@@ -886,7 +886,7 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	getOrCreateActiveClient(_session: URI, client: { readonly clientId: string; readonly displayName?: string }, _chats?: readonly URI[], _hostCustomizations?: readonly Customization[]): IActiveClient {
+	getOrCreateActiveClient(_chat: URI, _context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): IActiveClient {
 		let tools: readonly ToolDefinition[] = [];
 		let customizations: readonly ClientPluginCustomization[] = [];
 		return {

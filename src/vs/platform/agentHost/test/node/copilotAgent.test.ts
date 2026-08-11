@@ -4129,8 +4129,8 @@ suite('CopilotAgent', () => {
 					name: 'Plugin A',
 					enabled: true,
 				};
-				agent.getOrCreateActiveClient(firstSession, { clientId: 'client-1' }, [defaultChatUri(firstSession)]).customizations = [plugin];
-				agent.getOrCreateActiveClient(secondSession, { clientId: 'client-2' }, [defaultChatUri(secondSession)]).customizations = [plugin];
+				agent.getOrCreateActiveClient(defaultChatUri(firstSession), firstSession, { clientId: 'client-1' }).customizations = [plugin];
+				agent.getOrCreateActiveClient(defaultChatUri(secondSession), secondSession, { clientId: 'client-2' }).customizations = [plugin];
 
 				const [firstInitial, secondInitial] = await Promise.all([
 					agent.getSessionCustomizations(firstSession, hostSnapshot(firstSession)),
@@ -4192,7 +4192,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
-				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }, [defaultChatUri(session)]).customizations = [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }];
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(pluginDir.toString()), uri: pluginDir.toString(), name: 'Plugin A', enabled: true }];
 
 				// Wait for the deferred resolution chain in PluginController.sync.
 				await new Promise(r => setTimeout(r, 50));
@@ -5192,10 +5192,10 @@ suite('CopilotAgent', () => {
 				// No boundary has carried a snapshot yet.
 				const beforeAnyBoundary = internals._retainedHostCustomizations(session);
 				// An active-client fan-out carries one...
-				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }, [chat], [plugin]);
+				agent.getOrCreateActiveClient(chat, session, { clientId: 'client-1' }, [plugin]);
 				const afterActiveClient = internals._retainedHostCustomizations(session).map(c => c.id);
 				// ...and `undefined` ("no snapshot yet") never clears it.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }, [chat], undefined);
+				agent.getOrCreateActiveClient(chat, session, { clientId: 'client-1' }, undefined);
 				const afterUndefined = internals._retainedHostCustomizations(session).map(c => c.id);
 				// An addressed chat operation's context refreshes it.
 				await agent.chats.getMessages(chat, { configurationResource: session, resource: session, customizations: [{ ...plugin, enabled: true }] });
@@ -7006,18 +7006,19 @@ suite('CopilotAgent', () => {
 		const toolA: ToolDefinition = { name: 'tool_a', description: 'from A', inputSchema: { type: 'object', properties: {} } };
 		const toolB: ToolDefinition = { name: 'tool_b', description: 'from B', inputSchema: { type: 'object', properties: {} } };
 
-		test('a later fan-out replacing [default] with [default, peer] extends the exact membership and the peer chat contributions', async () => {
+		test('adding a chat to a client\'s membership extends its reach without touching other clients', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'membership-growth');
 				const defaultChat = defaultChatUri(session);
 				const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
 
-				// First fan-out: client A reaches only the session's own chat,
-				// client B reaches both — so the peer chat is a chat the host
-				// has published membership for.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChat]).tools = [toolA];
-				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }, [defaultChat, peerChat]).tools = [toolB];
+				// First: client A reaches only the session's own chat; client B
+				// reaches both, added one exact chat at a time — so the peer chat
+				// is a chat the host has published membership for.
+				agent.getOrCreateActiveClient(defaultChat, session, { clientId: 'client-A' }).tools = [toolA];
+				agent.getOrCreateActiveClient(defaultChat, session, { clientId: 'client-B' }).tools = [toolB];
+				agent.getOrCreateActiveClient(peerChat, session, { clientId: 'client-B' });
 				const active = membership(agent, session);
 				const peerSnapshotBeforeGrowth = await active.snapshot(peerChat.toString());
 
@@ -7029,8 +7030,9 @@ suite('CopilotAgent', () => {
 					reachesDefaultA: active.contributesTo('client-A', defaultChat.toString()),
 				};
 
-				// The catalog grew: the host re-invokes with the complete set.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChat, peerChat]);
+				// The catalog grew: the host addresses the new peer chat for
+				// client A too, incrementally alongside its existing membership.
+				agent.getOrCreateActiveClient(peerChat, session, { clientId: 'client-A' });
 
 				assert.deepStrictEqual({
 					before,
@@ -7064,36 +7066,43 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('each fan-out is an authoritative replacement, and removeActiveClient drops the membership', async () => {
+		test('removeActiveClient drops membership for exactly the addressed chat, clearing tools/customizations only once no chats remain', async () => {
 			const agent = createTestAgent(disposables);
 			try {
 				const session = AgentSession.uri('copilotcli', 'membership-replacement');
 				const defaultChat = defaultChatUri(session);
 				const peerChat = URI.parse(buildChatUri(session, 'peer-1'));
 
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChat, peerChat]).tools = [toolA];
-				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }, [defaultChat, peerChat]).tools = [toolB];
+				agent.getOrCreateActiveClient(defaultChat, session, { clientId: 'client-A' }).tools = [toolA];
+				agent.getOrCreateActiveClient(peerChat, session, { clientId: 'client-A' });
+				agent.getOrCreateActiveClient(defaultChat, session, { clientId: 'client-B' }).tools = [toolB];
+				agent.getOrCreateActiveClient(peerChat, session, { clientId: 'client-B' });
 				const active = membership(agent, session);
 
-				// A narrower set replaces the previous membership wholesale — it
-				// is never unioned with what the provider previously believed.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChat]);
+				// Removing one of client A's two chats narrows its membership —
+				// it still reaches the default chat, so its tool contribution
+				// there is untouched.
+				agent.removeActiveClient(peerChat, session, 'client-A');
 				const afterNarrowing = {
 					chatsA: active.clientChats('client-A'),
 					reachesPeer: active.contributesTo('client-A', peerChat.toString()),
 					toolsOnPeer: active.toolsForChat(peerChat.toString()).map(tool => tool.name),
+					toolsOnDefault: active.toolsForChat(defaultChat.toString()).map(tool => tool.name),
 				};
 
-				// An empty set is never published by the host; it must not wipe
-				// the last authoritative membership.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, []);
-				const afterEmpty = active.clientChats('client-A');
+				// Removing a chat the client is no longer (or never was)
+				// registered for is a no-op — it must not disturb the client's
+				// remaining membership.
+				agent.removeActiveClient(peerChat, session, 'client-A');
+				const afterNoOpRemoval = active.clientChats('client-A');
 
-				agent.removeActiveClient(session, 'client-A');
+				// Removing client A's last remaining chat fully drops its tool
+				// and customization contributions.
+				agent.removeActiveClient(defaultChat, session, 'client-A');
 
 				assert.deepStrictEqual({
 					afterNarrowing,
-					afterEmpty,
+					afterNoOpRemoval,
 					afterRemoval: {
 						chatsA: active.clientChats('client-A'),
 						toolsOnDefault: active.toolsForChat(defaultChat.toString()).map(tool => tool.name),
@@ -7103,8 +7112,9 @@ suite('CopilotAgent', () => {
 						chatsA: [defaultChat.toString()],
 						reachesPeer: false,
 						toolsOnPeer: ['tool_b'],
+						toolsOnDefault: ['tool_a', 'tool_b'],
 					},
-					afterEmpty: [defaultChat.toString()],
+					afterNoOpRemoval: [defaultChat.toString()],
 					afterRemoval: {
 						chatsA: [],
 						toolsOnDefault: ['tool_b'],
@@ -7126,7 +7136,7 @@ suite('CopilotAgent', () => {
 				const defaultChat = defaultChatUri(session);
 				const justCreatedPeer = URI.parse(buildChatUri(session, 'peer-new'));
 
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChat]).tools = [toolA];
+				agent.getOrCreateActiveClient(defaultChat, session, { clientId: 'client-A' }).tools = [toolA];
 				const active = membership(agent, session);
 
 				assert.deepStrictEqual({
@@ -7162,8 +7172,8 @@ suite('CopilotAgent', () => {
 			const sharedTool: ToolDefinition = { name: 'shared', description: 'Shared tool', inputSchema: { type: 'object', properties: {} } };
 			// Both clients provide the tool; the host fans A out to this chat
 			// and B out to a different one only.
-			agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [session]).tools = [sharedTool];
-			agent.getOrCreateActiveClient(session, { clientId: 'client-B' }, [otherChat]).tools = [sharedTool];
+			agent.getOrCreateActiveClient(session, session, { clientId: 'client-A' }).tools = [sharedTool];
+			agent.getOrCreateActiveClient(otherChat, session, { clientId: 'client-B' }).tools = [sharedTool];
 
 			const mockSession = new MockCopilotSession();
 			const createdSession = createAgentSessionThroughAgent(agent, instantiationService, {
@@ -7223,15 +7233,15 @@ suite('CopilotAgent', () => {
 
 				// Window A registers its tools; this is the snapshot the SDK
 				// session would be created with.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChatUri(session)]).tools = tools;
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-A' }).tools = tools;
 				const activeClient = getActiveClient(agent, session);
 				const appliedSnapshot = await activeClient.snapshot();
 				assert.strictEqual(activeClient.toolSet.ownerOf('my_tool'), 'client-A');
 
 				// Window A reloads: window B reconnects with a new clientId but
 				// the identical tool list. The reload removes A then adds B.
-				agent.removeActiveClient(session, 'client-A');
-				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }, [defaultChatUri(session)]).tools = [...tools];
+				agent.removeActiveClient(defaultChatUri(session), session, 'client-A');
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-B' }).tools = [...tools];
 
 				// Root-cause assertions: the cached SDK session must be reused
 				// (no restart) AND the live owner must now be window B's, so
@@ -7248,13 +7258,13 @@ suite('CopilotAgent', () => {
 			try {
 				const session = AgentSession.uri('copilotcli', 'tools-change-session');
 
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChatUri(session)]).tools = tools;
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-A' }).tools = tools;
 				const activeClient = getActiveClient(agent, session);
 				const appliedSnapshot = await activeClient.snapshot();
 
 				// A genuinely different tool set (added tool) must restart so the
 				// SDK session is rebuilt with the new tools.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChatUri(session)]).tools = [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }];
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-A' }).tools = [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }];
 
 				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
 			} finally {
@@ -7268,11 +7278,11 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'multi-client-session');
 
 				// Two clients each contribute their own tool plus a shared one.
-				agent.getOrCreateActiveClient(session, { clientId: 'client-A' }, [defaultChatUri(session)]).tools = [
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-A' }).tools = [
 					{ name: 'shared', description: 'from A', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'a_tool', description: 'A only', inputSchema: { type: 'object', properties: {} } },
 				];
-				agent.getOrCreateActiveClient(session, { clientId: 'client-B' }, [defaultChatUri(session)]).tools = [
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-B' }).tools = [
 					{ name: 'shared', description: 'from B', inputSchema: { type: 'object', properties: {} } },
 					{ name: 'b_tool', description: 'B only', inputSchema: { type: 'object', properties: {} } },
 				];
@@ -7289,7 +7299,7 @@ suite('CopilotAgent', () => {
 
 				// Removing client A keeps B's contribution and hands the shared
 				// tool to B (now the sole provider).
-				agent.removeActiveClient(session, 'client-A');
+				agent.removeActiveClient(defaultChatUri(session), session, 'client-A');
 				const afterRemoval = await activeClient.snapshot();
 				assert.deepStrictEqual(afterRemoval.tools.map(t => t.name), ['shared', 'b_tool']);
 				assert.strictEqual(activeClient.toolSet.ownerOf('shared'), 'client-B');
@@ -7354,7 +7364,7 @@ suite('CopilotAgent', () => {
 			};
 
 			setDefaultSessionStub(agent, sessionId, previousSession);
-			agent.getOrCreateActiveClient(session, { clientId: 'client' }, [defaultChatUri(session)]).tools = [
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' }).tools = [
 				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
 			];
 			internals._resumeSession = async id => {
@@ -7401,7 +7411,7 @@ suite('CopilotAgent', () => {
 			};
 
 			setDefaultSessionStub(agent, sessionId, previousSession);
-			agent.getOrCreateActiveClient(session, { clientId: 'client' }, [defaultChatUri(session)]).tools = [
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' }).tools = [
 				{ name: 'new_tool', description: 'A newly registered tool', inputSchema: { type: 'object', properties: {} } },
 			];
 			internals._resumeSession = async (id, _chatChannelUri, workingDirectories) => {
@@ -7448,7 +7458,7 @@ suite('CopilotAgent', () => {
 			};
 
 			setDefaultSessionStub(agent, sessionId, currentSession);
-			agent.getOrCreateActiveClient(session, { clientId: 'client' }, [defaultChatUri(session)]);
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
 			internals._resumeSession = async () => {
 				resumeCalls++;
 				throw new Error('Identical roots must not resume');
@@ -7499,7 +7509,7 @@ suite('CopilotAgent', () => {
 				return resumedSession as unknown as CopilotAgentSession;
 			};
 			setDefaultSessionStub(agent, sessionId, previousSession);
-			agent.getOrCreateActiveClient(session, { clientId: 'client' }, [defaultChatUri(session)]);
+			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
 
 			try {
 				const chat = defaultChatUri(session);

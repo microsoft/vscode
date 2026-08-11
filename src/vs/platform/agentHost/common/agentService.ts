@@ -1629,8 +1629,8 @@ export interface IMcpNotification {
 }
 
 /**
- * A per-session handle for one active client's contributions (tools and
- * plugin customizations) to an agent session, obtained via
+ * A per-chat handle for one active client's contributions (tools and
+ * plugin customizations), obtained via
  * {@link IAgent.getOrCreateActiveClient}.
  *
  * `tools` and `customizations` are mutable accessor properties: assigning a
@@ -1639,7 +1639,7 @@ export interface IMcpNotification {
  * model, or kicking off an asynchronous customization sync). The arrays are
  * `readonly` so callers cannot mutate them in place and silently bypass the
  * setter. The agent merges the contributions of all active clients on a
- * session, deduplicating as needed.
+ * exact chat, deduplicating as needed.
  */
 export interface IActiveClient {
 	/** Client identifier (matches `clientId` from `initialize`). */
@@ -1934,38 +1934,26 @@ export interface IAgent {
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
 	/**
-	 * Get (or lazily create) the per-session handle for an active client,
+	 * Get (or lazily create) the exact-chat handle for an active client,
 	 * identified by `clientId`. Mutating the returned {@link IActiveClient}'s
 	 * `tools` / `customizations` updates only that client's contribution; the
 	 * agent merges the contributions of all active clients when exposing them
-	 * to the model. A session MAY have several active clients at once.
+	 * to that chat's model.
 	 *
-	 * @param session The session URI this client contributes to.
+	 * @param chat The exact chat this client contributes to.
+	 * @param context The chat's host-supplied persistence/configuration context.
 	 * @param client The client's `clientId` and optional human-readable name.
-	 * @param chats The exact chats the client contributes to, owned and fanned
-	 * out by Agent Host. Never empty: it always contains at least the session's
-	 * default chat, so a provider never synthesizes a default-chat URI to
-	 * recover membership. Providers MUST treat it as the authoritative
-	 * replacement for this client's membership on every call — the host
-	 * re-invokes this with the new set whenever the session's chat catalog
-	 * grows, and skips the call entirely while it has no authoritative
-	 * membership to hand over.
-	 * @param hostCustomizations The owning session's last host-published
+	 * @param hostCustomizations The configuration scope's last host-published
 	 * customization snapshot, supplied so the provider can apply it to the
-	 * addressed chats without reading shared host state. `undefined` means the
+	 * addressed chat without reading shared host state. `undefined` means the
 	 * host has not published a snapshot yet — distinct from an empty list.
 	 */
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[], hostCustomizations?: readonly Customization[]): IActiveClient;
+	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient;
 
 	/**
-	 * Remove an active client from a session, clearing its tool and
-	 * customization contributions. No-op when no active client matches
-	 * `clientId`.
-	 *
-	 * @param session The session the client is leaving.
-	 * @param clientId The client to remove.
+	 * Remove an active client's contributions from one exact chat.
 	 */
-	removeActiveClient(session: URI, clientId: string): void;
+	removeActiveClient(chat: URI, context: URI | IAgentChatContext, clientId: string): void;
 
 	/**
 	 * Called when a client completes a client-provided tool call.

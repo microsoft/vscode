@@ -378,21 +378,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Hands a client's contribution to the provider over the session's exact,
-	 * host-owned chat membership.
-	 *
-	 * Agent Host owns the fan-out end to end: the provider receives the
-	 * complete chat list (default chat first) plus the effective host
-	 * customizations, and MUST treat it as the authoritative replacement for
-	 * that client's membership. It never synthesizes a default-chat URI, owns
-	 * session→chat membership, or reads customizations back out of shared host
-	 * state.
-	 *
-	 * When the host has no state for the session there is no authoritative
-	 * membership to hand over, so the fan-out is skipped rather than invented.
-	 * The client's contribution is preserved in the session state and replayed
-	 * once state exists — {@link ActionType.SessionChatAdded} and a later
-	 * {@link ActionType.SessionActiveClientSet} both re-enter here.
+	 * Hands a client's contribution to each exact chat Agent Host owns.
 	 */
 	private _fanOutActiveClient(session: ProtocolURI, activeClient: SessionActiveClient): void {
 		const agent = this._options.getAgent(session);
@@ -404,12 +390,15 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Skipping active-client fan-out for session without host state: session=${session}, clientId=${activeClient.clientId}`);
 			return;
 		}
-		const handle = agent.getOrCreateActiveClient(URI.parse(session), {
-			clientId: activeClient.clientId,
-			displayName: activeClient.displayName,
-		}, chats, this._hostCustomizations(session));
-		handle.tools = activeClient.tools;
-		handle.customizations = activeClient.customizations ?? [];
+		const hostCustomizations = this._hostCustomizations(session);
+		for (const chat of chats) {
+			const handle = agent.getOrCreateActiveClient(chat, this._chatContext(session, chat.toString()), {
+				clientId: activeClient.clientId,
+				displayName: activeClient.displayName,
+			}, hostCustomizations);
+			handle.tools = activeClient.tools;
+			handle.customizations = activeClient.customizations ?? [];
+		}
 	}
 
 	/**
@@ -1635,7 +1624,9 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionActiveClientRemoved: {
 				const agent = this._options.getAgent(channel);
-				agent?.removeActiveClient(URI.parse(channel), action.clientId);
+				for (const chat of getSessionChatsForFanOut(this._stateManager, channel) ?? []) {
+					agent?.removeActiveClient(chat, this._chatContext(channel, chat.toString()), action.clientId);
+				}
 				break;
 			}
 			case ActionType.RootConfigChanged: {

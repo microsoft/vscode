@@ -804,36 +804,35 @@ function decodeCodexChat(data: string | undefined): ICodexPersistedChat | undefi
 }
 
 /**
- * Codex active-client handle. Writes flow into the owning session's
- * {@link ActiveClientToolSet} (tools) and its {@link CodexClientCustomizationStore}
- * (customizations); the session is resolved lazily so writes that arrive before
- * (or after) the session exists are gracefully dropped, matching the prior
- * `setClientTools` early-return behavior. Assigning `customizations` caches the
- * inputs (so the getter echoes them) and kicks off the agent's async sync.
+ * Codex active-client handle for exactly one exact chat. Writes flow into
+ * that chat's backing runtime's {@link ActiveClientToolSet} (tools) and its
+ * {@link CodexClientCustomizationStore} (customizations); the runtime is
+ * resolved lazily on every write, so writes that arrive before (or after) it
+ * exists are gracefully dropped, matching the prior `setClientTools`
+ * early-return behavior. Assigning `customizations` caches the inputs (so the
+ * getter echoes them) and kicks off the agent's async sync. There is no
+ * cross-chat propagation: a handle never reaches into a sibling chat's
+ * runtime, so the owning {@link CodexAgent} re-invokes
+ * {@link CodexAgent.getOrCreateActiveClient} once per addressed chat instead.
  */
 class CodexActiveClientHandle implements IActiveClient {
 	private _tools: readonly ToolDefinition[] = [];
 	private _customizations: readonly ClientPluginCustomization[] = [];
-	private _sessions: readonly ICodexSession[];
 
 	constructor(
-		sessions: readonly ICodexSession[],
+		private readonly _resolveSession: () => ICodexSession | undefined,
 		readonly clientId: string,
 		readonly displayName: string | undefined,
 		private readonly _onToolsSet: (tools: readonly ToolDefinition[]) => void,
-		private readonly _syncCustomizations: (sessions: readonly ICodexSession[], customizations: readonly ClientPluginCustomization[]) => void,
-	) {
-		this._sessions = sessions;
-	}
+		private readonly _syncCustomizations: (session: ICodexSession, customizations: readonly ClientPluginCustomization[]) => void,
+	) { }
 
 	get tools(): readonly ToolDefinition[] {
 		return this._tools;
 	}
 	set tools(tools: readonly ToolDefinition[]) {
 		this._tools = tools;
-		for (const session of this._sessions) {
-			session.clientToolSet.set(this.clientId, tools);
-		}
+		this._resolveSession()?.clientToolSet.set(this.clientId, tools);
 		this._onToolsSet(tools);
 	}
 
@@ -842,21 +841,17 @@ class CodexActiveClientHandle implements IActiveClient {
 	}
 	set customizations(customizations: readonly ClientPluginCustomization[]) {
 		this._customizations = customizations;
-		this._syncCustomizations(this._sessions, customizations);
-	}
-
-	remove(): void {
-		for (const session of this._sessions) {
-			session.clientToolSet.delete(this.clientId);
-			session.clientCustomizations.removeClient(this.clientId);
+		const session = this._resolveSession();
+		if (session) {
+			this._syncCustomizations(session, customizations);
 		}
 	}
 
-	addSession(session: ICodexSession): void {
-		if (!this._sessions.includes(session)) {
-			this._sessions = [...this._sessions, session];
-			session.clientToolSet.set(this.clientId, this._tools);
-			this._syncCustomizations([session], this._customizations);
+	remove(): void {
+		const session = this._resolveSession();
+		if (session) {
+			session.clientToolSet.delete(this.clientId);
+			session.clientCustomizations.removeClient(this.clientId);
 		}
 	}
 }
@@ -905,6 +900,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Keyed by caller-facing sessionId (the URI host). */
 	private readonly _sessions = new Map<string, ICodexSession>();
+	/** Keyed by `${chat.toString()}\u0000${clientId}` — exact-chat, exact-client membership; no session- or sibling-level entries. */
 	private readonly _activeClientHandles = new Map<string, CodexActiveClientHandle>();
 	/** Host-supplied chat URI to Codex session id routing. */
 	private readonly _sessionIdByChatUri = new Map<string, string>();
@@ -3088,7 +3084,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Seed the eager active client over the exact chat this call binds — the
 		// agent never invents a chat URI to stand in for it — before the prewarm
 		// below reads the client's tools into a `thread/start`.
-		await this._seedEagerActiveClient(session.sessionUri, options?.activeClient, [target.resource]);
+		await this._seedEagerActiveClient(session.sessionUri, chat, context, options?.activeClient);
 		if (session.threadId === undefined) {
 			this._schedulePrewarm(session);
 		}
@@ -3131,7 +3127,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			existing.agent = options.agent;
 		}
 		this._recordChatTarget(target.resource, existing.sessionUri);
-		await this._seedEagerActiveClient(existing.sessionUri, options?.activeClient, [target.resource]);
+		await this._seedEagerActiveClient(existing.sessionUri, target.resource, context, options?.activeClient);
 		return this._createChatResult(context, existing);
 	}
 
@@ -3345,12 +3341,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._sessions.set(threadId, session);
 			this._sessionIdByThreadId.set(threadId, threadId);
 			this._sessionIdByChatUri.set(target.resource.toString(), threadId);
-			const activeClientPrefix = `${owningSessionId}\u0000`;
-			for (const [key, handle] of this._activeClientHandles) {
-				if (key.startsWith(activeClientPrefix)) {
-					handle.addSession(session);
-				}
-			}
 			this._persistMaterializedSession(session);
 			return session;
 		} catch (err) {
@@ -3422,15 +3412,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * without this step Codex would not receive the client's tools or
 	 * customizations until a later turn happened to re-register the client.
 	 *
-	 * `chats` is the exact membership this seed applies to — the one chat the
+	 * `chat` is the one exact chat this seed applies to — the chat the
 	 * creating call is binding. The agent never invents a chat URI to stand in
-	 * for it.
+	 * for it, and never propagates the seed to any sibling chat.
 	 */
-	private async _seedEagerActiveClient(sessionUri: URI, activeClient: IAgentCreateChatOptions['activeClient'], chats: readonly URI[]): Promise<void> {
+	private async _seedEagerActiveClient(sessionUri: URI, chat: URI, context: IAgentChatContext, activeClient: IAgentCreateChatOptions['activeClient']): Promise<void> {
 		if (!activeClient) {
 			return;
 		}
-		const handle = this.getOrCreateActiveClient(sessionUri, { clientId: activeClient.clientId, displayName: activeClient.displayName }, chats);
+		const handle = this.getOrCreateActiveClient(chat, context, { clientId: activeClient.clientId, displayName: activeClient.displayName });
 		handle.tools = activeClient.tools;
 		if (activeClient.customizations !== undefined) {
 			await this._syncClientCustomizations(sessionUri, activeClient.clientId, activeClient.customizations, { quiet: true });
@@ -4323,20 +4313,12 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/**
 	 * Finalize session-scoped resources after Agent Host has disposed every
-	 * chat of the session through {@link IAgentChats.disposeChat}. Codex keeps
-	 * no session-level runtime beyond its chats, so this only drops the
-	 * session's active-client handles and removes a managed working directory
-	 * that outlived its runtime.
+	 * chat of the session through {@link IAgentChats.disposeChat}. Active
+	 * client handles are keyed by exact chat and already dropped there — this
+	 * only removes a managed working directory that outlived its runtime.
 	 */
 	async finalizeSession(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
-		const activeClientPrefix = `${sessionId}\u0000`;
-		for (const [key, handle] of this._activeClientHandles) {
-			if (key.startsWith(activeClientPrefix)) {
-				handle.remove();
-				this._activeClientHandles.delete(key);
-			}
-		}
 		if (!this._sessions.has(sessionId)) {
 			const overlay = await this._metadataStore.read(sessionUri);
 			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId)
@@ -4348,8 +4330,25 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/**
+	 * Drop the active-client handles addressed to exactly this chat. Called
+	 * on disposal so a departing chat never leaks its handles in
+	 * {@link _activeClientHandles} — there is no sibling inference, so a
+	 * sibling chat's handles are left untouched.
+	 */
+	private _removeActiveClientHandlesForChat(chat: URI): void {
+		const prefix = `${chat.toString()}\u0000`;
+		for (const [key, handle] of this._activeClientHandles) {
+			if (key.startsWith(prefix)) {
+				handle.remove();
+				this._activeClientHandles.delete(key);
+			}
+		}
+	}
+
 	private async _disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
 		const runtimeSession = this._resolveConversationSession(chat, context);
+		this._removeActiveClientHandlesForChat(chat);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4876,47 +4875,51 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * `chats` is the client's exact, host-owned membership and is always
-	 * supplied — Agent Host fans out the session's real chat catalog, and the
-	 * agent's own eager seed names the chat it is binding. Nothing here
-	 * synthesizes a default-chat URI to recover membership; when no supplied
-	 * chat has a live runtime yet (the narrow window before a restore
-	 * materializes it) the handle falls back to the session's own runtime.
+	 * `chat` is the one exact chat this handle contributes to; there is no
+	 * chat-array membership to fan out to and no sibling inference — Agent
+	 * Host calls this once per addressed chat (replaying the call whenever a
+	 * new chat joins the session), and the agent's own eager seed names the
+	 * chat it is binding. `context` is used only to resolve the chat's
+	 * backing runtime when it has no live binding yet (the narrow window
+	 * before a restore materializes it), mirroring
+	 * {@link _resolveConversationSession}. `hostCustomizations` is not
+	 * consumed here: Codex reconciles a client's pushed plugin customizations
+	 * directly through {@link _syncClientCustomizations}.
 	 */
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[]): IActiveClient {
-		const sessionId = AgentSession.id(session);
-		const key = `${sessionId}\u0000${client.clientId}`;
+	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): IActiveClient {
+		const key = `${chat.toString()}\u0000${client.clientId}`;
 		const existing = this._activeClientHandles.get(key);
 		if (existing) {
 			return existing;
 		}
-		const sessions = chats.flatMap(chat => {
-			const runtimeId = this._sessionIdByChatUri.get(chat.toString());
-			const target = runtimeId ? this._sessions.get(runtimeId) : undefined;
-			return target ? [target] : [];
-		});
+		const resolveSession = (): ICodexSession | undefined => {
+			const runtimeUri = this._resolveConversationSession(chat, context);
+			return runtimeUri ? this._sessions.get(AgentSession.id(runtimeUri)) : undefined;
+		};
 		const handle = new CodexActiveClientHandle(
-			sessions.length > 0 ? sessions : [...(this._sessions.get(sessionId) ? [this._sessions.get(sessionId)!] : [])],
+			resolveSession,
 			client.clientId,
 			client.displayName,
-			tools => this._logService.info(`[Codex:${sessionId}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`),
-			(targetSessions, customizations) => {
-				void Promise.all(targetSessions.flatMap(target =>
-					target ? [this._syncClientCustomizations(target.sessionUri, client.clientId, [...customizations], { quiet: target.sessionId !== sessionId })] : []
-				));
+			tools => this._logService.info(`[Codex] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}] chat=${chat.toString()}`),
+			(session, customizations) => {
+				void this._syncClientCustomizations(session.sessionUri, client.clientId, [...customizations], { quiet: false });
 			},
 		);
 		this._activeClientHandles.set(key, handle);
 		return handle;
 	}
 
-	removeActiveClient(session: URI, clientId: string): void {
-		const sessionId = AgentSession.id(session);
-		const handle = this._activeClientHandles.get(`${sessionId}\u0000${clientId}`);
-		this._activeClientHandles.delete(`${sessionId}\u0000${clientId}`);
-		handle?.remove();
-		const sess = this._sessions.get(sessionId);
-		if (sess && handle) {
+	removeActiveClient(chat: URI, context: URI | IAgentChatContext, clientId: string): void {
+		const key = `${chat.toString()}\u0000${clientId}`;
+		const handle = this._activeClientHandles.get(key);
+		this._activeClientHandles.delete(key);
+		if (!handle) {
+			return;
+		}
+		handle.remove();
+		const runtimeUri = this._resolveConversationSession(chat, context);
+		const sess = runtimeUri ? this._sessions.get(AgentSession.id(runtimeUri)) : undefined;
+		if (sess) {
 			// A departing client's skills may drop out of the process-global union.
 			void this._refreshSkillExtraRoots();
 			void this._reconcileMaterializedCustomizations(sess);

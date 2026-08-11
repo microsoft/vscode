@@ -2865,6 +2865,8 @@ suite('AgentSideEffects', () => {
 
 		test('removes the active client when it is removed', () => {
 			setupSession();
+			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-removal'));
+			stateManager.addChat(sessionUri.toString(), peerChatUri.toString());
 
 			const action: SessionAction = {
 				type: ActionType.SessionActiveClientRemoved,
@@ -2872,9 +2874,13 @@ suite('AgentSideEffects', () => {
 			};
 			sideEffects.handleAction(sessionUri.toString(), action);
 
-			assert.deepStrictEqual(agent.removeActiveClientCalls, [{
-				clientId: 'test-client',
-			}]);
+			assert.deepStrictEqual(agent.removeActiveClientCalls.map(call => ({
+				chat: call.chat.toString(),
+				clientId: call.clientId,
+			})), [
+				{ chat: defaultChatUri, clientId: 'test-client' },
+				{ chat: peerChatUri.toString(), clientId: 'test-client' },
+			]);
 		});
 
 		test('Agent Host owns the exact chat fan-out and supplies host customizations', () => {
@@ -2897,18 +2903,24 @@ suite('AgentSideEffects', () => {
 			});
 
 			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
-				session: call.session.toString(),
+				chat: call.chat.toString(),
+				configurationResource: URI.isUri(call.context) ? call.context.toString() : call.context.configurationResource.toString(),
 				clientId: call.clientId,
-				chats: call.chats.map(chat => chat.toString()),
 				hostCustomizations: call.hostCustomizations?.map(c => c.id),
-			})), [{
-				session: sessionUri.toString(),
-				clientId: 'test-client',
-				// Default chat first, then the catalog peers — never synthesized
-				// by the provider.
-				chats: [defaultChatUri, peerChatUri.toString()],
-				hostCustomizations: [hostCustomization.id],
-			}]);
+			})), [
+				{
+					chat: defaultChatUri,
+					configurationResource: sessionUri.toString(),
+					clientId: 'test-client',
+					hostCustomizations: [hostCustomization.id],
+				},
+				{
+					chat: peerChatUri.toString(),
+					configurationResource: sessionUri.toString(),
+					clientId: 'test-client',
+					hostCustomizations: [hostCustomization.id],
+				},
+			]);
 		});
 
 		test('skips the fan-out when the host has no state for the session', () => {
@@ -2939,12 +2951,11 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.activeClientCalls.map(call => ({
 				clientId: call.clientId,
-				chats: call.chats.map(chat => chat.toString()),
+				chat: call.chat.toString(),
 			})), [
-				{ clientId: 'test-client', chats: [defaultChatUri] },
-				// Adding a chat replaces the client's membership with the new,
-				// host-owned set — the provider never grows it itself.
-				{ clientId: 'test-client', chats: [defaultChatUri, peerChatUri] },
+				{ clientId: 'test-client', chat: defaultChatUri },
+				{ clientId: 'test-client', chat: defaultChatUri },
+				{ clientId: 'test-client', chat: peerChatUri },
 			]);
 		});
 	});

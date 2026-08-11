@@ -221,35 +221,36 @@ function _toPersistedChat(backing: IClaudeChatBacking): IPersistedChat {
 }
 
 /**
- * Claude active-client handle. Tools read/write through the live session's
- * {@link SessionClientToolsModel}; customization assignment kicks off the
- * agent's async sync (via the provided closure). The handle caches the last
- * assigned customization inputs so the getter reflects what the client most
- * recently published.
+ * Claude active-client handle, addressed to exactly one host-supplied chat.
+ * Tools read/write through the live session's {@link SessionClientToolsModel};
+ * customization assignment kicks off the agent's async sync (via the
+ * provided closure). The handle caches the last assigned customization
+ * inputs so the getter reflects what the client most recently published.
  *
- * {@link chats} is host-owned membership: Agent Host hands the complete,
- * authoritative chat set on every `getOrCreateActiveClient` call (and re-hands
- * it whenever the session's catalog grows), so the handle only ever *replaces*
- * what it was given and never derives or extends membership itself.
+ * There is no membership here: Agent Host addresses this handle to exactly
+ * one chat at construction, and every later contribution (tools,
+ * customizations) applies to that chat alone. A sibling chat needs its own
+ * handle, obtained through its own `getOrCreateActiveClient` call.
  */
 class ClaudeActiveClientHandle implements IActiveClient {
 	private _tools: readonly ToolDefinition[] = [];
 	private _customizations: readonly ClientPluginCustomization[] = [];
 	private _customizationsAssigned = false;
-	private _chats: readonly URI[] = [];
 	/**
-	 * The last host-published customization snapshot for the owning session,
-	 * refreshed on every host fan-out. `undefined` until the host publishes
-	 * one — never coerced to an empty list, which would read as "this session
-	 * has no customizations".
+	 * The last host-published customization snapshot for the owning
+	 * configuration scope, refreshed on every host call. `undefined` until the
+	 * host publishes one — never coerced to an empty list, which would read as
+	 * "this chat has no customizations".
 	 */
 	private _hostCustomizations: readonly Customization[] | undefined;
 
 	constructor(
 		readonly clientId: string,
 		readonly displayName: string | undefined,
-		private readonly _setTools: (chats: readonly URI[], tools: readonly ToolDefinition[]) => void,
-		private readonly _syncCustomizations: (chats: readonly URI[], customizations: readonly ClientPluginCustomization[], hostCustomizations: readonly Customization[] | undefined) => void,
+		/** The exact chat this handle's contributions are addressed to. */
+		readonly chat: URI,
+		private readonly _setTools: (chat: URI, tools: readonly ToolDefinition[]) => void,
+		private readonly _syncCustomizations: (chat: URI, customizations: readonly ClientPluginCustomization[], hostCustomizations: readonly Customization[] | undefined) => void,
 	) { }
 
 	get tools(): readonly ToolDefinition[] {
@@ -257,7 +258,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
 	}
 	set tools(tools: readonly ToolDefinition[]) {
 		this._tools = tools;
-		this._setTools(this._chats, tools);
+		this._setTools(this.chat, tools);
 	}
 
 	get customizations(): readonly ClientPluginCustomization[] {
@@ -266,11 +267,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
 	set customizations(customizations: readonly ClientPluginCustomization[]) {
 		this._customizations = customizations;
 		this._customizationsAssigned = true;
-		this._syncCustomizations(this._chats, customizations, this._hostCustomizations);
-	}
-
-	get chats(): readonly URI[] {
-		return this._chats;
+		this._syncCustomizations(this.chat, customizations, this._hostCustomizations);
 	}
 
 	/** The last host snapshot, for syncs this client's own assignment triggers. */
@@ -278,20 +275,22 @@ class ClaudeActiveClientHandle implements IActiveClient {
 		return this._hostCustomizations;
 	}
 
-	/**
-	 * Adopts the host's authoritative chat set and customization snapshot, and
-	 * re-applies this client's contributions over it. Also called with the
-	 * unchanged set when one of those chats materializes a live runtime, so the
-	 * contributions reach the newly-live conversation.
-	 */
-	setChats(chats: readonly URI[], hostCustomizations?: readonly Customization[]): void {
-		this._chats = [...new Map(chats.map(chat => [chat.toString(), chat])).values()];
+	/** Records the host's latest published customization snapshot for this handle's owning scope, if supplied. */
+	setHostCustomizations(hostCustomizations: readonly Customization[] | undefined): void {
 		if (hostCustomizations !== undefined) {
 			this._hostCustomizations = hostCustomizations;
 		}
-		this._setTools(this._chats, this._tools);
+	}
+
+	/**
+	 * Re-applies this handle's currently-assigned tools and (if ever assigned)
+	 * customizations to its chat. Used when the chat's live runtime just came
+	 * up, so contributions made before the runtime existed still reach it.
+	 */
+	refresh(): void {
+		this._setTools(this.chat, this._tools);
 		if (this._customizationsAssigned) {
-			this._syncCustomizations(this._chats, this._customizations, this._hostCustomizations);
+			this._syncCustomizations(this.chat, this._customizations, this._hostCustomizations);
 		}
 	}
 }
@@ -400,7 +399,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _onDidSpawnChat = this._register(new Emitter<IAgentSpawnChatEvent>());
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = this._onDidSpawnChat.event;
 
-	/** Stable active-client handles, keyed by `${sessionId}\0${clientId}`. */
+	/**
+	 * Stable active-client handles, keyed by `${chatKey}\0${clientId}` — one
+	 * handle per exact (chat, client) pair. There is no session- or
+	 * membership-level entry: a client contributing to several chats of the
+	 * same session gets one independent handle per chat, each obtained
+	 * through its own {@link getOrCreateActiveClient} call.
+	 */
 	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
 
 	/**
@@ -934,21 +939,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * `SessionCustomizationUpdated` envelope would be orphaned; the completed
 	 * snapshot is provided via `getSessionCustomizations` immediately after.
 	 *
-	 * The client's membership is the exact chat this call provisioned. Agent
-	 * Host replaces it with the session's full authoritative set on the next
-	 * `session/activeClientSet` / `session/chatAdded` fan-out.
+	 * The client's contribution is addressed to exactly the chat this call
+	 * provisioned. A sibling chat of the same session never inherits it —
+	 * Agent Host addresses that chat with its own `getOrCreateActiveClient`
+	 * call on the next `session/activeClientSet` / `session/chatAdded` fan-out.
 	 */
-	private async _seedEagerActiveClient(sessionUri: URI, chat: URI, activeClient: IAgentCreateChatOptions['activeClient']): Promise<void> {
+	private async _seedEagerActiveClient(chat: URI, context: IAgentChatContext, activeClient: IAgentCreateChatOptions['activeClient']): Promise<void> {
 		if (!activeClient) {
 			return;
 		}
 		// The host has published no customization snapshot for a session it is
 		// still creating, so none is passed here — deliberately distinct from
 		// publishing an empty list.
-		const handle = this.getOrCreateActiveClient(sessionUri, { clientId: activeClient.clientId, displayName: activeClient.displayName }, [chat]);
+		const handle = this.getOrCreateActiveClient(chat, context, { clientId: activeClient.clientId, displayName: activeClient.displayName });
 		handle.tools = activeClient.tools;
 		if (activeClient.customizations !== undefined) {
-			await this.syncClientCustomizations(sessionUri, activeClient.clientId, activeClient.customizations, { quiet: true });
+			await this.syncClientCustomizations(chat, context, activeClient.clientId, activeClient.customizations, { quiet: true });
 		}
 	}
 
@@ -1207,8 +1213,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async finalizeSession(session: URI): Promise<void> {
-		const sessionId = AgentSession.id(session);
-		this._pruneActiveClientHandles(sessionId);
+		// No session-level active-client state to prune here: handles are keyed
+		// per exact chat and are dropped by `_disposeChat` as each of the
+		// session's catalog chats is disposed — which Agent Host guarantees
+		// runs, for every chat, before this hook fires.
 		this._otelService.releaseSessionTraceContext(session.toString());
 	}
 
@@ -1268,7 +1276,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// an idempotent re-create: AgentService re-issues provisioning for an
 			// existing chat on reconnect, so the reconnected client's tools and
 			// customizations must still reach Claude.
-			await this._seedEagerActiveClient(context.configurationResource, chat, options?.activeClient);
+			await this._seedEagerActiveClient(chat, context, options?.activeClient);
 			return created;
 		});
 	}
@@ -1521,6 +1529,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			}
 			this._chatBackings.delete(chatKey);
 			this._chatConfigScopes.delete(chatKey);
+			this._pruneActiveClientHandlesForChat(chat);
 			this._otelService.releaseSessionTraceContext(initialContext.resource.toString());
 		});
 		// The Claude SDK exposes no delete-chat RPC, so the forked /
@@ -1736,20 +1745,29 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._registerLiveChat(chat, chatSession);
 		this._recordChatScope(chat, configurationResource);
 		// The chat now has a live runtime, so re-apply the contributions of
-		// every client the host currently has on this session over its
-		// unchanged, host-supplied chat set. This replaces nothing about
-		// membership — it only pushes the existing contributions into the
-		// conversation that just came up.
-		this._forEachActiveClientHandle(configurationResource, handle => handle.setChats(handle.chats));
+		// every client addressed to this exact chat. This replaces nothing —
+		// it only pushes each handle's already-assigned tools/customizations
+		// into the conversation that just came up.
+		this._forEachActiveClientHandleForChat(chat, handle => handle.refresh());
 		return chatSession;
 	}
 
-	/** Visits the active-client handles Agent Host registered for `session`. */
-	private _forEachActiveClientHandle(session: URI, visit: (handle: ClaudeActiveClientHandle) => void): void {
-		const prefix = `${AgentSession.id(session)}\u0000`;
+	/** Visits the active-client handles Agent Host registered for the exact `chat`. */
+	private _forEachActiveClientHandleForChat(chat: URI, visit: (handle: ClaudeActiveClientHandle) => void): void {
+		const prefix = `${chat.toString()}\u0000`;
 		for (const [key, handle] of this._activeClientHandles) {
 			if (key.startsWith(prefix)) {
 				visit(handle);
+			}
+		}
+	}
+
+	/** Drops every active-client handle addressed to the exact `chat`, e.g. on dispose. */
+	private _pruneActiveClientHandlesForChat(chat: URI): void {
+		const prefix = `${chat.toString()}\u0000`;
+		for (const key of [...this._activeClientHandles.keys()]) {
+			if (key.startsWith(prefix)) {
+				this._activeClientHandles.delete(key);
 			}
 		}
 	}
@@ -2139,14 +2157,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			await Promise.all(sessions.map(chat =>
 				this._disposeSequencer.queue(chat.sessionId, async () => {
 					await this._disposeLiveSession(chat);
-					this._pruneActiveClientHandles(chat.sessionId);
 				})
 			));
 			// Shutdown is terminal for this agent instance: drop every chat
-			// backing so nothing can be cold-resumed out of drained in-memory
-			// state afterwards. Durable data is untouched — Agent Host
-			// re-materializes each chat's backing on the next restore.
+			// backing (and every active-client handle addressed to one) so
+			// nothing can be cold-resumed or re-contributed-to out of drained
+			// in-memory state afterwards. Durable data is untouched — Agent
+			// Host re-materializes each chat's backing on the next restore.
 			this._chatBackings.clear();
+			this._activeClientHandles.clear();
 		})();
 	}
 
@@ -2310,55 +2329,44 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * `chats` is the exact, host-owned chat set this client contributes to and
-	 * is always authoritative — Agent Host re-invokes this with the complete
-	 * set whenever the session's catalog grows, and withholds the call entirely
-	 * while it has no membership to hand over. Nothing here synthesizes,
-	 * extends, or remembers membership of its own.
+	 * `chat` is the exact chat this client's contributions are addressed to.
+	 * There is no membership to fan out — a client contributing to several
+	 * chats of the same session gets one independent call (and handle) per
+	 * chat, so nothing here synthesizes, extends, or remembers a chat set of
+	 * its own.
 	 */
-	getOrCreateActiveClient(session: URI, client: { readonly clientId: string; readonly displayName?: string }, chats: readonly URI[], hostCustomizations?: readonly Customization[]): IActiveClient {
-		const sessionId = AgentSession.id(session);
-		const key = `${sessionId}\u0000${client.clientId}`;
+	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient {
+		const { configurationResource } = resolveAgentChatContext(context, chat);
+		const key = `${chat.toString()}\u0000${client.clientId}`;
 		let handle = this._activeClientHandles.get(key);
 		if (!handle) {
 			handle = new ClaudeActiveClientHandle(
 				client.clientId,
 				client.displayName,
-				(targetChats, tools) => {
-					this._logService.info(`[Claude:${sessionId}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}]`);
-					for (const chat of targetChats) {
-						this._findChatByUri(chat)?.setClientTools(client.clientId, tools);
-					}
+				chat,
+				(targetChat, tools) => {
+					this._logService.info(`[Claude:${AgentSession.id(configurationResource)}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}] chat=${targetChat.toString()}`);
+					this._findChatByUri(targetChat)?.setClientTools(client.clientId, tools);
 				},
-				(targetChats, customizations, snapshot) => { void this._syncClientCustomizations(session, client.clientId, [...customizations], targetChats, snapshot); },
+				(targetChat, customizations, snapshot) => { void this._syncClientCustomizations(targetChat, configurationResource, client.clientId, [...customizations], snapshot); },
 			);
 			this._activeClientHandles.set(key, handle);
 		}
-		handle.setChats(chats, hostCustomizations);
+		handle.setHostCustomizations(hostCustomizations);
 		return handle;
 	}
 
-	removeActiveClient(session: URI, clientId: string): void {
-		const sessionId = AgentSession.id(session);
-		const handle = this._activeClientHandles.get(`${sessionId}\u0000${clientId}`);
-		this._activeClientHandles.delete(`${sessionId}\u0000${clientId}`);
-		for (const chat of handle?.chats ?? []) {
-			const target = this._findChatByUri(chat);
-			target?.removeClientTools(clientId);
-			if (target) {
-				void this._sessionSequencer.queue(target.sessionId, async () => target.removeClientCustomizations(clientId)).catch(() => { /* chat torn down */ });
-			}
+	removeActiveClient(chat: URI, _context: URI | IAgentChatContext, clientId: string): void {
+		const key = `${chat.toString()}\u0000${clientId}`;
+		if (!this._activeClientHandles.delete(key)) {
+			return;
 		}
-	}
-
-	/** Drop cached active-client handles belonging to a session being torn down. */
-	private _pruneActiveClientHandles(sessionId: string): void {
-		const prefix = `${sessionId}\u0000`;
-		for (const key of [...this._activeClientHandles.keys()]) {
-			if (key.startsWith(prefix)) {
-				this._activeClientHandles.delete(key);
-			}
+		const target = this._findChatByUri(chat);
+		if (!target) {
+			return;
 		}
+		target.removeClientTools(clientId);
+		void this._sessionSequencer.queue(target.sessionId, async () => target.removeClientCustomizations(clientId)).catch(() => { /* chat torn down */ });
 	}
 
 	/**
@@ -2385,35 +2393,34 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * `hostCustomizations` is the host's last published snapshot for the
-	 * session, or `undefined` when it has published none yet. The public entry
-	 * point reuses whatever the host last handed to this client's handle rather
-	 * than reading it back from shared state.
+	 * chat's owning configuration scope, or `undefined` when it has published
+	 * none yet. The public entry point reuses whatever the host last handed to
+	 * this client's handle rather than reading it back from shared state.
 	 */
-	async syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
-		const sessionId = AgentSession.id(session);
-		const handle = this._activeClientHandles.get(`${sessionId}\u0000${clientId}`);
-		return this._syncClientCustomizations(session, clientId, customizations, handle?.chats ?? [], handle?.hostCustomizations, options);
+	async syncClientCustomizations(chat: URI, context: URI | IAgentChatContext, clientId: string, customizations: ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
+		const { configurationResource } = resolveAgentChatContext(context, chat);
+		const handle = this._activeClientHandles.get(`${chat.toString()}\u0000${clientId}`);
+		return this._syncClientCustomizations(chat, configurationResource, clientId, customizations, handle?.hostCustomizations, options);
 	}
 
-	private async _syncClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[], chats: readonly URI[], hostCustomizations: readonly Customization[] | undefined, options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
+	private async _syncClientCustomizations(chat: URI, configurationResource: URI, clientId: string, customizations: ClientPluginCustomization[], hostCustomizations: readonly Customization[] | undefined, options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
 		const synced = await this._pluginManager.syncCustomizations(
 			clientId,
 			customizations,
-			options?.quiet ? undefined : status => this._fireCustomizationUpdated(session, { customization: status }),
+			options?.quiet ? undefined : status => this._fireCustomizationUpdated(configurationResource, { customization: status }),
 		);
-		const targets = chats.flatMap(chat => {
-			const target = this._findChatByUri(chat);
-			return target ? [target] : [];
-		});
-		await Promise.all(targets.map(target => this._sessionSequencer.queue(target.sessionId, async () => {
-			// Only a real host snapshot is applied. `undefined` means the host
-			// has published none yet — reconciling against an empty list there
-			// would drop enablement state the session already resolved.
-			if (hostCustomizations) {
-				target.setHostCustomizations(hostCustomizations);
-			}
-			target.adoptClientCustomizations(clientId, synced);
-		})));
+		const target = this._findChatByUri(chat);
+		if (target) {
+			await this._sessionSequencer.queue(target.sessionId, async () => {
+				// Only a real host snapshot is applied. `undefined` means the host
+				// has published none yet — reconciling against an empty list there
+				// would drop enablement state the session already resolved.
+				if (hostCustomizations) {
+					target.setHostCustomizations(hostCustomizations);
+				}
+				target.adoptClientCustomizations(clientId, synced);
+			});
+		}
 		return synced;
 	}
 

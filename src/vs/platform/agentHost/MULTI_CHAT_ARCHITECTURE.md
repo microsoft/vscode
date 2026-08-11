@@ -629,10 +629,10 @@ never more than one host round-trip stale.
 ### 8c. Active-client fan-out
 
 `AgentSideEffects` resolves the exact chat set with `getSessionChatsForFanOut`
-and passes it, plus the host customization snapshot, into
-`getOrCreateActiveClient(session, client, chats, hostCustomizations)`. `chats`
-is required and never empty — it always contains the session's default chat, so
-a provider never synthesizes a default-chat URI to recover membership.
+and calls `getOrCreateActiveClient(chat, context, client,
+hostCustomizations)` once per exact chat. Providers receive no session identity
+or sibling list at this seam; each handle controls one client's contribution to
+one chat.
 
 `getSessionChatsForFanOut` returns `undefined` when the host holds no state for
 the session, which is **not** the same as "the session has only its default
@@ -641,9 +641,8 @@ chat". With no authoritative membership to hand over, the fan-out is skipped
 session state and is replayed at the next `session/activeClientSet`.
 
 Membership changes re-enter the same seam: a `session/chatAdded` envelope
-re-fans-out every current active client over the new set, so the provider's view
-of `client → chats` is always a host-supplied replacement. Providers never own
-session→chat membership.
+fans every current active client into the new exact chat. Client removal is
+likewise fanned out as `removeActiveClient(chat, context, clientId)`.
 
 ### 8d. Prompt-cache metadata
 

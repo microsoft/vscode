@@ -229,14 +229,29 @@ function hostCustomizations(stateManager: AgentHostStateManager, session: URI): 
 }
 
 /**
- * Pushes a client's plugin customizations the way production does: Agent Host
- * first hands the provider the client's exact chat set (and the session's
- * customization snapshot) through the active-client fan-out, and the sync then
- * lands on those chats. The provider never synthesizes the membership itself.
+ * The way Agent Host addresses `getOrCreateActiveClient`: one call per exact
+ * chat, with that chat's own host-supplied context. There is no membership
+ * argument — a client contributing to several chats gets one call (and
+ * handle) per chat.
+ */
+function getOrCreateActiveClient(agent: ClaudeAgent, chat: URI, clientId: string, hostCustomizations?: readonly Customization[]): IActiveClient {
+	return agent.getOrCreateActiveClient(chat, chatContext(chat), { clientId }, hostCustomizations);
+}
+
+/**
+ * Pushes a client's plugin customizations the way production does for a
+ * session's default chat: Agent Host hands the provider the exact chat (and
+ * the session's customization snapshot) through the active-client fan-out,
+ * and the sync then lands on that one chat. The provider never synthesizes
+ * membership or a default chat itself — this helper picks the default chat
+ * explicitly, the way a real fan-out over a session with only its default
+ * chat would.
  */
 async function syncClientCustomizations(agent: ClaudeAgent, stateManager: AgentHostStateManager, session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
-	agent.getOrCreateActiveClient(session, { clientId }, [defaultChatUri(session)], hostCustomizations(stateManager, session));
-	return agent.syncClientCustomizations(session, clientId, customizations);
+	const chat = defaultChatUri(session);
+	const context = chatContext(chat);
+	agent.getOrCreateActiveClient(chat, context, { clientId }, hostCustomizations(stateManager, session));
+	return agent.syncClientCustomizations(chat, context, clientId, customizations);
 }
 
 /**
@@ -5376,7 +5391,7 @@ suite('ClaudeAgent', () => {
 		const sessionId = created.sdkSessionId;
 
 		const tools: ToolDefinition[] = [{ name: 'echo', description: 'Echo back', inputSchema: { type: 'object', properties: { msg: { type: 'string' } }, required: ['msg'] } }];
-		agent.getOrCreateActiveClient(created.session, { clientId: 'client-1' }, [defaultChatUri(created.session)]).tools = tools;
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = tools;
 
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -5410,7 +5425,7 @@ suite('ClaudeAgent', () => {
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
 
-		agent.getOrCreateActiveClient(created.session, { clientId: 'client-1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'client-1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.queryAdvance = undefined;
 		advance.complete();
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
@@ -5477,7 +5492,7 @@ suite('ClaudeAgent', () => {
 		await agent.getSessionForTesting(created.session)!.truncateToTurn('turn-1', 'anchor-uuid', created.session);
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		// A later tool-driven rebind must NOT resurrect the consumed anchor.
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'third', undefined, undefined, 'turn-3', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		const anchored = sdk.capturedStartupOptions.filter(o => o.resumeSessionAt === 'anchor-uuid');
@@ -5547,21 +5562,22 @@ suite('ClaudeAgent', () => {
 		];
 
 		const tools: ToolDefinition[] = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = tools;
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = tools;
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		assert.strictEqual(sdk.startupCallCount, 1, 'first materialize');
 
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', description: 'e', inputSchema: { type: 'object' } }];
 		advance.complete();
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
 		assert.strictEqual(sdk.startupCallCount, 1, 'equal snapshot should NOT yield-restart');
 	});
 
-	test('setClientTools on an unknown session id is silently dropped', () => {
+	test('setClientTools on an unknown chat is silently dropped', () => {
 		const { agent } = createTestContext(disposables);
+		const unknownChat = defaultChatUri(URI.parse('claude:/never-existed'));
 		assert.doesNotThrow(() => {
-			agent.getOrCreateActiveClient(URI.parse('claude:/never-existed'), { clientId: 'c1' }, [defaultChatUri(URI.parse('claude:/never-existed'))]).tools = [{ name: 't', inputSchema: { type: 'object' } }];
+			getOrCreateActiveClient(agent, unknownChat, 'c1').tools = [{ name: 't', inputSchema: { type: 'object' } }];
 		});
 	});
 
@@ -5570,7 +5586,7 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const sessionId = created.sdkSessionId;
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 
@@ -5606,7 +5622,7 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const sessionId = created.sdkSessionId;
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		await assert.doesNotReject(disposeSession(agent, created.session));
@@ -5617,11 +5633,11 @@ suite('ClaudeAgent', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const sessionId = created.sdkSessionId;
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		// Change tools to force a rebind path (must use yield-restart, NOT Query.setMcpServers).
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo2', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo2', inputSchema: { type: 'object' } }];
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'second', undefined, undefined, 'turn-2', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		// If `Query.setMcpServers` had been called, `FakeQuery.setMcpServers` would have thrown.
@@ -5635,7 +5651,7 @@ suite('ClaudeAgent', () => {
 		const sessionId = created.sdkSessionId;
 
 		// Initial snapshot before materialize starts.
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'first', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'first', inputSchema: { type: 'object' } }];
 
 		// Pause startup #1 so we can inject an update during the gap.
 		const startupReached = new DeferredPromise<void>();
@@ -5652,7 +5668,7 @@ suite('ClaudeAgent', () => {
 		// Wait until the materializer has snapshotted ['first'] into the diff
 		// and is paused inside `sdk.startup`. THEN inject the update.
 		await startupReached.p;
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'second', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'second', inputSchema: { type: 'object' } }];
 		startupGate.complete();
 		await send;
 
@@ -5702,7 +5718,7 @@ suite('ClaudeAgent', () => {
 		// update. Pre-fix the call hit the silent-drop branch because no
 		// provisional was registered for the resume.
 		await startupReached.p;
-		agent.getOrCreateActiveClient(sessionUri, { clientId: 'c1' }, [defaultChatUri(sessionUri)]).tools = [{ name: 'resumed', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(sessionUri), 'c1').tools = [{ name: 'resumed', inputSchema: { type: 'object' } }];
 		startupGate.complete();
 		await send;
 
@@ -5734,7 +5750,7 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(sdk.startupCallCount, 1);
 
 		// Stage a rebind whose startup will reject.
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChatUri(created.session)]).tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		getOrCreateActiveClient(agent, defaultChatUri(created.session), 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 		sdk.startupRejection = new Error('simulated rebind startup failure');
 		sdk.queryAdvance = undefined;
 		advance.complete();
@@ -8652,7 +8668,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('active-client tools fan out to the exact chats supplied by Agent Host', async () => {
+	test('active-client tools are addressed to the exact chats Agent Host calls out, independently', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const session = AgentSession.uri('claude', 'ah-session');
@@ -8660,8 +8676,10 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const created = await createProviderSession(agent, defaultChat, { configurationResource: session, resource: session }, { session, workingDirectories: [URI.file('/work')] });
 		const peer = URI.parse(buildChatUri(session, 'peer'));
 		const peerResult = await agent.chats.createChat(peer, { configurationResource: session, resource: peer }, { ...resolvedChatOptions() });
-		const handle = agent.getOrCreateActiveClient(session, { clientId: 'client' }, [defaultChat, peer]);
-		handle.tools = [{ name: 'client_tool', description: 'tool', inputSchema: { type: 'object' } }];
+		const defaultHandle = agent.getOrCreateActiveClient(defaultChat, { configurationResource: session, resource: session }, { clientId: 'client' });
+		const peerHandle = agent.getOrCreateActiveClient(peer, { configurationResource: session, resource: peer }, { clientId: 'client' });
+		defaultHandle.tools = [{ name: 'client_tool', description: 'tool', inputSchema: { type: 'object' } }];
+		peerHandle.tools = [{ name: 'client_tool', description: 'tool', inputSchema: { type: 'object' } }];
 		const defaultSdkId = AgentSession.id(created.chat!.backingSession!);
 		const peerSdkId = AgentSession.id(peerResult!.backingSession!);
 		sdk.nextQueryMessages = [makeSystemInitMessage(defaultSdkId), makeResultSuccess(defaultSdkId)];
@@ -8672,13 +8690,19 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const defaultSession = agent.getSessionForTesting(created.chat!.backingSession!)!;
 		const peerSession = agent.getSessionForTesting(peerResult!.backingSession!)!;
 		const before = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
-		agent.removeActiveClient(session, 'client');
+		agent.removeActiveClient(defaultChat, { configurationResource: session, resource: session }, 'client');
 		await tick();
-		const after = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
+		const afterDefaultOnly = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
+		agent.removeActiveClient(peer, { configurationResource: session, resource: peer }, 'client');
+		await tick();
+		const afterBoth = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
 
-		assert.deepStrictEqual({ before, after }, {
+		assert.deepStrictEqual({ before, afterDefaultOnly, afterBoth }, {
 			before: [['client_tool'], ['client_tool']],
-			after: [[], []],
+			// Removing the default chat's handle must not touch the peer's —
+			// there is no shared membership to fan the removal across.
+			afterDefaultOnly: [[], ['client_tool']],
+			afterBoth: [[], []],
 		});
 	});
 
@@ -9708,37 +9732,49 @@ suite('ClaudeAgent — host seams', () => {
 		assert.deepStrictEqual(completed, ['tu_1']);
 	});
 
-	test('creating a peer chat does not extend an active client\'s membership; the host re-fans it out', async () => {
+	test('a client active on one chat is not implicitly extended to a newly created peer chat', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const defaultChat = defaultChatUri(created.session);
 		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-1'));
-		const handle = agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChat]) as IActiveClient & { readonly chats: readonly URI[] };
-		handle.tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		const defaultHandle = getOrCreateActiveClient(agent, defaultChat, 'c1');
+		defaultHandle.tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
 
-		await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
-		const afterCreate = handle.chats.map(chat => chat.toString());
+		// Materialize the default chat so its handle's tools actually land on
+		// a live runtime.
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChat, 'default', undefined, undefined, 'turn-default', undefined, undefined, chatContext(defaultChat));
 
-		// Agent Host publishes the grown catalog; the provider replaces its
-		// view with exactly what it was handed.
-		agent.getOrCreateActiveClient(created.session, { clientId: 'c1' }, [defaultChat, peerChat]);
-		const afterFanOut = handle.chats.map(chat => chat.toString());
+		const peerCreated = await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
+		const peerBackingSession = peerCreated!.backingSession!;
+		const peerSdkId = AgentSession.id(peerBackingSession);
 
-		// The tools reach the peer chat's runtime once it materializes.
-		const peerSdkId = AgentSession.id((await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() }))!.backingSession!);
+		// The peer chat materializes without the host ever addressing it: no
+		// tools should reach its runtime, since the default chat's handle has
+		// no bearing on any other chat.
 		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
 		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(peerChat));
+		const peerSessionBeforeAddressed = agent.getSessionForTesting(peerBackingSession)!;
 
-		assert.deepStrictEqual({
-			afterCreate,
-			afterFanOut,
-			peerTools: sdk.capturedStartupOptions.at(-1)?.mcpServers !== undefined,
-		}, {
-			afterCreate: [defaultChat.toString()],
-			afterFanOut: [defaultChat.toString(), peerChat.toString()],
-			peerTools: true,
-		});
+		assert.deepStrictEqual(
+			peerSessionBeforeAddressed.getClientTools('c1').map(tool => tool.name),
+			[],
+		);
+
+		// Only once Agent Host explicitly addresses the peer chat does the
+		// client's tools reach it — its own independent handle, not an
+		// extension of the default chat's.
+		getOrCreateActiveClient(agent, peerChat, 'c1').tools = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		assert.deepStrictEqual(
+			peerSessionBeforeAddressed.getClientTools('c1').map(tool => tool.name),
+			['echo'],
+		);
+		// ...and the default chat's own tools are untouched by addressing the peer.
+		assert.deepStrictEqual(
+			agent.getSessionForTesting(created.chat!.backingSession!)!.getClientTools('c1').map(tool => tool.name),
+			['echo'],
+		);
 	});
 
 	test('remove-all truncation works on a legacy default chat recovered by materializeChat', async () => {
