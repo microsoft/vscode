@@ -319,7 +319,18 @@ export function deserialize(reader: IReader): any {
 
 			return result;
 		}
-		case DataType.Object: return JSON.parse(reader.read(readIntVQL(reader)).toString());
+		case DataType.Object: {
+			const length = readIntVQL(reader);
+			const buffer = reader.read(length);
+			if (buffer.byteLength < length) {
+				// The underlying message was truncated (e.g. a partial frame crossing a
+				// process boundary such as a MessagePort). Surface a diagnosable error with
+				// framing context instead of an opaque `JSON.parse` "Unexpected end of JSON
+				// input" that hides where the corruption happened.
+				throw new Error(`Truncated IPC object payload: expected ${length} bytes, received ${buffer.byteLength}`);
+			}
+			return JSON.parse(buffer.toString());
+		}
 		case DataType.Int: return readIntVQL(reader);
 	}
 }
