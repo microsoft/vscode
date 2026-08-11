@@ -2309,17 +2309,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _onDidMaterializeSession(e: IAgentMaterializeSessionEvent): void {
 		const sessionKey = e.session.toString();
-		if (e.chat) {
-			const write = this._persistDefaultChatBacking({ session: e.session, chat: e.chat });
-			this._defaultChatBackingWrites.set(sessionKey, write);
-			void write.catch(err => this._logService.error(err, `[AgentService] Failed to persist materialized default-chat backing for ${sessionKey}`));
-			const clearWrite = () => {
-				if (this._defaultChatBackingWrites.get(sessionKey) === write) {
-					this._defaultChatBackingWrites.delete(sessionKey);
-				}
-			};
-			void write.then(clearWrite, clearWrite);
-		}
 		// The session is now materialized — its SDK is resolved (any cold
 		// download already finished), so no further progress is expected for it.
 		this._clearDownloadProgressInterest(sessionKey);
@@ -2332,6 +2321,20 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!currentSummary) {
 			this._logService.warn(`[AgentService] onDidMaterializeSession missing summary for session: ${sessionKey}`);
 			return;
+		}
+		if (e.resource.toString() !== state.defaultChat) {
+			return;
+		}
+		if (e.chat) {
+			const write = this._persistDefaultChatBacking({ session: e.session, chat: e.chat });
+			this._defaultChatBackingWrites.set(sessionKey, write);
+			void write.catch(err => this._logService.error(err, `[AgentService] Failed to persist materialized default-chat backing for ${sessionKey}`));
+			const clearWrite = () => {
+				if (this._defaultChatBackingWrites.get(sessionKey) === write) {
+					this._defaultChatBackingWrites.delete(sessionKey);
+				}
+			};
+			void write.then(clearWrite, clearWrite);
 		}
 		// The agent no longer knows about worktrees; the host's worktree project
 		// (created in the first-send hook) wins for worktree-isolated sessions, and
@@ -3454,13 +3457,17 @@ export class AgentService extends Disposable implements IAgentService {
 		// nor a recovered backing exists the session restores with history but
 		// no live backing, so surface that explicitly instead of silently
 		// falling back.
-		const materializedDefaultChat = await agent.materializeChat?.(defaultChatUri, this._chatContext(session, defaultChatUri), defaultChatProviderData);
-		if (defaultChatProviderData === undefined) {
-			if (materializedDefaultChat?.providerData !== undefined) {
-				await this._persistDefaultChatBacking({ session, chat: materializedDefaultChat });
-			} else {
-				this._logService.warn(`[AgentService] Restoring default chat ${defaultChatUri.toString()} with no persisted or recovered provider backing (agent=${agent.id}, materializeChat=${agent.materializeChat ? 'present' : 'absent'})`);
-			}
+		const chatContext = this._chatContext(session, defaultChatUri);
+		const recoveredDefaultChat = defaultChatProviderData === undefined
+			? await agent.recoverLegacyChat?.(defaultChatUri, chatContext)
+			: undefined;
+		if (recoveredDefaultChat?.providerData !== undefined) {
+			await this._persistDefaultChatBacking({ session, chat: recoveredDefaultChat });
+		}
+		const providerData = defaultChatProviderData ?? recoveredDefaultChat?.providerData;
+		await agent.materializeChat?.(defaultChatUri, chatContext, providerData);
+		if (providerData === undefined) {
+			this._logService.warn(`[AgentService] Restoring default chat ${defaultChatUri.toString()} with no persisted or recovered provider backing (agent=${agent.id}, materializeChat=${agent.materializeChat ? 'present' : 'absent'})`);
 		}
 		let turns: readonly Turn[];
 		try {

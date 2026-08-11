@@ -6464,7 +6464,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('materializeChat falls back to the legacy copilot.chats catalog when providerData is undefined', async () => {
+		test('legacy peer catalog migrates to canonical providerData before materialization', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
 			try {
@@ -6477,8 +6477,8 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const internals = agent as unknown as ChatInternals;
 
-				// undefined blob -> agent recovers the backing from its own catalog.
-				await agent.materializeChat(chatUri, session, undefined);
+				const legacy = await agent.listLegacyChats(session);
+				await agent.materializeChat(chatUri, session, legacy[0].providerData);
 				// A corrupt blob is dropped (no backing recorded).
 				const corruptUri = URI.parse(buildChatUri(session, 'peer-corrupt'));
 				await agent.materializeChat(corruptUri, session, 'not json');
@@ -7395,7 +7395,8 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				const chat = defaultChatUri(session);
-				await agent.materializeChat(chat, exactChatContext(session, chat, session), undefined);
+				const recovered = await agent.recoverLegacyChat(chat, exactChatContext(session, chat, session));
+				await agent.materializeChat(chat, exactChatContext(session, chat, session), recovered.providerData);
 				await agent.chats.sendMessage(chat, 'hello', [primary], undefined, undefined, undefined, exactChatContext(session, chat, session));
 				const persistedDbRef = sessionDataService.openDatabase(session);
 				let persistedWorkingDirectories: string | undefined;

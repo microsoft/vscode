@@ -1357,6 +1357,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		this._onDidMaterializeSession.fire({
 			session: context.session,
+			resource: context.chat,
 			project: session.project,
 			workingDirectories: materializedWorkingDirectories,
 		});
@@ -1661,17 +1662,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._deleteLiveChat(chatKey);
 			throw err;
 		}
-		// A cold-resumed session-backed chat IS the session coming up in this
-		// process, so report the materialize receipt exactly as the first-send
-		// path does. The distinction is the host-supplied provisioning intent,
-		// never a provider-private classification of the backing.
-		if (context.kind === AgentChatKind.Session) {
-			this._onDidMaterializeSession.fire({
-				session,
-				project: chatSession.project,
-				workingDirectories: workingDirectories ?? chatSession.workingDirectories,
-			});
-		}
+		this._onDidMaterializeSession.fire({
+			session,
+			resource: context.chat,
+			project: chatSession.project,
+			workingDirectories: workingDirectories ?? chatSession.workingDirectories,
+		});
 		return chatSession;
 	}
 
@@ -1785,14 +1781,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Re-attach a concrete chat backing from opaque provider data. When
-	 * `providerData` is absent (a legacy entry predating the peer-chat
-	 * catalog), falls back to recovering the historical implicit
-	 * default-chat identity from {@link _materializeLegacyDefaultChat}.
+	 * Re-attach a concrete chat backing from opaque provider data.
 	 */
-	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+	async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 		if (providerData === undefined) {
-			return this._materializeLegacyDefaultChat(chat, context);
+			return;
 		}
 		const persisted = decodeProviderData(providerData);
 		if (!persisted) {
@@ -1822,7 +1815,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * session are unaffected. Returns the canonical opaque blob so the
 	 * orchestrator can persist it additively going forward.
 	 */
-	private _materializeLegacyDefaultChat(chat: URI, context: URI | IAgentChatContext): IAgentCreateChatResult {
+	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
 		const { session } = resolveAgentChatContext(context, chat);
 		const chatKey = chat.toString();
 		const backing = this._chatBackings.get(chatKey) ?? { sdkSessionId: AgentSession.id(session) };

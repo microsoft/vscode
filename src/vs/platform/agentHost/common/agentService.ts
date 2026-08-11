@@ -821,6 +821,8 @@ export interface IAgentCreateSessionResult {
  */
 export interface IAgentMaterializeSessionEvent {
 	readonly session: URI;
+	/** Exact chat whose provider runtime materialized. The host decides whether it is session-scoped. */
+	readonly resource: URI;
 	/** Updated opaque backing for the session chat, when materialization minted it. */
 	readonly chat?: IAgentCreateChatResult;
 	/**
@@ -1845,11 +1847,17 @@ export interface IAgent {
 	 * {@link IAgentChats.sendMessage} for `chat`.
 	 * Best-effort: implementations SHOULD NOT throw on a corrupt/unknown blob —
 	 * log and no-op so the orchestrator restores the chat with history but no
-	 * live backing. `providerData` is `undefined` only for legacy entries with
-	 * no stored blob, in which case the agent MAY consult its own legacy
-	 * persistence once to recover the backing.
+	 * live backing. Legacy recovery is a separate host-orchestrated step through
+	 * {@link recoverLegacyChat}; this method never infers a chat's role.
 	 */
 	materializeChat?(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
+
+	/**
+	 * Recover the historical backing for a chat whose provider data predates
+	 * host-owned persistence. The host invokes this only on the migration path;
+	 * normal materialization always receives canonical provider data.
+	 */
+	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
 	/**
 	 * Migration-only enumeration of a session's peer chats persisted in the

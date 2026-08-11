@@ -662,7 +662,7 @@ suite('AgentService (node dispatcher)', () => {
 
 	test('provisional materialization preserves and persists multi-root metadata', async () => {
 		class ProvisionalAgent extends MockAgent {
-			private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: undefined }>();
+			private readonly _onDidMaterialize = new Emitter<{ session: URI; resource: URI; workingDirectories: readonly URI[] | undefined; project: undefined }>();
 			readonly onDidMaterializeSession = this._onDidMaterialize.event;
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
@@ -670,7 +670,7 @@ suite('AgentService (node dispatcher)', () => {
 			}));
 
 			materialize(session: URI, workingDirectories: readonly URI[]): void {
-				this._onDidMaterialize.fire({ session, workingDirectories, project: undefined });
+				this._onDidMaterialize.fire({ session, resource: URI.parse(buildDefaultChatUri(session)), workingDirectories, project: undefined });
 			}
 
 			override dispose(): void {
@@ -5110,16 +5110,18 @@ suite('AgentService (node dispatcher)', () => {
 		 */
 		class RecoveringDefaultChatAgent extends MockAgent {
 			readonly materializeCalls: (string | undefined)[] = [];
+			recoveryCalls = 0;
+			async recoverLegacyChat(): Promise<IAgentCreateChatResult> {
+				this.recoveryCalls++;
+				return { providerData: 'recovered-backing', backingSession: AgentSession.uri(this.id, 'sdk-recovered') };
+			}
 			async materializeChat(_chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 				this.materializeCalls.push(providerData);
-				if (providerData === undefined) {
-					return { providerData: 'recovered-backing', backingSession: AgentSession.uri(this.id, 'sdk-recovered') };
-				}
 				return { providerData: 'should-never-be-persisted' };
 			}
 		}
 
-		test('host-restore-slice: restoring a legacy default chat with no persisted providerData recovers a backing via materializeChat and persists it additively', async () => {
+		test('host-restore-slice: restoring a legacy default chat recovers before canonical materialization and persists additively', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
@@ -5134,10 +5136,12 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata('defaultChatProviderData'),
+				recoveryCalls: agent.recoveryCalls,
 				materializeCalls: agent.materializeCalls,
 			}, {
 				persisted: 'recovered-backing',
-				materializeCalls: [undefined],
+				recoveryCalls: 1,
+				materializeCalls: ['recovered-backing'],
 			});
 		});
 
@@ -5161,11 +5165,13 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				persistedAfterFirstRestore,
 				persistedAfterSecondRestore: await db.getMetadata('defaultChatProviderData'),
+				recoveryCalls: agent.recoveryCalls,
 				materializeCalls: agent.materializeCalls,
 			}, {
 				persistedAfterFirstRestore: 'recovered-backing',
 				persistedAfterSecondRestore: 'recovered-backing',
-				materializeCalls: [undefined, 'recovered-backing'],
+				recoveryCalls: 1,
+				materializeCalls: ['recovered-backing', 'recovered-backing'],
 			});
 		});
 
@@ -5184,12 +5190,14 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata('defaultChatProviderData'),
+				recoveryCalls: agent.recoveryCalls,
 				materializeCalls: agent.materializeCalls,
 			}, {
 				// materializeChat is still offered the canonical blob and
 				// returns a *different* value, but since providerData was
 				// already defined the catalog must not be rewritten.
 				persisted: 'canonical-backing',
+				recoveryCalls: 0,
 				materializeCalls: ['canonical-backing'],
 			});
 		});
@@ -7976,13 +7984,13 @@ suite('AgentService (node dispatcher)', () => {
 			// "session created in-memory now, persisted on first sendMessage"
 			// flow that Copilot CLI / Claude actually use in production.
 			class ProvisionalMockAgent extends MockAgent {
-				private readonly _onDidMaterialize = new Emitter<{ session: URI; workingDirectories: readonly URI[] | undefined; project: { uri: URI; displayName: string } | undefined }>();
+				private readonly _onDidMaterialize = new Emitter<{ session: URI; resource: URI; workingDirectories: readonly URI[] | undefined; project: { uri: URI; displayName: string } | undefined }>();
 				readonly onDidMaterializeSession = this._onDidMaterialize.event;
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createSessionChat: async (chat, context, config) => ({ ...await base.createSessionChat(chat, context, config), provisional: true }),
 				}));
 				materialize(session: URI, workingDirectory?: URI): void {
-					this._onDidMaterialize.fire({ session, workingDirectories: workingDirectory ? [workingDirectory] : undefined, project: undefined });
+					this._onDidMaterialize.fire({ session, resource: URI.parse(buildDefaultChatUri(session)), workingDirectories: workingDirectory ? [workingDirectory] : undefined, project: undefined });
 				}
 			}
 

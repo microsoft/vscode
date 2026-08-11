@@ -56,7 +56,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, parseChatUri, AH_META_WORKSPACELESS_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, AH_META_WORKSPACELESS_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -212,6 +212,7 @@ interface IProvisionalSession {
 	readonly sessionId: string;
 	readonly sdkSessionId: string;
 	readonly sessionUri: URI;
+	readonly chat: URI;
 	/**
 	 * Folder the user picked at create time. Used as both the
 	 * pre-worktree working directory and the customization directory
@@ -2477,6 +2478,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId,
 				sdkSessionId,
 				sessionUri,
+				chat,
 				workingDirectory,
 				workingDirectories: sessionConfig.workingDirectories,
 				model: sessionConfig.model,
@@ -2754,7 +2756,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Session materialized: ${sessionUri.toString()}`);
 		// Emit the resolved working-directory set (index 0 = process root). The host
 		// replaces index 0 of the session set with it, preserving the tail.
-		this._onDidMaterializeSession.fire({ session: sessionUri, project, workingDirectories: materializedWorkingDirectories });
+		this._onDidMaterializeSession.fire({ session: sessionUri, resource: provisional.chat, project, workingDirectories: materializedWorkingDirectories });
 		return agentSession;
 	}
 
@@ -3470,35 +3472,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * at creation (or the latest {@link onDidChangeChatData}). After this
 	 * resolves the chat's backing SDK session can be resumed lazily on its first
 	 * send. Best-effort — a corrupt/unknown blob is logged and dropped rather
-	 * than thrown. When `providerData` is `undefined`, legacy persistence is
-	 * migrated into the same exact backing used by normal runtime routing.
+	 * than thrown.
 	 */
-	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 		this._noteHostCustomizations(context);
 		const chatKey = chat.toString();
-		let backing: IPersistedChat | undefined;
-		if (providerData !== undefined) {
-			backing = decodeProviderData(providerData);
-			if (!backing) {
-				this._logService.warn(`[Copilot] materializeChat: dropping corrupt providerData for ${chatKey}`);
-				return;
-			}
-		} else {
-			const chatInfo = parseChatUri(chat);
-			if (!chatInfo) {
-				return;
-			}
-			const resolved = resolveAgentChatContext(context, chat);
-			const legacy = await this._readLegacyChatBackings(resolved.session);
-			backing = legacy.get(chatInfo.chatId);
-			if (!backing) {
-				if (resolveAgentChatKind(chat, resolved) !== AgentChatKind.Session) {
-					return;
-				}
-				backing = { sdkSessionId: AgentSession.id(resolved.session) };
-			}
+		if (providerData === undefined) {
+			return;
+		}
+		const backing = decodeProviderData(providerData);
+		if (!backing) {
+			this._logService.warn(`[Copilot] materializeChat: dropping corrupt providerData for ${chatKey}`);
+			return;
 		}
 		this._chatBackings.set(chatKey, backing);
+	}
+
+	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
+		const resolved = resolveAgentChatContext(context, chat);
+		const backing = { sdkSessionId: AgentSession.id(resolved.session) };
+		this._chatBackings.set(chat.toString(), backing);
 		return { providerData: encodeProviderData(backing) };
 	}
 

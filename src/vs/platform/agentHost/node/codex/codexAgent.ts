@@ -26,7 +26,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentChatKind, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, resolveAgentChatContext, resolveAgentChatKind, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -435,23 +435,6 @@ function filesystemPathComparisonKey(path: string): string | undefined {
 const CodexPrewarmTtlMs = 60_000;
 
 /**
- * Whether a runtime backs its owning session itself, rather than one of the
- * session's additional (peer) chats.
- *
- * Codex mints one thread per chat, but a few decisions are session-scoped
- * rather than chat-scoped — advertising the agent host's server tools and
- * firing `onDidMaterializeSession` — and must happen exactly once per session.
- * This reads the host's explicit provisioning intent
- * ({@link ICodexSession.chatKind}) rather than inspecting the chat URI's shape.
- * An unbound runtime (no chat bound yet) is session-backing by definition: the
- * only way it becomes a peer chat is a later bind that records
- * {@link AgentChatKind.Peer}.
- */
-function backsSessionChat(session: ICodexSession): boolean {
-	return session.chatKind === undefined || session.chatKind === AgentChatKind.Session;
-}
-
-/**
  * Per-session bookkeeping. The codex thread is owned by the shared
  * connection in {@link CodexAgent}; this struct only tracks what the
  * `IAgent` surface needs.
@@ -463,15 +446,10 @@ interface ICodexUserInputResult {
 }
 
 /**
- * The exact chat a Codex runtime is bound to, paired with the host's
- * provisioning intent for it. Both halves come from the
- * {@link IAgentChatContext} Agent Host supplies at the call boundary, so the
- * agent never has to decide whether a chat "is the session's default" by
- * inspecting its URI.
+ * The exact chat a Codex runtime is bound to.
  */
 interface ICodexTargetChat {
 	readonly resource: URI;
-	readonly kind: AgentChatKind;
 }
 
 interface ICodexSession {
@@ -510,16 +488,6 @@ interface ICodexSession {
 	modifiedTime: number;
 	/** Concrete host chat URI once bound; undefined only for direct create/fork before AH binds it. */
 	chatChannel: URI | undefined;
-	/**
-	 * The host's provisioning intent for {@link chatChannel}, taken verbatim
-	 * from the {@link IAgentChatContext} that bound it. Undefined only while the
-	 * runtime is unbound, which — like {@link AgentChatKind.Session} — is
-	 * treated as "this runtime backs its session" (see
-	 * {@link backsSessionChat}). Recorded so process-level decisions (server-tool
-	 * advertisement, `onDidMaterializeSession`) switch on explicit intent
-	 * instead of re-deriving it from the chat URI's shape.
-	 */
-	chatKind: AgentChatKind | undefined;
 	/**
 	 * Effective working directory. Starts as the folder the client passed to
 	 * {@link IAgentChats.createSessionChat}; at first materialization it is
@@ -2514,7 +2482,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			startTime: parent.startTime,
 			modifiedTime: parent.modifiedTime,
 			chatChannel: parent.chatChannel,
-			chatKind: parent.chatKind,
 			workingDirectory: parent.workingDirectory,
 			workingDirectories: parent.workingDirectories,
 			multiRootEnabled: parent.multiRootEnabled,
@@ -2978,16 +2945,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Bind a concrete host chat URI to the runtime for `sessionUri`, recording
-	 * the host's provisioning intent alongside it so later session-scoped
-	 * decisions never re-derive it from the URI.
+	 * Record the concrete host chat URI that addresses this runtime.
 	 */
-	private _recordChatTarget(chat: URI, sessionUri: URI, chatKind: AgentChatKind): void {
+	private _recordChatTarget(chat: URI, sessionUri: URI): void {
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (session) {
 			session.chatChannel = chat;
-			session.chatKind = chatKind;
 		}
 		this._sessionIdByChatUri.set(chat.toString(), sessionId);
 	}
@@ -3021,8 +2985,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			// into `_createSession`/`_forkSession` so the binding lands as part
 			// of session construction/registration itself; the caller never
 			// observes (nor has to separately provision) an unbound runtime.
-			const operationContext = resolveAgentChatContext(context, chat);
-			return this._createSession(config ?? {}, { resource: chat, kind: resolveAgentChatKind(chat, operationContext) });
+			resolveAgentChatContext(context, chat);
+			return this._createSession(config ?? {}, { resource: chat });
 		},
 		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			return this._forkChat(chat, resolveAgentChatContext(context, chat), source, options);
@@ -3124,7 +3088,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (existing) {
 			existing.model = effectiveModel ?? existing.model;
 			existing.agent = config.agent ?? existing.agent;
-			this._recordChatTarget(target.resource, sessionUri, target.kind);
+			this._recordChatTarget(target.resource, sessionUri);
 			await this._seedEagerActiveClient(sessionUri, config.activeClient, [target.resource]);
 			const cwd = existing.workingDirectory ?? config.workingDirectories?.[0];
 			return {
@@ -3150,7 +3114,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			startTime: now,
 			modifiedTime: now,
 			chatChannel: target.resource,
-			chatKind: target.kind,
 			workingDirectory: config.workingDirectories?.[0],
 			workingDirectories,
 			multiRootEnabled,
@@ -3223,7 +3186,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		const parentSession = context.session;
 		const parentSessionId = AgentSession.id(parentSession);
-		const target: ICodexTargetChat = { resource: chat, kind: resolveAgentChatKind(chat, context) };
+		const target: ICodexTargetChat = { resource: chat };
 
 		// Idempotent re-create: hand back the existing binding.
 		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
@@ -3350,7 +3313,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _forkChat(chat: URI, context: IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		const parentSessionId = AgentSession.id(context.session);
-		const target: ICodexTargetChat = { resource: chat, kind: resolveAgentChatKind(chat, context) };
 
 		// Idempotent re-fork: hand back the existing binding instead of minting
 		// a second orphan thread.
@@ -3384,7 +3346,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				...(source.turnIdMapping ? { turnIdMapping: source.turnIdMapping } : {}),
 			},
 		);
-		this._recordChatTarget(chat, result.session, target.kind);
+		this._recordChatTarget(chat, result.session);
 		const newThreadId = AgentSession.id(result.session);
 		const forked = this._sessions.get(newThreadId);
 		if (forked && !forked.serverToolsAdvertised && this._serverToolHost) {
@@ -3411,13 +3373,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		const operationContext = resolveAgentChatContext(context, chat);
-		const target: ICodexTargetChat = { resource: chat, kind: resolveAgentChatKind(chat, operationContext) };
-		if (providerData === undefined && target.kind === AgentChatKind.Session) {
-			const sessionId = AgentSession.id(operationContext.session);
-			this._recordChatTarget(chat, AgentSession.uri(this.id, sessionId), target.kind);
-			const providerData = encodeCodexChat({ sessionId });
-			return { providerData };
-		}
+		const target: ICodexTargetChat = { resource: chat };
 		const decoded = decodeCodexChat(providerData);
 		if (!decoded) {
 			this._logService.warn(`[Codex] materializeChat: missing or corrupt providerData for ${chat.toString()}`);
@@ -3427,7 +3383,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		const existing = this._sessions.get(sessionId);
 		if (existing) {
 			existing.chatChannel = chat;
-			existing.chatKind = target.kind;
 			this._sessionIdByChatUri.set(chat.toString(), existing.sessionId);
 			return;
 		}
@@ -3454,6 +3409,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.serverToolsAdvertised = true;
 			this._serverToolHost.advertise(operationContext.session.toString());
 		}
+	}
+
+	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionId = AgentSession.id(operationContext.session);
+		this._recordChatTarget(chat, AgentSession.uri(this.id, sessionId));
+		return { providerData: encodeCodexChat({ sessionId }) };
 	}
 
 	/**
@@ -3504,7 +3466,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			startTime: now,
 			modifiedTime: now,
 			chatChannel: target?.resource,
-			chatKind: target?.kind,
 			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
 			multiRootEnabled: multiRootEnabled ?? (effectiveWorkingDirectories?.length ?? 0) > 1,
@@ -3776,7 +3737,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `sendMessage` before the first `turn/start`.
 	 */
 	private async _materializeIfNeeded(session: ICodexSession, configResource: URI = session.sessionUri, fireMaterializedEvent = true): Promise<void> {
-		if (session.disposed) {
+		if (session.disposed || !session.chatChannel) {
 			return;
 		}
 		if (session.threadId !== undefined) {
@@ -3820,7 +3781,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _materialize(session: ICodexSession, configResource: URI): Promise<void> {
-		if (session.disposed) {
+		if (session.disposed || !session.chatChannel) {
 			return;
 		}
 		if (!session.workingDirectory) {
@@ -3892,8 +3853,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// them as server-provided. Execution happens in-process via
 		// `_handleDynamicToolCallRpc`; the tools were registered with codex in
 		// the `dynamicTools` of the `thread/start` above.
-		const shouldAdvertiseServerTools = backsSessionChat(session);
-		if (shouldAdvertiseServerTools && !session.serverToolsAdvertised && this._serverToolHost) {
+		if (!session.serverToolsAdvertised && this._serverToolHost) {
 			session.serverToolsAdvertised = true;
 			this._serverToolHost.advertise(session.sessionUri.toString());
 		}
@@ -3925,12 +3885,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		session.threadId = undefined;
 		session.materializePromise = undefined;
-		const fireMaterializedEvent = backsSessionChat(session);
-		await this._materializeIfNeeded(session, configResource, fireMaterializedEvent);
+		await this._materializeIfNeeded(session, configResource, true);
 	}
 
 	private _fireMaterialized(session: ICodexSession): void {
-		if (session.disposed) {
+		if (session.disposed || !session.chatChannel) {
 			return;
 		}
 		if (session.materializedEventFired) {
@@ -3939,8 +3898,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.materializedEventFired = true;
 		// Emit the resolved set (index 0 = process root); the host preserves the
 		// session set's tail via an index-0 replacement.
+		const resource = session.chatChannel;
 		this._onDidMaterializeSession.fire({
 			session: session.sessionUri,
+			resource,
 			project: undefined,
 			workingDirectories: session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined),
 			// The refreshed backing records the runtime's own durable id — NOT
@@ -4160,7 +4121,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// its URI shape.
 		try {
 			this._claimPrewarm(session);
-			await this._materializeIfNeeded(session, configResource, resolveAgentChatKind(chat, operationContext) === AgentChatKind.Session);
+			await this._materializeIfNeeded(session, configResource, true);
 			this._persistMaterializedSession(session);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);

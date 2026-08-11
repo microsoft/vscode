@@ -174,13 +174,13 @@ async function disposeSession(agent: ClaudeAgent, session: URI): Promise<void> {
 
 /**
  * Restores a session's default chat the way Agent Host does for a legacy entry
- * that carries no persisted `providerData`: `materializeChat` recovers the
- * historical implicit identity (SDK conversation id === session id) as a plain,
- * canonical exact backing.
+ * that carries no persisted `providerData`: the migration seam recovers the
+ * historical identity and normal materialization consumes the canonical data.
  */
 async function bindDefaultChat(agent: ClaudeAgent, session: URI): Promise<void> {
 	const chat = defaultChatUri(session);
-	await agent.materializeChat!(chat, chatContext(chat), undefined);
+	const recovered = await agent.recoverLegacyChat!(chat, chatContext(chat));
+	await agent.materializeChat!(chat, chatContext(chat), recovered.providerData);
 }
 
 /**
@@ -3148,7 +3148,7 @@ suite('ClaudeAgent', () => {
 		assert.strictEqual(sdk.capturedStartupOptions[0]?.agent, 'Explore');
 	});
 
-	test('materialize event payload shape — { session, workingDirectory, project: undefined }', async () => {
+	test('materialize event payload includes the exact chat resource', async () => {
 		// Phase 6 §5.1 Test 4. Pins the {@link IAgentMaterializeSessionEvent}
 		// payload independently of the tracer in Test 3. The default
 		// {@link createNoopGitService} produces no project metadata, so
@@ -3174,14 +3174,16 @@ suite('ClaudeAgent', () => {
 		const ev = events[0];
 		assert.deepStrictEqual({
 			session: ev.session.toString(),
+			resource: ev.resource.toString(),
 			workingDirectory: ev.workingDirectories?.[0]?.toString(),
 			project: ev.project,
 			keys: Object.keys(ev).sort(),
 		}, {
 			session: created.session.toString(),
+			resource: defaultChatUri(created.session).toString(),
 			workingDirectory: cwd.toString(),
 			project: undefined,
-			keys: ['project', 'session', 'workingDirectories'],
+			keys: ['project', 'resource', 'session', 'workingDirectories'],
 		});
 	});
 
@@ -9440,7 +9442,8 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 		sdk.sessionMessagesById.set(sessionId, forkSourceMessages(sessionId));
 
 		const chatUri = defaultChatUri(sessionUri);
-		const result = await agent.materializeChat!(chatUri, { session: sessionUri, resource: sessionUri }, undefined);
+		const result = await agent.recoverLegacyChat!(chatUri, { session: sessionUri, resource: sessionUri });
+		await agent.materializeChat!(chatUri, { session: sessionUri, resource: sessionUri }, result.providerData);
 
 		// The recovered backing resolves and sends like any other exact chat
 		// (a plain resume of the existing SDK transcript) with no prior
@@ -9476,8 +9479,9 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 		// Simulates the orchestrator invoking materialize more than once for
 		// the same legacy entry (e.g. a reconnect racing restore) before ever
 		// persisting the returned blob back.
-		const first = await agent.materializeChat!(chatUri, context, undefined);
-		const second = await agent.materializeChat!(chatUri, context, undefined);
+		const first = await agent.recoverLegacyChat!(chatUri, context);
+		const second = await agent.recoverLegacyChat!(chatUri, context);
+		await agent.materializeChat!(chatUri, context, second.providerData);
 
 		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
 		await agent.chats.sendMessage(chatUri, 'hello again', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chatUri));

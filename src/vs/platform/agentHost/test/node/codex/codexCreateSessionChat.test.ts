@@ -255,7 +255,7 @@ suite('CodexAgent createSessionChat', () => {
 		agent['_sessionIdByChatUri'].delete(chat.toString());
 		agent['_sessions'].get('legacy-session')!.chatChannel = undefined;
 
-		const recovered = await agent.materializeChat(chat, { session, resource: chat, kind: AgentChatKind.Session }, undefined);
+		const recovered = await agent.recoverLegacyChat(chat, { session, resource: chat, kind: AgentChatKind.Session });
 
 		assert.deepStrictEqual({
 			providerData: recovered?.providerData ? JSON.parse(recovered.providerData) : undefined,
@@ -432,21 +432,15 @@ suite('CodexAgent createSessionChat', () => {
 	});
 });
 
-suite('CodexAgent host provisioning intent', () => {
+suite('CodexAgent exact chat routing', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * A chat URI that is well-formed but deliberately NOT the deterministic
-	 * default-chat URI of its session, so any decision that still depended on
-	 * `isDefaultChatUri` would come out the opposite way from the host's
-	 * explicit {@link AgentChatKind}.
-	 */
 	function sessionChatWithPeerShape(session: URI): URI {
 		return URI.parse(buildChatUri(session, 'not-the-default-id'));
 	}
 
-	test('a session-backed chat claims the session by host intent, not by URI shape', async () => {
+	test('routes the exact chat without retaining a session or peer classification', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const advertised: string[] = [];
 		agent.setServerToolHost(createRecordingServerToolHost(advertised));
@@ -458,9 +452,9 @@ suite('CodexAgent host provisioning intent', () => {
 			const chat = sessionChatWithPeerShape(sessionUri);
 			const folder = URI.file('/repo/intent');
 			const materialized: string[] = [];
-			disposables.add(agent.onDidMaterializeSession(e => materialized.push(e.session.toString())));
+			disposables.add(agent.onDidMaterializeSession(e => materialized.push(e.resource.toString())));
 
-			await agent.chats.createSessionChat(chat, { session: sessionUri, resource: chat, kind: AgentChatKind.Session }, {
+			await agent.chats.createSessionChat(chat, { session: sessionUri, resource: chat, kind: AgentChatKind.Peer }, {
 				session: sessionUri,
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
@@ -471,13 +465,12 @@ suite('CodexAgent host provisioning intent', () => {
 			peer.push({ id: start.id, result: { thread: { id: 'intent-thread', cwd: folder.fsPath } } });
 			await entry.materializePromise;
 
-			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, { session: sessionUri, resource: chat, kind: AgentChatKind.Session });
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, { session: sessionUri, resource: chat, kind: AgentChatKind.Peer });
 			const turn = await readNextRequest(peer.outbound);
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 
 			assert.deepStrictEqual({
-				chatKind: entry.chatKind,
 				advertised,
 				materialized,
 				// The eager active client is seeded over the exact chat the call
@@ -485,46 +478,10 @@ suite('CodexAgent host provisioning intent', () => {
 				// default-chat URI being synthesized to find it.
 				clientTools: entry.clientToolSet.merged().map(tool => tool.name),
 			}, {
-				chatKind: AgentChatKind.Session,
 				advertised: [sessionUri.toString()],
-				materialized: [sessionUri.toString()],
+				materialized: [chat.toString()],
 				clientTools: ['client_tool'],
 			});
-		} finally {
-			peer.dispose();
-		}
-	});
-
-	test('an explicit peer intent suppresses the session-scoped materialize event for a default-shaped chat URI', async () => {
-		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
-		const peer = disposables.add(createTestPeer());
-		connectPeer(agent, peer);
-
-		try {
-			const sessionUri = AgentSession.uri('codex', 'session-peer-intent');
-			const chat = URI.parse(buildDefaultChatUri(sessionUri));
-			const folder = URI.file('/repo/peer-intent');
-			const materialized: string[] = [];
-			disposables.add(agent.onDidMaterializeSession(e => materialized.push(e.session.toString())));
-
-			await agent.chats.createSessionChat(chat, { session: sessionUri, resource: chat, kind: AgentChatKind.Session }, {
-				session: sessionUri,
-				workingDirectories: [folder],
-				model: { id: COPILOT_TEST_MODEL },
-			});
-			const entry = agent['_sessions'].get('session-peer-intent')!;
-			const start = await readNextRequest(peer.outbound);
-			peer.push({ id: start.id, result: { thread: { id: 'peer-intent-thread', cwd: folder.fsPath } } });
-			await entry.materializePromise;
-
-			// Same URI, but the host now addresses it as a peer chat. The
-			// session-scoped event must follow the intent, not the shape.
-			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, { session: sessionUri, resource: chat, kind: AgentChatKind.Peer });
-			const turn = await readNextRequest(peer.outbound);
-			peer.push({ id: turn.id, result: {} });
-			await sending;
-
-			assert.deepStrictEqual(materialized, []);
 		} finally {
 			peer.dispose();
 		}

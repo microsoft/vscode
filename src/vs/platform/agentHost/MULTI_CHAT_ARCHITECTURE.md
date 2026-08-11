@@ -112,7 +112,7 @@ Responsible for:
 - Finalizing session-scoped resources once every chat has been disposed (`finalizeSession`).
 - Advertising static capability flags (`getDescriptor().capabilities`).
 
-Agents do **not** maintain the chat catalog, persist membership, or know about the orchestrator's URI mapping. The **target** they are being moved to is that they also do not inject `AgentHostStateManager`: every host fact they need (provisioning intent, chat origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrives through a typed seam — see §8. That migration is in progress: the seams exist and Agent Host publishes on all of them, but the Claude, Codex, and Copilot slices still inject the state manager until they are converted to consume the seams.
+Agents do **not** maintain the chat catalog, persist membership, know whether a chat is the session or a peer, or inject `AgentHostStateManager`. Host facts they genuinely need (subagent origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrive through typed seams — see §8.
 
 ### Orchestrator layer
 
@@ -528,7 +528,7 @@ one meaning: add an additional chat to an already-provisioned session.
 
 ### No provider-side default-chat derivation
 
-AH supplies both the chat URI and its owning session explicitly on every chat operation. Claude and Copilot record only `chat → SDK conversation`; Codex records only `chat → thread runtime`. Providers consume the owning session, persistence resource, provisioning intent (`kind`), origin, and host customizations from transient context (§8a) rather than decoding membership from chat URI shape.
+AH supplies both the chat URI and its owning session explicitly on every chat operation. Claude and Copilot record only `chat → SDK conversation`; Codex records only `chat → thread runtime`. Providers consume the owning session, persistence resource, subagent origin, and host customizations from transient context (§8a). Session-versus-peer decisions remain in Agent Host.
 
 Provider chat resolution has three valid states:
 
@@ -587,7 +587,7 @@ model/agent change, history read, client tool completion) carries:
 |---|---|---|
 | `session` | The chat's owning session. | Parsing the chat URI. |
 | `resource` | The provider-owned persistence/config scope (session for the default chat, the chat otherwise). | `resolveChatUri` in the provider. |
-| `kind` | `AgentChatKind.Session` / `Peer` / `Subagent` — explicit provisioning intent. | `isDefaultChatUri(chat)` gates and `chatId.startsWith('subagent/')` checks. |
+| `kind` | Host-owned classification. Providers consume only `Subagent` where provider protocol routing requires it; `Session` / `Peer` stay host-side. | `chatId.startsWith('subagent/')` checks. |
 | `origin` | The catalog's `ChatOrigin`, exhaustive across every way a chat comes into existence: `User` for a plain user-created chat and the default chat, `Fork`/`SideChat` with the exact source chat and turn, `Tool` with the spawning chat and tool call for a subagent. | `stateManager.getChatState(chat)?.origin` and `sessionState.chats.find(...)`. |
 | `customizations` | The owning session's **last host-published** customization snapshot, including user enablement toggles. Absent (not empty) when the host has published none yet. | `stateManager.getSessionState(session)?.customizations`. |
 
@@ -602,11 +602,10 @@ For a client tool completion the context describes the chat the tool call was
 (for a subagent, its ancestor chat). That is what makes
 `resolveSubagentChatParent(context)` return the real spawn edge.
 
-Providers read these through `resolveAgentChatKind`, `resolveAgentChatOrigin`,
+Providers read the facts they need through `resolveAgentChatKind`, `resolveAgentChatOrigin`,
 `resolveSubagentChatParent`, and `resolveAgentHostCustomizations`
-(`common/agentService.ts`). `deriveAgentChatKind` is the only URI-shape
-derivation left, and it exists so the host can stamp `kind` — a provider calls
-`resolveAgentChatKind`, never `isDefaultChatUri`.
+(`common/agentService.ts`). `deriveAgentChatKind` remains host-side. Providers
+use `resolveAgentChatKind` only for subagent protocol routing.
 
 ### 8b. Session customizations at the update boundary
 
@@ -684,7 +683,7 @@ by `AgentService`, exposed as `agentService.promptCache` /
 | `stateManager.getSessionState(session)?.customizations` | `context.customizations` / `resolveAgentHostCustomizations(context)`, or the `hostCustomizations` argument of `getSessionCustomizations` / `getOrCreateActiveClient`. All three carry the host's last published snapshot, and `undefined` means "no snapshot yet", not "no customizations" |
 | `stateManager.getChatState(chat)?.origin`, `sessionState.chats.find(...)?.origin` | `context.origin` / `resolveAgentChatOrigin(context)`; for spawn edges `resolveSubagentChatParent(context)` |
 | `parseChatUri(chat)?.chatId.startsWith('subagent/')`, `parseSubagentSessionUri(chat)` for routing | `resolveAgentChatKind(chat, context) === AgentChatKind.Subagent` |
-| `isDefaultChatUri(chat)` gates | `resolveAgentChatKind(chat, context) === AgentChatKind.Session` |
+| `isDefaultChatUri(chat)` gates | Host-side filtering of exact-chat materialization receipts; providers emit the addressed chat and do not classify it |
 | `buildDefaultChatUri(session)` as an active-client / fan-out default | the required `chats` argument of `getOrCreateActiveClient`, re-sent whenever the catalog grows and withheld entirely while the host has no authoritative membership |
 | `stateManager.getSessionSummary(session)?._meta` + `setSessionMeta(...)` for prompt cache | `IAgentHostPromptCache.read` / `.write` |
 | `stateManager.onDidChangeSessionTitle` for OTel | `IAgentHostSessionTitleSignal.onDidChangeSessionTitle` |
