@@ -131,9 +131,12 @@
 	display: none;
 }
 
-.chat-pet-button.wide-sprite-left .chat-pet-sprite {
+.chat-pet-button[data-facing='left'] .chat-pet-sprite {
 	right: 0;
 	left: auto;
+}
+
+.chat-pet-button[data-facing='left'] .chat-pet-sprite > .chat-pet-canvas {
 	transform: scaleX(-1);
 }
 
@@ -214,8 +217,12 @@
 	animation: chat-pet-complete-motion 960ms steps(1, end);
 }
 
-.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite {
+.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite > .chat-pet-canvas {
 	transform: scaleX(-1);
+}
+
+.chat-pet-button[data-state='jump'][data-hop-direction='right'] .chat-pet-sprite > .chat-pet-canvas {
+	transform: none;
 }
 
 .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
@@ -278,6 +285,14 @@
 	left: 30px;
 }
 
+.chat-pet-button[data-facing='left'] .chat-pet-eye.left {
+	left: 22px;
+}
+
+.chat-pet-button[data-facing='left'] .chat-pet-eye.right {
+	left: 10px;
+}
+
 .chat-pet-pupil {
 	position: absolute;
 	top: 2px;
@@ -320,9 +335,9 @@
 .chat-pet-button.dragging .chat-pet-eye::after {
 	content: '';
 	position: absolute;
-	top: 3px;
-	left: 1px;
-	width: 6px;
+	top: 5px;
+	left: 0;
+	width: 8px;
 	height: 2px;
 	background: #191a1b;
 }
