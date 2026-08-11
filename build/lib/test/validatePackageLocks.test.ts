@@ -97,6 +97,27 @@ suite('validatePackageLocks', () => {
 		});
 	});
 
+	test('does not use a nested package version to pin a direct dependency', () => {
+		const base = {
+			packages: {
+				'': { dependencies: { shared: '^2.0.0' } },
+				'node_modules/shared': { version: '2.0.0' },
+			}
+		};
+		const submitted = {
+			packages: {
+				'': { dependencies: { shared: '^2.0.0' } },
+				'node_modules/shared': { version: '2.1.0' },
+				'node_modules/sdk/node_modules/shared': { version: '1.0.0' },
+			}
+		};
+		const packageJson = { dependencies: { shared: '^2.0.0' } };
+
+		assert.deepStrictEqual(pinChangedPackages(packageJson, findChangedPackageKeys(base, submitted), submitted), {
+			dependencies: { shared: '2.1.0' }
+		});
+	});
+
 	test('restores declared dependency ranges after regeneration', () => {
 		const regenerated = {
 			packages: {
