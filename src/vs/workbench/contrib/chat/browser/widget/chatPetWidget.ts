@@ -433,6 +433,12 @@ export function getChatPetDefaultHorizontalPosition(minimumLeft: number, maximum
 	return Math.max(minimumLeft, maximumLeft - CHAT_PET_DEFAULT_RIGHT_INSET);
 }
 
+export function getChatPetRestoredHorizontalPosition(previousLeft: number | undefined, minimumLeft: number, maximumLeft: number): number {
+	return previousLeft === undefined
+		? getChatPetDefaultHorizontalPosition(minimumLeft, maximumLeft)
+		: getChatPetHorizontalPosition(previousLeft, minimumLeft, maximumLeft);
+}
+
 export function getChatPetScale(scale: number, delta: number): number {
 	return Math.max(CHAT_PET_MIN_SCALE, Math.round((scale + delta) * 10) / 10);
 }
@@ -1405,11 +1411,23 @@ export class ChatPetWidget extends Disposable {
 	private _startEnableAnimation(): void {
 		this._button.element.classList.remove('hidden', 'exiting', 'entering');
 		this._button.element.tabIndex = 0;
+		this._restoreHorizontalPosition();
 		this._button.element.getBoundingClientRect();
 		this._gazeScheduler.schedule();
 		if (!this._motionReduced) {
 			this._button.element.classList.add('entering');
 		}
+	}
+
+	private _restoreHorizontalPosition(): void {
+		const overlayBounds = this._overlay.getBoundingClientRect();
+		const inputBounds = this.dragBounds.getBoundingClientRect();
+		const minimumLeft = inputBounds.left - overlayBounds.left;
+		const maximumLeft = inputBounds.right - overlayBounds.left - this._getDisplaySize();
+		const previousLeft = this._hasCustomPosition ? this._getCurrentLeft() : undefined;
+		this._button.element.style.left = `${getChatPetRestoredHorizontalPosition(previousLeft, minimumLeft, maximumLeft)}px`;
+		this._button.element.style.right = 'auto';
+		this._updateSpeechBubblePosition();
 	}
 
 	private _startDisableAnimation(): void {
