@@ -297,6 +297,52 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 	sessionMutable: true,
 });
 
+/** Managed runtime restrictions synthesized from effective VS Code settings. */
+export interface IManagedPermissions {
+	readonly disableBypassPermissionsMode?: 'disable';
+	/** Canonical all-shell prompt rule; active runtime rule policy defaults other governed kinds to ask. */
+	readonly ask?: readonly ['Shell'];
+}
+
+export const MANAGED_PERMISSION_TERMINAL_ASK_RULE = 'Shell';
+
+/**
+ * Treat the empty object used as the merge-safe root-config clear sentinel as
+ * no managed permissions.
+ */
+export function normalizeManagedPermissions(permissions: IManagedPermissions | undefined): IManagedPermissions | undefined {
+	const disableBypassPermissionsMode = permissions?.disableBypassPermissionsMode === 'disable';
+	const askForShell = permissions?.ask?.includes(MANAGED_PERMISSION_TERMINAL_ASK_RULE) === true;
+	return disableBypassPermissionsMode || askForShell ? {
+		...(disableBypassPermissionsMode ? { disableBypassPermissionsMode: 'disable' as const } : {}),
+		...(askForShell ? { ask: [MANAGED_PERMISSION_TERMINAL_ASK_RULE] as const } : {}),
+	} : undefined;
+}
+
+const managedPermissionsProperty = schemaProperty<IManagedPermissions>({
+	type: 'object',
+	title: localize('agentHost.config.managedPermissions.title', "Managed Permissions"),
+	description: localize('agentHost.config.managedPermissions.description', "Permission restrictions derived from effective VS Code settings and forwarded to the runtime as `managedSettings.permissions` at session startup."),
+	properties: {
+		disableBypassPermissionsMode: {
+			type: 'string',
+			title: localize('agentHost.config.managedPermissions.disableBypass', "Disable bypass permissions mode"),
+			enum: ['disable'],
+		},
+		ask: {
+			type: 'array',
+			title: localize('agentHost.config.managedPermissions.ask', "Required permission prompts"),
+			items: {
+				type: 'string',
+				title: localize('agentHost.config.managedPermissions.rule', "Permission rule"),
+				enum: [MANAGED_PERMISSION_TERMINAL_ASK_RULE],
+			},
+		},
+	},
+	// No default: `{}` is the wire-level clear sentinel and is normalized to
+	// `undefined` before SDK launch, so `managedSettings` is omitted.
+});
+
 /**
  * Session-config properties owned by the platform itself — i.e. consumed
  * by the agent host rather than by any particular agent.
@@ -432,6 +478,21 @@ export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.ena
  * with Allow all.
  */
 export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
+
+/**
+ * The VS Code setting ID for global auto approve. Defined here so renderer-side
+ * agent-host clients can forward it without importing from `workbench/contrib/chat`.
+ */
+export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
+
+/**
+ * Root config key forwarded from the renderer holding the {@link IManagedPermissions}
+ * object. Synthesized by VS Code from the effective values of
+ * `chat.tools.global.autoApprove` and
+ * `chat.tools.terminal.enableAutoApprove`, and forwarded to the runtime as
+ * `managedSettings.permissions` at SDK session startup. Absent when no mapped setting applies.
+ */
+export const AgentHostManagedPermissionsConfigKey = 'managedPermissions';
 
 /**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
@@ -714,6 +775,7 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.globalAutoApproveEnabled.description', "Whether VS Code's global auto-approve setting is enabled. When `true`, every tool call is auto-approved, equivalent to a session using Allow all."),
 		default: false,
 	}),
+	[AgentHostManagedPermissionsConfigKey]: managedPermissionsProperty,
 	[AgentHostAutoReplyEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.autoReplyEnabled.title', "Auto Reply"),

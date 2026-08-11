@@ -6,7 +6,7 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -66,7 +66,7 @@ import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
 
-const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+const CLIENT_DISCONNECT_GRACE_TIMEOUT = 30_000;
 
 /**
  * Chat-level working-directory subsets are not yet operational in this build.
@@ -270,6 +270,8 @@ interface IGraceClientRecord {
 	 * is live). Disposing an entry (or the whole map) clears the timer.
 	 */
 	readonly disconnectTimeouts: DisposableMap<string>;
+	/** Removes the client's managed-permission contribution when reconnect grace expires. */
+	readonly managedPermissionsDisconnectTimeout: IDisposable | undefined;
 }
 
 /**
@@ -527,16 +529,21 @@ export class ProtocolServerHandler extends Disposable {
 					this._releaseClientSubscriptions(client, record);
 					this._rejectPendingReverseRequestsForConnection(client);
 					if (record.connections.length === 0) {
-						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
-						this._clients.set(client.clientId, {
+						const clientId = client.clientId;
+						this._logService.info(`[ProtocolServer] Client disconnected: ${clientId}, subscriptions=${subscriptionCount}`);
+						this._clients.set(clientId, {
 							state: 'grace',
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
 							lastSeenAt: Date.now(),
 							disconnectTimeouts: new DisposableMap(),
+							managedPermissionsDisconnectTimeout: disposableTimeout(
+								() => this._agentService.removeClientManagedPermissions(clientId),
+								CLIENT_DISCONNECT_GRACE_TIMEOUT,
+							),
 						});
-						this._handleClientDisconnected(client.clientId);
+						this._handleClientDisconnected(clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 					}
 					this._reportClientDisconnected(client, subscriptionCount);
@@ -613,7 +620,7 @@ export class ProtocolServerHandler extends Disposable {
 			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
 			client.telemetryConnectionActive = true;
 			if (previousRecord?.state === 'grace') {
-				previousRecord.disconnectTimeouts.dispose();
+				this._disposeGraceTimeouts(previousRecord);
 			}
 			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 			this._telemetryReporter.clientConnection({
@@ -761,7 +768,7 @@ export class ProtocolServerHandler extends Disposable {
 			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
 			client.telemetryConnectionActive = true;
 			if (existingRecord.state === 'grace') {
-				existingRecord.disconnectTimeouts.dispose();
+				this._disposeGraceTimeouts(existingRecord);
 			}
 			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 			this._telemetryReporter.clientConnection({
@@ -1013,7 +1020,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		record.disconnectTimeouts.deleteAndDispose(chatChannel);
 		const elapsed = Date.now() - record.lastSeenAt;
-		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
+		const delay = Math.max(0, CLIENT_DISCONNECT_GRACE_TIMEOUT - elapsed);
 		record.disconnectTimeouts.set(chatChannel, disposableTimeout(() => {
 			this._releaseActiveClientForSession(session, clientId, chatChannel);
 		}, delay));
@@ -1103,6 +1110,7 @@ export class ProtocolServerHandler extends Disposable {
 			protocolVersion: undefined,
 			lastSeenAt: Date.now(),
 			disconnectTimeouts: new DisposableMap(),
+			managedPermissionsDisconnectTimeout: undefined,
 		};
 		this._clients.set(clientId, created);
 		return created;
@@ -1201,9 +1209,15 @@ export class ProtocolServerHandler extends Disposable {
 			if (record.state === 'grace'
 				&& record.disconnectTimeouts.size === 0
 				&& record.lastSeenAt < cutoff) {
+				record.managedPermissionsDisconnectTimeout?.dispose();
 				this._clients.delete(clientId);
 			}
 		}
+	}
+
+	private _disposeGraceTimeouts(record: IGraceClientRecord): void {
+		record.disconnectTimeouts.dispose();
+		record.managedPermissionsDisconnectTimeout?.dispose();
 	}
 
 	private _clearClientToolCallDisconnectTimeout(clientId: string, channel: string): void {
@@ -1755,7 +1769,8 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	override dispose(): void {
-		for (const record of this._clients.values()) {
+		for (const [clientId, record] of this._clients) {
+			this._agentService.removeClientManagedPermissions(clientId);
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;
@@ -1769,7 +1784,7 @@ export class ProtocolServerHandler extends Disposable {
 					connection.disposables.dispose();
 				}
 			} else {
-				record.disconnectTimeouts.dispose();
+				this._disposeGraceTimeouts(record);
 			}
 		}
 		this._clients.clear();

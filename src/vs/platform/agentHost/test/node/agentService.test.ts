@@ -30,8 +30,9 @@ import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AgentHostManagedPermissionsConfigKey } from '../../common/agentHostSchema.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, NotificationType, type IRootConfigChangedAction } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -1115,6 +1116,69 @@ suite('AgentService (node dispatcher)', () => {
 			listener.dispose();
 		});
 
+		test('only invalidates a disconnected client queued managed-permissions update', async () => {
+			const { svc, session } = await createDynamicWorkingDirectorySession();
+			const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/stale-source.txt' });
+			await fileService.writeFile(source, VSBuffer.fromString('contents'));
+			const readStarted = new DeferredPromise<void>();
+			const readGate = new DeferredPromise<void>();
+			const originalReadFile = fileService.readFile.bind(fileService);
+			fileService.readFile = async resource => {
+				if (resource.toString() === source.toString()) {
+					readStarted.complete();
+					await readGate.p;
+				}
+				return originalReadFile(resource);
+			};
+			disposables.add(toDisposable(() => fileService.readFile = originalReadFile));
+			const clientId = 'disconnected-client';
+			const dispatchedClientSequences: number[] = [];
+			const listener = svc.onDidAction(envelope => {
+				if (envelope.origin?.clientId === clientId) {
+					dispatchedClientSequences.push(envelope.origin.clientSeq);
+				}
+			});
+
+			svc.dispatchAction(buildDefaultChatUri(session.toString()), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'hello',
+					origin: { kind: MessageKind.User },
+					attachments: [{
+						type: MessageAttachmentKind.Resource,
+						uri: source.toString(),
+						label: 'stale-source.txt',
+						displayKind: 'document',
+					}],
+				},
+			}, clientId, 1, AgentHostClientType.EditorWindow);
+			await readStarted.p;
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' } },
+			}, clientId, 2);
+			svc.removeClientManagedPermissions(clientId);
+			const queueDrained = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientId === clientId && envelope.origin.clientSeq === 3));
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionWorkingDirectorySet,
+				directory: URI.file('/workspace/added').toString(),
+			}, clientId, 3, AgentHostClientType.EditorWindow);
+
+			readGate.complete();
+			await queueDrained;
+
+			assert.deepStrictEqual({
+				dispatchedClientSequences,
+				managedPermissions: svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey],
+			}, {
+				dispatchedClientSequences: [1, 3],
+				managedPermissions: undefined,
+			});
+			listener.dispose();
+		});
+
 		test('reduces working-directory mutations synchronously in dispatch order', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const added = URI.file('/workspace/added');
@@ -1211,17 +1275,23 @@ suite('AgentService (node dispatcher)', () => {
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
 				svc.dispatchAction(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
-					config: { customizations: [customization] },
+					config: {
+						customizations: [customization],
+						[AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' },
+					},
 				}, 'test-client', 1);
 
 				let persisted = false;
 				for (let attempt = 0; attempt < 20; attempt++) {
 					try {
 						const parsed = JSON.parse(readFileSync(rootConfigResource.fsPath, 'utf8'));
-						assert.deepStrictEqual(
-							parsed.customizations,
-							[customization],
-						);
+						assert.deepStrictEqual({
+							customizations: parsed.customizations,
+							managedPermissions: parsed[AgentHostManagedPermissionsConfigKey],
+						}, {
+							customizations: [customization],
+							managedPermissions: undefined,
+						});
 						persisted = true;
 						break;
 					} catch {
@@ -1242,6 +1312,44 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.dispose();
 				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
+		});
+
+		test('isolates managed permissions per client', () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const managedPermissions = {
+				ask: ['Shell'] as const,
+			};
+			const managedAction = {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: managedPermissions },
+			} satisfies IRootConfigChangedAction;
+
+			svc.dispatchAction(ROOT_STATE_URI, managedAction, 'managed-client', 1);
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: { disableBypassPermissionsMode: 'disable' } },
+			}, 'restricted-client', 1);
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostManagedPermissionsConfigKey]: {} },
+			}, 'unmanaged-client', 1);
+
+			const beforeDisconnect = svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey];
+			svc.removeClientManagedPermissions('managed-client');
+			const afterManagedDisconnect = svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey];
+			svc.removeClientManagedPermissions('restricted-client');
+			const afterAllManagedDisconnect = svc.stateManager.rootState.config?.values[AgentHostManagedPermissionsConfigKey];
+			assert.deepStrictEqual({
+				beforeDisconnect,
+				afterManagedDisconnect,
+				afterAllManagedDisconnect,
+				originalPermissions: managedAction.config[AgentHostManagedPermissionsConfigKey],
+			}, {
+				beforeDisconnect: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+				afterManagedDisconnect: { disableBypassPermissionsMode: 'disable' },
+				afterAllManagedDisconnect: {},
+				originalPermissions: managedPermissions,
+			});
 		});
 
 		test('generates and persists an AI title after first-turn fallback title', async () => {

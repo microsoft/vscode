@@ -2125,6 +2125,9 @@ export interface IAgentService {
 	 */
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
+	/** Remove the managed-permission contribution owned by a disconnected client. */
+	removeClientManagedPermissions(clientId: string): void;
+
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
 	 * Used by the client to drive a remote folder picker before session creation.

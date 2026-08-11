@@ -62,6 +62,7 @@ import { IAgentHostEnablementService } from '../../../platform/agentHost/common/
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
+import { resolveManagedPermissions } from '../../../platform/agentHost/common/agentHostManagedSettings.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -942,6 +943,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		}
 
 		content += '## Managed Settings\n\n';
+		content += '*This section covers GitHub Copilot managed-settings delivery channels. Traditional VS Code policies from a configuration profile are reported under Policy-Controlled Settings and may synthesize the Agent Host client injection shown below even when no Copilot managed-settings channel is active.*\n\n';
 		try {
 			const policyData = defaultAccountService.policyData;
 			const serverManagedSettings = policyData?.managedSettings ?? {};
@@ -1098,12 +1100,26 @@ class PolicyDiagnosticsAction extends Action2 {
 				markdownJsonBlock(declaredDefinitions)
 			);
 
-			content += '### Agent Runtime Resolution\n\n';
-			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that VS Code does not declare as configuration policies.*\n\n';
+			content += '### Agent Host Client Injection\n\n';
+			content += '*Synthesized by VS Code from effective settings and forwarded to Agent Host providers as session-local managed permissions. The provider SDK/runtime owns validation and enforcement.*\n\n';
+			const agentHostManagedPermissions = resolveManagedPermissions(configurationService);
+			content += '**Synthesized managed permissions**\n\n';
+			content += markdownJsonBlock(agentHostManagedPermissions ?? {});
+			content += `**This client's contribution**: ${agentHostManagedPermissions ? 'restrictive managed permissions' : 'none'}\n\n`;
+
+			content += '### Agent Runtime Account and Device Baseline\n\n';
+			content += '*Queried from each provider when this report is generated. The SDK query covers account/server and device policy, but intentionally excludes the session-local Agent Host client injection above and may use the provider runtime\'s own policy cache. Therefore `source: none` here does not mean that synthesized client permissions are inactive; a created session reports `client` or `mixed` provenance after applying them.*\n\n';
 			if (!agentHostEnablementService.enabled.get()) {
 				summary.agentRuntime = 'Agent Host disabled';
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
 			} else {
+				content += markdownTable(
+					['Property', 'Value'],
+					[
+						['Queried', new Date().toISOString()],
+						['Force refresh', 'Not supported by the provider runtime API']
+					]
+				);
 				try {
 					const runtimeDiagnostics = await raceTimeout(agentHostService.getManagedSettingsDiagnostics(), AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT);
 					if (!runtimeDiagnostics) {

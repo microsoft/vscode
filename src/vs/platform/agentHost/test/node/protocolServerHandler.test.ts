@@ -126,6 +126,7 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
+	readonly removedManagedPermissionClients: string[] = [];
 	shutdownCalls = 0;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
@@ -148,6 +149,9 @@ class MockAgentService implements IAgentService {
 		this.handledClientContexts.push(clientContext);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
+	}
+	removeClientManagedPermissions(clientId: string): void {
+		this.removedManagedPermissionClients.push(clientId);
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this.createSessionConfigs.push(config);
@@ -1628,18 +1632,39 @@ suite('ProtocolServerHandler', () => {
 		await assert.rejects(readPromise, /Client client-fs-overlap-close disconnected/);
 	});
 
-	test('client disconnect cleans up', () => {
-		stateManager.createSession(makeSessionSummary());
-		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+	test('reconnect preserves managed permissions until the next disconnect grace expires', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const transport1 = connectClient('client-managed-reconnect');
+			const initializeResponse = findResponse(transport1.sent, 1) as { result: InitializeResult };
+			transport1.simulateClose();
 
-		const transport = connectClient('client-d', [sessionUri]);
-		transport.sent.length = 0;
+			await new Promise(resolve => setTimeout(resolve, 15_000));
+			const duringGrace = [...agentService.removedManagedPermissionClients];
 
-		transport.simulateClose();
+			const transport2 = new MockProtocolTransport();
+			server.simulateConnection(transport2);
+			const reconnectResponse = waitForResponse(transport2, 1);
+			transport2.simulateMessage(request(1, 'reconnect', {
+				clientId: 'client-managed-reconnect',
+				lastSeenServerSeq: initializeResponse.result.serverSeq,
+				subscriptions: [],
+			}));
+			await reconnectResponse;
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			const afterOriginalGraceExpiry = [...agentService.removedManagedPermissionClients];
 
-		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'After Disconnect' });
-
-		assert.strictEqual(transport.sent.length, 0);
+			transport2.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.deepStrictEqual({
+				duringGrace,
+				afterOriginalGraceExpiry,
+				afterSecondGraceExpiry: agentService.removedManagedPermissionClients,
+			}, {
+				duringGrace: [],
+				afterOriginalGraceExpiry: [],
+				afterSecondGraceExpiry: ['client-managed-reconnect'],
+			});
+		});
 	});
 
 	test('client disconnect retains active client during grace, then removes it and fails owned tool calls after grace period', () => {

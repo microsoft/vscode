@@ -47,7 +47,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostManagedPermissionsConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
@@ -3490,15 +3490,17 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto']);
 		});
 
-		test('syncs permission mode when root approval configuration changes', async () => {
-			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables);
+		test('managed policy clamps a live allow-all session', async () => {
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+			});
 			await session.syncPermissionMode('turn-start');
-			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+			setRootValue(AgentHostManagedPermissionsConfigKey, { disableBypassPermissionsMode: 'disable' });
 
 			fireRootConfigChange();
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off', 'on']);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['on', 'off']);
 		});
 
 		test('aborts when a live permission mode update fails', async () => {
