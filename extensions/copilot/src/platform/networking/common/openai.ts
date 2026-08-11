@@ -131,6 +131,7 @@ export interface OpenAIContextManagementResponse {
 	encrypted_content: string;
 	type: typeof openAIContextManagementCompactionType;
 	id: string;
+	outputIndex?: number;
 }
 
 

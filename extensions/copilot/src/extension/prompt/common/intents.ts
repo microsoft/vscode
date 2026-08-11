@@ -6,6 +6,7 @@
 import type * as vscode from 'vscode';
 import { NotebookDocumentSnapshot } from '../../../platform/editing/common/notebookDocumentSnapshot';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
+import type { IResponseOutputItem } from '../../../platform/networking/common/fetch';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { ThinkingData } from '../../../platform/thinking/common/thinking';
 import { createServiceIdentifier } from '../../../util/common/services';
@@ -53,6 +54,10 @@ export interface IToolCallRound {
 	phase?: string;
 	/** The model ID. */
 	modelId?: string;
+	/** The first Responses API output index represented by `response`. */
+	responseOutputIndex?: number;
+	/** Individual Responses API assistant messages retained for ordered replay. */
+	responseOutputItems?: IResponseOutputItem[];
 }
 
 export interface InternalToolReference extends vscode.ChatLanguageModelToolReference {

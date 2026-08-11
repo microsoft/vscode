@@ -132,6 +132,13 @@ export interface ICopilotConfirmation {
 	confirmation: any;
 }
 
+/** A completed assistant message output item from the Responses API. */
+export interface IResponseOutputItem {
+	text: string;
+	phase?: string;
+	outputIndex: number;
+}
+
 export interface IResponseDelta {
 	text: string;
 	logprobs?: ChoiceLogProbs;
@@ -146,6 +153,8 @@ export interface IResponseDelta {
 	copilotConfirmation?: ICopilotConfirmation;
 	thinking?: ThinkingDelta | EncryptedThinkingDelta;
 	phase?: string;
+	responseOutputIndex?: number;
+	responseOutputItem?: IResponseOutputItem;
 	retryReason?: FilterReason | 'network_error' | 'server_error';
 	/** Marker for the current response, which should be presented in `IMakeChatRequestOptions` on the next call */
 	statefulMarker?: string;

@@ -41,21 +41,25 @@ export type ThinkingDelta = {
 	text?: string | string[];
 	id: string;
 	metadata?: { readonly [key: string]: any };
+	outputIndex?: number;
 } | {
 	text?: string | string[];
 	id?: string;
 	metadata: { readonly [key: string]: any };
+	outputIndex?: number;
 } |
 {
 	text: string | string[];
 	id?: string;
 	metadata?: { readonly [key: string]: any };
+	outputIndex?: number;
 };
 
 export type EncryptedThinkingDelta = {
 	id: string;
 	text?: string;
 	encrypted: string;
+	outputIndex?: number;
 	/**
 	 * True only for genuine Anthropic `redacted_thinking` blocks, where `encrypted`
 	 * holds the opaque `data` blob. For regular thinking blocks `encrypted` holds the
@@ -75,6 +79,7 @@ export interface ThinkingData {
 	metadata?: { [key: string]: any };
 	tokens?: number;
 	encrypted?: string;
+	outputIndex?: number;
 	/**
 	 * True only for genuine Anthropic `redacted_thinking` blocks, where `encrypted`
 	 * holds the opaque `data` blob. For regular thinking blocks `encrypted` holds the
