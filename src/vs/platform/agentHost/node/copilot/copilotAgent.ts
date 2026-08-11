@@ -1315,7 +1315,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const additionalProperties = { initiatorClientType: this._clientTypeForTelemetry(notification.sessionId) };
 		const router = this._githubTelemetryRouter;
 		if (!router?.isTarget(notification)) {
-			this._gitHubTelemetryForwarder.forward(notification);
+			this._gitHubTelemetryForwarder.forward(notification, this._turnIdForTelemetry(notification.sessionId));
 			return;
 		}
 		if (!notification.restricted) {
@@ -1352,6 +1352,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return sdkSessionId
 			? this._findSessionBySdkId(sdkSessionId)?.currentTurnClientType ?? AgentHostClientType.Unknown
 			: AgentHostClientType.Unknown;
+	}
+
+	private _turnIdForTelemetry(sdkSessionId: string | undefined): string | undefined {
+		return sdkSessionId ? this._sdkSessionsById.get(sdkSessionId)?.currentTurnId : undefined;
 	}
 
 	/**
