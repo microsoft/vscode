@@ -157,28 +157,28 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 	test('adds Agent Host turn correlation only to response events', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, () => undefined, telemetryService);
-		const notification = (kind: string): GitHubTelemetryNotification => ({
+		const notification = (kind: string, properties: Record<string, string> = {}, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
 			sessionId: 'session',
 			restricted: false,
 			event: {
 				kind,
-				properties: {},
-				metrics: {},
+				properties,
+				metrics,
 			},
 		});
 
-		forwarder.forward(notification('response.success'), 'turn-1');
-		forwarder.forward(notification('response.error'), 'turn-1');
-		forwarder.forward(notification('tool_call_executed'), 'turn-1');
-		forwarder.forward(notification('response.success'));
+		forwarder.forward(notification('response.success', { turnId: 'runtime-turn' }), 'turn-1');
+		forwarder.forward(notification('response.error', {}, { turnId: 42 }));
+		forwarder.forward(notification('tool_call_executed', { turnId: 'runtime-turn' }), 'turn-1');
+		forwarder.forward(notification('response.success', { turnId: 'runtime-turn' }));
 
 		assert.deepStrictEqual(telemetryService.events.map(event => ({
 			eventName: event.eventName,
 			turnId: event.data?.turnId,
 		})), [
 			{ eventName: 'copilotSdk/response.success', turnId: 'turn-1' },
-			{ eventName: 'copilotSdk/response.error', turnId: 'turn-1' },
-			{ eventName: 'copilotSdk/tool_call_executed', turnId: undefined },
+			{ eventName: 'copilotSdk/response.error', turnId: undefined },
+			{ eventName: 'copilotSdk/tool_call_executed', turnId: 'runtime-turn' },
 			{ eventName: 'copilotSdk/response.success', turnId: undefined },
 		]);
 	});

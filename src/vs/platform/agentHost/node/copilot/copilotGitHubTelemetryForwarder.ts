@@ -162,8 +162,14 @@ export class CopilotGitHubTelemetryForwarder {
 			copilot_tracking_id: event.copilot_tracking_id,
 			kind: event.kind,
 			restricted: notification.restricted,
-			...(agentHostTurnId && (event.kind === 'response.success' || event.kind === 'response.error') ? { turnId: agentHostTurnId } : {}),
 		};
+		if (event.kind === 'response.success' || event.kind === 'response.error') {
+			if (agentHostTurnId) {
+				data.turnId = agentHostTurnId;
+			} else {
+				delete data.turnId;
+			}
+		}
 
 		// VS Code's TAS assignment context, scoped to forwarded Copilot CLI
 		// events only — deliberately not a telemetry-service-wide experiment
