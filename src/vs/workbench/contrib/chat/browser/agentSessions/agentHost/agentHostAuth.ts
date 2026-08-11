@@ -44,8 +44,9 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	if (!agent?.protectedResources?.length) {
 		return false;
 	}
-	if (!allowSignedOutWhenUsable) {
-		return agent.protectedResources.some(resource => resource.required !== false);
+	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
+	if (!allowSignedOutWhenUsable || !agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
+		return requiresAuthentication;
 	}
 	if (!model) {
 		return true;

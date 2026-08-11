@@ -963,6 +963,7 @@ suite('modelRequiresAgentAuthentication', () => {
 
 	test('bypasses required agent auth only for an advertised BYOK model', () => {
 		const optionalResourceAgent = { ...agent, protectedResources: [{ ...requiredResource, required: false }] };
+		const optionalResourceAgentWithoutByok = { ...optionalResourceAgent, models: [copilotModel] } as AgentInfo;
 		assert.deepStrictEqual({
 			byokEnabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, true),
 			byokDisabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, false),
@@ -973,6 +974,7 @@ suite('modelRequiresAgentAuthentication', () => {
 			optionalResourceCopilot: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, true),
 			optionalResourceUnknown: modelRequiresAgentAuthentication(optionalResourceAgent, { id: 'unknown' }, true),
 			optionalResourceSignedOutDisabled: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, false),
+			optionalResourceWithoutByok: modelRequiresAgentAuthentication(optionalResourceAgentWithoutByok, { id: copilotModel.id }, true),
 			noProtectedResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [] }, { id: copilotModel.id }, true),
 		}, {
 			byokEnabled: false,
@@ -984,6 +986,7 @@ suite('modelRequiresAgentAuthentication', () => {
 			optionalResourceCopilot: true,
 			optionalResourceUnknown: true,
 			optionalResourceSignedOutDisabled: false,
+			optionalResourceWithoutByok: false,
 			noProtectedResource: false,
 		});
 	});
