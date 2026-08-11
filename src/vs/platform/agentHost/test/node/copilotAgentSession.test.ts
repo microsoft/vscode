@@ -38,6 +38,7 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -3045,16 +3046,14 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('per-request sandbox: applies the configured policy under default permissions', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
-				enabled: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off']);
 		});
 
@@ -3441,8 +3440,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('syncs sandbox when the session approval level changes', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
 			await session.send('hello', undefined, 'turn-1');
@@ -3461,17 +3461,9 @@ suite('CopilotAgentSession', () => {
 			}, {
 				permissionModes: ['off', 'on', 'off'],
 				sandboxConfigs: [
-					{
-						enabled: true,
-						allowBypass: true,
-						userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-					},
+					buildSandboxConfigForSdk('linux', sandbox),
 					{ enabled: false },
-					{
-						enabled: true,
-						allowBypass: true,
-						userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-					},
+					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
 		});
@@ -3533,8 +3525,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('per-request permissions: Autopilot with Ask When Needed keeps SDK approval mode off', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: {
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'default',
@@ -3548,10 +3541,7 @@ suite('CopilotAgentSession', () => {
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
 				permissionModes: ['off'],
-				sandbox: {
-					enabled: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-				},
+				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
 
@@ -3569,17 +3559,15 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
+			const sandbox = { [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				platform: 'win32',
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
-				enabled: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', sandbox));
 		});
 
 		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
