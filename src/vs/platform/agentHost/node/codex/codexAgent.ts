@@ -25,7 +25,7 @@ import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
-import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -1161,7 +1161,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		throw new Error('Codex has no available models.');
 	}
 
-	private _createReasoningEffortConfigSchema(): ConfigSchema {
+	private _createReasoningEffortConfigSchema(
+		supportedEfforts: readonly { readonly reasoningEffort: string; readonly description?: string }[] = CODEX_REASONING_EFFORTS.map(reasoningEffort => ({ reasoningEffort })),
+		declaredDefault = 'medium',
+		modelId?: string,
+	): ConfigSchema {
+		const options: readonly { readonly reasoningEffort: string; readonly description?: string }[] = supportedEfforts.length > 0
+			? supportedEfforts
+			: CODEX_REASONING_EFFORTS.map(reasoningEffort => ({ reasoningEffort }));
+		const efforts = options.map(option => option.reasoningEffort);
 		return {
 			type: 'object',
 			properties: {
@@ -1169,10 +1177,10 @@ export class CodexAgent extends Disposable implements IAgent {
 					type: 'string',
 					title: localize('codex.modelThinkingLevel.title', "Thinking Level"),
 					description: localize('codex.modelThinkingLevel.description', "Controls how much reasoning effort Codex uses."),
-					default: 'medium',
-					enum: [...CODEX_REASONING_EFFORTS],
-					enumLabels: CODEX_REASONING_EFFORTS.map(getReasoningEffortLabel),
-					enumDescriptions: CODEX_REASONING_EFFORTS.map(effort => getReasoningEffortDescription(effort) ?? ''),
+					default: resolveDefaultReasoningEffort(efforts, declaredDefault, modelId),
+					enum: efforts,
+					enumLabels: efforts.map(getReasoningEffortLabel),
+					enumDescriptions: options.map(option => option.description || getReasoningEffortDescription(option.reasoningEffort) || ''),
 				},
 			},
 		};
@@ -1364,7 +1372,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._githubToken !== token) {
 				return;
 			}
-			const configSchema = this._createReasoningEffortConfigSchema();
 			// Codex talks to every model through the `vscode-proxy` custom model
 			// provider with `wire_api="responses"` (see CodexProxyService), so it
 			// can only drive models that expose Copilot CAPI's OpenAI-shaped
@@ -1384,7 +1391,11 @@ export class CodexAgent extends Disposable implements IAgent {
 					maxOutputTokens: m.capabilities?.limits?.max_output_tokens,
 					maxPromptTokens: m.capabilities?.limits?.max_prompt_tokens,
 					supportsVision: !!m.capabilities?.supports?.vision,
-					configSchema,
+					configSchema: this._createReasoningEffortConfigSchema(
+						(m.capabilities?.supports as { readonly reasoning_effort?: readonly string[] } | undefined)?.reasoning_effort?.map(reasoningEffort => ({ reasoningEffort })),
+						undefined,
+						m.id,
+					),
 					policyState: m.policy?.state as PolicyState | undefined,
 					_meta: createPricingMetaFromBilling(
 						normalizeCAPIBilling(m.billing),
@@ -1424,7 +1435,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				data.push(...response.data);
 				cursor = response.nextCursor;
 			} while (cursor !== null);
-			const configSchema = this._createReasoningEffortConfigSchema();
 			const models = data
 				.sort((left, right) => Number(right.isDefault) - Number(left.isDefault))
 				.map((model): IAgentModelInfo => ({
@@ -1432,7 +1442,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					id: toCodexModelSelectionId(modelProvider, model.model),
 					name: model.displayName,
 					supportsVision: model.inputModalities.includes('image'),
-					configSchema,
+					configSchema: this._createReasoningEffortConfigSchema(model.supportedReasoningEfforts, model.defaultReasoningEffort, model.model),
 					_meta: createAgentModelSourceMeta(usesChatGPTSubscription ? CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID : undefined),
 				}));
 			this._codexModels = models;
