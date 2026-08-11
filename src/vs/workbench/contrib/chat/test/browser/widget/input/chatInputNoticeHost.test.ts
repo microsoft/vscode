@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../browser/widget/input/chatInputNoticeHost.js';
 
@@ -77,6 +78,21 @@ suite('ChatInputNoticeHost', () => {
 		host.toggleFocus();
 
 		assert.deepStrictEqual(focused, ['notification', 'tip']);
+	});
+
+	test('keeps a lane claimed while the notice in it is swapped', () => {
+		const host = disposables.add(new ChatInputNoticeHost(() => { }));
+		const store = disposables.add(new DisposableStore());
+		const tipSuppressed: boolean[] = [];
+		store.add(autorun(reader => tipSuppressed.push(host.isSuppressed(ChatInputNoticeLane.Tip, reader))));
+
+		// Voice hands the onboarding lane over to dictation. The tip must not get
+		// a window to flash into between the two claims.
+		host.setOccupied(ChatInputNoticeLane.Onboarding, true, { hasFocus: () => false, focus: () => { } });
+		host.setOccupied(ChatInputNoticeLane.Onboarding, true, { hasFocus: () => false, focus: () => { } });
+		host.setOccupied(ChatInputNoticeLane.Onboarding, false);
+
+		assert.deepStrictEqual(tipSuppressed, [false, true, false]);
 	});
 
 	test('releases a lane only once when its claim is disposed repeatedly', () => {

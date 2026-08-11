@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
+import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../browser/widget/input/chatInputNoticeHost.js';
 
 suite('Chat input onboarding', () => {
 
@@ -179,6 +180,45 @@ suite('Chat input onboarding', () => {
 		assert.deepStrictEqual(
 			{ whileBlocked, afterUnblocked: onboarding.isVisible },
 			{ whileBlocked: false, afterUnblocked: true });
+	});
+
+	test('yields to a notification through a real notice host and returns after it', () => {
+		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.viaNoticeHost');
+		const host = createHost(disposables);
+		const noticeHost = disposables.add(new ChatInputNoticeHost(() => { }));
+		disposables.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			// Wired exactly as `registerChatInputOnboardingHosts` does, so this
+			// exercises the real feedback loop: reacting to occupancy writes back
+			// to the very observable the reaction reads.
+			onDidChangeVisible: (visible, focusTarget) => noticeHost.setOccupied(ChatInputNoticeLane.Onboarding, visible, focusTarget),
+			isBlocked: reader => noticeHost.isSuppressed(ChatInputNoticeLane.Onboarding, reader),
+		}));
+
+		onboarding.showIfNeeded(createCard);
+		const beforeNotification = onboarding.isVisible;
+		const notification = noticeHost.occupy(ChatInputNoticeLane.Notification);
+		const duringNotification = onboarding.isVisible;
+		// The tip must stay suppressed while the card is only displaced, not gone.
+		const tipDuringNotification = noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined);
+		notification.dispose();
+
+		assert.deepStrictEqual(
+			{
+				beforeNotification,
+				duringNotification,
+				tipDuringNotification,
+				afterNotification: onboarding.isVisible,
+				tipAfterNotification: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined),
+			},
+			{
+				beforeNotification: true,
+				duringNotification: false,
+				tipDuringNotification: true,
+				afterNotification: true,
+				tipAfterNotification: true,
+			});
 	});
 
 	test('a dismissed card does not come back when the space frees', () => {

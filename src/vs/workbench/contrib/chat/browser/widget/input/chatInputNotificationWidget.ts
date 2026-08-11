@@ -103,11 +103,6 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		super();
 
 		this.domNode = $('.chat-input-notification-widget');
-		// Focusable only while a notification renders, so an empty widget does not
-		// add a tab stop between the chat list and the input.
-		this.domNode.tabIndex = -1;
-		this.domNode.setAttribute('role', 'region');
-		this.domNode.setAttribute('aria-roledescription', localize('chatInputNotificationRoleDescription', "notification"));
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
@@ -143,7 +138,17 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		}
 
 		this._visible = visible;
-		this.domNode.tabIndex = visible ? 0 : -1;
+		// The widget element outlives any one notification, so it only carries the
+		// region role and a tab stop while it actually renders something.
+		if (visible) {
+			this.domNode.tabIndex = 0;
+			this.domNode.setAttribute('role', 'region');
+			this.domNode.setAttribute('aria-roledescription', localize('chatInputNotificationRoleDescription', "notification"));
+		} else {
+			this.domNode.removeAttribute('tabindex');
+			this.domNode.removeAttribute('role');
+			this.domNode.removeAttribute('aria-roledescription');
+		}
 		this._delegate?.onDidChangeVisibility?.(visible, this);
 	}
 

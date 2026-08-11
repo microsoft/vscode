@@ -59,7 +59,6 @@ export class NewChatWidget extends Disposable {
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
-	private _chatTipContainer: HTMLElement | undefined;
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
@@ -374,11 +373,11 @@ export class NewChatWidget extends Disposable {
 
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
-		this._chatTipContainer = this._newChatInput.gettingStartedTipContainerElement;
-		this._chatTipPresenter.value = this._chatTipContainer && this.instantiationService.createInstance(
+		const chatTipContainer = this._newChatInput.gettingStartedTipContainerElement;
+		this._chatTipPresenter.value = chatTipContainer && this.instantiationService.createInstance(
 			ChatInputTipPresenter,
 			{
-				container: this._chatTipContainer,
+				container: chatTipContainer,
 				// Reset tip rotation the first time this composer becomes the only
 				// foreground surface, so a returning user gets a fresh tip.
 				onBeforeUpdate: () => {
@@ -399,7 +398,6 @@ export class NewChatWidget extends Disposable {
 			},
 			this._newChatInput.noticeHost,
 		);
-		this._renderChatTip();
 
 		// Quick chat composer: hide the workspace picker for workspace-less
 		// drafts (there is nothing to pick) and reflect it in the picker-visible

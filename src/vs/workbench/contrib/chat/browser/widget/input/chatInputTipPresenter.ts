@@ -40,6 +40,7 @@ export class ChatInputTipPresenter extends Disposable {
 	private readonly _part = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _lease = this._register(new MutableDisposable<IDisposable>());
 	private _partRef: ChatTipContentPart | undefined;
+	private _isDisposed = false;
 
 	/** The rendered tip, when one is showing. */
 	get current(): ChatTipContentPart | undefined {
@@ -62,6 +63,13 @@ export class ChatInputTipPresenter extends Disposable {
 
 	/** Re-evaluate whether a tip should be showing, and which one. */
 	update(reader?: IReader): void {
+		// Disposing releases the tip's claim, which synchronously re-runs the
+		// autorun below. Without this guard that run would build a replacement
+		// tip into already-disposed holders, silently leaking it.
+		if (this._isDisposed) {
+			return;
+		}
+
 		this._options.onBeforeUpdate?.();
 
 		if (this._noticeHost.isSuppressed(ChatInputNoticeLane.Tip, reader) || !this._options.isEligible()) {
@@ -111,5 +119,13 @@ export class ChatInputTipPresenter extends Disposable {
 		dom.clearNode(this._options.container);
 		this._options.container.classList.remove(SHOWING_TIP_CLASS);
 		dom.setVisibility(false, this._options.container);
+	}
+
+	override dispose(): void {
+		// Set before clearing: releasing the claim re-runs the autorun below, and
+		// that run must not build a replacement tip into disposed holders.
+		this._isDisposed = true;
+		this.clear();
+		super.dispose();
 	}
 }

@@ -74,10 +74,16 @@ export class ChatInputNoticeHost extends Disposable {
 
 	/** Claim or release `lane` on behalf of a producer that reports visibility. */
 	setOccupied(lane: ChatInputNoticeLane, occupied: boolean, focusTarget?: IChatInputNoticeFocusTarget): void {
-		this._leases.deleteAndDispose(lane);
-		if (occupied) {
-			this._leases.set(lane, this.occupy(lane, focusTarget));
+		if (!occupied) {
+			this._leases.deleteAndDispose(lane);
+			return;
 		}
+
+		// Claim before releasing the previous lease, so swapping the notice in a
+		// lane (or just refreshing its focus target) never leaves the lane
+		// momentarily free for lower-precedence content to flash into.
+		const lease = this.occupy(lane, focusTarget);
+		this._leases.set(lane, lease);
 	}
 
 	/** Whether content in `lane` should yield to something already showing. */
