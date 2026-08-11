@@ -26,18 +26,9 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"dev_device_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous device identifier supplied by the runtime." },
 		"is_staff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user is a GitHub or Microsoft staff member.", "isMeasurement": true },
 		"restricted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the SDK marked the event as restricted telemetry.", "isMeasurement": true },
-		"git_root": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth", "comment": "Restricted local root path of the repository associated with the SDK session." },
-		"repository": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Restricted repository identifier associated with the SDK session." },
-		"host_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Restricted bounded category of repository host." },
-		"repository_host": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Restricted repository host associated with the SDK session." },
-		"branch": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Restricted repository branch associated with the SDK session." },
-		"head_commit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Restricted repository head commit identifier associated with the SDK session." },
 		"${wildcard}": [{
 			"${prefix}": "feature.",
 			"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Feature flag value supplied by the Copilot CLI runtime." }
-		}, {
-			"${prefix}": "sdk_correlation_",
-			"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "SDK correlation identifier supplied by the Copilot CLI runtime." }
 		}]
 	}
 */
