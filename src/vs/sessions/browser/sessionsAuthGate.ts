@@ -52,6 +52,11 @@ export function shouldForceGitHubSignIn(allowSignedOutWhenUsable: boolean): bool
 	return !allowSignedOutWhenUsable;
 }
 
+/** Whether the GitHub workspace group should offer sign-in. */
+export function shouldShowGitHubWorkspaceGroupSignIn(signedIn: boolean, allowSignedOutWhenUsable: boolean): boolean {
+	return !signedIn && allowSignedOutWhenUsable;
+}
+
 /**
  * How the conditional-auth UI should treat the current default-account snapshot.
  * The crucial distinction is {@link Unresolved}: on startup
@@ -110,9 +115,9 @@ export interface IDiscoveredConfigNudgeContext {
 	 */
 	readonly usableWithoutGitHub: boolean;
 	/**
-	 * Whether the user has permanently silenced this nudge via its "Don't Show
-	 * Again" affordance. Once muted, the nudge never shows again regardless of
-	 * the other inputs.
+	 * Whether the user has already dismissed this nudge, which silences it for
+	 * good. Once muted, the nudge never shows again regardless of the other
+	 * inputs.
 	 */
 	readonly muted: boolean;
 }
