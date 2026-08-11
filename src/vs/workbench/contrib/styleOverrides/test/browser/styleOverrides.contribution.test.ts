@@ -56,7 +56,7 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	return element;
 }
 
-function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; indicator: HTMLElement } {
+function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
@@ -70,9 +70,9 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	const actionsContainer = appendElement(actionBar, 'actions-container');
 	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}${icon ? ' icon' : ''}`);
 	actionItem.tabIndex = 0;
-	appendElement(actionItem, 'action-label');
+	const actionLabel = appendElement(actionItem, 'action-label');
 	const indicator = appendElement(actionItem, 'active-item-indicator');
-	return { actionItem, indicator };
+	return { actionItem, actionLabel, indicator };
 }
 
 suite('StyleOverridesContribution', () => {
@@ -179,6 +179,11 @@ suite('StyleOverridesContribution', () => {
 		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
 		const explorerTitle = document.createElement('h2');
 		explorerTitleLabel.appendChild(explorerTitle);
+		const extensionsPart = appendElement(layoutService.mainContainer, 'part');
+		const extensionsTitleLabel = appendElement(appendElement(extensionsPart, 'title'), 'title-label');
+		const extensionsTitle = document.createElement('h2');
+		extensionsTitleLabel.appendChild(extensionsTitle);
+		const panelTab = createCompositeAction(layoutService.mainContainer, 35, true).actionLabel;
 
 		document.body.appendChild(layoutService.mainContainer);
 		store.add(toDisposable(() => layoutService.mainContainer.remove()));
@@ -187,6 +192,8 @@ suite('StyleOverridesContribution', () => {
 			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
+			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
 		};
 
@@ -203,17 +210,23 @@ suite('StyleOverridesContribution', () => {
 			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
 			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
+			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
 			layoutCount: layoutService.layoutCount,
 		}, {
 			beforeToggle: {
 				classApplied: false,
 				paneTitleTransform: 'capitalize',
 				explorerTitleTransform: 'none',
+				extensionsTitleTransform: 'capitalize',
+				panelTabTransform: 'capitalize',
 				layoutCount: 0,
 			},
 			classApplied: true,
 			paneTitleTransform: 'uppercase',
 			explorerTitleTransform: 'uppercase',
+			extensionsTitleTransform: 'uppercase',
+			panelTabTransform: 'uppercase',
 			layoutCount: 0,
 		});
 	});

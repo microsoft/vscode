@@ -822,7 +822,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': false,
 				'tags': ['experimental'],
-				'markdownDescription': localize({ key: 'modernUIUppercaseViewHeaders', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether view headers and Explorer workspace titles use uppercase text when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+				'markdownDescription': localize({ key: 'modernUIUppercaseViewHeaders', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether view headers, side bar titles, and panel tabs use uppercase text when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
 			},
 		}
 	});
