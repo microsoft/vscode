@@ -39,6 +39,18 @@ export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 	[META_LEGACY_DIFFS]: true,
 };
 
+/**
+ * The minimal key set that carries only the small persisted
+ * {@link META_CHANGES_SUMMARY} aggregate (no large diff blobs). Requested when a
+ * live changeset exists but is not authoritative for the chip — e.g. an
+ * evicted-but-warm multi-folder session whose live `branch`/`session`
+ * changesets are primary-only — so the caller loads the all-folder aggregate
+ * without paying for the diff blobs.
+ */
+export const CHANGES_SUMMARY_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGES_SUMMARY]: true,
+};
+
 /** The two static changeset kinds we publish by default. */
 export type StaticChangesetKind = 'branch' | 'session';
 
@@ -154,8 +166,8 @@ export interface IAgentHostChangesetService {
 	 * Returns the session-DB metadata keys to merge into a batched read for
 	 * `sessionUri` (so the session-list overlay can synthesise the `changes`
 	 * aggregate), OR `undefined` when live state already answers the
-	 * aggregate-counts question (loaded session or a ready live
-	 * `changeKind: 'session'` changeset state) so the caller can skip loading
+	 * aggregate-counts question (a loaded session, or a ready live changeset
+	 * state the summary is derived from) so the caller can skip loading
 	 * the potentially-large persisted diff blobs.
 	 */
 	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined;

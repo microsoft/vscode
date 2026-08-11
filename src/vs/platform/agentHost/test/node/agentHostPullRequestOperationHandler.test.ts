@@ -77,6 +77,7 @@ class TestGitService implements IAgentHostGitService {
 		this.calls.push(`commitAll:${message}`);
 		this.uncommitted = false;
 	}
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> {
 		this.calls.push('hasUpstream');
@@ -145,6 +146,9 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 		return this.existing;
 	}
 	async getIssueOrPullRequest(): Promise<GitHubIssueOrPullRequest> {
+		throw new Error('not used');
+	}
+	async findPullRequestByHeadSha(): Promise<CreatedPullRequest | undefined> {
 		throw new Error('not used');
 	}
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {

@@ -10,7 +10,8 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
-import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnablement } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { ModelConfiguration, PromptingStrategy, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnablement } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -29,6 +30,7 @@ import { Result } from '../../../../util/common/result';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -41,6 +43,22 @@ import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder, ReusedRequestKind }
 const testModelTelemetry: IStatelessNextEditModelTelemetry = {
 	modelName: 'test-speculative-patch-model',
 	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02WithRecentLineNumbers' }),
+};
+
+const testModelConfiguration: ModelConfiguration = {
+	modelName: 'test-speculative-patch-model',
+	promptingStrategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
+	includeTagsInCurrentFile: false,
+	lintOptions: undefined,
+};
+
+const testModelService: IInlineEditsModelService = {
+	_serviceBrand: undefined,
+	modelInfo: undefined,
+	onModelListUpdated: Event.None,
+	setCurrentModelId: async _modelId => { },
+	selectedModelConfiguration: () => testModelConfiguration,
+	defaultModelConfiguration: () => testModelConfiguration,
 };
 
 interface ICallRecord {
@@ -263,6 +281,7 @@ describe('NextEditProvider speculative requests', () => {
 			new NesHistoryContextProvider(workspace, git),
 			new NesXtabHistoryTracker(workspace, undefined, configService, expService),
 			undefined,
+			testModelService,
 			configService,
 			snippyService,
 			logService,

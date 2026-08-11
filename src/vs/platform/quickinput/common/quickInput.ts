@@ -14,6 +14,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
+import { ThemeColor } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
@@ -55,6 +56,8 @@ export interface IQuickItem {
 	 * directly.
 	 */
 	iconClass?: string;
+	/** Theme color applied to the quick item's icon. */
+	iconColor?: ThemeColor;
 	highlights?: IQuickItemHighlights;
 	buttons?: readonly IQuickInputButton[];
 	/**

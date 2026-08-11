@@ -199,13 +199,13 @@ class ControllableAutomationStorageService implements IAutomationStorageService 
 		return this.currentValue;
 	}
 
-	async read(): Promise<string | undefined> {
+	async read(_key: string): Promise<string | undefined> {
 		await this.readStarted.complete();
 		await this.readBarrier?.p;
 		return this.currentValue;
 	}
 
-	async compareAndSwap(expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+	async compareAndSwap(_key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
 		this.compareAndSwapCalls++;
 		this.beforeCompareAndSwap?.();
 		if (this.nextConflictValue !== undefined) {

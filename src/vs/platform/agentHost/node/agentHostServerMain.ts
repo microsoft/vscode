@@ -61,6 +61,7 @@ import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
 import { FileService } from '../../files/common/fileService.js';
 import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
@@ -89,6 +90,7 @@ import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './age
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
+import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -256,7 +258,7 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostGitService, gitService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)]);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], AgentHostLaunchKind.VSCodeCLI);
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
 	diServices.set(IAgentHostStateManager, agentService.stateManager);
@@ -405,20 +407,23 @@ async function main(): Promise<void> {
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+	const connectionTelemetryTracker = disposables.add(new AgentHostClientConnectionTelemetryTracker());
 
 	// Wire up protocol handler
-	disposables.add(new ProtocolServerHandler(
+	disposables.add(instantiationService.createInstance(
+		ProtocolServerHandler,
 		agentService,
 		agentService.stateManager,
 		wsServer,
 		{
+			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
+			connectionTelemetryTracker,
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: agentService.completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
 			otlpLogEmitter,
 		},
 		clientFileSystemProvider,
-		logService,
 	));
 
 	// Report ready

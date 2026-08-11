@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -82,7 +82,7 @@ export class ClaudeFileEditObserver extends Disposable {
 	 * the SDK yields a canonical `'assistant'` message (full
 	 * `tool_use.input` available).
 	 */
-	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>): void {
+	observeAssistant(message: Extract<SDKMessage, { type: 'assistant' }>, mode?: PermissionMode): void {
 		const content = message.message.content;
 		if (!Array.isArray(content)) {
 			return;
@@ -97,7 +97,7 @@ export class ClaudeFileEditObserver extends Disposable {
 				continue;
 			}
 			this._editToolPaths.set(block.id, { filePath, toolName: block.name, toolInput: block.input, modelId });
-			void this._editTracker.trackEditStart(filePath).catch(err =>
+			void this._editTracker.trackEditStart(filePath, mode).catch(err =>
 				this._logService.warn(`[ClaudeFileEditObserver] trackEditStart failed for ${filePath}: ${err}`));
 		}
 	}

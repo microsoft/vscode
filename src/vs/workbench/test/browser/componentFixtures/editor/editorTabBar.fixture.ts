@@ -15,7 +15,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -232,6 +233,28 @@ function singleDirtyEditorSpecs(): IEditorSpec[] {
 	];
 }
 
+function cannotCloseEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+		{ resource: file('/project/README.md'), icon: ThemeIcon.fromId(Codicon.markdown.id), pinned: true },
+	];
+}
+
+function cannotCloseDirtyEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, dirty: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+	];
+}
+
+function cannotCloseStickyEditorSpecs(): IEditorSpec[] {
+	return [
+		{ resource: file('/project/Changes'), capabilities: EditorInputCapabilities.CannotClose, pinned: true, sticky: true, active: true },
+		{ resource: file('/project/src/app/main.ts'), pinned: true },
+	];
+}
+
 // ============================================================================
 // File decorations
 // ============================================================================
@@ -370,6 +393,10 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	const contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IContextKeyService, contextKeyService);
 
+	if (options.headerMenuIds) {
+		instantiationService.stub(IMenuService, disposableStore.add(instantiationService.createInstance(MenuService)));
+	}
+
 	if (options.breadcrumbs) {
 		instantiationService.stub(IBreadcrumbsService, new BreadcrumbsService());
 		instantiationService.stub(IOutlineService, new class extends mock<IOutlineService>() { }());
@@ -437,7 +464,7 @@ export function renderEditorTabBarFixture(ctx: ComponentFixtureContext, options:
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
-	container.classList.toggle('style-override', options.modernUI);
+	container.classList.toggle('modern-ui-tabs', options.modernUI);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 
@@ -591,6 +618,15 @@ function createFixtures(modernUI: boolean, additionalThemes: readonly ComponentF
 
 		// Single-tab mode with a dirty editor: the single tab control renders the dirty dot.
 		SingleTabDirty: defineComponentFixture({ render: render(modernUI, { partOptions: { showTabs: 'single' }, editors: singleDirtyEditorSpecs() }) }),
+
+		// Protected editors hide close affordances while ordinary neighboring tabs remain closeable.
+		CannotCloseActive: defineComponentFixture({ render: render(modernUI, { editors: cannotCloseEditorSpecs() }), additionalThemes }),
+
+		// Protected dirty editors retain the modified indicator without exposing a close action.
+		CannotCloseDirty: defineComponentFixture({ render: render(modernUI, { editors: cannotCloseDirtyEditorSpecs() }), additionalThemes }),
+
+		// Sticky protected editors retain the Unpin affordance because unpinning does not close them.
+		CannotCloseSticky: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabSizing: 'normal', tabActionUnpinVisibility: true }, editors: cannotCloseStickyEditorSpecs() }), additionalThemes }),
 
 		// Pinned tabs on a separate row combined with compact pinned sizing.
 		PinnedSeparateRowCompact: defineComponentFixture({ render: render(modernUI, { partOptions: { pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }) }),
