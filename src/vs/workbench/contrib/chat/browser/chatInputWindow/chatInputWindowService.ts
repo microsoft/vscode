@@ -54,6 +54,7 @@ import { setupVoiceInputDecorations } from '../voiceClient/voiceInputDecorations
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { getQuickInputWidth } from '../../../../../platform/quickinput/browser/quickInputController.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
@@ -62,7 +63,6 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
-const CHAT_INPUT_WINDOW_MAX_WIDTH = 600;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
 
@@ -546,7 +546,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
-			const width = Math.max(this._defaultWidth(), win.outerWidth);
+			const width = this._defaultWidth();
 			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(surface.children)
 				.filter(child => child !== this._row)
@@ -1187,11 +1187,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		// Match Quick Chat's width so the model-detail hover has room to sit
-		// beside the picker: golden-cut of the invoking window, capped like the
-		// quick input widget (MAX_WIDTH = 600).
-		const width = this._defaultWidth();
-		return this._positionedBounds(width, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+		return this._positionedBounds(this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
 	}
 
 	private _positionedBounds(width: number, height: number): IRectangle {
@@ -1237,10 +1233,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const invokingWindowWidth = this._invokingWindowBounds.width > 0
 			? this._invokingWindowBounds.width
 			: mainWindow.outerWidth;
-		const availableWidth = invokingWindowWidth > 0
-			? invokingWindowWidth
-			: CHAT_INPUT_WINDOW_MAX_WIDTH / 0.62;
-		return Math.round(Math.min(availableWidth * 0.62, CHAT_INPUT_WINDOW_MAX_WIDTH));
+		return Math.round(getQuickInputWidth(invokingWindowWidth));
 	}
 
 	private _windowBounds(window: Window): IRectangle {
