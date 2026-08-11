@@ -819,7 +819,7 @@ suite('CopilotAgent', () => {
 				enhanced: telemetryService.enhancedEvents,
 				internal: telemetryService.internalEvents,
 			}, {
-				generic: ['copilotCli/unknown_restricted', 'copilotCli/tool_call_executed'],
+				generic: ['copilotSdk/unknown_restricted', 'copilotSdk/tool_call_executed'],
 				enhanced: ['engine.messages.length'],
 				internal: ['engine.messages.length'],
 			});
