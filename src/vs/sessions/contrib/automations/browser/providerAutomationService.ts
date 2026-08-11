@@ -8,10 +8,10 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IAutomation, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAutomationSnapshot, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAutomation, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
 import { AutomationService } from './automationService.js';
 
 interface IAutomationStoreEntry {
@@ -34,7 +34,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	private staleRunRecoveryReason: string | undefined;
 	private readonly recoveredStores = new Set<ISessionsProviderAutomations>();
 
-	readonly automations: IObservable<readonly IAutomation[]>;
+	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 
 	constructor(
@@ -70,7 +70,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.queueMigration();
 	}
 
-	getAutomation(id: string): IAutomation | undefined {
+	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.findAutomationStore(id)?.store.getAutomation(id);
 	}
 
@@ -83,18 +83,18 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return result;
 	}
 
-	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomation> {
+	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		return this.getCreationStore(options).createAutomation(options, mutationGuard);
 	}
 
-	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomation> {
+	async updateAutomation(id: string, patch: IUpdateAutomationOptions): Promise<IAutomationDescriptor> {
 		const source = this.requireAutomationStore(id);
 		const updated = await source.updateAutomation(id, patch);
 		await this.retargetAutomationStorageIfNeeded(source, updated);
 		return updated;
 	}
 
-	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomation, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
+	async updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult> {
 		const source = this.requireAutomationStore(id);
 		const result = await source.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 		if (result.kind === 'updated') {
@@ -182,8 +182,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.legacyStore;
 	}
 
-	private async retargetAutomationStorageIfNeeded(sourceStore: ISessionsProviderAutomations, initialAutomation: IAutomation): Promise<void> {
-		let snapshot: IAutomationSnapshot = {
+	private async retargetAutomationStorageIfNeeded(sourceStore: ISessionsProviderAutomations, initialAutomation: IAutomationDescriptor): Promise<void> {
+		let snapshot: IAutomation = {
 			automation: initialAutomation,
 			runs: sourceStore.runsFor(initialAutomation.id).get(),
 		};
@@ -270,8 +270,8 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		}
 	}
 
-	private async migrateLegacyAutomation(initialAutomation: IAutomation): Promise<void> {
-		let snapshot: IAutomationSnapshot = {
+	private async migrateLegacyAutomation(initialAutomation: IAutomationDescriptor): Promise<void> {
+		let snapshot: IAutomation = {
 			automation: initialAutomation,
 			runs: this.legacyStore.runsFor(initialAutomation.id).get(),
 		};
@@ -311,7 +311,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.logService.warn(`[ProviderAutomationService] Automation '${snapshot.automation.id}' kept changing during legacy migration; leaving it in legacy storage.`);
 	}
 
-	private async rollbackAutomationSnapshotIfUnchanged(store: ISessionsProviderAutomations, snapshot: IAutomationSnapshot): Promise<boolean> {
+	private async rollbackAutomationSnapshotIfUnchanged(store: ISessionsProviderAutomations, snapshot: IAutomation): Promise<boolean> {
 		const result = await store.removeAutomationSnapshotIfUnchanged(snapshot);
 		switch (result.kind) {
 			case 'removed':
