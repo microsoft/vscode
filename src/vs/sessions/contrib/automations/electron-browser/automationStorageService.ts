@@ -7,7 +7,7 @@ import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableGetValueRequest } from '../../../../platform/storage/common/storageIpc.js';
-import { AUTOMATION_STORAGE_KEY, IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../common/automationStorageService.js';
+import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../common/automationStorageService.js';
 
 const baseRequest: IBaseSerializableStorageRequest = {
 	profile: undefined,
@@ -26,18 +26,18 @@ class NativeAutomationStorageService implements IAutomationStorageService {
 		this.channel = mainProcessService.getChannel('storage');
 	}
 
-	read(): Promise<string | undefined> {
+	read(key: string): Promise<string | undefined> {
 		const request: ISerializableGetValueRequest = {
 			...baseRequest,
-			key: AUTOMATION_STORAGE_KEY,
+			key,
 		};
 		return this.channel.call('getValue', request);
 	}
 
-	compareAndSwap(expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+	compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
 		const request: ISerializableCompareAndSwapRequest = {
 			...baseRequest,
-			key: AUTOMATION_STORAGE_KEY,
+			key,
 			expectedValue,
 			newValue,
 		};

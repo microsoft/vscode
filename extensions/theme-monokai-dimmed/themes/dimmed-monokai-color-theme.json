@@ -65,7 +65,9 @@
 		"terminal.ansiBrightMagenta": "#AE81FF",
 		"terminal.ansiBrightCyan": "#66D9EF",
 		"terminal.ansiBrightWhite": "#f8f8f2",
-		"terminal.inactiveSelectionBackground": "#676b7140"
+		"terminal.inactiveSelectionBackground": "#676b7140",
+		// modern ui
+		"surface.border": "#00000000",
 	},
 	"tokenColors": [
 		{

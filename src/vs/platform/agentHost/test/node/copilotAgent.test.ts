@@ -33,6 +33,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -181,6 +182,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async commitAll(): Promise<void> { }
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pull(): Promise<void> { }
@@ -2674,6 +2676,49 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('BYOK models make Copilot authentication optional only while signed-out operation is enabled', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent, configurationService } = createTestAgentContext(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		const connection: IByokLmBridgeConnection = {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		};
+		disposables.add(byokBridgeRegistry.register('renderer', connection));
+		const copilotRequired = () => agent.getProtectedResources()
+			.find(resource => resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource)?.required !== false;
+
+		try {
+			const initiallyRequired = copilotRequired();
+			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+			const requiredWithoutByok = copilotRequired();
+			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
+			await waitForState(agent.models, models => models.length === 1);
+			const optionalWithByok = copilotRequired();
+			modelSnapshots.fire([]);
+			await waitForState(agent.models, models => models.length === 0);
+			const requiredAfterHide = copilotRequired();
+			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: false });
+			const requiredAfterDisable = copilotRequired();
+
+			assert.deepStrictEqual({
+				initiallyRequired,
+				requiredWithoutByok,
+				optionalWithByok,
+				requiredAfterHide,
+				requiredAfterDisable,
+			}, {
+				initiallyRequired: true,
+				requiredWithoutByok: true,
+				optionalWithByok: false,
+				requiredAfterHide: true,
+				requiredAfterDisable: true,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('BYOK models from multiple Gemini provider groups have unique picker identifiers', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const agent = createTestAgent(disposables, { byokBridgeRegistry });
@@ -3099,7 +3144,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3155,7 +3200,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3204,7 +3249,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
