@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,6 +30,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AgentHostClientConnectionTelemetryTracker } from '../../node/agentHostClientConnectionTelemetry.js';
+import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -127,7 +127,6 @@ class MockAgentService implements IAgentService {
 	readonly listedSessions: IAgentSessionMetadata[] = [];
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
-	readonly managedSettingsPermissionsByClient = new Map<string, ManagedSettingsPermissions>();
 	shutdownCalls = 0;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
@@ -195,12 +194,6 @@ class MockAgentService implements IAgentService {
 	async shutdown(): Promise<void> { this.shutdownCalls++; }
 	async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> { return { version: 'test', os: 'test', arch: 'test', proxySettings: {}, proxyEnv: {}, endpoints: [] }; }
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return this.managedSettingsDiagnostics; }
-	async setClientManagedSettingsPermissions(clientId: string, permissions: ManagedSettingsPermissions): Promise<void> {
-		this.managedSettingsPermissionsByClient.set(clientId, permissions);
-	}
-	removeClientManagedSettingsPermissions(clientId: string): void {
-		this.managedSettingsPermissionsByClient.delete(clientId);
-	}
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	getAuthToken(): string | undefined { return undefined; }
@@ -287,6 +280,7 @@ suite('ProtocolServerHandler', () => {
 	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
+	let managedSettingsService: AgentHostManagedSettingsService;
 	let handler: ProtocolServerHandler;
 	let fileSystemProvider: AgentHostFileSystemProvider;
 	let logService: CountingLogService;
@@ -326,6 +320,7 @@ suite('ProtocolServerHandler', () => {
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
+		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
 		disposables.add(agentService);
@@ -337,6 +332,7 @@ suite('ProtocolServerHandler', () => {
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
 			telemetryService,
+			managedSettingsService,
 		));
 	});
 
@@ -540,6 +536,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new AgentHostFileSystemProvider()),
 			logService,
 			NullTelemetryService,
+			managedSettingsService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -556,7 +553,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
 			shutdownCalls: agentService.shutdownCalls,
-			managedSettingsPermissions: agentService.managedSettingsPermissionsByClient.get('client-extension-disabled'),
+			managedSettingsPermissions: managedSettingsService.permissions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
@@ -1298,6 +1295,7 @@ suite('ProtocolServerHandler', () => {
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				logService,
 				telemetryService,
+				managedSettingsService,
 			)));
 		}
 
@@ -1357,6 +1355,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new FailingAgentHostFileSystemProvider()),
 			logService,
 			localTelemetry,
+			managedSettingsService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -1393,6 +1392,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new FailingReconnectAgentHostFileSystemProvider()),
 			logService,
 			localTelemetry,
+			managedSettingsService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2477,7 +2477,7 @@ suite('ProtocolServerHandler', () => {
 		}));
 		await Promise.resolve();
 
-		assert.deepStrictEqual(agentService.managedSettingsPermissionsByClient.get('client-managed-settings-contribution'), {
+		assert.deepStrictEqual(managedSettingsService.permissions, {
 			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
 		});
@@ -2493,7 +2493,7 @@ suite('ProtocolServerHandler', () => {
 
 			await new Promise(resolve => setTimeout(resolve, 30_001));
 
-			assert.strictEqual(agentService.managedSettingsPermissionsByClient.has('client-managed-settings-disconnect'), false);
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
 		});
 	});
 
@@ -2543,6 +2543,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new AgentHostFileSystemProvider()),
 			logService,
 			NullTelemetryService,
+			managedSettingsService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2680,6 +2681,7 @@ suite('ProtocolServerHandler', () => {
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				new NullLogService(),
 				NullTelemetryService,
+				managedSettingsService,
 			));
 		});
 
@@ -2850,6 +2852,7 @@ suite('ProtocolServerHandler', () => {
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				new NullLogService(),
 				NullTelemetryService,
+				managedSettingsService,
 			));
 		});
 

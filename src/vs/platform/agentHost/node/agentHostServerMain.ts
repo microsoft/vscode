@@ -263,6 +263,7 @@ async function main(): Promise<void> {
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
 	diServices.set(IAgentHostStateManager, agentService.stateManager);
+	diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
 	const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 	diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 	agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -280,7 +281,6 @@ async function main(): Promise<void> {
 		diServices.set(IEditSurvivalReporterFactory, instantiationService.createInstance(EditSurvivalReporterFactory));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
-		diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);

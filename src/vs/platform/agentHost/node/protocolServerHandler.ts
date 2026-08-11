@@ -47,6 +47,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
 	buildOtlpLogsChannelUri,
@@ -368,6 +369,7 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
@@ -478,7 +480,7 @@ export class ProtocolServerHandler extends Disposable {
 					if (client) {
 						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
 						if (isManagedSettingsPermissions(permissions)) {
-							void this._agentService.setClientManagedSettingsPermissions(client.clientId, permissions);
+							this._managedSettingsService.setClientPermissions(client.clientId, permissions);
 						} else {
 							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
 						}
@@ -920,7 +922,7 @@ export class ProtocolServerHandler extends Disposable {
 		if (record?.state === 'grace') {
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
-				this._agentService.removeClientManagedSettingsPermissions(clientId);
+				this._managedSettingsService.removeClientPermissions(clientId);
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {

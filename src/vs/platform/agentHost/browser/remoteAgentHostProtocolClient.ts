@@ -624,6 +624,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 
 			this._applyReconnectResult(result, freshInitialize);
+			this._updateManagedSettingsPermissions(true);
 			if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
 				await this._restoreAuthenticationAfterFreshInitialize();
 				await this._restoreSubscriptionsAfterFreshInitialize(result.snapshots);
@@ -637,7 +638,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			// reconnect result itself carries none), which would otherwise leave
 			// early-read config like the migrate flag at its host-side default.
 			this._forwardClientConfig(false);
-			this._updateManagedSettingsPermissions(true);
 
 			// Drain the outbox BEFORE the transition so listeners reacting to
 			// {@link onDidChangeConnectionState} that synchronously dispatch see

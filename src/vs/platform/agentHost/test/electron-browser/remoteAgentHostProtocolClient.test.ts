@@ -1834,6 +1834,12 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 
 			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
+			assert.ok(
+				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),
+				'managed settings should be restored before authentication and subscriptions',
+			);
 			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: restoredAuthenticate.id, result: {} });
 			const restoredSessionSubscribe = await waitForRequestAt(reconnectTransport, 'subscribe', 0);
 			assert.strictEqual((restoredSessionSubscribe.params as { channel: string }).channel, sessionUri.toString());

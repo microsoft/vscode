@@ -22,7 +22,6 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
 import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -4299,14 +4298,6 @@ export class AgentService extends Disposable implements IAgentService {
 				return { provider: provider.id, error: error instanceof Error ? error.message : String(error) };
 			}
 		}));
-	}
-
-	async setClientManagedSettingsPermissions(clientId: string, permissions: ManagedSettingsPermissions): Promise<void> {
-		this._managedSettingsService.setClientPermissions(clientId, permissions);
-	}
-
-	removeClientManagedSettingsPermissions(clientId: string): void {
-		this._managedSettingsService.removeClientPermissions(clientId);
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
