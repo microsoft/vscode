@@ -346,6 +346,11 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
 	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	readonly autoDiscount?: number;
+	/**
 	 * Normalized token pricing in AICs per million tokens.
 	 * Computed from the raw billing token_prices and normalized
 	 * to per-million-token rates based on batch_size.

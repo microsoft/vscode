@@ -176,7 +176,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 suite('AgentHostCommitOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test.skip('generates a commit message, commits all changes, and refreshes changesets', async () => {
+	test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
@@ -194,7 +194,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
@@ -216,7 +216,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		});
 	});
 
-	test.skip('returns success when post-commit refresh fails', async () => {
+	test('returns success when post-commit refresh fails', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
@@ -232,7 +232,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});

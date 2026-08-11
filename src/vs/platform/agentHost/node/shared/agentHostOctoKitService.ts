@@ -21,6 +21,7 @@ export interface CreatedPullRequest {
 	readonly url: string;
 	readonly number: number;
 	readonly nodeId?: string;
+	readonly createdAt?: number;
 }
 
 /**
@@ -33,6 +34,7 @@ interface GitHubPullRequestResponseItem {
 	readonly number?: unknown;
 	readonly html_url?: unknown;
 	readonly node_id?: unknown;
+	readonly created_at?: unknown;
 	readonly state?: unknown;
 	readonly head?: { readonly sha?: unknown };
 }
@@ -41,8 +43,15 @@ function toCreatedPullRequest(item: GitHubPullRequestResponseItem | undefined): 
 	const html_url = item?.html_url;
 	const number = item?.number;
 	const node_id = item?.node_id;
+	const created_at = item?.created_at;
+	const createdAt = typeof created_at === 'string' ? Date.parse(created_at) : undefined;
 	return typeof html_url === 'string' && typeof number === 'number'
-		? { number, url: html_url, nodeId: typeof node_id === 'string' ? node_id : undefined }
+		? {
+			number,
+			url: html_url,
+			nodeId: typeof node_id === 'string' ? node_id : undefined,
+			...(createdAt !== undefined && Number.isFinite(createdAt) ? { createdAt } : {}),
+		}
 		: undefined;
 }
 

@@ -302,7 +302,7 @@ export interface IBrowserViewWorkbenchService {
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState): BrowserEditorInput;
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI): BrowserEditorInput;
 
 	/**
 	 * Clear all storage data for the global browser session

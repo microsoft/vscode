@@ -61,8 +61,6 @@ export interface INewChatVoiceComposer {
 	getVoiceModels(): readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Select a model by its exact frontend identifier. */
 	selectVoiceModel(identifier: string): boolean;
-	/** Attach files to this draft composer. */
-	attach(uris: URI[]): void;
 }
 
 export const INewChatVoiceTargetService = createDecorator<INewChatVoiceTargetService>('newChatVoiceTargetService');

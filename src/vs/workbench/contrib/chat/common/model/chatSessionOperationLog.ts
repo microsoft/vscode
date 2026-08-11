@@ -139,6 +139,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
+	hiddenFromTranscript: Adapt.v(m => m.isHiddenFromTranscript),
 	isCanceled: Adapt.v(() => undefined), // deprecated, modelState is used instead
 
 	response: Adapt.t(m => m.response?.entireResponse.value.filter((p): p is PersistedResponsePart => p.kind !== 'mcpAuthenticationRequired' && p.kind !== 'mcpServersStartingSlow' && p.kind !== 'voiceProgress'), Adapt.array(responsePartSchema)),

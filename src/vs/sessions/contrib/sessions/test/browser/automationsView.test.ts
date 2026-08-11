@@ -262,7 +262,9 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	markAllReadSessionCount = 0;
 	getSessionCalls = 0;
 	deleteSessionCalls = 0;
+	cancelCurrentRequestCalls = 0;
 	deleteError: Error | undefined;
+	cancelError: Error | undefined;
 	readonly markAllReadCompleted = new DeferredPromise<void>();
 
 	override getSession(resource: URI): ISession | undefined {
@@ -297,6 +299,13 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		}
 		this.deletedSessionResources.add(session.resource.toString());
 		this.sessionDeletedEmitter.fire(session);
+	}
+
+	override async cancelCurrentRequest(): Promise<void> {
+		this.cancelCurrentRequestCalls++;
+		if (this.cancelError) {
+			throw this.cancelError;
+		}
 	}
 
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
@@ -664,6 +673,51 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([run({ status: 'running' })]);
 
 		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
+	});
+
+	test('stops an active run without opening its session', async () => {
+		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+
+		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
+		assert.ok(stopButton);
+		stopButton.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			ariaLabel: stopButton.getAttribute('aria-label'),
+			cancelCurrentRequestCalls: sessionsManagementService.cancelCurrentRequestCalls,
+			openCalls: sessionsService.openCalls,
+			deleteButtonVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
+		}, {
+			ariaLabel: 'Stop session for Daily review',
+			cancelCurrentRequestCalls: 1,
+			openCalls: 0,
+			deleteButtonVisible: false,
+		});
+	});
+
+	test('re-enables Stop when cancellation fails', async () => {
+		const { automationService, dialogService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+		sessionsManagementService.cancelError = new Error('stop failed');
+
+		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
+		assert.ok(stopButton);
+		stopButton.click();
+		await dialogService.errorCalled.p;
+
+		assert.deepStrictEqual({
+			ariaDisabled: stopButton.getAttribute('aria-disabled'),
+			disabledClass: stopButton.classList.contains('disabled'),
+			error: dialogService.errors,
+		}, {
+			ariaDisabled: 'false',
+			disabledClass: false,
+			error: [{ message: 'Failed to stop the automation run session.', detail: 'stop failed' }],
+		});
 	});
 
 	test('deleting a run session confirms the permanent deletion without opening it', async () => {

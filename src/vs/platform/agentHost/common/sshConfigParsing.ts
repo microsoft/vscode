@@ -72,7 +72,12 @@ export function parseSSHGOutput(stdout: string): ISSHResolvedConfig {
 		}
 	}
 
-	const strictHostKeyChecking = map.get('stricthostkeychecking')?.toLowerCase();
+	const strictHostKeyCheckingValue = map.get('stricthostkeychecking')?.toLowerCase();
+	const strictHostKeyChecking = strictHostKeyCheckingValue === 'true'
+		? 'yes'
+		: strictHostKeyCheckingValue === 'false'
+			? 'no'
+			: strictHostKeyCheckingValue;
 
 	return {
 		hostname: map.get('hostname') ?? '',

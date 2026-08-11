@@ -12,7 +12,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { resolveAutomaticVoiceLanguage, VoiceClientService } from '../../../browser/voiceClient/voiceClientService.js';
-import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription, normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
+import { IVoiceAudioResponse, IVoiceBargeIn, IVoiceConnectionIssue, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSpeechStarted, IVoiceTranscription, normalizeAgentsVoiceId } from '../../../common/voiceClient/voiceClientService.js';
 
 class TestWebSocket {
 	static instance: TestWebSocket | undefined;
@@ -817,4 +817,136 @@ suite('VoiceClientService', () => {
 		service.disconnect();
 		assert.strictEqual(service.willReconnect, false);
 	});
+
+	test('treats a registry fatal code as terminal and does not reconnect', async () => {
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', {
+			code: 4003,
+			reason: 'Voice Mode needs a verified @microsoft.com email',
+		}));
+
+		assert.strictEqual(fatal.length, 1);
+		assert.strictEqual(fatal[0].code, 4003);
+		assert.strictEqual(fatal[0].kind, 'fatal');
+		assert.strictEqual(fatal[0].reason, 'Voice Mode needs a verified @microsoft.com email');
+	});
+
+	test('reports a clean close as terminal so the UI cannot strand on Reconnecting', async () => {
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 1001, reason: 'Session idle timeout' }));
+
+		assert.strictEqual(fatal.length, 1);
+		assert.strictEqual(fatal[0].kind, 'expected');
+	});
+
+	test('keeps reconnecting for a transient registry code but says why', async () => {
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		const issues: IVoiceConnectionIssue[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		store.add(service.onConnectionIssue(event => issues.push(event)));
+
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'Cannot reach GitHub' }));
+
+		assert.strictEqual(fatal.length, 0, 'a transient code must not be terminal');
+		assert.deepStrictEqual(issues, [{ code: 4503, reason: 'Cannot reach GitHub' }]);
+	});
+
+	test('a rejected connection does not refill the reconnect budget', async () => {
+		const { service } = createService();
+		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
+		await service.connect(createTestWindow());
+
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1);
+
+		reconnect.call(service);
+		socket().onopen?.();
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1, 'onopen must not reset the budget');
+
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 2);
+	});
+
+	test('a recoverable close reports its reason after the disconnect is visible', async () => {
+		const { service } = createService();
+		const order: string[] = [];
+		store.add(service.onDidChangeConnectionState(connected => order.push(`connected:${connected}`)));
+		store.add(service.onConnectionIssue(e => order.push(`issue:${e.reason}`)));
+
+		await service.connect(createTestWindow());
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'Cannot reach GitHub' }));
+
+		assert.deepStrictEqual(order, ['connected:true', 'connected:false', 'issue:Cannot reach GitHub']);
+	});
+
+	test('a confirmed session resets the reconnect budget', async () => {
+		const { service } = createService();
+		await service.connect(createTestWindow());
+		const webSocket = socket();
+		webSocket.onopen?.();
+		webSocket.onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 1);
+
+		(Reflect.get(service, '_connectWebSocket') as () => void).call(service);
+		socket().onopen?.();
+		socket().onmessage?.(new mainWindow.MessageEvent('message', {
+			data: JSON.stringify({ type: 'session_init', session_id: 'session-1' }),
+		}));
+
+		assert.strictEqual(Reflect.get(service, '_reconnectAttempts'), 0);
+	});
+
+	test('reports a missing backend URL instead of failing silently', async () => {
+		const productWithoutUrl: IProductService = { _serviceBrand: undefined, ...product, voiceWsUrl: '' };
+		const configurationService = new TestConfigurationService({});
+		const service = store.add(new VoiceClientService(configurationService, new NullLogService(), productWithoutUrl));
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+
+		await service.connect(createTestWindow());
+
+		assert.strictEqual(fatal.length, 1);
+		assert.strictEqual(fatal[0].clientSide, true);
+	});
+
+
+	test('gives up after the reconnect budget rather than retrying for minutes', async () => {
+		// The budget is deliberately short: a user watching a reconnect would rather
+		// be told it failed than wait. Pin it so it cannot silently grow again.
+		const { service } = createService();
+		const fatal: IVoiceFatalDisconnect[] = [];
+		store.add(service.onFatalDisconnect(event => fatal.push(event)));
+		await service.connect(createTestWindow());
+
+		const reconnect = Reflect.get(service, '_connectWebSocket') as () => void;
+		const started = Date.now() - 61_000;
+		Reflect.set(service, '_reconnectStartedAt', started);
+
+		socket().onopen?.();
+		socket().onclose?.(new mainWindow.CloseEvent('close', { code: 4503, reason: 'GitHub' }));
+
+		assert.strictEqual(fatal.length, 1, 'an exhausted budget must report itself');
+		assert.strictEqual(fatal[0].kind, 'fatal');
+		assert.strictEqual(service.willReconnect, false, 'no retry may remain scheduled');
+		void reconnect;
+	});
+
 });

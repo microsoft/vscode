@@ -9,7 +9,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -93,7 +93,12 @@ export class ActivitybarPart extends Part {
 	}
 
 	private get floatingHorizontalGutter(): number {
-		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_MARGIN * 2 : 0;
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			return 0;
+		}
+
+		return ActivitybarPart.FLOATING_MARGIN * 2
+			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_INNER_MARGIN : 0);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());

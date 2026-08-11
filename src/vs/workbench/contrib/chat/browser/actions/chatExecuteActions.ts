@@ -257,7 +257,7 @@ class ChatSubmitPendingAction extends Action2 {
 			title: localize2('interactive.submitPending.label', "Routing Request…"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.loading,
+			icon: ThemeIcon.modify(Codicon.loading, 'spin'),
 			precondition: ChatContextKeys.inputRouting,
 			menu: {
 				id: MenuId.ChatExecute,

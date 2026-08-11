@@ -9,10 +9,12 @@ import type * as http from 'http';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import {
+	CopilotApiError,
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../../../node/shared/copilotApiService.js';
 import { CodexProxyService, remapCodexReviewerModel } from '../../../node/codex/codexProxyService.js';
+import { extractForwardedErrorInfo } from '../../../node/shared/proxyChatError.js';
 
 // #region Test fakes
 
@@ -30,6 +32,7 @@ class FakeCopilotApiService implements ICopilotApiService {
 
 	readonly responsesCalls: IResponsesCall[] = [];
 	readonly modelsCalls: { githubToken: string; options: ICopilotApiServiceRequestOptions | undefined }[] = [];
+	responsesError: Error | undefined;
 	readonly modelsResult = [
 		{ id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] },
 		{ id: 'claude-sonnet', name: 'Claude Sonnet', supported_endpoints: ['/v1/messages'] },
@@ -50,6 +53,9 @@ class FakeCopilotApiService implements ICopilotApiService {
 
 	async responses(githubToken: string, body: string, options?: ICopilotApiServiceRequestOptions): Promise<Response> {
 		this.responsesCalls.push({ githubToken, body, options });
+		if (this.responsesError) {
+			throw this.responsesError;
+		}
 		const stream = new ReadableStream<Uint8Array>({
 			start(controller) {
 				controller.enqueue(new TextEncoder().encode('event: response.completed\ndata: {}\n\n'));
@@ -146,6 +152,47 @@ suite('CodexProxyService', () => {
 				body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
 			});
 			assert.strictEqual(fake.responsesCalls.at(-1)?.options?.headers?.['User-Agent'], 'vscode_codex/1.2.3');
+		});
+	});
+
+	test('preserves endpoint discovery authentication failures', async () => {
+		await withProxy(async (handle, fake) => {
+			fake.responsesError = new CopilotApiError(401, {
+				type: 'error',
+				error: { type: 'api_error', message: '{"message":"Bad credentials"}' },
+				request_id: null,
+			}, 'Copilot endpoint discovery failed: 401 Unauthorized — {"message":"Bad credentials"}');
+
+			const response = await postResponses(`${handle.baseUrl}/v1/responses`, {
+				headers: { 'Authorization': `Bearer ${handle.nonce}` },
+				body: JSON.stringify({ model: 'gpt-5', stream: true, input: [] }),
+			});
+			const error = JSON.parse(response.body).error as { type: string; message: string };
+
+			assert.deepStrictEqual({
+				status: response.status,
+				type: error.type,
+				error: extractForwardedErrorInfo(error.message),
+			}, {
+				status: 401,
+				type: 'api_error',
+				error: {
+					message: 'Copilot endpoint discovery failed: 401 Unauthorized — {"message":"Bad credentials"}',
+					_meta: {
+						chatError: {
+							fetchError: {
+								type: 'agent_unauthorized',
+								reason: '{"message":"Bad credentials"}',
+								requestId: '',
+								capiError: {
+									code: 'api_error',
+									message: '{"message":"Bad credentials"}',
+								},
+							},
+						},
+					},
+				},
+			});
 		});
 	});
 

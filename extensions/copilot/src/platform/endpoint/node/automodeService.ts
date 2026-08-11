@@ -8,13 +8,12 @@ import type { ChatRequest } from 'vscode';
 import { FetchedValue } from '../../../shared-fetch-utils/common/fetchedValue';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Emitter, type Event } from '../../../util/vs/base/common/event';
-import { Disposable, DisposableMap, MutableDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
-import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
 import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
 import { createCapiClientFetchedValue } from '../../networking/common/capiClientFetchedValue';
@@ -166,17 +165,15 @@ export interface IAutomodeService {
 
 	/**
 	 * Resolves the endpoint backing the "Auto" model picker entry. The picker
-	 * has no prompt, so this only carries display metadata; it may perform the
-	 * discount probe described on {@link getAutoPickerMetadata}.
+	 * has no prompt, so this only carries display metadata.
 	 */
 	resolveAutoModePickerEndpoint(knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
 
 	/**
-	 * Discount metadata for the "Auto" picker entry, persisted across windows.
-	 * `/auto` has no prompt-free variant, so if no discount has ever been seen
-	 * this issues a one-time probe with a placeholder prompt.
+	 * Discount metadata for the "Auto" picker entry, derived from the
+	 * `billing.auto_discount` each model advertises in `/models`.
 	 */
-	getAutoPickerMetadata(): Promise<AutoModePickerMetadata | undefined>;
+	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata;
 
 	/**
 	 * Whether the Auto model should offer the tier picker. Tiers are a `POST /auto`
@@ -216,18 +213,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private _lastRoutingDecision: AutoModeRoutingDecision | undefined;
 	/** Set on a 404 (API-version or feature-flag gate); pins us to V1. */
 	private _autoV2Unavailable = false;
-	/** Discounts from the most recent `POST /auto` response. */
-	private _lastAutoV2Discounts: Record<string, number> | undefined;
-	/** Persists discounts so the picker label survives a restart. */
-	private static readonly AUTO_V2_DISCOUNTS_STORAGE_KEY = 'copilot.autoMode.v2.lastDiscountedCosts';
-	/** Placeholder prompt used to read discounts. See {@link _probeAutoV2Discounts}. */
-	private static readonly DISCOUNT_PROBE_PROMPT = 'MODEL_PICKER_DISCOUNT_RESOLUTION - REPLACE ME';
 	/** Upper bound on live V2 sessions. See {@link _pruneAutoV2Cache}. */
 	private static readonly AUTO_V2_CACHE_MAX_ENTRIES = 50;
-	/** In-flight discount probe, so concurrent picker refreshes share one call. */
-	private _autoV2DiscountProbe: Promise<void> | undefined;
-	/** Session used only to read discounts for the picker on the legacy flow. */
-	private readonly _pickerTokenBank = this._register(new MutableDisposable<AutoModeTokenBank>());
 	private readonly _onDidChangeAutoModeTierSupport = this._register(new Emitter<void>());
 	readonly onDidChangeAutoModeTierSupport = this._onDidChangeAutoModeTierSupport.event;
 	/** Last announced {@link areAutoModeTiersSupported}. See {@link _updateAutoModeTierSupport}. */
@@ -243,10 +230,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IVSCodeExtensionContext private readonly _extensionContext: IVSCodeExtensionContext,
 	) {
 		super();
-		this._lastAutoV2Discounts = this._extensionContext.globalState.get<Record<string, number>>(AutomodeService.AUTO_V2_DISCOUNTS_STORAGE_KEY);
 		this._tierSupportAnnounced = this.areAutoModeTiersSupported();
 		// Covers both settings and their experiment treatments: a treatment
 		// refresh is published as a configuration change.
@@ -260,11 +245,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// All of this is scoped to the signed-in account. Tier support can come
 			// back with the latch, but LanguageModelAccess already republishes
 			// models on this same event, so there is nothing to announce here.
-			this._setLastAutoV2Discounts(undefined);
 			this._autoV2Unavailable = false;
 			this._tierSupportAnnounced = this.areAutoModeTiersSupported();
-			this._autoV2DiscountProbe = undefined;
-			this._pickerTokenBank.clear();
 			const keys = Array.from(this._reserveTokens.keys());
 			this._reserveTokens.clearAndDisposeAll();
 			for (const location of keys) {
@@ -292,56 +274,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return decision;
 	}
 
-	/**
-	 * Records the discounts shown on the Auto row in the picker. `tier` is the
-	 * profile the discounts came from: tiers route to different model pools and
-	 * so carry different discounts, while the picker has a single Auto row and no
-	 * tier context to qualify it with. Scope the label to the profile the picker
-	 * represents, so neither the internal `fast` tier (inline chat) nor another
-	 * tier's routing pass overwrites it.
-	 */
-	private _setLastAutoV2Discounts(discounts: Record<string, number> | undefined, tier?: AutoModeTier): void {
-		if (tier !== undefined && tier !== defaultAutoModeTier) {
-			return;
-		}
-		if (JSON.stringify(this._lastAutoV2Discounts) === JSON.stringify(discounts)) {
-			return;
-		}
-		this._lastAutoV2Discounts = discounts;
-		// Persisted so the next window shows the discount immediately.
-		this._extensionContext.globalState.update(AutomodeService.AUTO_V2_DISCOUNTS_STORAGE_KEY, discounts)
-			.then(undefined, (e: Error) => this._logService.warn(`[AutomodeService] Failed to persist auto discounts: ${e.message}`));
-	}
-
-	/**
-	 * TEMPORARY: reads discounts via `POST /auto` with a placeholder prompt,
-	 * since the endpoint has no prompt-free variant. Only `discounted_costs` is
-	 * used. Runs at most once per session. Remove once CAPI can return discounts
-	 * without classifying a prompt.
-	 */
-	private async _probeAutoV2Discounts(): Promise<void> {
-		if (!this._autoV2DiscountProbe) {
-			this._autoV2DiscountProbe = (async () => {
-				try {
-					const result = await this._autoV2Fetcher.getAutoDecision(AutomodeService.DISCOUNT_PROBE_PROMPT, {
-						isDiscountProbe: true,
-						// Read the same profile the label represents; see `_setLastAutoV2Discounts`.
-						tier: this.areAutoModeTiersSupported() ? defaultAutoModeTier : undefined,
-					});
-					this._setLastAutoV2Discounts(result.discounted_costs);
-				} catch (e) {
-					// A 404 is a capability result, not a metadata failure: the
-					// routing path treats it the same way.
-					if (e instanceof AutoV2Error && e.status === 404) {
-						this._markAutoV2Unavailable();
-					}
-					this._logService.warn(`[AutomodeService] Failed to probe auto discounts: ${(e as Error).message}`);
-				}
-			})();
-		}
-		return this._autoV2DiscountProbe;
-	}
-
 	async resolveAutoModePickerEndpoint(knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
 		if (!knownEndpoints.length) {
 			throw new Error('No auto mode endpoints provided.');
@@ -352,40 +284,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// Nothing to route without a prompt: wrap a representative endpoint for
 		// its display metadata only. The picker hides per-model pricing for
 		// Auto, so the wrapped model is not user-visible.
-		const metadata = await this.getAutoPickerMetadata();
-		// The probe above can latch V2 off (404), which changes what the picker
-		// may advertise.
-		if (!this.isAutoV2Enabled()) {
-			return this.resolveAutoModeEndpoint(undefined, knownEndpoints);
-		}
-		const discountRange = metadata?.discountRange ?? { low: 0, high: 0 };
 		const base = knownEndpoints.find(e => e.showInModelPicker) ?? knownEndpoints[0];
-		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, discountRange);
+		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange);
 	}
 
-	async getAutoPickerMetadata(): Promise<AutoModePickerMetadata | undefined> {
-		if (this.isAutoV2Enabled()) {
-			// `/auto` requires a prompt, which the picker does not have. Prefer
-			// the discounts observed on a real request; only when none have been
-			// seen yet (first ever run) probe with a placeholder prompt.
-			if (!this._lastAutoV2Discounts) {
-				await this._probeAutoV2Discounts();
-			}
-			return this._lastAutoV2Discounts
-				? { discountRange: this._calculateDiscountRange(this._lastAutoV2Discounts) }
-				: undefined;
-		}
-		// The legacy session endpoint returns discounts without a prompt.
-		try {
-			if (!this._pickerTokenBank.value) {
-				this._pickerTokenBank.value = new AutoModeTokenBank('auto-picker-metadata', ChatLocation.Panel, this._capiClientService, this._authService, this._logService, this._expService, this._envService);
-			}
-			const token = await this._pickerTokenBank.value.getToken();
-			return { discountRange: this._calculateDiscountRange(token.discounted_costs) };
-		} catch (e) {
-			this._logService.warn(`[AutomodeService] Failed to resolve auto picker metadata: ${(e as Error).message}`);
-			return undefined;
-		}
+	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata {
+		return { discountRange: this._calculateDiscountRange(knownEndpoints) };
 	}
 
 	/**
@@ -534,7 +438,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// Reuse the cached endpoint if the session token and model haven't changed
 		const autoEndpoint = (entry?.endpoint && entry.lastSessionToken === token.session_token && entry.endpoint.model === selectedModel.model)
 			? entry.endpoint
-			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, token.session_token, token.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(token.discounted_costs));
+			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, token.session_token, token.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
 
 		const isNewTurn = !entry || lastRoutedPrompt !== entry.lastRoutedPrompt;
 		this._autoModelCache.set(conversationId, {
@@ -659,7 +563,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				vscodeRequestId: chatRequest?.id,
 				tier,
 			});
-			this._setLastAutoV2Discounts(result.discounted_costs, tier);
 
 			// Prefer local `/models` metadata: it carries fields `/auto` leaves
 			// unset (token pricing, promos, SKU restrictions, thinking budgets).
@@ -687,7 +590,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 			const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 				? entry.endpoint
-				: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(result.discounted_costs));
+				: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
 
 			// Only a genuinely new conversation needs room made for it; the `set`
 			// below otherwise replaces an entry, and evicting would cost an
@@ -1010,21 +913,27 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return selectedModel;
 	}
 
-	private _calculateDiscountRange(discounts: Record<string, number> | undefined): { low: number; high: number } {
-		if (!discounts) {
-			return { low: 0, high: 0 };
-		}
+	/**
+	 * The span of Auto discounts across the models Auto can route to, as
+	 * fractions (e.g. `0.1` for 10% off). Models without an `auto_discount` are
+	 * outside the Auto pool and do not contribute.
+	 */
+	private _calculateDiscountRange(knownEndpoints: IChatEndpoint[]): { low: number; high: number } {
 		let low = Infinity;
 		let high = -Infinity;
 		let hasValues = false;
 
-		for (const value of Object.values(discounts)) {
-			hasValues = true;
-			if (value < low) {
-				low = value;
+		for (const endpoint of knownEndpoints) {
+			const discount = endpoint.autoDiscount;
+			if (discount === undefined) {
+				continue;
 			}
-			if (value > high) {
-				high = value;
+			hasValues = true;
+			if (discount < low) {
+				low = discount;
+			}
+			if (discount > high) {
+				high = discount;
 			}
 		}
 		return hasValues ? { low, high } : { low: 0, high: 0 };

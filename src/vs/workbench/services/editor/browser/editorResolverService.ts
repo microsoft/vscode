@@ -8,7 +8,7 @@ import { PauseableEmitter } from '../../../../base/common/event.js';
 import * as glob from '../../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename, extname, isEqual } from '../../../../base/common/resources.js';
+import { basename, extname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,13 +19,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorResourceAccessor, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceMultiDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorsOptions, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 
 interface RegisteredEditor {
@@ -79,7 +80,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 		// Read in the cache on statup
@@ -454,6 +456,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (associationType === EditorAssociationType.MergeEditor && !editor.editorFactoryObject.createMergeEditorInput) {
 					continue;
 				}
+				if (editor.options?.canSupportResource && !editor.options.canSupportResource(resource)) {
+					continue;
+				}
 
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
 				if ((foundInSettings && this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
@@ -473,20 +478,36 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+	public getEditors(resourceOrOptions?: URI | IEditorResolverServiceGetAllEditorsOptions, options?: IEditorResolverServiceGetEditorsOptions): RegisteredEditorInfo[] {
 		this._flattenedEditors = this._flattenEditorsMap();
 
 		// By resource
-		if (URI.isUri(resource)) {
-			const editors = this.findMatchingEditors(resource);
-			if (editors.find(e => e.editorInfo.priority.editor === RegisteredEditorPriority.exclusive)) {
+		if (URI.isUri(resourceOrOptions)) {
+			const resource = resourceOrOptions;
+			const associationType = options?.isDiffEditor ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+			let editors = this.findMatchingEditors(resource, associationType);
+			if (editors.find(editor => this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.exclusive)) {
 				return [];
+			}
+			if (options?.excludeUnconfiguredUniversalOptionalEditors) {
+				const configuredEditorIds = new Set(this.getAssociationsForResourceByType(resource, associationType).map(association => association.viewType));
+				editors = editors.filter(editor => {
+					const priority = this.getEffectivePriority(editor.editorInfo, associationType);
+					return editor.globPattern !== '*'
+						|| priority !== RegisteredEditorPriority.option
+						|| editor.editorInfo.id === options.currentEditorId
+						|| configuredEditorIds.has(editor.editorInfo.id);
+				});
+				return distinct(editors.map(editor => editor.editorInfo), editor => editor.id);
 			}
 			return editors.map(editor => editor.editorInfo);
 		}
 
 		// All
-		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
+		const editors = resourceOrOptions?.excludeExclusiveEditors
+			? this._registeredEditors.filter(editor => editor.editorInfo.priority.editor !== RegisteredEditorPriority.exclusive)
+			: this._registeredEditors;
+		return distinct(editors.map(editor => editor.editorInfo), editor => editor.id);
 	}
 
 	getBinaryDiffFallbackEditor(resource: URI): string | undefined {
@@ -547,9 +568,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 		}
 		// If the editor is exclusive we use that, else use the user setting, else we check canSupportResource, else take the viewtype of first possible editor
+		const configuredEditor = associationsFromSetting[0] ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined;
 		const selectedViewType = this.getEffectivePriority(possibleEditors[0].editorInfo, associationType) === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0].editorInfo.id :
-			associationsFromSetting[0]?.viewType ||
+			configuredEditor?.editorInfo.id ||
 			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id) ||
 			possibleEditors[0].editorInfo.id;
 
@@ -712,7 +734,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		for (const group of orderedGroups) {
 			for (const editor of group.editors) {
-				if (isEqual(editor.resource, resource) && editor.editorId === editorId) {
+				if ((this.uriIdentityService.extUri.isEqual(editor.resource, resource) || this.uriIdentityService.extUri.isEqual(EditorResourceAccessor.getOriginalUri(editor), resource)) && editor.editorId === editorId) {
 					out.push({ editor, group });
 				}
 			}

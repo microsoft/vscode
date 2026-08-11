@@ -18,6 +18,8 @@ import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
+import { runBuildFast } from './build-fast.ts';
+import { copyFile, transpileFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
 
@@ -30,8 +32,8 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-// CLI: transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
-const command = process.argv[2]; // 'transpile' or 'bundle'
+// CLI: build-fast [--force] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
+const command = process.argv[2];
 
 function getArgValue(name: string): string | undefined {
 	const index = process.argv.indexOf(name);
@@ -47,6 +49,7 @@ const options = {
 	nls: process.argv.includes('--nls'),
 	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
+	force: process.argv.includes('--force'),
 	out: getArgValue('--out'),
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
@@ -58,9 +61,6 @@ type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
 const SRC_DIR = 'src';
 const OUT_DIR = 'out';
 const OUT_VSCODE_DIR = 'out-vscode';
-
-// UTF-8 BOM - added to test files with 'utf8' in the path (matches gulp build behavior)
-const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 
 // ============================================================================
 // Entry Points (from build/buildfile.ts)
@@ -469,27 +469,6 @@ function readISODate(outDir: string): string {
 }
 
 /**
- * Only used to make encoding tests happy. The source files don't have a BOM but the
- * tests expect one... so we add it here.
- */
-function needsBomAdded(filePath: string): boolean {
-	return /([\/\\])test\1.*utf8/.test(filePath);
-}
-
-async function copyFile(srcPath: string, destPath: string): Promise<void> {
-	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-
-	if (needsBomAdded(srcPath)) {
-		const content = await fs.promises.readFile(srcPath);
-		if (content[0] !== 0xef || content[1] !== 0xbb || content[2] !== 0xbf) {
-			await fs.promises.writeFile(destPath, Buffer.concat([UTF8_BOM, content]));
-			return;
-		}
-	}
-	await fs.promises.copyFile(srcPath, destPath);
-}
-
-/**
  * Standalone TypeScript files that need to be compiled separately (not bundled).
  * These run in special contexts (e.g., Electron preload) where bundling isn't appropriate.
  * Only needed for desktop target.
@@ -706,47 +685,6 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 // ============================================================================
 // Transpile (Goal 1: TS → JS using esbuild.transform for maximum speed)
 // ============================================================================
-
-// Shared transform options for single-file transpilation
-const transformOptions: esbuild.TransformOptions = {
-	loader: 'ts',
-	format: 'esm',
-	target: 'es2024',
-	sourcemap: 'inline',
-	sourcesContent: false,
-	tsconfigRaw: JSON.stringify({
-		compilerOptions: {
-			experimentalDecorators: true,
-			useDefineForClassFields: false
-		}
-	}),
-};
-
-async function transpileFile(srcPath: string, destPath: string): Promise<void> {
-	const source = await fs.promises.readFile(srcPath, 'utf-8');
-	const result = await esbuild.transform(source, {
-		...transformOptions,
-		sourcefile: srcPath,
-	});
-
-	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-
-	const adjustedCode = adjustEsmUrl(result.code);
-	await fs.promises.writeFile(destPath, adjustedCode);
-}
-
-/*
- * This enables https://github.com/microsoft/esm-url-bundler-plugins to work on both original and transpiled sources.
- * Usees regex to only replace `.ts?esm` inside quoted URL strings, avoiding false positives.
- *
- * E.g.:
- * -  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.ts?esm", import.meta.url)
- * +  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.js?esm", import.meta.url)
- */
-function adjustEsmUrl(code: string): string {
-	const fixedCode = code.replace(/\.ts(\?esm['"])/g, '.js$1');
-	return fixedCode;
-}
 
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 	// Find all .ts files
@@ -1143,7 +1081,7 @@ async function watch(): Promise<void> {
 					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
 					const destPath = path.join(REPO_ROOT, outDir, relativePath);
 					await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-					await fs.promises.copyFile(srcPath, destPath);
+					await copyFile(srcPath, destPath);
 					console.log(`[watch] Copied ${relativePath}`);
 				}));
 			}
@@ -1195,8 +1133,12 @@ function printUsage(): void {
 	console.log(`Usage: npx tsx build/next/index.ts <command> [options]
 
 Commands:
+	build-fast         Incrementally build changed development outputs
 	transpile          Transpile TypeScript to JavaScript (single-file, fast)
 	bundle             Bundle entry points into optimized bundles
+
+Options for 'build-fast':
+	--force            Ignore incremental state and rebuild all lanes
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
@@ -1212,6 +1154,8 @@ Options for 'bundle':
 	--source-map-base-url <url>  Rewrite sourceMappingURL to CDN URL
 
 Examples:
+	npx tsx build/next/index.ts build-fast
+	npx tsx build/next/index.ts build-fast --force
 	npx tsx build/next/index.ts transpile
 	npx tsx build/next/index.ts transpile --watch
 	npx tsx build/next/index.ts transpile --out out-build
@@ -1229,6 +1173,9 @@ async function main(): Promise<void> {
 
 	try {
 		switch (command) {
+			case 'build-fast':
+				await runBuildFast(REPO_ROOT, options.force);
+				break;
 			case 'transpile':
 				if (options.watch) {
 					await watch();

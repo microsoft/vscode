@@ -55,6 +55,23 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
 	});
 
+	test('onDidChangeSessionWorkingDirectories fires only when the working-directory set changes', () => {
+		manager.createSession(makeSessionSummary());
+		const fired: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+
+		// Adding a root changes the set -> fires.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///a' });
+		// Re-adding the same root is a reducer no-op -> does not fire.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///a' });
+		// Adding a second root changes the set -> fires.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///b' });
+		// Removing a root changes the set -> fires.
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///b' });
+
+		assert.deepStrictEqual(fired, [sessionUri, sessionUri, sessionUri]);
+	});
+
 	test('getSnapshot returns undefined for unknown session', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);

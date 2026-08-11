@@ -669,7 +669,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('commit changeset operation generates a message and commits mixed changes', async function () {
+	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);
@@ -678,12 +678,12 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		writeFileSync(join(workspace, 'deleted.txt'), 'delete me\n');
 		writeFileSync(join(workspace, 'renamed-before.txt'), 'rename me\n');
 		execSync('git add . && git commit -q -m "seed"', { cwd: workspace });
-		const sessionUri = await createRealSession(context.client, config, 'changeset-commit-client', createdSessions, URI.file(workspace));
-		const authControl = await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-commit-auth-control', 'Reply exactly "AUTHENTICATED".', 1);
-		assert.strictEqual(authControl.responseText.trim(), 'AUTHENTICATED');
 		writeFileSync(join(workspace, 'edited.txt'), 'after\n');
 		writeFileSync(join(workspace, 'created.txt'), 'created\n');
 		execSync('git rm -q deleted.txt && git mv renamed-before.txt renamed-after.txt', { cwd: workspace });
+		const sessionUri = await createRealSession(context.client, config, 'changeset-commit-client', createdSessions, URI.file(workspace));
+		const authControl = await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-commit-auth-control', 'Reply exactly "AUTHENTICATED".', 1);
+		assert.strictEqual(authControl.responseText.trim(), 'AUTHENTICATED');
 		const changesetUri = buildUncommittedChangesetUri(sessionUri);
 		await retry(async () => {
 			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changesetUri });

@@ -81,7 +81,7 @@ export class DictationDownloadRing extends Disposable {
  * the user to click to cancel. The ring conveys live progress/activity, so the
  * text stays fixed to avoid churning on every tick.
  */
-export function getDictationDownloadHoverMarkdown(service: IChatSpeechToTextService): IMarkdownString {
+export function getDictationDownloadHoverMarkdown(service: Pick<IChatSpeechToTextService, 'currentBackend'>): IMarkdownString {
 	const markdown = new MarkdownString('', { supportThemeIcons: true });
 	if (service.currentBackend === 'mai') {
 		markdown.appendMarkdown(localize('chatStt.hover.connectingTitle', "**Connecting to dictation service**"));
@@ -99,7 +99,7 @@ export function getDictationDownloadHoverMarkdown(service: IChatSpeechToTextServ
  * Static hover explaining what the mic is doing while it prepares, wrapped as
  * managed hover content for toolbar affordances.
  */
-export function getDictationDownloadHoverContent(service: IChatSpeechToTextService): IManagedHoverContent {
+export function getDictationDownloadHoverContent(service: Pick<IChatSpeechToTextService, 'currentBackend'>): IManagedHoverContent {
 	const markdown = getDictationDownloadHoverMarkdown(service);
 	return { markdown, markdownNotSupportedFallback: markdown.value };
 }

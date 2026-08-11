@@ -91,23 +91,6 @@ A Copilot session can defer client-provided tools, search for the relevant tool 
     --grep "tool search"
   ```
 
-### Authenticated Copilot session cannot invoke the commit changeset operation
-
-A signed-in user can ask Agent Host to commit the current session's uncommitted changes, which should generate a commit message and create the local Git commit. The operation currently reports that Copilot authentication is required even though the AHP client has already authenticated the Copilot provider, so the advertised commit action cannot complete.
-
-- Test: `commit changeset operation generates a message and commits mixed changes`.
-- Scope: Copilot.
-- Expected: the authenticated token is reused to generate a commit message, then mixed create, edit, delete, and rename changes are committed.
-- Observed: a normal Copilot model turn succeeds with the session's authenticated token immediately before the operation, but `invokeChangesetOperation` still fails with `Authentication is required to generate a commit message. Please sign in to GitHub Copilot and try again.`
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "commit changeset operation"
-  ```
-
 ### Copilot config slash commands are missing from completions
 
 A user can type Copilot configuration commands such as `/autopilot` to change the session mode. The commands work when sent directly, but the AHP completions response does not include their state-aware forms, so users cannot discover `/autopilot on` before entering autopilot mode or `/autopilot off` after entering it.
@@ -144,33 +127,18 @@ A user can reopen a Copilot session after restarting Agent Host and expects the 
     --grep "shell failure metadata|plugin skill lifecycle is reconstructed"
   ```
 
-### Copilot SDK rejects the host's interactive denial result variant
+### File-tool denial mutates the workspace during Linux replay
 
 - Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Copilot.
-- Expected: declining the create tool returns a valid rejection result to the SDK and the model continues without creating the file.
-- Observed: the host returns `denied-interactively-by-user`, while the bundled SDK accepts `reject`; the SDK reports `permission host returned malformed payload`.
-- Gate: the Copilot variant is disabled at the test declaration in `fileOperationsSuite.ts`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "declining a file creation tool"
-  ```
-
-### Claude file-tool denial mutates the workspace during Linux replay
-
-- Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Claude on Linux.
+- Scope: Claude and Copilot on Linux.
 - Expected: declining the `Write` tool prevents `denied.txt` from being created and the replayed turn completes.
-- Observed: the turn completes after the denial, but `denied.txt` exists on Linux; the same fixture passes on macOS.
-- Gate: the Claude variant is disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
+- Observed: the turn completes, but `denied.txt` exists on Linux. For Copilot, the host auto-approves the in-workspace write before the synthetic denial reaches the permission request; both providers pass on macOS.
+- Gate: the Claude and Copilot variants are disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
 - Reproduce on Linux:
 
   ```bash
   ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    src/vs/platform/agentHost/test/node/e2e/providers/{claude,copilot}AgentHostE2E.integrationTest.ts \
     --grep "declining a file creation tool"
   ```
 
@@ -474,21 +442,6 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
     --grep "server tool: create_chat defaults"
   ```
 
-### Codex does not surface feedback server-tool confirmation
-
-- Test: `server tool: viewUnreviewedComments returns selected feedback and clears pending reveal state`.
-- Scope: Codex.
-- Expected: `viewUnreviewedComments` reaches `chat/toolCallReady` with an unconfirmed tool call so the client can choose which comments to reveal.
-- Observed: the server tool executes and returns the selected comment, but no pending confirmation is emitted.
-- Gate: the Codex variant is skipped by `supportsViewUnreviewedComments` in `serverToolsSuite.ts`. Its recorded fixture remains because the harness resolves the capture before Mocha applies the provider gate.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "server tool: viewUnreviewedComments"
-  ```
-
 ### Claude omits important tool details when reading another session's transcript
 
 The `get_session_context` tool lets an agent read the conversation history of an existing session. Its most detailed mode includes the tools used in earlier turns and the arguments passed to those tools, which helps the agent understand what work has already been performed.
@@ -672,21 +625,28 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
-### Codex structured file-read result text
+### Codex successful shell result text
 
 - Tests:
+  - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
   - `reads a file from a nested directory`
+  - `lists workspace entries`
   - `reads a value from JSON`
   - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `runs a deterministic shell command`
+  - `inspects git status`
 - Scope: Codex.
-- Expected: successful file-read tool completions include the file contents in their result text.
+- Expected: successful shell tool completions include the command output in their result text.
 - Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
-- Gate: these three tests remain enabled for other providers and are skipped for Codex.
+- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
 - Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
 - Failing runs:
   - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
   - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
   - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
+  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
 
 ### Claude subagent replay on Windows
 

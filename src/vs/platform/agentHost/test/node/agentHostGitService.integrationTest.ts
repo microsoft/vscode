@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -115,6 +115,27 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			githubHeadOwner: 'fork-owner',
 			githubRepo: 'repo',
 			upstreamBranchName: 'fork/feature',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the GitHub owner of a branch push remote without an upstream', async () => {
+		const dir = initRepo({ remote: 'https://github.com/base-owner/repo.git' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.remote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', 'branch.feature.pushremote', 'https://github.com/fork-owner/repo.git'], { cwd: dir, stdio: 'pipe' });
+
+		const result = await svc!.getSessionGitState(URI.file(dir));
+
+		assert.deepStrictEqual({
+			githubOwner: result?.githubOwner,
+			githubHeadOwner: result?.githubHeadOwner,
+			githubRepo: result?.githubRepo,
+			upstreamBranchName: result?.upstreamBranchName,
+		}, {
+			githubOwner: 'base-owner',
+			githubHeadOwner: 'fork-owner',
+			githubRepo: 'repo',
+			upstreamBranchName: undefined,
 		});
 	});
 
@@ -583,6 +604,109 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/dirty-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree prunes a lingering admin entry when the working tree is already gone', async () => {
+		const dir = initRepo();
+		const suffix = `wt-prune-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/prune-worktree', 'main');
+			// Reproduce the CI teardown race: the working tree directory is gone
+			// but git still holds the `.git/worktrees/<id>` admin entry, so a plain
+			// `git worktree remove` fails — removeWorktree must fall back to prune.
+			rmSync(wtPath, { recursive: true, force: true });
+			const listedBefore = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+			const listedAfter = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.deepStrictEqual({
+				registeredBefore: listedBefore.includes(suffix),
+				registeredAfter: listedAfter.includes(suffix),
+			}, {
+				registeredBefore: true,
+				registeredAfter: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/prune-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('removeWorktree rejects instead of falsely succeeding when the admin entry cannot be deleted', async () => {
+		const dir = initRepo();
+		const suffix = `wt-leak-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		let worktreeLocked = false;
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/leak-worktree', 'main');
+			cp.execFileSync('git', ['worktree', 'lock', wtPath], { cwd: dir, env, stdio: 'pipe' });
+			worktreeLocked = true;
+			// A locked missing worktree makes prune exit 0 while retaining the admin entry on every OS.
+			rmSync(wtPath, { recursive: true, force: true });
+
+			await assert.rejects(
+				svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }),
+				'removeWorktree must reject when the worktree stays registered, not report a false success',
+			);
+
+			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.ok(listed.includes(suffix), 'the still-registered worktree must surface as a leak, not be masked');
+		} finally {
+			if (worktreeLocked) {
+				try { cp.execFileSync('git', ['worktree', 'unlock', wtPath], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+			}
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/leak-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Residual case of #329982: git can de-register a worktree (drop its
+	// `.git/worktrees/<id>` admin entry) while its directory still remains on
+	// disk. A later removal must still succeed because git no longer tracks the path.
+	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+		const dir = initRepo();
+		const suffix = `wt-orphan-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			// De-register the worktree (delete git's admin entries) while leaving the working-tree directory in place.
+			const adminRoot = join(dir, '.git', 'worktrees');
+			for (const entry of readdirSync(adminRoot)) {
+				rmSync(join(adminRoot, entry), { recursive: true, force: true });
+			}
+			// Pin the precondition so the test cannot silently rot into the prune/verify path.
+			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.deepStrictEqual({
+				dirPresent: existsSync(wtPath),
+				stillRegistered: listed.includes(suffix),
+			}, {
+				dirPresent: true,
+				stillRegistered: false,
+			});
+
+			// Removal must treat an already-de-registered worktree as success.
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+		} finally {
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Fail-closed guard: when git cannot confirm the worktree is unregistered (e.g.
+	// the repository is gone), a failed removal must propagate rather than be
+	// silently reported as success.
+	(hasGit ? test : test.skip)('removeWorktree rethrows when git cannot confirm removal', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-nonrepo-'));
+		const wtPath = join(tmpRoot, 'wt');
+		mkdirSync(wtPath); // exists -> deterministic `git worktree remove` branch
+		await assert.rejects(
+			svc!.removeWorktree(URI.file(tmpRoot), URI.file(wtPath), { force: true }),
+			/exited with code 128/,
+		);
 	});
 
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {

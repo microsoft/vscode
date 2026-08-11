@@ -149,6 +149,8 @@ export interface IAgentHostTurnCompletedEvent {
 	permissionLevel: string | undefined;
 	errorType: string | undefined;
 	failureStage: AgentHostTurnFailureStage | undefined;
+	isMultiRoot: boolean;
+	folderCount: number;
 }
 
 export type IAgentHostTurnCompletedClassification = {
@@ -164,6 +166,8 @@ export type IAgentHostTurnCompletedClassification = {
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	errorType: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The structured agent host or provider error type when the turn fails.' };
 	failureStage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded stage at which the agent host turn failed.' };
+	isMultiRoot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session spans more than one working directory.' };
+	folderCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of effective working directories for the session at turn completion.' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turn performance including time to first visible progress and total turn duration.';
 };
@@ -220,6 +224,8 @@ export interface IAgentHostTurnCompletedReport {
 	modelSelectionKind: AgentHostModelSelectionKind;
 	permissionLevel: string | undefined;
 	failure: IAgentHostTurnFailure | undefined;
+	isMultiRoot: boolean;
+	folderCount: number;
 }
 
 /**
@@ -257,6 +263,8 @@ export interface IAgentHostTurnHungEvent {
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
 	blockedOn: SessionInputRequestKind | undefined;
+	toolId: string | undefined;
+	toolSourceKind: string | undefined;
 	inFlightToolCallCount: number;
 	quietTimeMs: number;
 	turnElapsedMs: number;
@@ -276,7 +284,9 @@ export type IAgentHostTurnHungClassification = {
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
 	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The protocol action type of the last observed turn activity, or none when the turn never produced any.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
-	inFlightToolCallCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of tool calls that had started but not completed when the watchdog fired.' };
+	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
+	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
+	inFlightToolCallCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of tool calls that had started but not completed when the watchdog fired. When hangReason is runningTool, a value above one means toolId is a best guess among several running tools; when it is waitingOnUser, toolId comes from the blocking request and is exact regardless of this count.' };
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
 	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The trusted provider model identifier for the turn, or a generic value for BYOK and unknown models.' };
@@ -294,6 +304,8 @@ export interface IAgentHostTurnHungReport {
 	hadAnyProgress: boolean;
 	lastActivityKind: string;
 	blockedOn: SessionInputRequestKind | undefined;
+	toolId: string | undefined;
+	toolSourceKind: string | undefined;
 	inFlightToolCallCount: number;
 	quietTimeMs: number;
 	turnElapsedMs: number;
@@ -1012,6 +1024,8 @@ export class AgentHostTelemetryReporter {
 			permissionLevel: report.permissionLevel,
 			errorType: report.failure?.error.errorType,
 			failureStage: report.failure?.stage,
+			isMultiRoot: report.isMultiRoot,
+			folderCount: report.folderCount,
 		});
 		if (report.failure) {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
@@ -1050,6 +1064,8 @@ export class AgentHostTelemetryReporter {
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: report.lastActivityKind,
 			blockedOn: report.blockedOn,
+			toolId: report.toolId,
+			toolSourceKind: report.toolSourceKind,
 			inFlightToolCallCount: report.inFlightToolCallCount,
 			quietTimeMs: report.quietTimeMs,
 			turnElapsedMs: report.turnElapsedMs,

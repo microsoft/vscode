@@ -324,9 +324,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		});
 	}
 
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
-			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
+			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState, associatedResource }, async () => {
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
@@ -352,6 +352,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 			this._known.set(id, input);
 			this._onDidChangeBrowserViews.fire();
+		} else if (associatedResource) {
+			this._known.get(id)!.setAssociatedResource(associatedResource);
 		}
 
 		return this._known.get(id)!;
@@ -415,7 +417,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const model = this.instantiationService.createInstance(BrowserViewModel, id, owner, state, this._browserViewService);
 
 		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
-		this.getOrCreateLazy(id, {}, model).model = model;
+		this.getOrCreateLazy(id, {}, undefined, model).model = model;
 
 		this._onDidChangeBrowserViews.fire();
 

@@ -85,6 +85,19 @@ export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
 }
 
+export function getSessionStatusMessage(status: SessionStatus, description: IMarkdownString | undefined): IMarkdownString | string | undefined {
+	switch (status) {
+		case SessionStatus.InProgress:
+			return description ?? localize('working', "Working...");
+		case SessionStatus.NeedsInput:
+			return description ?? localize('needsInput', "Input needed");
+		case SessionStatus.Error:
+			return description ?? localize('failed', "Failed");
+		default:
+			return undefined;
+	}
+}
+
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
  * host protocol's notion of chat interactivity but is decoupled from it so that

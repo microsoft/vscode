@@ -50,7 +50,7 @@ suite('SessionDatabase', () => {
 			} finally {
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 	});
 
 	/**

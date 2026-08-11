@@ -33,6 +33,58 @@
 	);
 }
 
+.agent-sessions-workbench .interactive-session.chat-transcript-progress-active > .interactive-list,
+.agent-sessions-workbench .interactive-session.chat-transcript-context-active > .interactive-list {
+	position: relative;
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context {
+	position: absolute;
+	top: var(--vscode-spacing-size320);
+	left: 0;
+	right: 0;
+	z-index: 1;
+	display: flex;
+	justify-content: flex-end;
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding: 0 var(--vscode-spacing-size320);
+	box-sizing: border-box;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .chat-transcript-context > .chat-attached-context-attachment {
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress {
+	position: absolute;
+	top: var(--vscode-spacing-size320);
+	left: 0;
+	right: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	max-width: var(--session-view-centered-content-max-width, 950px);
+	margin: 0 auto;
+	padding: 0 var(--vscode-spacing-size320);
+	box-sizing: border-box;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .interactive-session.chat-transcript-context-active > .interactive-list > .chat-transcript-progress {
+	top: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size320));
+}
+
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-context[hidden],
+.agent-sessions-workbench .interactive-session > .interactive-list > .chat-transcript-progress[hidden] {
+	display: none;
+}
+
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,

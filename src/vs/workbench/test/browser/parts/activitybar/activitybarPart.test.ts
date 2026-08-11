@@ -12,7 +12,7 @@ import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestLayoutService } from '../../workbenchTestServices.js';
 import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { FLOATING_PANEL_INNER_MARGIN, LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
@@ -182,7 +182,7 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
 	});
 
-	test('floating panels reserves symmetric width gutters', () => {
+	test('floating panels reserves outer padding on the left', () => {
 		const { part } = createActivitybarPart(false, true);
 
 		assert.deepStrictEqual(
@@ -194,14 +194,14 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
-	test('floating panels reserves inner and outer gutters on the right', () => {
+	test('floating panels reserves inner padding and both gutters on the right', () => {
 		const { part } = createActivitybarPart(false, true, Position.RIGHT);
 
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
 			}
 		);
 	});

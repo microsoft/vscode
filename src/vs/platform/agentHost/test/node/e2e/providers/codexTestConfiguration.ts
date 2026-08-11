@@ -33,4 +33,5 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	supportsChatFork: false,
 	supportsChatForkE2E: false,
 	shellToolReplayUnstableOnLinux: true,
+	shellToolResultTextUnreliable: true,
 };

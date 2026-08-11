@@ -28,7 +28,6 @@ suite('SessionsVoiceNewComposerContribution', () => {
 			focus: () => { },
 			getVoiceModels: () => [],
 			selectVoiceModel: () => false,
-			attach: () => { },
 		};
 	}
 

@@ -8,7 +8,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -498,7 +498,7 @@ export function filterSessions(sessions: readonly IAgentSessionMetadata[], args:
 		if (args.unread && !sessionIsUnread(session)) {
 			return false;
 		}
-		if (args.withPullRequest && !readSessionGitHubState(session._meta)?.pullRequestUrls?.length) {
+		if (args.withPullRequest && getSessionRelatedPullRequestUrls(readSessionGitHubState(session._meta)).length === 0) {
 			return false;
 		}
 		// Archived sessions are hidden unless explicitly requested, either via
@@ -539,7 +539,8 @@ function serializeGitHubState(session: IAgentSessionMetadata): ISerializedGitHub
 	const result: Mutable<ISerializedGitHubState> = {};
 	if (github.owner !== undefined) { result.owner = github.owner; }
 	if (github.repo !== undefined) { result.repo = github.repo; }
-	if (github.pullRequestUrls?.[0] !== undefined) { result.pullRequestUrl = github.pullRequestUrls[0]; }
+	const pullRequestUrl = getSessionRelatedPullRequestUrls(github)[0];
+	if (pullRequestUrl !== undefined) { result.pullRequestUrl = pullRequestUrl; }
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 

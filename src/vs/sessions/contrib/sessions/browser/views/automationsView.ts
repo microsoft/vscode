@@ -547,28 +547,46 @@ class AutomationHistorySection extends Disposable {
 		const isTerminal = run.status === 'completed' || run.status === 'failed';
 		const canDeleteSession = isTerminal && sessionState?.supportsDelete === true;
 		const canDeleteHistory = isTerminal && !sessionState;
+		const canStopSession = run.status === 'running' && !!sessionState;
 		let deleteButton: Button | undefined;
-		if (canDeleteSession || canDeleteHistory) {
+		let stopButton: Button | undefined;
+		if (canDeleteSession || canDeleteHistory || canStopSession) {
 			const actions = DOM.append(card, $('.automations-run-card-actions'));
-			const deleteLabel = canDeleteSession
-				? localize('deleteAutomationRunSession', "Delete session for {0}", title)
-				: localize('deleteAutomationRunHistory', "Delete run for {0} from history", title);
-			deleteButton = this.disposables.add(new Button(actions, {
-				ariaLabel: deleteLabel,
-				supportIcons: true,
-				title: deleteLabel,
-			}));
-			deleteButton.label = `$(${Codicon.trash.id})`;
-			deleteButton.element.classList.add('automations-run-card-delete-button');
-			this.disposables.add(deleteButton.onDidClick(() => {
-				if (sessionState?.supportsDelete) {
-					void this.confirmDeleteRunSession(run, sessionState.session, title);
-				} else {
-					void this.confirmDeleteRunHistory(run, title);
-				}
-			}));
+			if (canStopSession) {
+				const stopLabel = localize('stopAutomationRunSession', "Stop session for {0}", title);
+				const button = this.disposables.add(new Button(actions, {
+					ariaLabel: stopLabel,
+					supportIcons: true,
+					title: stopLabel,
+				}));
+				stopButton = button;
+				button.label = `$(${Codicon.stopCircle.id})`;
+				button.element.classList.add('automations-run-card-action-button', 'automations-run-card-stop-button');
+				this.disposables.add(button.onDidClick(() => {
+					button.enabled = false;
+					void this.stopRunSession(sessionState.session, title, button);
+				}));
+			} else {
+				const deleteLabel = canDeleteSession
+					? localize('deleteAutomationRunSession', "Delete session for {0}", title)
+					: localize('deleteAutomationRunHistory', "Delete run for {0} from history", title);
+				deleteButton = this.disposables.add(new Button(actions, {
+					ariaLabel: deleteLabel,
+					supportIcons: true,
+					title: deleteLabel,
+				}));
+				deleteButton.label = `$(${Codicon.trash.id})`;
+				deleteButton.element.classList.add('automations-run-card-action-button', 'automations-run-card-delete-button');
+				this.disposables.add(deleteButton.onDidClick(() => {
+					if (sessionState?.supportsDelete) {
+						void this.confirmDeleteRunSession(run, sessionState.session, title);
+					} else {
+						void this.confirmDeleteRunHistory(run, title);
+					}
+				}));
+			}
 		}
-		const focusTarget = openButton?.element ?? deleteButton?.element;
+		const focusTarget = openButton?.element ?? stopButton?.element ?? deleteButton?.element;
 		if (focusTarget) {
 			this.renderedFocusableRunIds.push(run.id);
 			this.runFocusTargets.set(run.id, focusTarget);
@@ -589,6 +607,20 @@ class AutomationHistorySection extends Disposable {
 			this.logService.error('[AutomationsCards] Failed to open automation run', error);
 			await this.dialogService.error(
 				localize('automationRunOpenFailed', "Failed to open automation run."),
+				getErrorMessage(error),
+			);
+		}
+	}
+
+	private async stopRunSession(session: ISession, automationName: string, stopButton: Button): Promise<void> {
+		try {
+			await this.sessionsManagementService.cancelCurrentRequest(session);
+			status(localize('automationRunSessionStoppedStatus', "Stopped the session for {0}", automationName));
+		} catch (error) {
+			stopButton.enabled = true;
+			this.logService.error('[AutomationsCards] Failed to stop automation run session', error);
+			await this.dialogService.error(
+				localize('automationRunSessionStopFailed', "Failed to stop the automation run session."),
 				getErrorMessage(error),
 			);
 		}

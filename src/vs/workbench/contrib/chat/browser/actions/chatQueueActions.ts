@@ -162,7 +162,11 @@ export class ChatSteerWithMessageAction extends Action2 {
 			return;
 		}
 
-		widget.acceptInput(undefined, { queue: ChatRequestQueueKind.Steering });
+		widget.acceptInput(undefined, {
+			queue: widget.viewModel.model.lastRequest?.isHiddenFromTranscript
+				? ChatRequestQueueKind.Queued
+				: ChatRequestQueueKind.Steering
+		});
 	}
 }
 

@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { getDictationDownloadHoverContent } from './dictationDownloadRing.js';
 import { setupDictationMicGlow } from './dictationMicGlow.js';
 import { getDictationHoverContent } from './micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from './micButtonMenuActions.js';
@@ -57,6 +58,9 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
+		if (this._speechToTextService.isPreparingModel) {
+			return getDictationDownloadHoverContent(this._speechToTextService);
+		}
 		return getDictationHoverContent(this.getTooltip() ?? '', this._configurationService);
 	}
 }

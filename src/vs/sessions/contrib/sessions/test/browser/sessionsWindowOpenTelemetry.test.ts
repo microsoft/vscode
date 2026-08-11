@@ -32,16 +32,18 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
 			const telemetryService = new TestTelemetryService();
 			let workspacePreselected = true;
+			let workspacePreselectionSource = 'existingSessions';
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.TitleBar,
 				() => true,
-				() => ({ workspacePreselected }),
+				() => ({ workspacePreselected, workspacePreselectionSource }),
 				telemetryService,
 				lifecycleService,
 			));
 
 			tracker.captureInitialViewState();
 			workspacePreselected = false;
+			workspacePreselectionSource = 'none';
 			await timeout(4_000);
 			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
 
@@ -51,6 +53,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					source: 'titleBar',
 					signInDialogShown: true,
 					workspacePreselected: true,
+					workspacePreselectionSource: 'existingSessions',
 					windowCloseDurationMs: 4_000,
 				},
 			}]);
@@ -66,7 +69,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 				AgentsWindowOpenSource.CommandPalette,
 				() => false,
-				() => ({ workspacePreselected: undefined }),
+				() => ({ workspacePreselected: undefined, workspacePreselectionSource: undefined }),
 				telemetryService,
 				lifecycleService,
 			));
@@ -80,6 +83,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					source: 'commandPalette',
 					signInDialogShown: false,
 					workspacePreselected: undefined,
+					workspacePreselectionSource: undefined,
 					windowCloseDurationMs: undefined,
 				},
 			}]);

@@ -225,6 +225,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 		}
 
+		return this._getAvailableManagementService();
+	}
+
+	private _getAvailableManagementService(): IAgentHostManagementService {
 		if (!this._messagePortClient) {
 			throw new Error('Local agent host management connection is not available.');
 		}
@@ -419,7 +423,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
-		return this._callManagement(management => management.getManagedSettingsDiagnostics());
+		return this._getAvailableManagementService().getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {

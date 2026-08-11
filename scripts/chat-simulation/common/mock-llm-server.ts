@@ -192,9 +192,9 @@ const DEFAULT_SCENARIO = 'text-only';
 function getDefaultScenarioChunks(): StreamChunk[] {
 	const scenario = SCENARIOS[DEFAULT_SCENARIO];
 	if (isMultiTurnScenario(scenario)) {
-		throw new Error(`Default scenario '${DEFAULT_SCENARIO}' must be content-only`);
+		return [{ content: 'Mock response', delayMs: 0 }];
 	}
-	return scenario;
+	return scenario ?? [{ content: 'Mock response', delayMs: 0 }];
 }
 
 // -- SSE chunk builder -------------------------------------------------------

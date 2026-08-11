@@ -14,7 +14,7 @@ import { IModelService } from '../../editor/common/services/model.js';
 import { Schemas } from '../../base/common/network.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
-import { DEFAULT_EDITOR_ASSOCIATION, isDiffEditorInput } from './editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, isDiffEditorInput } from './editor.js';
 
 //#region < --- Workbench --- >
 
@@ -357,8 +357,9 @@ function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEdit
 	}
 
 	// Normal editors.
-	if (editor.resource) {
-		return editorResolverService.getEditors(editor.resource).map(editor => editor.id);
+	const resource = EditorResourceAccessor.getOriginalUri(editor);
+	if (resource) {
+		return editorResolverService.getEditors(resource).map(editor => editor.id);
 	}
 
 	return [];

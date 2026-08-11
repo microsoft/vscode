@@ -19,15 +19,6 @@ export class MockOctoKitService implements IOctoKitService {
 	getCurrentAuthedUser: IOctoKitService['getCurrentAuthedUser'] = async () => ({ id: 1, login: 'testuser', name: 'Test User', avatar_url: '' });
 	getCopilotPullRequestsForUser = async () => [];
 	getGitHubOutageStatus = async (): Promise<GitHubOutageStatus> => GitHubOutageStatus.None;
-	getCopilotSessionsForPR = async () => [];
-	getSessionLogs = async () => '';
-	getSessionInfo = async () => undefined;
-	postCopilotAgentJob = async () => undefined;
-	getJobByJobId = async () => undefined;
-	getJobBySessionId = async () => undefined;
-	addPullRequestComment = async () => null;
-	getAllOpenSessions = async () => [];
-	getAllSessions = async () => [];
 	createPullRequest = async () => ({ number: 0, url: '' });
 	getPullRequestFromGlobalId = async () => null;
 	getPullRequestFiles = async () => [];

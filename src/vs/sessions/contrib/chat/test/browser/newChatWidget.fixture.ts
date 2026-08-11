@@ -36,7 +36,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace, ISessionType, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { IAquariumService } from '../../../aquarium/browser/aquariumOverlay.js';
@@ -356,6 +356,10 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		override readonly onDidChangeSessions = Event.None;
 		override readonly onDidChangeModels = Event.None;
 		override readonly browseActions = [];
+
+		override getSessions(): ISession[] {
+			return [];
+		}
 
 		override resolveWorkspace(folderUri: URI): ISessionWorkspace | undefined {
 			return folderUri.toString() === workspace.folders[0].root.toString() ? workspace : undefined;

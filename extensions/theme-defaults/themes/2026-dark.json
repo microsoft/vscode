@@ -35,7 +35,7 @@
 		"input.border": "#333536FF",
 		"input.foreground": "#bfbfbf",
 		"input.placeholderForeground": "#555555",
-		"inputOption.activeBackground": "#3994BC33",
+		"inputOption.activeBackground": "#313233",
 		"inputOption.activeForeground": "#bfbfbf",
 		"inputOption.activeBorder": "#2A2B2CFF",
 		"inputValidation.infoBackground": "#1E3A47",

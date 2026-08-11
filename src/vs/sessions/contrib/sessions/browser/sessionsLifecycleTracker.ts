@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { classifySessionWorkspaceTopology } from '../../../common/sessionsTelemetry.js';
 
 /** Storage key for the cumulative number of times this client has been launched. */
 const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
@@ -51,7 +52,7 @@ export type SessionLifecycleCounterKey =
  * spans across workspaces.
  */
 interface IStoredSessionStats {
-	// Identification (captured at first-observed time)
+	// Session and workspace context captured at first observation.
 	providerId: string;
 	providerType: string;
 	sessionResourceUri: string;
@@ -59,6 +60,12 @@ interface IStoredSessionStats {
 	isolationKind: 'worktree' | 'folder';
 	hasGitRepository: boolean;
 	isVirtualWorkspace: boolean;
+	// Topology fields are optional so rows persisted before they existed still
+	// load; `createEntry` always sets them and `buildSummary` defaults them.
+	isMultiRoot?: boolean;
+	folderCount?: number;
+	gitFolderCount?: number;
+	nonGitFolderCount?: number;
 
 	// Origin
 	firstRequestSentInThisClient: boolean;
@@ -118,6 +125,10 @@ export interface ISessionLifecycleSummary {
 	workspaceHash: string;
 	hasGitRepository: boolean;
 	isVirtualWorkspace: boolean;
+	isMultiRoot: boolean;
+	folderCount: number;
+	gitFolderCount: number;
+	nonGitFolderCount: number;
 	doneReason: SessionDoneReason;
 	firstRequestSentInThisClient: boolean;
 	hasWorktreeCreatedTask: boolean | undefined;
@@ -429,6 +440,8 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 	const hasWorktree = workspace?.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined) ?? false;
 	const hasGit = workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false;
 	const isVirtual = workspace ? workspace.uri.scheme !== Schemas.file : false;
+	const folders = workspace?.folders ?? [];
+	const topology = classifySessionWorkspaceTopology(folders.length, folders.filter(folder => folder.gitRepository !== undefined).length);
 	return {
 		providerId: session.providerId,
 		providerType: session.sessionType,
@@ -437,6 +450,10 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		isolationKind: hasWorktree ? 'worktree' : 'folder',
 		hasGitRepository: hasGit,
 		isVirtualWorkspace: isVirtual,
+		isMultiRoot: topology.isMultiRoot,
+		folderCount: topology.folderCount,
+		gitFolderCount: topology.gitFolderCount,
+		nonGitFolderCount: topology.nonGitFolderCount,
 		firstRequestSentInThisClient: false,
 		hasWorktreeCreatedTask: undefined,
 		configuredTasksCount: undefined,
@@ -481,6 +498,11 @@ function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: Ses
 		workspaceHash: entry.workspaceUriString ? hash(entry.workspaceUriString).toString(16) : '',
 		hasGitRepository: entry.hasGitRepository,
 		isVirtualWorkspace: entry.isVirtualWorkspace,
+		// Back-compat: entries persisted before these fields existed default to 0/false.
+		isMultiRoot: entry.isMultiRoot ?? false,
+		folderCount: entry.folderCount ?? 0,
+		gitFolderCount: entry.gitFolderCount ?? 0,
+		nonGitFolderCount: entry.nonGitFolderCount ?? 0,
 		doneReason: reason,
 		firstRequestSentInThisClient: entry.firstRequestSentInThisClient,
 		hasWorktreeCreatedTask: entry.hasWorktreeCreatedTask,

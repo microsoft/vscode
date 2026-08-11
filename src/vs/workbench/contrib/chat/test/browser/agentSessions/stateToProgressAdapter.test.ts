@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,10 +14,11 @@ import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/c
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { fromAgentHostUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -144,6 +146,75 @@ suite('stateToProgressAdapter', () => {
 		], [true, false]);
 	});
 
+	test('restores transcript context attachments as their first-class kind', () => {
+		const original: IChatRequestTranscriptContextVariableEntry = {
+			kind: 'transcriptContext',
+			id: 'pr',
+			name: '#42 Improve sessions',
+			fullName: '#42 Improve sessions',
+			icon: Codicon.gitPullRequest,
+			tooltip: 'Pull request #42 by @author',
+			value: '{"number":42}',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'),
+		};
+
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple,
+			label: original.name,
+			displayKind: ChatTranscriptContextAttachmentDisplayKind,
+			modelRepresentation: original.value,
+			_meta: toChatTranscriptContextAttachmentMeta(original),
+		}], 'local')?.variables[0];
+
+		assert.deepStrictEqual(restored && {
+			kind: restored.kind,
+			name: restored.name,
+			fullName: restored.fullName,
+			icon: restored.icon?.id,
+			value: restored.value,
+			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
+			tooltip: restored.kind === 'transcriptContext' ? restored.tooltip : undefined,
+		}, {
+			kind: 'transcriptContext',
+			name: '#42 Improve sessions',
+			fullName: '#42 Improve sessions',
+			icon: 'git-pull-request',
+			value: '{"number":42}',
+			uri: 'https://github.com/owner/repo/pull/42',
+			tooltip: 'Pull request #42 by @author',
+		});
+	});
+
+	test('restores legacy transcript context attachments without a display kind', () => {
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple,
+			label: '#42 Improve sessions',
+			modelRepresentation: '{"number":42}',
+			_meta: {
+				'vscode.chat.transcriptContext': {
+					label: '#42 Improve sessions',
+					iconId: 'git-pull-request',
+					tooltip: 'Pull request #42 by @author',
+					uri: 'https://github.com/owner/repo/pull/42',
+				},
+			},
+		}], 'local')?.variables[0];
+
+		assert.deepStrictEqual(restored && {
+			kind: restored.kind,
+			name: restored.name,
+			icon: restored.icon?.id,
+			value: restored.value,
+			uri: restored.kind === 'transcriptContext' ? restored.uri.toString() : undefined,
+		}, {
+			kind: 'transcriptContext',
+			name: '#42 Improve sessions',
+			icon: 'git-pull-request',
+			value: '{"number":42}',
+			uri: 'https://github.com/owner/repo/pull/42',
+		});
+	});
+
 	suite('rewriteAgentHostLinkTarget', () => {
 		test('supports absolute paths and file URIs with validated locations', () => {
 			const unwrap = (href: string) => fromAgentHostUri(URI.parse(rewriteAgentHostLinkTarget(href, 'my-host'))).toString();
@@ -245,6 +316,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(history[0].isSystemInitiated, true);
 			assert.strictEqual(history[0].prompt, '`sleep 6` completed');
 			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
+		});
+
+		test('hidden turn remains hidden when restored from protocol history', () => {
+			const turn = createTurn({
+				message: withMessageHiddenFromTranscript(message('Inspect this pull request'), true),
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: '<!-- vscode-hidden-from-transcript -->\nInspect this pull request',
+				participant: 'participant-1',
+				modelId: undefined,
+				variableData: undefined,
+				isHidden: true,
+			});
 		});
 
 		test('system notification response part restores as system notification', () => {

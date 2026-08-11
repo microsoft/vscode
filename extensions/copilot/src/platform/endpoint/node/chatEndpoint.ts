@@ -175,6 +175,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
+	public readonly autoDiscount?: number | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
 	public readonly modelPickerCategory?: string | undefined;
@@ -211,6 +212,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
+		this.autoDiscount = modelMetadata.billing?.auto_discount;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
 			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },

@@ -40,13 +40,13 @@
  */
 .style-override.monaco-workbench > .notifications-center {
 	right: var(--vscode-spacing-size80);
-	bottom: var(--vscode-spacing-size320);
+	bottom: var(--vscode-spacing-size360);
 }
 
 .style-override.monaco-workbench > .notifications-center.bottom-left {
 	right: auto;
 	left: var(--vscode-spacing-size80);
-	bottom: var(--vscode-spacing-size320);
+	bottom: var(--vscode-spacing-size360);
 }
 
 .style-override.monaco-workbench > .notifications-center.top-right {
@@ -61,13 +61,13 @@
  */
 .style-override.monaco-workbench > .notifications-toasts {
 	right: var(--vscode-spacing-size40);
-	bottom: var(--vscode-spacing-size280);
+	bottom: var(--vscode-spacing-size320);
 }
 
 .style-override.monaco-workbench > .notifications-toasts.bottom-left {
 	right: auto;
 	left: var(--vscode-spacing-size40);
-	bottom: var(--vscode-spacing-size280);
+	bottom: var(--vscode-spacing-size320);
 }
 
 .style-override.monaco-workbench > .notifications-toasts.top-right {

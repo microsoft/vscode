@@ -68,7 +68,7 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
-import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
@@ -121,11 +121,7 @@ export interface IAgentSideEffectsOptions {
 	 * excluded — only the parent session URI is passed.
 	 */
 	readonly onTurnComplete: (session: ProtocolURI) => void;
-	/**
-	 * Called with the text of every user message that is forwarded to an agent,
-	 * so the host can derive session state from what the user wrote (e.g. the
-	 * GitHub issues the message references).
-	 */
+	/** Called for user messages so the host can record referenced GitHub work. */
 	readonly onUserMessage?: (session: ProtocolURI, text: string) => void;
 	/** Process launcher used when client-origin metadata is unavailable. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
@@ -563,11 +559,13 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request });
 		// Record the blocker on the turn so a hang reported while the request is
 		// outstanding is tagged as an expected wait on the user rather than as
-		// an unexplained stall. A `ChatInput` elicitation carries no `turnId`,
-		// so fall back to the chat's active turn.
+		// an unexplained stall, and so the report can name the tool it gates. A
+		// `ChatInput` elicitation carries neither `turnId` nor a tool call, so
+		// fall back to the chat's active turn.
 		const blockedTurnId = hasKey(request, { turnId: true }) ? request.turnId : this._stateManager.getActiveTurnId(chatUri);
 		if (blockedTurnId) {
-			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind);
+			const blockedToolCallId = hasKey(request, { toolCall: true }) ? request.toolCall.toolCallId : undefined;
+			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind, blockedToolCallId);
 		}
 		if (request.kind !== SessionInputRequestKind.ChatInput) {
 			const agent = this._options.getAgent(sessionUri);
@@ -873,7 +871,9 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallStart) {
-			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId);
+			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId, action.toolName, action.contributor);
+		} else if (action.type === ActionType.ChatToolCallReady) {
+			this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, action.toolCallId, action.contributor);
 		}
 
 		// A denied confirmation is a terminal transition to `cancelled`: the
@@ -904,22 +904,34 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatTurnComplete) {
-			this._turnTracker.turnCompleted(sessionKey, turnId, 'success');
+			this._completeTurn(sessionKey, turnId, 'success');
 			this._toolCallTracker.clearSession(sessionKey);
 			this._runTurnCompleteSideEffects(sessionKey, turnId);
 		}
 
 		if (action.type === ActionType.ChatTurnCancelled) {
-			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
+			this._completeTurn(sessionKey, turnId, 'cancelled');
 			this._toolCallTracker.clearSession(sessionKey);
 			this._markSessionUnread(sessionUri);
 		}
 
 		if (action.type === ActionType.ChatError) {
-			this._turnTracker.turnCompleted(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
+			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
 			this._markSessionUnread(sessionUri);
 		}
+	}
+
+	/**
+	 * Completes a turn's telemetry, enriching it with the session's working-
+	 * directory shape. Normalizes a chat channel to its owning session URI
+	 * before reading the effective working directories, so peer-chat / channel
+	 * turns report the correct count and multi-root flag.
+	 */
+	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
+		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
+		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
+		this._turnTracker.turnCompleted(channel, turnId, result, failure, { isMultiRoot: folderCount > 1, folderCount });
 	}
 
 	/**
@@ -1147,7 +1159,7 @@ export class AgentSideEffects extends Disposable {
 					turnId,
 					duration: this._turnDuration(subagent.turnStopWatch),
 				});
-				this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'cancelled');
+				this._completeTurn(subagent.chatUri, turnId, 'cancelled');
 			}
 			this._toolCallTracker.clearSession(subagent.chatUri);
 			this._turnTracker.clearSession(subagent.chatUri);
@@ -1180,7 +1192,7 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				duration: this._turnDuration(subagent.turnStopWatch),
 			});
-			this._turnTracker.turnCompleted(subagent.chatUri, turnId, 'success');
+			this._completeTurn(subagent.chatUri, turnId, 'success');
 			this._toolCallTracker.clearSession(subagent.chatUri);
 		}
 	}
@@ -1329,6 +1341,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
+		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
 		}
@@ -1445,7 +1458,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTurnCancelled must be handled on an AHP chat channel: ${channel}`);
 				}
-				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
+				this._completeTurn(channel, action.turnId, 'cancelled');
 				this._toolCallTracker.clearSession(channel);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
@@ -1912,7 +1925,7 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(turnStopWatch),
 				error,
 			});
-			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', { stage: 'validation', error });
+			this._completeTurn(turnChannel, turnId, 'error', { stage: 'validation', error });
 			this._toolCallTracker.clearSession(turnChannel);
 			return;
 		}
@@ -1953,7 +1966,7 @@ export class AgentSideEffects extends Disposable {
 				duration: this._turnDuration(turnStopWatch),
 				error,
 			});
-			this._turnTracker.turnCompleted(turnChannel, turnId, 'error', failure);
+			this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}

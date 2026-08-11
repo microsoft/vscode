@@ -74,6 +74,10 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label.codicon {
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
 /* Editor tab labels use Body 1 for comfortable readability at a normal viewing distance. */
 .style-override.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	font-size: var(--vscode-fontSize-body1);

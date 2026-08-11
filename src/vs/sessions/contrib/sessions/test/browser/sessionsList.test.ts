@@ -5,23 +5,34 @@
 
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ExtUri } from '../../../../../base/common/resources.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, SessionSectionRenderer, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
+	isRead?: boolean;
+	resource?: URI;
 }): ISession {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	return {
 		sessionId: id,
-		resource: URI.parse(`session://${id}`),
+		resource: opts.resource ?? URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
 		icon: Codicon.account,
@@ -44,7 +55,7 @@ function createSession(id: string, opts: {
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
 		isArchived: observableValue(`isArchived-${id}`, opts.isArchived ?? false),
-		isRead: observableValue(`isRead-${id}`, true),
+		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
@@ -53,9 +64,75 @@ function createSession(id: string, opts: {
 	};
 }
 
-suite('Sessions - SessionsList Helpers', () => {
+suite('Sessions - SessionsList', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('SessionSectionRenderer', () => {
+
+		test('derives terminal automation status from the supplied session snapshot', () => {
+			const session = createSession('automation', {
+				isRead: false,
+				resource: URI.parse('test-session:/Workspace/Automation'),
+			});
+			const managementCalls: string[] = [];
+			const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+				override getSessions(): ISession[] {
+					managementCalls.push('getSessions');
+					return [session];
+				}
+
+				override getSession(resource: URI): ISession | undefined {
+					managementCalls.push(`getSession:${resource.toString()}`);
+					return session;
+				}
+			};
+			const automationSessions = constObservable(sessionsManagementService.getSessions());
+			managementCalls.length = 0;
+			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = runs;
+			};
+			const uriIdentityService = new class extends mock<IUriIdentityService>() {
+				override readonly extUri = new ExtUri(() => true);
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				new class extends mock<IInstantiationService>() { },
+				new class extends mock<IContextKeyService>() { },
+				automationService,
+				automationSessions,
+				uriIdentityService,
+				new class extends mock<ICustomViewService>() { },
+			);
+			const runResource = URI.parse('test-session:/workspace/automation');
+			const statuses: (SessionStatus | undefined)[] = [];
+			for (const status of ['completed', 'failed'] as const) {
+				runs.set([{
+					id: status,
+					automationId: 'automation',
+					status,
+					trigger: 'schedule',
+					sessionResource: runResource.toString(),
+					startedAt: '2026-08-10T00:00:00.000Z',
+					leaderWindowId: 1,
+				}], undefined);
+				statuses.push(renderer.automationStatus.get());
+			}
+
+			assert.deepStrictEqual({
+				resourcesAreDistinct: session.resource.toString() !== runResource.toString(),
+				resourcesAreEquivalent: uriIdentityService.extUri.isEqual(session.resource, runResource),
+				statuses,
+				managementCalls,
+			}, {
+				resourcesAreDistinct: true,
+				resourcesAreEquivalent: true,
+				statuses: [SessionStatus.Completed, SessionStatus.Completed],
+				managementCalls: [],
+			});
+		});
+	});
 
 	suite('groupByWorkspace', () => {
 

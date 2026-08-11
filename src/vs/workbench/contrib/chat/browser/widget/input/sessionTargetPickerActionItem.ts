@@ -149,6 +149,14 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
 
+		if (this.delegate.onDidChangeActiveSessionProvider) {
+			this._register(this.delegate.onDidChangeActiveSessionProvider(() => {
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}));
+		}
+
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this._updateAgentSessionItems();
 		}));

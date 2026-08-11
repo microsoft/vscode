@@ -8,8 +8,9 @@ import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
-import { ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, SessionLifecycle, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, SessionLifecycle, withInitialSessionPullRequest, withMostRecentReferencedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
 import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
+import { parseGitHubPullRequestReferences, toGitHubPullRequestUrl } from '../common/githubPullRequestReferences.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -20,6 +21,9 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+
+const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 
 export class AgentHostGitStateService extends Disposable implements IAgentHostGitStateService {
 	declare readonly _serviceBrand: undefined;
@@ -111,27 +115,56 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 
 			const pr = await this._findPullRequestForCheckout(state, gitHubState.owner, gitHubState.repo, gitState, branchName, authToken);
-			if (!pr?.url) {
-				// No pull request for this branch (yet). The previously known
-				// pull request, if any, keeps being reported and the lookup is
-				// retried on the next refresh.
-				this._logService.trace(`[AgentHostGitStateService][attachSessionGitHubPullRequest] No pull request found for ${sessionKey} on branch ${branchName}`);
-				return;
-			}
-
-			// The working copy may have moved to another branch while the
-			// request was in flight; discard the now stale result so it cannot
-			// overwrite the pull request of the branch that is checked out now.
 			const currentBranchName = readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta)?.branchName;
 			if (currentBranchName !== branchName) {
 				return;
 			}
 
-			const currentGitHubState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
-			await this.setSessionGitHubState(sessionKey, withMostRecentSessionPullRequest(currentGitHubState, pr.url, branchName));
+			const currentState = this._stateManager.getSessionState(sessionKey);
+			if (!currentState) {
+				return;
+			}
+			const currentGitHubState = readSessionGitHubState(currentState._meta);
+			if (!pr?.url) {
+				if (this._isFolderSession(currentState, currentGitHubState) && currentGitHubState?.initialPullRequestUrls === undefined) {
+					await this.setSessionGitHubState(sessionKey, withInitialSessionPullRequest(currentGitHubState));
+				}
+				this._logService.trace(`[AgentHostGitStateService][attachSessionGitHubPullRequest] No pull request found for ${sessionKey} on branch ${branchName}`);
+				return;
+			}
+
+			let nextGitHubState = withMostRecentSessionPullRequest(currentGitHubState, pr.url, branchName);
+			if (this._shouldAddToFolderBaseline(sessionKey, currentState, currentGitHubState, pr)) {
+				nextGitHubState = {
+					...nextGitHubState,
+					...withInitialSessionPullRequest(currentGitHubState, pr.url),
+				};
+			} else if (this._isFolderSession(currentState, currentGitHubState) && currentGitHubState?.initialPullRequestUrls === undefined) {
+				nextGitHubState = {
+					...nextGitHubState,
+					...withInitialSessionPullRequest(currentGitHubState),
+				};
+			}
+			await this.setSessionGitHubState(sessionKey, nextGitHubState);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
 		}
+	}
+
+	private _shouldAddToFolderBaseline(sessionKey: string, state: ISessionWithDefaultChat, gitHubState: ISessionGitHubState | undefined, pullRequest: CreatedPullRequest): boolean {
+		if (!this._isFolderSession(state, gitHubState) || getSessionRelatedPullRequestUrls(gitHubState).some(url => url.toLowerCase() === pullRequest.url.toLowerCase())) {
+			return false;
+		}
+		if (pullRequest.createdAt !== undefined) {
+			const sessionStart = Date.parse(this._stateManager.getSessionSummary(sessionKey)?.createdAt ?? '');
+			return Number.isNaN(sessionStart) || pullRequest.createdAt < sessionStart - PULL_REQUEST_CREATION_CLOCK_SKEW_MS;
+		}
+		return gitHubState?.initialPullRequestUrls === undefined;
+	}
+
+	private _isFolderSession(state: ISessionWithDefaultChat, gitHubState: ISessionGitHubState | undefined): boolean {
+		return state.config?.values[SessionConfigKey.Isolation] === 'folder'
+			|| gitHubState?.initialPullRequestUrls !== undefined;
 	}
 
 	/**
@@ -146,7 +179,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headBranch = upstreamBranch?.branch ?? branchName;
-		const headOwner = upstreamBranch && githubHeadOwner ? githubHeadOwner : owner;
+		const headOwner = githubHeadOwner ?? owner;
 
 		const pullRequestByBranch = await this._octoKitService.findPullRequestByHeadBranch(owner, repo, headBranch, authToken, signal, headOwner);
 		if (pullRequestByBranch) {
@@ -164,34 +197,38 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: undefined;
 	}
 
-	/**
-	 * Scans a user message for GitHub issue references and merges them into the
-	 * session's GitHub state. References already recorded are preserved and keep
-	 * their position, so the list reflects the order in which the session first
-	 * mentioned each issue.
-	 */
-	async attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void> {
-		const references = parseGitHubIssueReferences(text);
-		if (references.length === 0) {
+	async attachSessionGitHubReferences(sessionKey: string, text: string): Promise<void> {
+		const currentState = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta);
+		const issueReferences = parseGitHubIssueReferences(text);
+		const repository = currentState?.owner && currentState.repo ? { owner: currentState.owner, repo: currentState.repo } : undefined;
+		const gitHubHost = this._gitHubEndpointService.getEnterpriseHost() ?? 'github.com';
+		const pullRequestReferences = parseGitHubPullRequestReferences(text, repository, gitHubHost)
+			.filter(reference => !repository || reference.owner.toLowerCase() === repository.owner.toLowerCase() && reference.repo.toLowerCase() === repository.repo.toLowerCase());
+		if (issueReferences.length === 0 && pullRequestReferences.length === 0) {
 			return;
 		}
 
-		const currentUrls = readSessionGitHubState(this._stateManager.getSessionState(sessionKey)?._meta)?.issueUrls ?? [];
-		const nextUrls = [...currentUrls];
-		for (const reference of references) {
+		const currentIssueUrls = currentState?.issueUrls ?? [];
+		const nextIssueUrls = [...currentIssueUrls];
+		for (const reference of issueReferences) {
 			const url = toGitHubIssueUrl(reference);
-			if (!nextUrls.includes(url)) {
-				nextUrls.push(url);
+			if (!nextIssueUrls.includes(url)) {
+				nextIssueUrls.push(url);
 			}
 		}
 
-		if (nextUrls.length === currentUrls.length) {
-			return;
+		let nextState: ISessionGitHubState = issueReferences.length > 0
+			? { issueUrls: nextIssueUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES) }
+			: {};
+		for (let index = pullRequestReferences.length - 1; index >= 0; index--) {
+			const reference = pullRequestReferences[index];
+			const url = toGitHubPullRequestUrl(reference, gitHubHost);
+			nextState = {
+				...nextState,
+				...withMostRecentReferencedSessionPullRequest({ ...currentState, ...nextState }, url)
+			};
 		}
-
-		await this.setSessionGitHubState(sessionKey, {
-			issueUrls: nextUrls.slice(0, MAX_SESSION_ISSUE_REFERENCES)
-		} satisfies ISessionGitHubState);
+		await this.setSessionGitHubState(sessionKey, nextState);
 	}
 
 	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined): Promise<void> {
@@ -268,6 +305,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
 
 		if (objectEquals(currentState, nextState)) {
+			await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 			return;
 		}
 

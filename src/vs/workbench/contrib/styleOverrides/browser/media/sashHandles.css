@@ -57,6 +57,12 @@
 	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 }
 
+:is(.hc-black, .hc-light).style-override .monaco-sash:not(.disabled)::after {
+	background: var(--vscode-foreground);
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
 /* While hovering/dragging, defer to the base full-length highlight. */
 .style-override .monaco-sash.hover:not(.disabled)::after,
 .style-override .monaco-sash.active:not(.disabled)::after {

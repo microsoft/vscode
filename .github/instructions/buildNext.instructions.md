@@ -32,10 +32,23 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 ### Files
 
 - **[index.ts](index.ts)** - Main build orchestrator
+  - `build-fast` command: Persistent non-watch incremental development build
   - `transpile` command: Fast TS → JS using `esbuild.transform()`
   - `bundle` command: TS → bundled JS using `esbuild.build()`
+- **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
+- **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
 - **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
+
+### Fast Non-Watch Incremental Builds
+
+`npm run build-fast` stores its last successful input state in `.build/build-fast/state.json`. It uses scoped Git deltas plus content hashes for currently dirty/untracked inputs, so a repeated invocation can skip every build lane without running a watcher or scanning all source files.
+
+- Client changes are transpiled/copied/deleted at file granularity.
+- Built-in extension/media and Copilot builds run only when their inputs change.
+- Missing, incompatible, or invalid state falls back to a full build.
+- `npm run build-fast -- --force` forces all lanes to rebuild and refreshes state.
+- State is invalidated before outputs change and published only after every selected lane succeeds. If inputs change during the build, the pre-build snapshot is saved so late changes are rebuilt on the next run.
 
 ### Integration with Old Build
 

@@ -260,13 +260,32 @@ suite('ModelSelection', () => {
 		}]);
 	});
 
-	test('a new conversation reapplies the configured default after an explicit selection', () => {
+	test('a new conversation preserves an explicit selection', () => {
 		assert.deepStrictEqual(summarize(transition({
 			session: { modelId: first.identifier },
 			models: { configuredModel: second.metadata.id },
 			previous: {
 				currentModel: first,
 				currentReason: ModelSelectionReason.UserSelection,
+				lastPushedChatKey: 'chat:previous',
+			},
+		})), {
+			current: first.identifier,
+			pending: undefined,
+			effect: 'apply',
+			applied: first.identifier,
+			reason: ModelSelectionReason.NewChatRepush,
+			lastPushedChatKey: 'chat:one',
+		});
+	});
+
+	test('a new conversation reapplies the configured default after a restored selection', () => {
+		assert.deepStrictEqual(summarize(transition({
+			session: { modelId: first.identifier },
+			models: { configuredModel: second.metadata.id },
+			previous: {
+				currentModel: first,
+				currentReason: ModelSelectionReason.SessionRestore,
 				lastPushedChatKey: 'chat:previous',
 			},
 		})), {

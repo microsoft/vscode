@@ -62,6 +62,27 @@
 	animation: codicon-spin 1.5s steps(30) infinite;
 }
 
+/* Connect/reconnect: the waveform bars stand for a live session, so while a socket
+ * is still being established swap them for the same compact spinner the dictation
+ * cell uses while it prepares. Without this a multi-attempt reconnect renders
+ * identically to a connected-idle session. */
+.chat-voice-input-mode-cell.voice > .chat-voice-input-mode-spinner {
+	display: none;
+}
+
+.chat-voice-input-mode-cell.voice.connecting > .chat-voice-input-mode-spinner {
+	display: inline-block;
+}
+
+.chat-voice-input-mode-cell.voice.connecting > .chat-voice-input-mode-bars {
+	display: none;
+}
+
+.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.connecting .chat-voice-input-mode-spinner.codicon-loading-compact::before {
+	display: inline-block;
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 /* Determinate download ring drawn over the compact download glyph while the
  * on-device model downloads (cache miss). Mirrors the standalone toolbar
  * button's ring; reuses its shared `dictation-download-ring-spin` keyframe. */

@@ -7,6 +7,7 @@ import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
 import * as path from '../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { parse } from '../../../base/common/glob.js';
@@ -18,7 +19,18 @@ import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../c
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
-import { Limiter, SequencerByKey } from '../../../base/common/async.js';
+import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
+
+/**
+ * `git worktree remove`/`prune` can transiently fail — or, worse, exit 0 while
+ * leaving the `.git/worktrees/<id>` admin directory behind — when a concurrent
+ * git process in the worktree still holds an `index.lock`, so the admin
+ * directory is non-empty. That clears once the other process exits, so retry a
+ * few times with a capped exponential backoff and verify de-registration.
+ */
+const WORKTREE_REMOVAL_MAX_ATTEMPTS = 5;
+const WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS = 100;
+const WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS = 500;
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -127,17 +139,20 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		const output = await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']);
-		if (!output) {
+		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+	}
+
+	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
+		if (!porcelainOutput) {
 			return [];
 		}
-		return output.split(/\r?\n/g)
+		return porcelainOutput.split(/\r?\n/g)
 			.filter(line => line.startsWith('worktree '))
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string, track = false, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void> {
-		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint, track) ?? startPoint;
 
 		const args = ['-c', 'checkout.workers=0', 'worktree', 'add'];
 
@@ -205,13 +220,127 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
+	/**
+	 * Removes a session's git worktree, tolerating the teardown race where a
+	 * concurrent git process is still running inside it.
+	 *
+	 * `git worktree remove` deletes the working tree and then the admin directory
+	 * `.git/worktrees/<id>`. If another git process (our own status/diff probes,
+	 * or the agent's own git) re-created `index.lock` there, that last step fails
+	 * with "Directory not empty". And `git worktree prune` — which we use to
+	 * finish a partially-removed worktree — can even exit 0 while failing to
+	 * delete that directory, so a zero exit is not proof of success.
+	 *
+	 * Example the loop below handles:
+	 * ```
+	 *   attempt 1  `remove` deletes the tree, then can't rmdir .git/worktrees/<id>
+	 *              (a probe's index.lock is still there)                  -> throws
+	 *   wait ~100ms  the probe finishes and releases its lock
+	 *   attempt 2  tree already gone -> `prune` clears the stale entry
+	 *              -> verified de-registered                              -> done
+	 * ```
+	 *
+	 * So we: retry with a capped exponential backoff to let the racing process
+	 * finish; switch to `prune` once the working tree is already gone; only retry
+	 * transient lock / "directory not empty" failures (a dirty-tree "use --force"
+	 * still fails fast); treat a non-retryable failure as success when git no
+	 * longer tracks the worktree (idempotent re-removal of an already-removed or
+	 * archived worktree); and verify the worktree is truly de-registered before
+	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
+	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
-		const args = ['worktree', 'remove'];
+		const removeArgs = ['worktree', 'remove'];
 		if (options?.force) {
-			args.push('--force');
+			removeArgs.push('--force');
 		}
-		args.push(worktree.fsPath);
-		await this._runGit(repositoryRoot, args, { timeout: 60_000, throwOnError: true });
+		removeArgs.push(worktree.fsPath);
+
+		let lastError: unknown;
+		for (let attempt = 0; attempt < WORKTREE_REMOVAL_MAX_ATTEMPTS; attempt++) {
+			if (attempt > 0) {
+				await timeout(Math.min(WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS, WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)));
+			}
+			try {
+				if (await this._pathExists(worktree.fsPath)) {
+					await this._runGit(repositoryRoot, removeArgs, { timeout: 60_000, throwOnError: true });
+				} else {
+					// Working tree already gone (a prior attempt removed it): prune clears the stale admin entry.
+					await this._runGit(repositoryRoot, ['worktree', 'prune'], { timeout: 60_000, throwOnError: true });
+				}
+				// A zero exit is not proof of success (see the doc above), so confirm de-registration.
+				if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+					return;
+				}
+				lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
+			} catch (error) {
+				lastError = error;
+				if (!isRetryableWorktreeRemovalError(error)) {
+					// Idempotent: if git no longer tracks the worktree the removal goal is already met (e.g. an archived session removed it earlier).
+					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+						this._logService.trace(`[agentHostGitService] worktree '${worktree.fsPath}' already de-registered; treating removal as complete`);
+						return;
+					}
+					throw error;
+				}
+			}
+			if (attempt < WORKTREE_REMOVAL_MAX_ATTEMPTS - 1) {
+				this._logService.warn(`[agentHostGitService] worktree removal attempt ${attempt + 1}/${WORKTREE_REMOVAL_MAX_ATTEMPTS} did not complete for '${worktree.fsPath}', retrying: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+		}
+		throw lastError;
+	}
+
+	private async _pathExists(fsPath: string): Promise<boolean> {
+		try {
+			await fsPromises.access(fsPath);
+			return true;
+		} catch (error) {
+			// Only a definitive "not found" means the path is gone. Treat any
+			// other error (e.g. EACCES/EPERM) as "exists" so we don't wrongly
+			// take the prune path for a still-present worktree.
+			return (error as NodeJS.ErrnoException)?.code !== 'ENOENT';
+		}
+	}
+
+	/**
+	 * Whether `worktree` is still registered with git (its admin entry survives).
+	 * Fails closed (returns `true`) if the registry cannot be read, so an unrelated
+	 * `git worktree list` failure is never mistaken for a completed removal.
+	 */
+	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
+		let registered: URI[];
+		try {
+			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+		} catch {
+			return true;
+		}
+		if (registered.length === 0) {
+			return false;
+		}
+		const target = await this._canonicalizeWorktreePath(worktree);
+		// Check every registered worktree in parallel and resolve as soon as one matches.
+		const matched = await firstParallel(
+			registered.map(async entry =>
+				extUriBiasedIgnorePathCase.isEqual(entry, worktree)
+				|| extUriBiasedIgnorePathCase.isEqual(await this._canonicalizeWorktreePath(entry), target)),
+			isMatch => isMatch,
+			false,
+		);
+		return matched ?? false;
+	}
+
+	/**
+	 * Resolves symlinks on the worktree's parent (which persists even after the
+	 * worktree directory itself is deleted) so a path we passed to git (e.g.
+	 * `/var/...`) matches the realpath'd form git reports (`/private/var/...`).
+	 */
+	private async _canonicalizeWorktreePath(worktree: URI): Promise<URI> {
+		try {
+			const parentReal = await fsPromises.realpath(path.dirname(worktree.fsPath));
+			return URI.file(path.join(parentReal, path.basename(worktree.fsPath)));
+		} catch {
+			return worktree;
+		}
 	}
 
 	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
@@ -413,10 +542,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}) !== undefined;
 	}
 
-	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
-		const remoteBranch = `origin/${branch}`;
-		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
-		return output !== undefined ? remoteBranch : undefined;
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string, fetchIfMissing = false): Promise<string | undefined> {
+		const trackingRef = getRemoteTrackingRef(branch);
+		if (!trackingRef) {
+			return undefined;
+		}
+		const { branchName, remoteBranch, remoteRef, sourceRef } = trackingRef;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', remoteRef]);
+		if (output !== undefined) {
+			return remoteBranch;
+		}
+		if (!fetchIfMissing || branchName === 'HEAD' || /^[0-9a-f]{40}$/i.test(branchName)) {
+			return undefined;
+		}
+
+		this._logService.info(`[AgentHostGitService] Fetching tracked branch '${branchName}' from origin.`);
+		await this._runGit(repositoryRoot, ['fetch', '--no-tags', 'origin', `${sourceRef}:${remoteRef}`], {
+			timeout: 60_000,
+			throwOnError: true,
+		});
+		return remoteBranch;
 	}
 
 	/**
@@ -785,7 +930,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
-		const githubHeadRepo = upstreamRemote ? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote) : undefined;
+		// `gh pr checkout` can create a local branch whose head lives on a fork but
+		// has no upstream tracking ref; Git still reports the branch's push remote,
+		// which can be a remote name or the literal fork URL.
+		const pushRemote = !upstreamRemote && status.branchName
+			? (await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(push:remotename)', `refs/heads/${status.branchName}`]))?.trim() || undefined
+			: undefined;
+		const githubHeadRepo = upstreamRemote
+			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
+			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -864,6 +1017,26 @@ export class AgentHostGitService implements IAgentHostGitService {
 			child.on('exit', () => clearTimeout(timer));
 		});
 	}
+}
+
+export function getRemoteTrackingRef(branch: string): { branchName: string; remoteBranch: string; remoteRef: string; sourceRef: string } | undefined {
+	const pullRequestRef = /^refs\/pull\/(?<number>\d+)\/head$/.exec(branch);
+	const branchName = pullRequestRef?.groups
+		? `pull/${pullRequestRef.groups.number}/head`
+		: branch
+			.replace(/^refs\/remotes\/origin\//, '')
+			.replace(/^origin\//, '')
+			.replace(/^refs\/heads\//, '');
+	if (branchName.startsWith('refs/')) {
+		return undefined;
+	}
+	const remoteBranch = `origin/${branchName}`;
+	return {
+		branchName,
+		remoteBranch,
+		remoteRef: `refs/remotes/${remoteBranch}`,
+		sourceRef: pullRequestRef ? branch : `refs/heads/${branchName}`,
+	};
 }
 
 /**
@@ -997,6 +1170,21 @@ function hasWorktreePathCollision(file: string, worktreeFiles: ReadonlySet<strin
 		index = file.indexOf('/', index + 1);
 	}
 	return false;
+}
+
+/**
+ * Whether a `git worktree remove`/`prune` failure is a transient filesystem or
+ * lock race — a concurrent git process in the worktree left the
+ * `.git/worktrees/<id>` admin directory non-empty — and is worth retrying.
+ * Genuine failures (a dirty tree needing `--force`, a missing worktree, or any
+ * other fatal git error) are not retryable.
+ */
+export function isRetryableWorktreeRemovalError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /directory not empty/i.test(message)
+		|| /\bindex\.lock\b/i.test(message)
+		|| /unable to (?:create|write|append)[^\n]*\.lock/i.test(message)
+		|| /could not lock/i.test(message);
 }
 
 /**
@@ -1357,6 +1545,13 @@ export function parseGitHubRepoFromRemote(remotesOutput: string | undefined, rem
 		}
 	}
 	return undefined;
+}
+
+function parseGitHubHeadRepoFromRemoteSelection(remotesOutput: string | undefined, remoteSelection: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remoteSelection) {
+		return undefined;
+	}
+	return parseGitHubRepoFromRemote(remotesOutput, remoteSelection) ?? parseGitHubOwnerRepoFromUrl(remoteSelection);
 }
 
 /**

@@ -37,7 +37,7 @@ import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
-import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationDownloadHoverContent, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
@@ -354,9 +354,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell?.setAttribute('aria-label', this._dictationCell.classList.contains('preparing')
 			? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
 			: this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID));
-		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('on')
-			? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-			: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
+		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('connecting')
+			? localize('voiceInputMode.connecting', "Connecting to Voice Mode…")
+			: this._voiceCell.classList.contains('on')
+				? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+				: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
 		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
 			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
 			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
@@ -412,7 +414,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell.setAttribute('role', 'button');
 		this._dictationIcon = dom.append(this._dictationCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell,
-			() => getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
+			() => this.chatSpeechToTextService.isPreparingModel
+				? getDictationDownloadHoverContent(this.chatSpeechToTextService)
+				: getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
 		this._register(dom.addDisposableListener(this._dictationCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
@@ -430,6 +434,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._voiceCell.setAttribute('type', 'button');
 		this._voiceCell.setAttribute('role', 'button');
 		this._voiceBars = dom.append(this._voiceCell, dom.$('span.chat-voice-input-mode-bars'));
+		// Connect/reconnect spinner. Swapped in for the bars while a socket is being
+		// established, so a retry loop reads as "working on it" rather than as a live
+		// session. CSS hides whichever of the two the `connecting` class deselects.
+		dom.append(this._voiceCell, dom.$(`span.chat-voice-input-mode-icon.chat-voice-input-mode-spinner${ThemeIcon.asCSSSelector(Codicon.loadingCompact)}`));
 		for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
 			this._voiceBarEls.push(dom.append(this._voiceBars, dom.$('span.chat-voice-input-mode-bar')));
 		}
@@ -541,7 +549,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			} else {
 				isDictating = isActive && dictationActive.read(reader);
 				connected = isVoiceActive && this.voiceSessionController.isConnected.read(reader);
-				connecting = isVoiceActive && this.voiceSessionController.isConnecting.read(reader);
+				// A reconnect is a connect in progress as far as this pill is concerned:
+				// without it the pill renders its idle state while the socket is retrying.
+				connecting = isVoiceActive && (this.voiceSessionController.isConnecting.read(reader)
+					|| this.voiceSessionController.isReconnecting.read(reader));
 				const voiceState = this.voiceSessionController.voiceState.read(reader);
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
@@ -554,8 +565,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
-			// loop drives listening, so there is no listen cell.
-			const showListen = voiceOn && !handsFree;
+			// loop drives listening, so there is no listen cell. It keys off `connected`
+			// rather than `voiceOn` so a connect/reconnect renders as a single-cell
+			// spinner instead of a spinner beside an inert listen button.
+			const showListen = connected && !handsFree;
 
 			// Presence of each cell. The housing is a constant size; the absent cell
 			// collapses its width to 0 (mask recenters) so icons slide into place.
@@ -610,6 +623,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			//   hover-while-connected → short even "silent" bars (previews disconnect; CSS)
 			this._voiceCell!.classList.toggle('collapsed', !voicePresent);
 			this._voiceCell!.classList.toggle('on', voiceOn);
+			this._voiceCell!.classList.toggle('connecting', connecting && !connected);
 			this._voiceCell!.classList.toggle('idle-on', voiceOn && !voiceLive);
 			this._voiceCell!.classList.toggle('listening', listening);
 			this._voiceCell!.classList.toggle('speaking', speaking);

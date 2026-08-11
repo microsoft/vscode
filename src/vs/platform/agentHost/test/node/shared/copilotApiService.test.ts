@@ -59,6 +59,12 @@ function tokenResponse(overrides?: Record<string, unknown>): Response {
 	}), { status: 200 });
 }
 
+function userResponse(): Response {
+	return new Response(JSON.stringify({
+		endpoints: { api: 'https://api.githubcopilot.com' },
+	}), { status: 200 });
+}
+
 function anthropicResponse(content: Array<{ type: string; text?: string }>, stopReason = 'end_turn'): Response {
 	return new Response(JSON.stringify({
 		id: 'msg_test',
@@ -345,11 +351,31 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(discoveryUrl, 'https://api.acme.ghe.com/copilot_internal/user');
 		});
 
-		test('throws on 403 from endpoint discovery', async () => {
-			const service = createService(async () => new Response('{"message":"Not authorized"}', { status: 403, statusText: 'Forbidden' }));
+		test('preserves authentication errors from endpoint discovery', async () => {
+			const service = createService(async () => new Response('{"message":"Bad credentials"}', { status: 401, statusText: 'Unauthorized' }));
 			await assert.rejects(
 				() => service.messages('bad-tok', baseRequest),
-				(err: Error) => err.message.includes('Copilot endpoint discovery failed: 403'),
+				(err: Error) => {
+					assert.deepStrictEqual({
+						isCopilotApiError: err instanceof CopilotApiError,
+						status: err instanceof CopilotApiError ? err.status : undefined,
+						message: err.message,
+						envelope: err instanceof CopilotApiError ? err.envelope : undefined,
+					}, {
+						isCopilotApiError: true,
+						status: 401,
+						message: 'Copilot endpoint discovery failed: 401 Unauthorized — {"message":"Bad credentials"}',
+						envelope: {
+							type: 'error',
+							error: {
+								type: 'api_error',
+								message: '{"message":"Bad credentials"}',
+							},
+							request_id: null,
+						},
+					});
+					return true;
+				},
 			);
 		});
 
@@ -587,6 +613,62 @@ suite('CopilotApiService', () => {
 			});
 
 			assert.strictEqual(JSON.parse(capturedBody ?? '{}').max_tokens, 32);
+		});
+
+		test('uses the GitHub OAuth token directly for utility completions', async () => {
+			const requests: Array<{ url: string; authorization: string | undefined }> = [];
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				requests.push({ url, authorization: (init?.headers as Record<string, string> | undefined)?.['Authorization'] });
+				if (url.endsWith('/models')) {
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+
+			await service.utilityChatCompletion('gh-oauth-token', {
+				messages: [{ role: 'user', content: 'Generate a title' }],
+			});
+
+			assert.deepStrictEqual(requests.map(request => ({
+				path: new URL(request.url).pathname,
+				authorization: request.authorization,
+			})), [
+				{ path: '/copilot_internal/user', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/models', authorization: 'Bearer gh-oauth-token' },
+				{ path: '/chat/completions', authorization: 'Bearer gh-oauth-token' },
+			]);
+		});
+
+		test('utility auth failure rediscovers endpoints and utility model', async () => {
+			let userCount = 0;
+			let modelsCount = 0;
+			let completionCount = 0;
+			const service = createService(async input => {
+				const url = getUrl(input);
+				if (url.endsWith('/copilot_internal/user')) {
+					userCount++;
+					return userResponse();
+				}
+				if (url.endsWith('/models')) {
+					modelsCount++;
+					return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
+				}
+				completionCount++;
+				return completionCount === 1
+					? new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })
+					: new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			});
+			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }] };
+
+			await assert.rejects(() => service.utilityChatCompletion('gh-oauth-token', request));
+			await service.utilityChatCompletion('gh-oauth-token', request);
+
+			assert.deepStrictEqual({ userCount, modelsCount, completionCount }, {
+				userCount: 2,
+				modelsCount: 2,
+				completionCount: 2,
+			});
 		});
 
 		test('non-streaming sends stream=false in the body', async () => {

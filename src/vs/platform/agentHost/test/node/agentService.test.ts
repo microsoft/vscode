@@ -28,10 +28,11 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { META_GITHUB_STATE } from '../../common/agentHostGitStateService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -40,6 +41,7 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
@@ -512,10 +514,16 @@ suite('AgentService (node dispatcher)', () => {
 		const multiRoot = {
 			workspaceFile: 'vscode-remote://ssh-remote+host/work/demo.code-workspace',
 		};
+		const github = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			pullRequestBranchName: 'feature',
+		};
 		const session = await localService.createSession({
 			provider: agent.id,
 			workingDirectories: [URI.file('/workspace/one'), URI.file('/workspace/two')],
-			_meta: { multiRoot, ignored: 'client value' },
+			_meta: { github, multiRoot, ignored: 'client value' },
 		});
 		const sourceChat = buildDefaultChatUri(session.toString());
 		localService.dispatchAction(sourceChat, {
@@ -546,11 +554,13 @@ suite('AgentService (node dispatcher)', () => {
 		assert.deepStrictEqual({
 			state: localService.stateManager.getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			github: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
 			inherited: readSessionMultiRootMetadata(localService.stateManager.getSessionState(inherited.toString())?._meta),
 			overridden: readSessionMultiRootMetadata(localService.stateManager.getSessionState(overridden.toString())?._meta),
 		}, {
-			state: { multiRoot },
+			state: { github, multiRoot },
 			persisted: JSON.stringify(override),
+			github,
 			inherited: multiRoot,
 			overridden: override,
 		});
@@ -583,26 +593,43 @@ suite('AgentService (node dispatcher)', () => {
 		const multiRoot = {
 			workspaceFile: 'file:///work/demo.code-workspace',
 		};
+		const github = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			pullRequestBranchName: 'feature',
+		};
 		const session = await localService.createSession({
 			provider: agent.id,
 			workingDirectories: [URI.file('/work/one'), URI.file('/work/two')],
-			_meta: { multiRoot },
+			_meta: { github, multiRoot },
 		});
 		const before = readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta);
 		const persistedBefore = await db.getMetadata(SESSION_META_MULTI_ROOT_KEY);
+		const githubBefore = readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta);
+		const persistedGitHubBefore = await db.getMetadata(META_GITHUB_STATE);
 
 		agent.materialize(session, [URI.file('/work/materialized'), URI.file('/work/two')]);
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			before,
 			persistedBefore,
+			githubBefore,
+			persistedGitHubBefore,
 			after: readSessionMultiRootMetadata(localService.stateManager.getSessionState(session.toString())?._meta),
 			persistedAfter: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
+			githubAfter: readSessionGitHubState(localService.stateManager.getSessionState(session.toString())?._meta),
+			persistedGitHubAfter: await db.getMetadata(META_GITHUB_STATE),
 		}, {
 			before: multiRoot,
 			persistedBefore: undefined,
+			githubBefore: github,
+			persistedGitHubBefore: undefined,
 			after: multiRoot,
 			persistedAfter: JSON.stringify(multiRoot),
+			githubAfter: github,
+			persistedGitHubAfter: JSON.stringify(github),
 		});
 	});
 
@@ -714,6 +741,140 @@ suite('AgentService (node dispatcher)', () => {
 					&& error.code === JSON_RPC_INTERNAL_ERROR
 					&& error.message === `Failed to read content: ${uri.toString()}: Injected unknown read failure`
 			);
+		});
+
+		// ---- git-blob: content resolution (AC-5, Q5 Option A) ---------------
+		//
+		// A `git-blob:` URI carries the changed file's ABSOLUTE path (as the URI
+		// path) plus the session it belongs to. The host must run `git show` in
+		// the repository that actually contains that file, chosen SERVER-SIDE
+		// from the session's own working directories — never from a
+		// client-supplied directory.
+
+		/**
+		 * Builds a git service whose {@link IAgentHostGitService.getRepositoryRoot}
+		 * maps each working directory to a repo root via {@link repoRootByDir}
+		 * and whose {@link IAgentHostGitService.showBlob} records the working
+		 * directory it is asked to run in (so tests can assert the server picked
+		 * the right repository).
+		 */
+		function createBlobGitService(repoRootByDir: ReadonlyMap<string, URI>, showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }>) {
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async workingDirectory => repoRootByDir.get(workingDirectory.toString());
+			gitService.showBlob = async (workingDirectory, ref, repoRelativePath) => {
+				showBlobCalls.push({ workingDirectory: workingDirectory.toString(), ref, repoRelativePath });
+				return VSBuffer.fromString(`blob:${repoRelativePath}`);
+			};
+			return gitService;
+		}
+
+		async function createBlobSession(gitService: ReturnType<typeof createNoopGitService>, workingDirectories: readonly URI[]): Promise<{ service: AgentService; session: URI }> {
+			// Advertise `multipleWorkingDirectories` so the full multi-root set is
+			// retained in session state (a provider without it is truncated to
+			// the primary at create time).
+			class MultiRootMockAgent extends MockAgent {
+				override getDescriptor(): IAgentDescriptor {
+					return { provider: this.id, displayName: this.id, description: this.id, capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } };
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MultiRootMockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot', workingDirectories: [...workingDirectories] });
+			return { service: localService, session };
+		}
+
+		test('git-blob resolves against the containing repo root of a NON-primary folder (multi-root)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const repoB = URI.file('/workspace/repoB');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoB.toString(), repoB]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoB]);
+
+			// A file changed in the NON-primary folder (repoB).
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoB/src/app.ts'));
+			const result = await localService.resourceRead(blobUri);
+
+			// showBlob ran in repoB's root — not the primary (repoA) — and its
+			// content was returned.
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoB.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
+			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('git-blob whose absolute path is under no session repo root maps to NotFound (no wrong-primary fallback)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const repoB = URI.file('/workspace/repoB');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoB.toString(), repoB]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoB]);
+
+			// Absolute path is outside every session repository root.
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'x.ts', '/workspace/outside/x.ts'));
+
+			await assert.rejects(
+				() => localService.resourceRead(blobUri),
+				(error: unknown) => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound,
+			);
+			// The primary was NOT used as a wrong fallback — showBlob never ran.
+			assert.deepStrictEqual(showBlobCalls, []);
+		});
+
+		test('git-blob resolves against the sole repo root in a single-folder session (unchanged behavior)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
+
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoA/src/app.ts'));
+			const result = await localService.resourceRead(blobUri);
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
+			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('single-folder git-blob uses the primary directory even for a path outside the root (AC-1.1 unchanged)', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA]);
+
+			// Absolute path is OUTSIDE the (single) working directory — e.g. a
+			// relocated/remapped worktree. Pre-multi-root single-folder behavior
+			// ran `git show` from the primary directory regardless of the path;
+			// single-folder sessions must keep doing so (no containment check),
+			// rather than returning NotFound as the multi-root path would.
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/somewhere/else/src/app.ts'));
+			const result = await localService.resourceRead(blobUri);
+
+			assert.deepStrictEqual(showBlobCalls, [{ workingDirectory: repoA.toString(), ref: 'baseSha', repoRelativePath: 'src/app.ts' }]);
+			assert.strictEqual(result.data, 'blob:src/app.ts');
+		});
+
+		test('git-blob runs showBlob in a server-derived repo root, never a directory read from the URI', async () => {
+			const repoA = URI.file('/workspace/repoA');
+			// The repoB working directory is a SUBDIRECTORY of its repo root, so
+			// the resolved repo root differs from both the working directory and
+			// the URI path's parent directory.
+			const repoBWorkingDir = URI.file('/workspace/repoB/nested/sub');
+			const repoBRoot = URI.file('/workspace/repoB');
+			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+			const gitService = createBlobGitService(new Map([[repoA.toString(), repoA], [repoBWorkingDir.toString(), repoBRoot]]), showBlobCalls);
+			const { service: localService, session } = await createBlobSession(gitService, [repoA, repoBWorkingDir]);
+
+			// The URI path's parent directory (/workspace/repoB/src) must NOT be
+			// used as the cwd; the repo root is what runs `git show`.
+			const blobUri = URI.parse(buildGitBlobUri(session.toString(), 'baseSha', 'src/app.ts', '/workspace/repoB/src/app.ts'));
+			await localService.resourceRead(blobUri);
+
+			assert.strictEqual(showBlobCalls.length, 1);
+			// cwd is a session-resolved repo root...
+			const resolvedRepoRoots = [repoA.toString(), repoBRoot.toString()];
+			assert.ok(resolvedRepoRoots.includes(showBlobCalls[0].workingDirectory), 'cwd must be one of the session repo roots');
+			assert.strictEqual(showBlobCalls[0].workingDirectory, repoBRoot.toString());
+			// ...and NOT a value derived from the URI (parent dir) or the working directory.
+			assert.notStrictEqual(showBlobCalls[0].workingDirectory, URI.file('/workspace/repoB/src').toString());
+			assert.notStrictEqual(showBlobCalls[0].workingDirectory, repoBWorkingDir.toString());
 		});
 	});
 
@@ -1734,9 +1895,8 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(readSessionMultiRootMetadata(sessions[0]._meta), undefined);
 		});
 
-		test('listSessions normalizes a persisted linked-worktree project without probing a missing session worktree', async () => {
+		test('listSessions surfaces the persisted worktree repository root without resolving it', async () => {
 			const db = disposables.add(new TestSessionDatabase());
-			const primaryRoot = URI.file('/workspace/vscode');
 			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
 			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
 			await db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString());
@@ -1744,30 +1904,73 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUri = AgentSession.uri('copilot', sessionId);
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
-			agent.sessionMetadataOverrides = {
-				workingDirectories: [sessionWorktree],
-				project: { uri: linkedCheckout, displayName: 'parent' },
-			};
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree] };
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 			const gitService = createNoopGitService();
-			const resolvedFrom: URI[] = [];
-			gitService.getWorktreeRoots = async workingDirectory => {
-				resolvedFrom.push(workingDirectory);
-				return [primaryRoot, linkedCheckout, sessionWorktree];
+			let worktreeRootResolutions = 0;
+			gitService.getWorktreeRoots = async () => {
+				worktreeRootResolutions++;
+				return [];
 			};
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, gitService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
+			// Twice, because the deleted repair cached per session: one listing cannot tell "never resolves" from "resolves once".
 			await svc.listSessions();
 
 			assert.deepStrictEqual({
-				resolvedFrom: resolvedFrom.map(uri => uri.toString()),
+				worktreeRootResolutions,
 				project: sessions[0].project && { uri: sessions[0].project.uri.toString(), displayName: sessions[0].project.displayName },
 				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
 			}, {
-				resolvedFrom: [linkedCheckout.toString()],
-				project: { uri: primaryRoot.toString(), displayName: 'vscode' },
+				worktreeRootResolutions: 0,
+				project: { uri: linkedCheckout.toString(), displayName: 'parent' },
+				persistedRepositoryRoot: linkedCheckout.toString(),
+			});
+		});
+
+		test('listSessions reports the repository root once opening the session heals it', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/vscode');
+			const linkedCheckout = URI.file('/workspace/vscode.worktrees/parent');
+			const sessionWorktree = URI.file('/workspace/vscode.worktrees/parent.worktrees/child');
+			await Promise.all([
+				db.setMetadata('copilot.worktree.branchName', 'agents/child'),
+				db.setMetadata('copilot.worktree.path', sessionWorktree.toString()),
+				db.setMetadata(WORKTREE_META_REPOSITORY_ROOT, linkedCheckout.toString()),
+			]);
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree] };
+			const gitService = createNoopGitService();
+			gitService.getWorktreeRoots = async () => [primaryRoot, linkedCheckout, sessionWorktree];
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			svc.registerProvider(agent);
+			await agent.createSession();
+			const sessionResource = (await agent.listSessions())[0].session;
+			agent.sessionMessages = [];
+
+			const before = await svc.listSessions();
+			// Restore heals the metadata by resolving the worktree project, canonicalizing the root, and writing it back.
+			await svc.restoreSession(sessionResource);
+			const after = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				before: before[0].project?.uri.toString(),
+				after: after[0].project?.uri.toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+			}, {
+				before: linkedCheckout.toString(),
+				after: primaryRoot.toString(),
 				persistedRepositoryRoot: primaryRoot.toString(),
 			});
 		});

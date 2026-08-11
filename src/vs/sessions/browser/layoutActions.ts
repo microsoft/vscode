@@ -14,9 +14,10 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext, CustomViewVisibleContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -71,6 +72,32 @@ class ToggleSidebarVisibilityAction extends Action2 {
 }
 
 registerAction2(ToggleSidebarVisibilityAction);
+
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate());
+
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+	command: {
+		id: TogglePanelAction.ID,
+		title: localize('showPanel', "Show Panel"),
+		icon: Codicon.layoutPanelOff,
+		precondition: CustomViewVisibleContext.negate()
+	},
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+	command: {
+		id: TogglePanelAction.ID,
+		title: localize('hidePanel', "Hide Panel"),
+		icon: Codicon.layoutPanel,
+		precondition: CustomViewVisibleContext.negate()
+	},
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext)
+});
 
 // The original (non-single-pane) editor-title secondary side bar toggle reuses the core
 // `workbench.action.toggleAuxiliaryBar` command (registered by the workbench auxiliary bar

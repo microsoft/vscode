@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CCAModel, RemoteAgentJobPayload, RequestType } from '@vscode/copilot-api';
+import { CCAModel, RequestType } from '@vscode/copilot-api';
 import type { AuthenticationSession } from 'vscode';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
-import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse, RepositoryComparison } from './githubService';
+import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestSearchItem } from './githubAPI';
+import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, IOctoKitService, IOctoKitUser, PermissiveAuthRequiredError, PullRequestFile, RepositoryComparison } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
 	declare readonly _serviceBrand: undefined;
@@ -56,164 +56,6 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		return response;
 	}
 
-	async getCopilotSessionsForPR(prId: string, authOptions: AuthOptions): Promise<SessionInfo[]> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.trace('No authentication token available for getCopilotSessionsForPR');
-				throw new PermissiveAuthRequiredError();
-			}
-			const response = await this._capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotSessions, prId });
-			if (!response.ok) {
-				throw new Error(`Failed to fetch copilot sessions for PR ${prId}: ${response.statusText}`);
-			}
-			const data = await response.json() as { sessions?: SessionInfo[] };
-			if (data && Array.isArray(data.sessions)) {
-				return data.sessions;
-			}
-			throw new Error('Invalid response format');
-		} catch (e) {
-			this._logService.error(e);
-			return [];
-		}
-	}
-
-	async getSessionLogs(sessionId: string, authOptions: AuthOptions): Promise<string> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.trace('No authentication token available for getSessionLogs');
-				throw new PermissiveAuthRequiredError();
-			}
-			const response = await this._capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotSessionLogs, sessionId });
-			if (!response.ok) {
-				throw new Error(`Failed to fetch session logs for session ${sessionId}: ${response.statusText}`);
-			}
-			return response.text();
-		} catch (e) {
-			this._logService.error(e);
-			return '';
-		}
-	}
-
-	async getSessionInfo(sessionId: string, authOptions: AuthOptions): Promise<SessionInfo | undefined> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.trace('No authentication token available for getSessionInfo');
-				throw new PermissiveAuthRequiredError();
-			}
-			const response = await this._capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotSessionDetails, sessionId });
-			if (!response.ok) {
-				throw new Error(`Failed to fetch session info for session ${sessionId}: ${response.statusText}`);
-			}
-			const responseData = await response.text();
-			if (typeof responseData === 'string') {
-				return JSON.parse(responseData) as SessionInfo;
-			}
-			throw new Error('Invalid response format');
-		} catch (e) {
-			this._logService.error(e);
-			return undefined;
-		}
-	}
-
-	async postCopilotAgentJob(owner: string, name: string, apiVersion: string, payload: RemoteAgentJobPayload, authOptions: AuthOptions): Promise<RemoteAgentJobResponse | ErrorResponseWithStatusCode | undefined> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.trace('No authentication token available for postCopilotAgentJob');
-				throw new PermissiveAuthRequiredError();
-			}
-			const response = await this._capiClientService.makeRequest<Response>({
-				method: 'POST',
-				body: JSON.stringify(payload),
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotAgentJob, owner, repo: name, apiVersion, payload });
-			if (!response.ok) {
-				return {
-					status: response.status,
-				};
-			}
-			return await response.json() as RemoteAgentJobResponse;
-		} catch (e) {
-			this._logService.error(e);
-			return undefined;
-		}
-	}
-
-	async getJobByJobId(owner: string, repo: string, jobId: string, userAgent: string, authOptions: AuthOptions): Promise<JobInfo | undefined> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.trace('No authentication token available for getJobByJobId');
-				throw new PermissiveAuthRequiredError();
-			}
-			const response = await this._capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotAgentJob, owner, repo, jobId });
-			if (!response.ok) {
-				throw new Error(`Failed to fetch job info for job ${jobId}: ${response.statusText}`);
-			}
-			return await response.json() as JobInfo;
-		} catch (e) {
-			this._logService.error(e);
-			return undefined;
-		}
-	}
-
-	async getJobBySessionId(owner: string, repo: string, sessionId: string, userAgent: string, authOptions: AuthOptions): Promise<JobInfo | undefined> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.trace('No authentication token available for getJobBySessionId');
-				throw new PermissiveAuthRequiredError();
-			}
-			const response = await this._capiClientService.makeRequest<Response>({
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotAgentJob, owner, repo, sessionId });
-			if (!response.ok) {
-				throw new Error(`Failed to fetch job info for session ${sessionId}: ${response.statusText}`);
-			}
-			return await response.json() as JobInfo;
-		} catch (e) {
-			this._logService.error(e);
-			return undefined;
-		}
-	}
-
-	async addPullRequestComment(pullRequestId: string, commentBody: string, authOptions: AuthOptions): Promise<PullRequestComment | null> {
-		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-		if (!authToken) {
-			this._logService.trace('No authentication token available for addPullRequestComment');
-			throw new PermissiveAuthRequiredError();
-		}
-		return this.addPullRequestCommentWithToken(pullRequestId, commentBody, authToken);
-	}
-
 	async createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest> {
 		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
 		if (!authToken) {
@@ -221,36 +63,6 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			throw new PermissiveAuthRequiredError();
 		}
 		return this.createPullRequestWithToken(owner, repo, title, body, head, base, draft, authToken);
-	}
-
-	async getAllSessions(nwo: string | undefined, open: boolean, authOptions: AuthOptions): Promise<SessionInfo[]> {
-		try {
-			const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
-			if (!authToken) {
-				this._logService.debug(`[getAllSessions] No authentication token available (nwo=${nwo})`);
-				throw new PermissiveAuthRequiredError();
-			}
-			this._logService.debug(`[getAllSessions] Fetching sessions for nwo=${nwo}, open=${open}`);
-			const result = await this._capiClientService.makeRequest<SessionInfo[]>({
-				method: 'GET',
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-				}
-			}, { type: RequestType.CopilotSessions, nwo, resourceState: open ? 'draft,open' : undefined });
-			this._logService.debug(`[getAllSessions] Got ${Array.isArray(result) ? result.length : 'non-array'} sessions for nwo=${nwo}`);
-			return result;
-		} catch (e) {
-			if (e instanceof PermissiveAuthRequiredError) {
-				this._logService.trace(`[getAllSessions] No permissive GitHub session (nwo=${nwo})`);
-			} else if (e instanceof Error) {
-				this._logService.error(e, 'Error in getAllSessions');
-				this._logService.debug(`[getAllSessions] Error for nwo=${nwo}: ${e.message}`);
-			} else {
-				this._logService.error('Non-Error thrown in getAllSessions');
-				this._logService.debug(`[getAllSessions] Non-Error thrown for nwo=${nwo}: ${String(e)}`);
-			}
-			return [];
-		}
 	}
 
 	async getPullRequestFromGlobalId(globalId: string, authOptions: AuthOptions): Promise<PullRequestSearchItem | null> {
@@ -592,5 +404,4 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 		}
 	}
 }
-
 

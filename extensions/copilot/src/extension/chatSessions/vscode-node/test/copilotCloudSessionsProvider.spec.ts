@@ -7,13 +7,12 @@ import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskState, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
 import { GithubRepoId, IGitService } from '../../../../platform/git/common/gitService';
-import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from '../copilotCloudSessionContentBuilder';
-import { getCloudSessionItemMetadata, normalizeInitialSessionOptions, parseSessionLogChunksSafely, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
+import { getCloudSessionItemMetadata, getCloudSessionResources, normalizeInitialSessionOptions, taskStateToChatSessionStatus } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl, isCloudCodingAgentTask } from '../taskApiBackend';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
 import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
@@ -40,55 +39,6 @@ class TestGitService extends mock<IGitService>() {
 	override activeRepository = { get: () => undefined } as IGitService['activeRepository'];
 	override initialize = vi.fn(async () => { });
 	override repositories = [];
-}
-
-function createPullRequest(): PullRequestSearchItem {
-	return {
-		id: 'pr-1',
-		number: 1,
-		title: 'Test PR',
-		state: 'OPEN',
-		url: 'https://example.com/pr/1',
-		createdAt: '2026-03-27T00:00:00Z',
-		updatedAt: '2026-03-27T00:00:00Z',
-		author: { login: 'octocat' },
-		repository: {
-			owner: { login: 'microsoft' },
-			name: 'vscode',
-		},
-		additions: 1,
-		deletions: 0,
-		files: { totalCount: 1 },
-		fullDatabaseId: 1,
-		headRefOid: 'abc123',
-		headRefName: 'copilot/test-branch',
-		baseRefName: 'main',
-		body: 'Body',
-	};
-}
-
-function createSession(state: SessionInfo['state'] = 'completed'): SessionInfo {
-	return {
-		id: 'session-1',
-		name: 'Cloud session',
-		user_id: 1,
-		agent_id: 1,
-		logs: '',
-		logs_blob_id: 'blob-1',
-		state,
-		owner_id: 1,
-		repo_id: 1,
-		resource_type: 'pull_request',
-		resource_id: 1,
-		last_updated_at: '2026-03-27T00:00:00Z',
-		created_at: '2026-03-27T00:00:00Z',
-		completed_at: '2026-03-27T00:00:00Z',
-		event_type: 'pull_request',
-		workflow_run_id: 1,
-		premium_requests: 0,
-		error: null,
-		resource_global_id: 'global-1',
-	};
 }
 
 describe('copilotCloudSessionsProvider helpers', () => {
@@ -119,17 +69,6 @@ describe('copilotCloudSessionsProvider helpers', () => {
 		expect(logService.warn).toHaveBeenCalledWith(expect.stringContaining('Ignoring unsupported initialSessionOptions'));
 	});
 
-	it('logs parse failures when streamed log content is malformed', () => {
-		const logService = new RecordingLogService();
-
-		const result = parseSessionLogChunksSafely('data: {not-json}', logService, () => {
-			throw new SyntaxError('Unexpected token');
-		});
-
-		expect(result).toEqual([]);
-		expect(logService.error).toHaveBeenCalledWith(expect.any(SyntaxError), expect.stringContaining('Failed to parse streamed log content'));
-	});
-
 	it('includes the task branch in PR-less cloud session metadata', () => {
 		expect(getCloudSessionItemMetadata(
 			{ owner: 'microsoft', name: 'vscode', host: 'github.com' },
@@ -141,41 +80,27 @@ describe('copilotCloudSessionsProvider helpers', () => {
 			branch: 'copilot/task-branch',
 		});
 	});
-});
 
-describe('ChatSessionContentBuilder', () => {
-	it('ignores malformed tool_calls payloads instead of throwing', async () => {
-		const builder = new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService());
-		const logs = [
-			'data: {"choices":[{"finish_reason":"stop","delta":{"role":"assistant","content":"Cloud reply","tool_calls":{"id":"not-an-array"}}}],"created":0,"id":"chunk-1","usage":{"completion_tokens":0,"prompt_tokens":0,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":0},"model":"test-model","object":"chat.completion.chunk"}',
-		].join('\n');
-
-		const history = await builder.buildSessionHistory(
-			Promise.resolve('Continue in cloud'),
-			[createSession()],
-			createPullRequest(),
-			async () => logs,
-			Promise.resolve([]),
-		);
-
-		expect(history).toHaveLength(2);
-		const responseTurn = history[1];
-		expect(responseTurn).toBeInstanceOf(ChatResponseTurn2);
-		if (!(responseTurn instanceof ChatResponseTurn2)) {
-			throw new Error('Expected a response turn.');
-		}
-
-		expect(responseTurn.response).toHaveLength(1);
-		expect(responseTurn.response[0]).toBeInstanceOf(ChatResponseMarkdownPart);
-		if (!(responseTurn.response[0] instanceof ChatResponseMarkdownPart)) {
-			throw new Error('Expected markdown response content.');
-		}
-
-		expect(responseTurn.response[0].value.value).toBe('Cloud reply');
+	it('keeps the task resource stable and reports the pull request URI for state migration', () => {
+		// A task keeps its `/task/<id>` identity for its whole life. Once it has a pull request
+		// it also reports the `/<prNumber>` URI it used to be listed under, so archive/pin/read
+		// state recorded against that URI migrates forward instead of being orphaned.
+		expect({
+			prLess: getCloudSessionResources('abc-123', undefined),
+			prBacked: getCloudSessionResources('abc-123', 325),
+		}).toEqual({
+			prLess: {
+				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
+			},
+			prBacked: {
+				resource: vscode.Uri.parse('copilot-cloud-agent:/task/abc-123'),
+				legacyResource: vscode.Uri.parse('copilot-cloud-agent:/325'),
+			},
+		});
 	});
 });
 
-// --- Task API (v2) history rendering ------------------------------------------------------
+// --- Task API history rendering ------------------------------------------------------------
 
 interface MakeEventOpts {
 	readonly id?: string;
@@ -431,7 +356,7 @@ describe('extractTaskErrorDetail / formatTaskStoppedMessage', () => {
 	});
 });
 
-// --- TaskApiBackend (v2) -------------------------------------------------------------------
+// --- TaskApiBackend ------------------------------------------------------------------------
 
 class FakeTaskApiClient implements ITaskApiClient {
 	public lastCreateRequest: AgentTaskCreateRequest | undefined;
@@ -486,23 +411,19 @@ class FakeTaskApiClient implements ITaskApiClient {
 	}
 }
 
-const fakeChatStream = {} as vscode.ChatResponseStream;
-const noToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) } as unknown as vscode.CancellationToken;
-
 describe('TaskApiBackend', () => {
-	it('createSession sends create_pull_request: false so the v2 backend no longer auto-creates PRs', async () => {
+	it('createSession sends create_pull_request: false so tasks do not auto-create PRs', async () => {
 		const client = new FakeTaskApiClient();
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
 		await backend.createSession({
 			owner: 'octocat',
 			repo: 'hello-world',
-			host: 'github.com',
 			title: 'New task',
 			prompt: 'Do the thing',
 			problemStatement: 'Statement',
 			baseRef: 'main',
-		}, fakeChatStream, noToken);
+		});
 
 		expect(client.lastCreateRequest?.create_pull_request).toBe(false);
 	});
@@ -542,7 +463,7 @@ describe('TaskApiBackend', () => {
 		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
 
 		expect(client.listForRepoCalls).toEqual([
 			{ owner: 'octocat', repo: 'hello-world', options: { per_page: 100, creator_id: 4242 } },
@@ -555,7 +476,7 @@ describe('TaskApiBackend', () => {
 		octoKitService.getCurrentAuthedUser = async () => undefined;
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(result).toEqual([]);
@@ -565,7 +486,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient();
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
-		await backend.fetchSessionList(undefined, false, false);
+		await backend.fetchSessionList(undefined, false);
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
@@ -577,7 +498,7 @@ describe('TaskApiBackend', () => {
 		const client = new FakeTaskApiClient();
 		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
 
-		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], true, false);
+		await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], true);
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(client.listCalls).toEqual([{ options: { per_page: 100 } }]);
@@ -597,7 +518,7 @@ describe('TaskApiBackend', () => {
 		octoKitService.getRepositoryById = async () => { getRepositoryByIdCalls++; return { owner: 'octocat', name: 'hello-world' }; };
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		const result = await backend.fetchSessionList(undefined, false, false);
+		const result = await backend.fetchSessionList(undefined, false);
 
 		expect(result.map(r => r.repo)).toEqual([
 			{ owner: 'octocat', name: 'hello-world' },
@@ -607,18 +528,16 @@ describe('TaskApiBackend', () => {
 		expect(getRepositoryByIdCalls).toBe(1);
 	});
 
-	it('fetchSessionList carries the raw task lifecycle state so settled tasks are not shown as in_progress', async () => {
-		// `idle` collapses to `in_progress` in the legacy SessionInfo shape; the raw `taskState`
-		// must be preserved alongside it so the provider can render it as Completed/NeedsInput.
+	it('fetchSessionList preserves the task lifecycle state', async () => {
 		const client = new FakeTaskApiClient({ repoTasks: [{ id: 't-idle', state: 'idle', created_at: '2026-03-27T00:00:00Z', creator: { id: 4242 }, agent_collaborators: [{ slug: 'copilot-developer' }] } as unknown as AgentTask] });
 		const octoKitService = new MockOctoKitService();
 		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
 
-		expect(result.map(r => ({ taskState: r.taskState, sessionState: r.latestSession.state }))).toEqual([
-			{ taskState: 'idle', sessionState: 'in_progress' },
+		expect(result.map(r => ({ taskId: r.taskId, state: r.state }))).toEqual([
+			{ taskId: 't-idle', state: 'idle' },
 		]);
 	});
 
@@ -636,9 +555,9 @@ describe('TaskApiBackend', () => {
 		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
 		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
 
-		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false, false);
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], false);
 
-		expect(result.map(r => r.latestSession.id)).toEqual(['cloud-dev', 'cloud-swe']);
+		expect(result.map(r => r.taskId)).toEqual(['cloud-dev', 'cloud-swe']);
 	});
 });
 

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
+import { getResponsePreview, parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
 
 suite('Chat session routing helpers', () => {
 
@@ -85,6 +85,18 @@ suite('Chat session routing helpers', () => {
 			{ sessionId: 'previous', confidence: 0.86 },
 		]), { sessionId: 'best', confidence: 0.9 });
 		assert.strictEqual(selectBestSessionRoute([{ sessionId: 'weak', confidence: 0.8 }]), undefined);
+	});
+
+	test('clips a response preview for the omni bar', () => {
+		assert.deepStrictEqual([
+			getResponsePreview('  A response with\nmultiple lines  '),
+			getResponsePreview('a'.repeat(150)),
+			getResponsePreview('   '),
+		], [
+			'A response with multiple lines',
+			`${'a'.repeat(139)}…`,
+			undefined,
+		]);
 	});
 
 	test('keeps the default folder for a weak related-session match', () => {
