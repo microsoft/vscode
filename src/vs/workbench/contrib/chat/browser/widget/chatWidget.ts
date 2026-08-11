@@ -2874,9 +2874,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Check if a custom submit handler wants to handle this submission
 		if (this.viewOptions.submitHandler) {
 			const inputValue = !query ? this.getInput() : query.query;
-			const attachedContext = this.input.getAttachedContext().asArray();
 			await saveAllBeforeChatSend(this.configurationService, this.editorService);
 			savedBeforeSend = true;
+			const attachedContext = this.input.getAttachedContext().asArray();
 			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind, attachedContext, options.isVoiceModeInput);
 			if (handled) {
 				return;
@@ -2898,6 +2898,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.setInput('');
 				return;
 			}
+		}
+
+		if (!savedBeforeSend) {
+			await saveAllBeforeChatSend(this.configurationService, this.editorService);
 		}
 
 		if (!options.preserveInput) {
@@ -3054,9 +3058,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		let result: ChatSendResult;
 		try {
-			if (!savedBeforeSend) {
-				await saveAllBeforeChatSend(this.configurationService, this.editorService);
-			}
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 				...selectedModelRequestOptions,
 				location: this.location,
