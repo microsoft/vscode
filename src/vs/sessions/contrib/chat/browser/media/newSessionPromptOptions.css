@@ -124,7 +124,8 @@
 	grid-row: 2;
 }
 
-.new-session-prompt-option-action-icon {
+.new-session-prompt-options-list > .new-session-prompt-option.has-title-detail .new-session-prompt-option-action-icon {
+	color: inherit;
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
