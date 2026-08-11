@@ -139,7 +139,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		});
 
 		assert.deepStrictEqual(telemetryService.events, [{
-			eventName: 'copilotCli/response.success',
+			eventName: 'copilotSdk/response.success',
 			data: {
 				created_at: undefined,
 				model_call_id: undefined,

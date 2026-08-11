@@ -56,6 +56,7 @@ import { IChatContextService } from '../../../../contrib/chat/browser/contextCon
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
+import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
@@ -212,6 +213,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
 		override readonly isVisible = false;
 		override registerHost() { return Disposable.None; }
+	}());
+	reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
+		override registerHost() { return Disposable.None; }
+		override toggleNoticeFocus() { return false; }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly isExtensionDevelopment = false;

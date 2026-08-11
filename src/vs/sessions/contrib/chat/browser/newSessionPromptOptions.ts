@@ -54,14 +54,14 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 	private _selecting = false;
 
 	constructor(
-		container: HTMLElement,
+		private readonly _container: HTMLElement,
 		private readonly _options: INewSessionPromptOptionsWidgetOptions,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
 		const title = localize('newSessionPromptOptions.title', "Send your first prompt");
-		this.element = dom.append(container, dom.$('.new-session-prompt-options'));
+		this.element = dom.append(this._container, dom.$('.new-session-prompt-options'));
 		this.element.role = 'group';
 		this.element.ariaLabel = title;
 		const header = dom.append(this.element, dom.$('.new-session-prompt-options-header'));
@@ -77,7 +77,16 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		));
 		actionBar.push(closeAction, { icon: true, label: false });
 		this._optionsContainer = dom.append(this.element, dom.$('.new-session-prompt-options-list'));
-		dom.setVisibility(false, this.element);
+		this._setVisible(false);
+	}
+
+	/**
+	 * Also marks the container, so a tip rendered above these options does not
+	 * style itself as attached to the input while they sit in between.
+	 */
+	private _setVisible(visible: boolean): void {
+		dom.setVisibility(visible, this.element);
+		this._container.classList.toggle('showing-prompt-options', visible);
 	}
 
 	setState(state: NewSessionPromptOptionsState | undefined): void {
@@ -89,11 +98,11 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 
 		if (!state) {
 			this.element.removeAttribute('aria-busy');
-			dom.setVisibility(false, this.element);
+			this._setVisible(false);
 			return;
 		}
 
-		dom.setVisibility(true, this.element);
+		this._setVisible(true);
 		if (state.kind === 'loading') {
 			this.element.setAttribute('aria-busy', 'true');
 			this._renderLoading();
