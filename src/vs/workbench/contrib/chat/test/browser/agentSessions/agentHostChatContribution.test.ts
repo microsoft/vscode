@@ -7561,7 +7561,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('unsupported session reference variable is dropped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
-			const sessionReference = URI.from({ scheme: 'claude-code', path: '/session-123' });
+			const sessionReference = URI.from({ scheme: 'unsupported-agent', path: '/session-123' });
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue #review',
@@ -10877,6 +10877,25 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.authenticateCalls, [
 				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
 				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-2' },
+			]);
+		});
+
+		test('re-authenticates with the same token when authentication is required', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.fireNotification({
+				type: 'auth/required',
+				channel: 'ahp-root://',
+				resource: 'https://api.github.com',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
 			]);
 		});
 

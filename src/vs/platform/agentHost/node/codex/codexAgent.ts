@@ -49,8 +49,11 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -867,6 +870,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
@@ -874,10 +878,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._metadataStore = this._instantiationService.createInstance(CodexSessionMetadataStore);
 		this._publishAccountInfo({ status: 'unknown' });
+
+		this._register(this._stateManager.onDidChangeSessionTitle(({ session, title }) => {
+			if (AgentSession.provider(session) === this.id) {
+				this._otelService.emitSessionTitleChanged(AgentSession.id(session), session, title);
+			}
+		}));
+
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			const signInRequest = this._configurationService.getRootConfigValues?.()[CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY];
 			if (typeof signInRequest === 'string' && signInRequest !== this._lastSignInRequest) {
@@ -1456,6 +1468,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				try { ready.child.kill('SIGKILL'); } catch { /* already dead */ }
 				throw new Error('Codex app-server was replaced while starting');
 			}
+			// Authentication can complete while the connection is starting; apply the latest token before publishing ready.
+			ready.proxyHandle.setToken(this._githubToken ?? '');
 			this._connection = { kind: 'ready', ...ready };
 			return ready;
 		}).catch(err => {
@@ -1776,6 +1790,25 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
+				if (host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+					const entry = session.mapState.itemToToolCall.get(params.callId);
+					if (!entry) {
+						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
+					}
+					const invocationMessage = getServerToolDisplay(params.tool, params.arguments)?.invocationMessage ?? `Calling ${params.tool}`;
+					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
+						this._fire(session.sessionUri, {
+							type: ActionType.ChatToolCallReady,
+							turnId: entry.turnId,
+							toolCallId: entry.toolCallId,
+							invocationMessage,
+							confirmationTitle: localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+						});
+					});
+					if (decision !== 'accept' && decision !== 'acceptForSession') {
+						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
+					}
+				}
 				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
@@ -3543,6 +3576,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 			return;
 		}
+
+		// Check needsResume before the resume block clears it so restored sessions never receive a late baseline.
+		if (!session.firstTurnSent && !session.needsResume) {
+			const baselineWorkingDirectories = session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined);
+			this._checkpointService.captureBaselineCheckpoint(sessionUri, baselineWorkingDirectories).catch(err => {
+				this._logService.warn(`[Codex:${sessionId}] Baseline checkpoint capture failed: ${err instanceof Error ? err.message : String(err)}`);
+			});
+		}
+
 		// Codex registers client tools and MCP servers only at `thread/start`.
 		// If the thread was prewarmed (or otherwise started) before the current
 		// client tools / MCP servers were known, restart it now — before any
@@ -4700,6 +4742,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 		}));
 		return Promise.resolve({ values: resolvedValues, schema });
+	}
+
+	getInheritedSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+		const inherited: Record<string, unknown> = migrateCodexPermissionValues(config, {
+			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
+			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
+		});
+		if (config[SessionConfigKey.Permissions] !== undefined) {
+			inherited[SessionConfigKey.Permissions] = config[SessionConfigKey.Permissions];
+		}
+		return Object.keys(inherited).length > 0 ? inherited : undefined;
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {

@@ -100,6 +100,7 @@ suite('Sessions - Workbench', () => {
 		workbenchGrid: {
 			getViewSize(view: object): IViewSize;
 			isViewVisible(view: object): boolean;
+			resizeView(view: object, size: IViewSize): void;
 		};
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		setAuxiliaryBarHidden(hidden: boolean): void;
@@ -162,6 +163,8 @@ suite('Sessions - Workbench', () => {
 		windowWidth?: number;
 		editorWidth?: number;
 		sideBarWidth?: number;
+		panelHeight?: number;
+		panelHeightOnEditorShow?: number;
 		dockedWidth?: number;
 		hasAppliedInitialEditorSplit?: boolean;
 		/** Use the real `setEditorMaximized` instead of the no-op stub. */
@@ -204,6 +207,7 @@ suite('Sessions - Workbench', () => {
 			[sessionsPartView, { width: options.sessionsWidth ?? 1000, height: 800 }],
 			[sideBarPartView, { width: options.sideBarWidth ?? 280, height: 800 }],
 			[auxiliaryBarPartView, { width: 300, height: 800 }],
+			[panelPartView, { width: 1000, height: options.panelHeight ?? 300 }],
 		]);
 
 		const partVisibility = { sidebar: true, auxiliaryBar: true, editor: false, panel: false, sessions: true, customViewGrid: false, ...options.partVisibility };
@@ -227,6 +231,9 @@ suite('Sessions - Workbench', () => {
 				setViewVisible: (view: object, visible: boolean, sizing?: { type: string }) => {
 					if (view === editorPartView) {
 						editorNodeVisible = visible;
+						if (visible && partVisibility.editor && options.panelHeightOnEditorShow !== undefined) {
+							viewSizes.set(panelPartView, { width: 1000, height: options.panelHeightOnEditorShow });
+						}
 					} else if (view === sideBarPartView && sideBarNodeVisible !== visible) {
 						const sideBarWidth = viewSizes.get(sideBarPartView)!.width;
 						const sessionsSize = viewSizes.get(sessionsPartView)!;
@@ -243,7 +250,13 @@ suite('Sessions - Workbench', () => {
 					}
 					notifyPartVisibility(view, visible);
 				},
-				resizeView: (view: object, size: IViewSize) => { resizes.push(size); viewSizes.set(view, size); },
+				resizeView: (view: object, size: IViewSize) => {
+					resizes.push(size);
+					viewSizes.set(view, size);
+					if (view === editorPartView && partVisibility.editor && options.panelHeightOnEditorShow !== undefined) {
+						viewSizes.set(panelPartView, { width: 1000, height: options.panelHeightOnEditorShow });
+					}
+				},
 			},
 			_mainContainerDimension: { width: options.windowWidth ?? 1000, height: 800 },
 			layoutPolicy: { viewportClass: { get: () => 'desktop' } },
@@ -1296,6 +1309,30 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('single-pane editor part chooses the tab override from the visible composition', () => {
+		const getOverride = Reflect.get(SinglePaneMainEditorPart.prototype, '_getShowTabsOverride') as (
+			configuredShowTabs: 'multiple' | 'single' | 'none',
+			editorVisible: boolean,
+			auxiliaryBarVisible: boolean
+		) => 'multiple' | 'single' | undefined;
+
+		assert.deepStrictEqual({
+			auxiliaryBarOnlyMultiple: getOverride('multiple', false, true),
+			auxiliaryBarOnlySingle: getOverride('single', false, true),
+			auxiliaryBarOnlyNone: getOverride('none', false, true),
+			editorAndAuxiliaryBarSingle: getOverride('single', true, true),
+			editorOnlyNone: getOverride('none', true, false),
+			fullyHiddenMultiple: getOverride('multiple', false, false),
+		}, {
+			auxiliaryBarOnlyMultiple: 'multiple',
+			auxiliaryBarOnlySingle: 'multiple',
+			auxiliaryBarOnlyNone: 'multiple',
+			editorAndAuxiliaryBarSingle: undefined,
+			editorOnlyNone: 'single',
+			fullyHiddenMultiple: undefined,
+		});
+	});
+
 	test('applies an even split when revealing the docked editor with no captured width even after the initial split', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, windowWidth: 1300, hasAppliedInitialEditorSplit: true, dockedWidth: 300, editorWidth: 300, partVisibility: { editor: false, auxiliaryBar: true } });
 
@@ -2065,6 +2102,23 @@ suite('Sessions - Workbench', () => {
 			sidebarVisible: true,
 			sessionsVisible: true,
 		});
+	});
+
+	// --- Panel visibility ---------------------------------------------------
+
+	test('single-pane restores the bottom panel height after navigating through Quick Chat', () => {
+		const singlePane = createHost({ single: true, panelHeight: 520, panelHeightOnEditorShow: 77, partVisibility: { panel: true, editor: true, auxiliaryBar: true } });
+
+		singlePane._editorPartAutoVisibilitySuppressionCount = 1;
+		setPanelHidden.call(singlePane, true);
+		setEditorHidden.call(singlePane, true);
+		singlePane.setAuxiliaryBarHidden(true);
+		singlePane._editorPartAutoVisibilitySuppressionCount = 0;
+		setPanelHidden.call(singlePane, false);
+		singlePane.setAuxiliaryBarHidden(false);
+		setEditorHidden.call(singlePane, false);
+
+		assert.strictEqual(singlePane.workbenchGrid.getViewSize(singlePane.panelPartView).height, 520);
 	});
 
 	// --- Custom view grid ---------------------------------------------------

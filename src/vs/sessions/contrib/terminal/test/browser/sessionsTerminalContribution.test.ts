@@ -426,28 +426,6 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
 
-	// --- Claude provider: also uses worktree/repository path ---
-
-	test('creates a terminal at the worktree for a Claude session', async () => {
-		const worktreeUri = URI.file('/worktree');
-		const session = makeAgentSession({ worktree: worktreeUri, repository: URI.file('/repo'), providerType: AgentSessionProviders.Claude });
-		activeSessionObs.set(session, undefined);
-		await tick();
-
-		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
-	});
-
-	test('falls back to repository when worktree is undefined for a Claude session', async () => {
-		const repoUri = URI.file('/repo');
-		const session = makeAgentSession({ repository: repoUri, providerType: AgentSessionProviders.Claude });
-		activeSessionObs.set(session, undefined);
-		await tick();
-
-		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
-	});
-
 	// --- Workspace-backed sessions: use working directory ---
 
 	test('uses worktree directory for a cloud agent session when workspace exists', async () => {

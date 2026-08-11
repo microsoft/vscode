@@ -291,8 +291,10 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
 	 * Used after copying a database file for a forked session.
+	 * When provided, `eventIds` replaces the SDK event ID for each remapped
+	 * turn, keyed by the new turn ID.
 	 */
-	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+	remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void>;
 
 	// ---- Reviewed files --------------------------------------------------
 

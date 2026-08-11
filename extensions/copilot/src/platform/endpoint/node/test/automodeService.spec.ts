@@ -11,7 +11,6 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../../vscodeTypes';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { NullEnvService } from '../../../env/common/nullEnvService';
-import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint } from '../../../networking/common/networking';
 import { NullRequestLogger } from '../../../requestLogger/node/nullRequestLogger';
@@ -64,8 +63,6 @@ describe('AutomodeService', () => {
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
 	let configurationService: IConfigurationService;
-	let globalStateStore: Map<string, unknown>;
-	let mockExtensionContext: IVSCodeExtensionContext;
 	let onDidAuthenticationChangeEmitter: Emitter<void>;
 	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 
@@ -96,8 +93,7 @@ describe('AutomodeService', () => {
 			envService,
 			mockTelemetryService,
 			new NullRequestLogger(),
-			configurationService,
-			mockExtensionContext
+			configurationService
 		);
 	}
 
@@ -161,13 +157,6 @@ describe('AutomodeService', () => {
 		mockExpService = new NullExperimentationService();
 
 		envService = new NullEnvService();
-		globalStateStore = new Map<string, unknown>();
-		mockExtensionContext = {
-			globalState: {
-				get: (key: string) => globalStateStore.get(key),
-				update: async (key: string, value: unknown) => { globalStateStore.set(key, value); },
-			},
-		} as unknown as IVSCodeExtensionContext;
 		// These tests cover the legacy session + intent flow; the single-call
 		// Auto endpoint is exercised separately below.
 		configurationService = new InMemoryConfigurationService(
@@ -2056,38 +2045,6 @@ describe('AutomodeService', () => {
 			expect(autoCallCount()).toBe(callsBefore);
 		});
 
-		it('keeps inline requests from overwriting the discount shown in the picker', async () => {
-			enableAutoV2WithTiers();
-			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.2 },
-			});
-
-			automodeService = createService();
-			await automodeService.resolveAutoModeEndpoint({
-				location: ChatLocation.Panel,
-				prompt: 'panel turn',
-				sessionId: 'session-discount-panel',
-			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
-
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.9 },
-			});
-			await automodeService.resolveAutoModeEndpoint({
-				location: ChatLocation.Editor,
-				prompt: 'inline turn',
-				sessionId: 'session-discount-inline',
-			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
-
-			expect(await automodeService.getAutoPickerMetadata()).toEqual({ discountRange: { low: 0.2, high: 0.2 } });
-		});
-
 		// Tiers are experiment-gated, so until the experiment reaches a user the
 		// request must look exactly as it did before tiers existed.
 		it('omits the tier and hides the picker while tiers are disabled', async () => {
@@ -2142,7 +2099,7 @@ describe('AutomodeService', () => {
 			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'panel turn', tier: 'max' });
 		});
 
-		it('resolves the picker endpoint without touching the legacy session under V2', async () => {
+		it('resolves the picker endpoint without any request under V2', async () => {
 			enableAutoV2();
 			mockAuto({
 				session_token: 'auto-v2-token',
@@ -2154,145 +2111,55 @@ describe('AutomodeService', () => {
 			const result = await automodeService.resolveAutoModePickerEndpoint([mockChatEndpoint]);
 
 			expect(result).toBeDefined();
-			const requestTypes = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.map(c => c[1]?.type);
-			expect(requestTypes).not.toContain(RequestType.AutoModels);
-		});
-
-		it('surfaces the discounts from the last /auto response in the picker metadata', async () => {
-			enableAutoV2();
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.1, 'gpt-4o-mini': 0.25 },
-			});
-
-			automodeService = createService();
-			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
-			await automodeService.resolveAutoModeEndpoint({
-				location: ChatLocation.Panel,
-				prompt: 'test prompt',
-				sessionId: 'session-auto-v2-discounts'
-			} as ChatRequest, [gpt4oEndpoint]);
-
-			expect(await automodeService.getAutoPickerMetadata()).toEqual({ discountRange: { low: 0.1, high: 0.25 } });
-		});
-
-		it('probes /auto with the placeholder prompt when no discount is known yet', async () => {
-			enableAutoV2();
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.15 },
-			});
-
-			automodeService = createService();
-			const metadata = await automodeService.getAutoPickerMetadata();
-
-			expect(metadata).toEqual({ discountRange: { low: 0.15, high: 0.15 } });
-			const autoCall = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.find(c => c[1]?.type === RequestType.Auto);
-			expect(JSON.parse(autoCall![0].body)).toEqual({ prompt: 'MODEL_PICKER_DISCOUNT_RESOLUTION - REPLACE ME' });
-		});
-
-		it('withdraws the tier picker when the discount probe is gated with a 404', async () => {
-			enableAutoV2WithTiers();
-			mockAuto({ error: 'not_found' }, 404);
-			const gpt4oMiniEndpoint = createEndpoint('gpt-4o-mini', 'OpenAI');
-
-			automodeService = createService();
-			const endpoint = await automodeService.resolveAutoModePickerEndpoint([gpt4oMiniEndpoint]);
-
-			const requestTypes = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.map(c => c[1]?.type);
-			expect({
-				model: endpoint.model,
-				tiersSupported: automodeService.areAutoModeTiersSupported(),
-				usedLegacySession: requestTypes.includes(RequestType.AutoModels),
-			}).toEqual({ model: 'gpt-4o-mini', tiersSupported: false, usedLegacySession: true });
-		});
-
-		it('probes at most once even across concurrent picker refreshes', async () => {
-			enableAutoV2();
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.15 },
-			});
-
-			automodeService = createService();
-			await Promise.all([
-				automodeService.getAutoPickerMetadata(),
-				automodeService.getAutoPickerMetadata(),
-			]);
-			await automodeService.getAutoPickerMetadata();
-
-			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
-			expect(autoCalls).toHaveLength(1);
-		});
-
-		it('does not probe when a discount is already known', async () => {
-			enableAutoV2();
-			globalStateStore.set('copilot.autoMode.v2.lastDiscountedCosts', { 'gpt-4o': 0.3 });
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-			});
-
-			automodeService = createService();
-			const metadata = await automodeService.getAutoPickerMetadata();
-
-			expect(metadata).toEqual({ discountRange: { low: 0.3, high: 0.3 } });
 			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalled();
 		});
 
-		it('shows the persisted discount on a cold start before any /auto call', async () => {
+		// The picker has no prompt, so the discount label is read off the model
+		// metadata rather than being resolved through a routing request.
+		it('derives the picker discount range from the models auto_discount', async () => {
+			enableAutoV2();
+
+			automodeService = createService();
+			const metadata = automodeService.getAutoPickerMetadata([
+				createEndpoint('gpt-4o', 'OpenAI', { autoDiscount: 0.1 }),
+				createEndpoint('gpt-4o-mini', 'OpenAI', { autoDiscount: 0.25 }),
+				// Outside the Auto pool: must not drag the range down to zero.
+				createEndpoint('byok-model', 'Anthropic'),
+			]);
+
+			expect({ metadata, requests: (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.length })
+				.toEqual({ metadata: { discountRange: { low: 0.1, high: 0.25 } }, requests: 0 });
+		});
+
+		it('reports no discount when no model advertises one', async () => {
+			enableAutoV2();
+
+			automodeService = createService();
+
+			expect(automodeService.getAutoPickerMetadata([mockChatEndpoint])).toEqual({ discountRange: { low: 0, high: 0 } });
+		});
+
+		it('falls back to the model auto_discount when /auto omits the discounted costs', async () => {
 			enableAutoV2();
 			mockAuto({
 				session_token: 'auto-v2-token',
 				expires_at: Math.floor(Date.now() / 1000) + 86400,
 				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.1, 'gpt-4o-mini': 0.25 },
 			});
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI', { autoDiscount: 0.15 });
 
 			automodeService = createService();
 			await automodeService.resolveAutoModeEndpoint({
 				location: ChatLocation.Panel,
 				prompt: 'test prompt',
-				sessionId: 'session-auto-v2-persist'
-			} as ChatRequest, [createEndpoint('gpt-4o', 'OpenAI')]);
+				sessionId: 'session-auto-v2-discount-fallback'
+			} as ChatRequest, [gpt4oEndpoint]);
 
-			// A new service instance simulates a window reload: the discounts
-			// come back from storage without any request having been made.
-			const restarted = createService();
-			expect(await restarted.getAutoPickerMetadata()).toEqual({ discountRange: { low: 0.1, high: 0.25 } });
+			const autoCall = (mockInstantiationService.createInstance as ReturnType<typeof vi.fn>).mock.calls.at(-1);
+			expect({ discount: autoCall![3], range: autoCall![4] }).toEqual({ discount: 0.15, range: { low: 0.15, high: 0.15 } });
 		});
 
-		it('clears the persisted discount when authentication changes', async () => {
-			enableAutoV2();
-			mockAuto({
-				session_token: 'auto-v2-token',
-				expires_at: Math.floor(Date.now() / 1000) + 86400,
-				selected_model: { id: 'gpt-4o' },
-				discounted_costs: { 'gpt-4o': 0.1 },
-			});
-
-			automodeService = createService();
-			await automodeService.resolveAutoModeEndpoint({
-				location: ChatLocation.Panel,
-				prompt: 'test prompt',
-				sessionId: 'session-auto-v2-auth-change'
-			} as ChatRequest, [createEndpoint('gpt-4o', 'OpenAI')]);
-			expect(await automodeService.getAutoPickerMetadata()).toBeDefined();
-
-			onDidAuthenticationChangeEmitter.fire();
-
-			// The previous account's discount must not survive the switch.
-			expect(globalStateStore.get('copilot.autoMode.v2.lastDiscountedCosts')).toBeUndefined();
-		});
-
-		it('resets the 404 latch and discount probe when authentication changes', async () => {
+		it('resets the 404 latch when authentication changes', async () => {
 			enableAutoV2();
 			mockAuto({ error: 'not_found' }, 404);
 
@@ -2312,23 +2179,12 @@ describe('AutomodeService', () => {
 			expect((mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto)).toHaveLength(2);
 		});
 
-		it('resolves picker metadata via the legacy session call when the setting is disabled', async () => {
-			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockResolvedValue(
-				makeMockTokenResponse({
-					available_models: ['gpt-4o-mini'],
-					expires_at: Math.floor(Date.now() / 1000) + 3600,
-					session_token: 'legacy-token',
-					discounted_costs: { 'gpt-4o-mini': 0.2 },
-				})
-			);
-
+		it('resolves picker metadata from the model metadata when the setting is disabled', async () => {
 			automodeService = createService();
-			const metadata = await automodeService.getAutoPickerMetadata();
+			const metadata = automodeService.getAutoPickerMetadata([createEndpoint('gpt-4o-mini', 'OpenAI', { autoDiscount: 0.2 })]);
 
 			expect(metadata).toEqual({ discountRange: { low: 0.2, high: 0.2 } });
-			const requestTypes = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.map(c => c[1]?.type);
-			expect(requestTypes).toContain(RequestType.AutoModels);
-			expect(requestTypes).not.toContain(RequestType.Auto);
+			expect(mockCAPIClientService.makeRequest).not.toHaveBeenCalled();
 		});
 
 		it('can be remotely disabled via the experiment treatment variable', async () => {
