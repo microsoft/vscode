@@ -108,6 +108,17 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		this._retryWatchAttachment(sessionStr);
 	}
 
+	/**
+	 * Re-attach a session's root watchers when its effective working-directory
+	 * set changes (a folder added or removed, e.g. in the Editor Window). The
+	 * signature guard in `_attachWatcherIfPossible` makes an unchanged set a
+	 * no-op, so this is cheap; an active (mid-turn) session is instead re-attached
+	 * by the turn lifecycle on turn end.
+	 */
+	onSessionWorkingDirectoriesChanged(sessionStr: string): void {
+		this._retryWatchAttachment(sessionStr);
+	}
+
 	onSessionDisposed(sessionStr: string): void {
 		this.untrackSessionChanges(buildUncommittedChangesetUri(sessionStr));
 		this.untrackSessionChanges(buildSessionChangesetUri(sessionStr));
@@ -194,8 +205,9 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 			desiredRoots.set(repositoryRoot.toString(), repositoryRoot);
 		}
 
-		// Detach from roots this session no longer resolves to (runs on each re-attach). A bare
-		// working-dir change on a live idle session reflects only at the next re-attach (documented follow-up).
+		// Detach from roots this session no longer resolves to (runs on each re-attach). An idle
+		// subscribed session re-attaches as soon as its working-directory set changes (via
+		// `onSessionWorkingDirectoriesChanged`); an active session re-attaches at turn end.
 		const current = this._sessionRoots.get(sessionStr);
 		if (current) {
 			for (const rootStr of [...current]) {

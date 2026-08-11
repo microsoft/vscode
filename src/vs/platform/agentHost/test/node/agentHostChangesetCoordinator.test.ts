@@ -696,6 +696,94 @@ suite('ChangesetSessionCoordinator', () => {
 			recomputed: [session],
 		});
 	});
+
+	test('re-attaches root watchers when a working directory is added or removed mid-session', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		createSession(environment.stateManager, session, rootA.toString());
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(1);
+
+		// Adding a second root mid-session must start watching it (no lifecycle
+		// event required) so external edits there refresh the summary.
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: rootB.toString() });
+		await environment.monitor.waitForAcquisitions(2);
+
+		// Removing it again must stop watching that root.
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: rootB.toString() });
+		await environment.monitor.waitForDisposals(1);
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			disposals: [...environment.monitor.disposals],
+		}, {
+			acquisitions: [rootA.toString(), rootB.toString()].sort(),
+			disposals: [rootB.toString()],
+		});
+	});
+
+	test('a subagent inheriting a multi-root parent watches every parent root and refreshes via the parent primary', async () => {
+		const parentSession = AgentSession.uri('mock', 'session-parent').toString();
+		const subagentSession = buildSubagentSessionUri(parentSession, 'tool-1');
+		const primaryRoot = URI.file('/projects/repoA');
+		const secondaryRoot = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[primaryRoot.toString(), primaryRoot],
+			[secondaryRoot.toString(), secondaryRoot],
+		])));
+		createMultiRootSession(environment.stateManager, parentSession, [primaryRoot.toString(), secondaryRoot.toString()]);
+		// The subagent has NO own working directories, so it inherits the parent's set.
+		createSession(environment.stateManager, subagentSession);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(subagentSession));
+		await environment.monitor.waitForAcquisitions(2);
+		environment.changesets.clearRefreshes();
+
+		// An external edit in the parent's SECONDARY repo refreshes the subagent,
+		// sourcing git state from the parent's PRIMARY working directory.
+		environment.monitor.fire(secondaryRoot);
+		await tick();
+
+		assert.deepStrictEqual({
+			acquisitions: [...environment.monitor.acquisitions].sort(),
+			refreshedWith: environment.gitStateService.refreshedWith,
+			recomputed: environment.changesets.recomputed,
+		}, {
+			acquisitions: [primaryRoot.toString(), secondaryRoot.toString()].sort(),
+			refreshedWith: [{ sessionKey: subagentSession, workingDirectory: primaryRoot.toString() }],
+			recomputed: [subagentSession],
+		});
+	});
+
+	test('re-attaches an inheriting subagent when the parent gains a working directory mid-session', async () => {
+		const parentSession = AgentSession.uri('mock', 'session-parent').toString();
+		const subagentSession = buildSubagentSessionUri(parentSession, 'tool-1');
+		const rootA = URI.file('/projects/repoA');
+		const rootB = URI.file('/projects/repoB');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([
+			[rootA.toString(), rootA],
+			[rootB.toString(), rootB],
+		])));
+		// The parent starts single-root; the subagent inherits its set.
+		createSession(environment.stateManager, parentSession, rootA.toString());
+		createSession(environment.stateManager, subagentSession);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(subagentSession));
+		await environment.monitor.waitForAcquisitions(1);
+
+		// The PARENT gains a second root mid-session: the inheriting subagent must
+		// start watching it too (fan-out to subagents on a parent change).
+		environment.stateManager.dispatchServerAction(parentSession, { type: ActionType.SessionWorkingDirectorySet, directory: rootB.toString() });
+		await environment.monitor.waitForAcquisitions(2);
+
+		assert.deepStrictEqual([...environment.monitor.acquisitions].sort(), [rootA.toString(), rootB.toString()].sort());
+	});
 });
 
 function createGitService(root: URI): IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> } {
@@ -767,6 +855,7 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 	readonly failAcquireFor = new Set<string>();
 	private readonly _callbacks = new Map<string, Set<() => void>>();
 	private readonly _acquisitionWaiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
+	private readonly _disposalWaiters: Array<{ count: number; deferred: DeferredPromise<void> }> = [];
 
 	acquire(folder: URI, callback: () => void, _options?: IAgentHostFileMonitorOptions): IDisposable | undefined {
 		const root = folder.toString();
@@ -785,6 +874,7 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 		return toDisposable(() => {
 			callbacks.delete(callback);
 			this.disposals.push(root);
+			this._releaseDisposalWaiters();
 		});
 	}
 
@@ -807,6 +897,24 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 		for (const waiter of [...this._acquisitionWaiters]) {
 			if (this.acquisitions.length >= waiter.count) {
 				this._acquisitionWaiters.splice(this._acquisitionWaiters.indexOf(waiter), 1);
+				void waiter.deferred.complete(undefined);
+			}
+		}
+	}
+
+	waitForDisposals(count: number): Promise<void> {
+		if (this.disposals.length >= count) {
+			return Promise.resolve();
+		}
+		const deferred = new DeferredPromise<void>();
+		this._disposalWaiters.push({ count, deferred });
+		return deferred.p;
+	}
+
+	private _releaseDisposalWaiters(): void {
+		for (const waiter of [...this._disposalWaiters]) {
+			if (this.disposals.length >= waiter.count) {
+				this._disposalWaiters.splice(this._disposalWaiters.indexOf(waiter), 1);
 				void waiter.deferred.complete(undefined);
 			}
 		}
