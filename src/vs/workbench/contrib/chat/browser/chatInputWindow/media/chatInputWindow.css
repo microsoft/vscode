@@ -53,7 +53,7 @@
 	display: flex;
 	align-items: center;
 	flex: 0 0 auto;
-	padding-left: 8px;
+	padding-left: 0;
 }
 
 .chat-input-window .chat-input-window-close {
@@ -132,6 +132,10 @@
 	min-width: 0;
 	max-width: 100%;
 	box-sizing: border-box;
+}
+
+.chat-input-window .chat-input-window-row > .interactive-session {
+	align-self: stretch;
 }
 
 .chat-input-window .interactive-input-part,
