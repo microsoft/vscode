@@ -111,9 +111,7 @@ export interface IAutomationRunClaim {
  * mutation point. Scheduler, runner, and UI all flow through it to keep
  * cross-window propagation, persistence, and observables consistent.
  */
-export interface IAutomationService {
-	readonly _serviceBrand: undefined;
-
+export interface IAutomationStore {
 	/** All defined automations, newest first. */
 	readonly automations: IObservable<readonly IAutomation[]>;
 
@@ -149,10 +147,20 @@ export interface IAutomationService {
 
 	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
 	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
+	/** Deletes a retained run history entry; missing IDs are ignored. */
+	deleteRun(runId: string): Promise<void>;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. Backs the runner's per-automation claim. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
 
 	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
 	markStaleRunsFailed(reason: string): Promise<void>;
+}
+
+export interface IAutomationService extends IAutomationStore {
+	readonly _serviceBrand: undefined;
+	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
+	startStaleRunRecovery(reason: string): Promise<void>;
+	/** Stops leader-scoped stale-run recovery. */
+	stopStaleRunRecovery(): void;
 }

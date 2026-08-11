@@ -5,18 +5,20 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationHandler, IChangesetOperationRegistry } from '../../common/agentHostChangesetOperationService.js';
-import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
+import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -75,19 +77,301 @@ class TestGitStateService implements IAgentHostGitStateService {
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
-	async attachSessionGitHubIssues(_sessionKey: string, _text: string): Promise<void> { }
+	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
+
+/**
+ * Minimal typed {@link IAgentConfigurationService} whose only meaningful
+ * behavior is returning a fixed effective working-directory set, so tests can
+ * drive the multi-folder gate in {@link AgentHostChangesetOperationService}.
+ */
+class TestConfigurationService implements IAgentConfigurationService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidRootConfigChange = Event.None;
+	readonly onDidSessionConfigChange = Event.None;
+
+	constructor(private _workingDirectories: string[] | undefined) { }
+
+	setWorkingDirectories(workingDirectories: string[] | undefined): void {
+		this._workingDirectories = workingDirectories;
+	}
+
+	getEffectiveWorkingDirectories(_session: string): string[] | undefined {
+		return this._workingDirectories;
+	}
+
+	getEffectiveWorkingDirectory(_session: string): string | undefined {
+		return this._workingDirectories?.[0];
+	}
+
+	getEffectiveValue(): undefined {
+		return undefined;
+	}
+
+	isWorkingDirectoryPending(): boolean {
+		return false;
+	}
+
+	async resolveWorkingDirectoryForResume(_session: string, workingDirectory: URI): Promise<URI> {
+		return workingDirectory;
+	}
+
+	updateSessionConfig(): void { }
+
+	getSessionConfigValues(): Record<string, unknown> | undefined {
+		return undefined;
+	}
+
+	getRootValue(): undefined {
+		return undefined;
+	}
+
+	updateRootConfig(): void { }
+
+	persistRootConfig(): void { }
+
+	async whenIdle(): Promise<void> { }
+}
+
+/** Contribution that advertises a fixed set of operations for every changeset. */
+class OperationsContribution implements IChangesetOperationContribution {
+	constructor(private readonly operations: readonly ChangesetOperation[]) { }
+
+	registerHandlers(_registry: IChangesetOperationRegistry): IDisposable {
+		return Disposable.None;
+	}
+
+	getOperations(_context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
+		return this.operations;
+	}
+
+	dispose(): void { }
+}
+
+const sampleGitState: ISessionGitState = { branchName: 'feature' };
+const sampleOperations: readonly ChangesetOperation[] = [
+	{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
+];
 
 suite('AgentHostChangesetOperationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(stateManager: AgentHostStateManager): AgentHostChangesetOperationService {
+	function createService(stateManager: AgentHostStateManager, configurationService: IAgentConfigurationService = new TestConfigurationService(undefined)): AgentHostChangesetOperationService {
 		return disposables.add(new AgentHostChangesetOperationService(
 			stateManager,
 			new TestGitStateService(),
 			new AgentHostChangesetSubscriptionService(),
+			configurationService,
 		));
 	}
+
+	test('multi-folder session advertises no operations for a turn changeset', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const operations = service.getOperations(sessionKey, buildTurnChangesetUri(sessionKey, 'turn-1'), sampleGitState);
+
+		assert.deepStrictEqual(operations, []);
+	});
+
+	test('multi-folder session advertises no operations for a compare-turns changeset', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const operations = service.getOperations(sessionKey, buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2'), sampleGitState);
+
+		assert.deepStrictEqual(operations, []);
+	});
+
+	test('multi-folder session dispatches empty operations for a turn changeset via updateOperations', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		service.updateOperations(sessionKey, changesetUri, sampleGitState);
+
+		assert.deepStrictEqual(dispatched, [[]]);
+	});
+
+	test('multi-folder session dispatches empty operations for a compare-turns changeset via updateOperations', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2');
+		stateManager.registerChangeset(changesetUri);
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		service.updateOperations(sessionKey, changesetUri, sampleGitState);
+
+		assert.deepStrictEqual(dispatched, [[]]);
+	});
+
+	test('single-folder session advertises turn operations via updateOperations', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		service.updateOperations(sessionKey, changesetUri, sampleGitState);
+
+		// Single-root advertises the contributed operations; combined with the
+		// multi-folder-empties tests above, this covers the enter/leave transition.
+		assert.deepStrictEqual(dispatched, [sampleOperations]);
+	});
+
+	test('multi-folder session clears turn operations even when git state is absent', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		// No gitState argument and no git meta on the session — the root-transition
+		// recompute path. Before Issue 16 the absent-git-state early return skipped
+		// the suppressed turn changeset, leaving its stale operations advertised.
+		service.updateOperations(sessionKey, changesetUri);
+
+		assert.deepStrictEqual(dispatched, [[]]);
+	});
+
+	test('single-folder session with absent git state does not dispatch (no premature clear)', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		// A non-suppressed changeset with no resolvable git state must still defer
+		// (early return) — clearing is scoped to the suppressed turn/compare kinds.
+		service.updateOperations(sessionKey, changesetUri);
+
+		assert.deepStrictEqual(dispatched, []);
+	});
+
+	test('multi-folder session with absent git state defers a non-suppressed changeset (no over-clear)', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(changesetUri);
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		// Multi-root, but the changeset is uncommitted (not turn/compare) so it is
+		// NOT suppressed. With no resolvable git state it must defer like any other
+		// non-suppressed changeset — the []-clear is scoped to suppressed kinds only,
+		// even in a multi-root session.
+		service.updateOperations(sessionKey, changesetUri);
+
+		assert.deepStrictEqual(dispatched, []);
+	});
+
+	test('turn changeset re-dispatches empty on entering multi-root and restores on returning to single-root', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		const configurationService = new TestConfigurationService(['file:///a']);
+		const service = createService(stateManager, configurationService);
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const dispatched: (readonly ChangesetOperation[] | undefined)[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				dispatched.push(envelope.action.operations);
+			}
+		}));
+
+		// Single-root: advertises the contributed operations.
+		service.updateOperations(sessionKey, changesetUri, sampleGitState);
+		// A root is added at runtime -> multi-root: re-dispatches an empty list.
+		configurationService.setWorkingDirectories(['file:///a', 'file:///b']);
+		service.updateOperations(sessionKey, changesetUri, sampleGitState);
+		// The extra root is removed -> single-root again: restores the operations.
+		configurationService.setWorkingDirectories(['file:///a']);
+		service.updateOperations(sessionKey, changesetUri, sampleGitState);
+
+		assert.deepStrictEqual(dispatched, [sampleOperations, [], sampleOperations]);
+	});
+
+	test('single-folder session keeps operations for turn and compare-turns changesets', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const turnOperations = service.getOperations(sessionKey, buildTurnChangesetUri(sessionKey, 'turn-1'), sampleGitState);
+		const compareOperations = service.getOperations(sessionKey, buildCompareTurnsChangesetUri(sessionKey, 'turn-1', 'turn-2'), sampleGitState);
+
+		assert.deepStrictEqual(turnOperations, sampleOperations);
+		assert.deepStrictEqual(compareOperations, sampleOperations);
+	});
+
+	test('multi-folder session keeps operations for branch and uncommitted changesets', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+
+		const branchOperations = service.getOperations(sessionKey, buildBranchChangesetUri(sessionKey), sampleGitState);
+		const uncommittedOperations = service.getOperations(sessionKey, buildUncommittedChangesetUri(sessionKey), sampleGitState);
+
+		assert.deepStrictEqual(branchOperations, sampleOperations);
+		assert.deepStrictEqual(uncommittedOperations, sampleOperations);
+	});
 
 	test('joins duplicate in-flight invocations for the same changeset operation', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -197,6 +481,74 @@ suite('AgentHostChangesetOperationService', () => {
 		assert.match(error.message, /disabled while a turn is active/);
 		assert.strictEqual(handler.calls, 0);
 		assert.strictEqual(stateManager.getChangesetState(changesetUri)?.operations?.[0].status, ChangesetOperationStatus.Idle);
+	});
+
+	test('rejects invocation of a stale turn operation once the session is multi-root', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		// A stale operation advertised while the session was single-root.
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Sync', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		// The session is now multi-root, so the invocation must be re-suppressed
+		// regardless of the stale advertised operation.
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const error = await service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId }).then(undefined, error => error);
+
+		assert.match(error.message, /multi-root session/);
+		assert.strictEqual(error.code, JsonRpcErrorCodes.InvalidParams);
+		assert.strictEqual(handler.calls, 0);
+	});
+
+	test('allows invocation of a turn operation in a single-root session', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildTurnChangesetUri(sessionKey, 'turn-1');
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Sync', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		const service = createService(stateManager, new TestConfigurationService(['file:///a']));
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId });
+		handler.complete({ message: { markdown: 'Synced' } });
+		const result = await invocation;
+
+		assert.deepStrictEqual({ calls: handler.calls, result }, { calls: 1, result: { message: { markdown: 'Synced' } } });
+	});
+
+	test('allows invocation of an uncommitted operation while multi-root (only turn/compare are suppressed)', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+
+		// Multi-root: the invoke-time suppression targets only turn/compare, so an
+		// uncommitted (or branch/session) operation must still be invocable.
+		const service = createService(stateManager, new TestConfigurationService(['file:///a', 'file:///b']));
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId });
+		handler.complete({ message: { markdown: 'Committed' } });
+		const result = await invocation;
+
+		assert.deepStrictEqual({ calls: handler.calls, result }, { calls: 1, result: { message: { markdown: 'Committed' } } });
 	});
 
 	test('publishes running and error state when a changeset operation fails', async () => {

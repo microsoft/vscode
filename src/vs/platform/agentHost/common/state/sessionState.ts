@@ -10,6 +10,7 @@
 // (synced from the agent-host-protocol repo). This file adds VS Code-specific
 // helpers and re-exports.
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey, type Mutable } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
@@ -41,6 +42,7 @@ import {
 	type ToolCallCompletedState,
 	type ToolCallResult,
 	type ToolCallState,
+	type ToolInput,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
@@ -58,6 +60,7 @@ export {
 	ChatInputAnswerState as SessionInputAnswerState,
 	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
 	ChatInputQuestionKind as SessionInputQuestionKind,
+	ChatInputRequestPurpose,
 	ChatInputResponseKind as SessionInputResponseKind,
 	ChatInteractivity,
 	ChatOriginKind,
@@ -90,7 +93,7 @@ export {
 	type ToolCallState,
 	type ToolCallStreamingState,
 	type ToolCallContributor,
-	type ToolDefinition, type ToolResultContent,
+	type ToolDefinition, type ToolInput, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type TerminalCommandResult,
 	type ToolResultSubagentContent,
@@ -147,7 +150,52 @@ export interface UsageInfoMeta {
 	 * `promptTokenDetails`.
 	 */
 	contextAttribution?: IContextAttributionData;
+	/**
+	 * Per-model token totals accumulated across every model call in the turn,
+	 * including calls made by subagents and the summarization call a compaction
+	 * performs. Unlike {@link UsageInfo.inputTokens}, which describes only the
+	 * most recent model call, these are whole-turn sums, so clients can report
+	 * what a completed turn consumed in aggregate.
+	 */
+	turnTokenTotals?: readonly ITurnTokenTotal[];
 	[key: string]: unknown;
+}
+
+const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
+const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
+
+function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean } {
+	const meta = message._meta;
+	return {
+		hiddenFromTranscript: meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true,
+	};
+}
+
+export function isMessageHiddenFromTranscript(message: Message): boolean {
+	return readMessageMeta(message).hiddenFromTranscript
+		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
+}
+
+export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
+	if (!hidden) {
+		return message;
+	}
+	return {
+		...message,
+		text: message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
+		_meta: {
+			...message._meta,
+			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
+		},
+	};
+}
+
+/** Whole-turn token consumption attributed to a single model. */
+export interface ITurnTokenTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
 }
 
 export interface IAutoModeResolvedInfo {
@@ -233,7 +281,47 @@ export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
 	if (contextAttribution) {
 		result.contextAttribution = contextAttribution;
 	}
+	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
+	if (turnTokenTotals) {
+		result.turnTokenTotals = turnTokenTotals;
+	}
 	return result;
+}
+
+/**
+ * Reads whole-turn per-model token totals, dropping rows that are not fully
+ * formed. Returns `undefined` when no usable row survives, so callers can treat
+ * "absent" and "present but meaningless" identically.
+ */
+function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const totals: ITurnTokenTotal[] = [];
+	for (const item of value) {
+		if (!item || typeof item !== 'object' || Array.isArray(item)) {
+			continue;
+		}
+		const raw = item as Record<string, unknown>;
+		if (typeof raw['model'] !== 'string' || !raw['model']
+			|| !isTokenCount(raw['inputTokens'])
+			|| !isTokenCount(raw['cachedTokens'])
+			|| !isTokenCount(raw['outputTokens'])
+		) {
+			continue;
+		}
+		totals.push({
+			model: raw['model'],
+			inputTokens: raw['inputTokens'],
+			cachedTokens: raw['cachedTokens'],
+			outputTokens: raw['outputTokens'],
+		});
+	}
+	return totals.length > 0 ? totals : undefined;
+}
+
+function isTokenCount(value: unknown): value is number {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**
@@ -529,6 +617,7 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 	if (!result.content || result.content.length === 0) {
 		return undefined;
 	}
+
 	const textParts: ToolResultTextContent[] = [];
 	for (const c of result.content) {
 		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
@@ -539,6 +628,11 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 		return undefined;
 	}
 	return textParts.map(p => p.text).join('\n');
+}
+
+/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
+export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
+	return typeof toolInput === 'string' ? toolInput : undefined;
 }
 
 /**
@@ -1090,6 +1184,61 @@ export const SESSION_META_GITHUB_KEY = 'github';
 
 export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
+export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
+
+const MAX_WORKSPACE_FILE_LENGTH = 4096;
+
+/** Multi-root workspace provenance attached by the creating client. */
+export interface ISessionMultiRootMetadata {
+	readonly workspaceFile: string;
+}
+
+/** Reads validated multi-root workspace provenance from session metadata. */
+export function readSessionMultiRootMetadata(meta: SessionMeta | undefined): ISessionMultiRootMetadata | undefined {
+	return validateSessionMultiRootMetadata(meta?.[SESSION_META_MULTI_ROOT_KEY]);
+}
+
+/** Parses validated multi-root workspace provenance from its persisted JSON representation. */
+export function parseSessionMultiRootMetadata(value: string | undefined): ISessionMultiRootMetadata | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionMultiRootMetadata(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+/** Returns session metadata with the multi-root workspace provenance updated or removed. */
+export function withSessionMultiRootMetadata(meta: SessionMeta | undefined, multiRoot: ISessionMultiRootMetadata | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (multiRoot) {
+		next[SESSION_META_MULTI_ROOT_KEY] = multiRoot;
+	} else {
+		delete next[SESSION_META_MULTI_ROOT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMetadata | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw.workspaceFile !== 'string' || raw.workspaceFile.length === 0 || raw.workspaceFile.length > MAX_WORKSPACE_FILE_LENGTH) {
+		return undefined;
+	}
+	try {
+		if (!ResourceURI.parse(raw.workspaceFile, true).scheme) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	return { workspaceFile: raw.workspaceFile };
+}
+
 /** Latest known prompt-cache state for the model active in an agent session. */
 export interface ISessionPromptCacheState {
 	readonly modelId: string;
@@ -1146,7 +1295,7 @@ export interface ISessionGitState {
 	readonly uncommittedChanges?: number;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
-	/** GitHub owner parsed from the current branch's upstream remote. */
+	/** GitHub owner parsed from the current branch's upstream or push remote. */
 	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
@@ -1166,16 +1315,19 @@ export interface ISessionGitHubState {
 	readonly owner?: string;
 	/** The name of the GitHub repository. */
 	readonly repo?: string;
-	/** The URL of the GitHub pull request. */
-	readonly pullRequestUrl?: string;
+	/** GitHub pull request URLs found for the session's checkouts, most recent first. */
+	readonly pullRequestUrls?: readonly string[];
+	/** Pull requests that predate a folder-isolated session. An empty array is a captured baseline. */
+	readonly initialPullRequestUrls?: readonly string[];
+	/** Pull requests explicitly associated through user intent, most recent first. */
+	readonly associatedPullRequestUrls?: readonly string[];
 	/**
-<<<<<<< HEAD
 	 * URLs of the GitHub issues referenced by the session's user messages, in
 	 * order of first appearance.
 	 */
 	readonly issueUrls?: readonly string[];
 	/**
-	 * The name of the branch {@link pullRequestUrl} was found (or created) for.
+	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
 	 * A pull request always relates to a branch: when the working copy switches
 	 * to a different branch the host keeps reporting the known pull request but
 	 * resumes looking for one that belongs to the newly checked out branch.
@@ -1193,10 +1345,85 @@ export interface ISessionGitHubState {
  * it actually belongs to.
  */
 export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState | undefined, branchName: string | undefined): boolean {
-	if (!gitHubState?.pullRequestUrl) {
+	if (!gitHubState?.pullRequestUrls?.length) {
 		return false;
 	}
 	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
+}
+
+/** Returns pull requests related to the session rather than inherited from its folder checkout. */
+export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubState | undefined): readonly string[] {
+	const pullRequestUrls = gitHubState?.pullRequestUrls ?? [];
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const initialUrls = new Set(initialPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	const associatedUrls = new Set(gitHubState?.associatedPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	return pullRequestUrls.filter(url => !initialUrls.has(url.toLowerCase()) || associatedUrls.has(url.toLowerCase()));
+}
+
+/** Maximum pull requests retained for a session. */
+export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
+
+function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
+	const normalizedUrls = urls.map(url => {
+		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const groups = match?.groups;
+		return groups
+			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			: url;
+	});
+	return distinct(normalizedUrls, url => url.toLowerCase()).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+}
+
+/** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
+export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const pullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.pullRequestUrls ?? [])
+	]);
+
+	return {
+		pullRequestUrls,
+		pullRequestBranchName: branchName,
+	};
+}
+
+/** Returns state that promotes a pull request from the folder baseline into the session. */
+export function withMostRecentRelatedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const next = withMostRecentSessionPullRequest(gitHubState, pullRequestUrl, branchName);
+	const promotedUrl = normalizeSessionPullRequestUrls([pullRequestUrl])[0]?.toLowerCase();
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		...next,
+		associatedPullRequestUrls,
+		...(initialPullRequestUrls !== undefined ? {
+			initialPullRequestUrls: initialPullRequestUrls.filter(url => url.toLowerCase() !== promotedUrl)
+		} : {}),
+	};
+}
+
+/** Returns state that records a pull request in the folder-session baseline. */
+export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl?: string): ISessionGitHubState {
+	return {
+		initialPullRequestUrls: normalizeSessionPullRequestUrls([
+			...(pullRequestUrl ? [pullRequestUrl] : []),
+			...(gitHubState?.initialPullRequestUrls ?? [])
+		])
+	};
+}
+
+/** Returns state that records a user-referenced pull request without changing checkout PR state. */
+export function withMostRecentReferencedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string): ISessionGitHubState {
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		associatedPullRequestUrls,
+	};
 }
 
 /**
@@ -1276,14 +1503,32 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 	const result: {
 		owner?: string;
 		repo?: string;
-		pullRequestUrl?: string;
+		pullRequestUrls?: readonly string[];
+		initialPullRequestUrls?: readonly string[];
+		associatedPullRequestUrls?: readonly string[];
 		issueUrls?: readonly string[];
 		pullRequestBranchName?: string;
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
-	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	const pullRequestUrls = Array.isArray(raw['pullRequestUrls'])
+		? raw['pullRequestUrls'].filter((url): url is string => typeof url === 'string')
+		: typeof raw['pullRequestUrl'] === 'string'
+			? [raw['pullRequestUrl']]
+			: [];
+	if (pullRequestUrls.length > 0) {
+		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
+	}
+	if (Array.isArray(raw['initialPullRequestUrls'])) {
+		result.initialPullRequestUrls = normalizeSessionPullRequestUrls(raw['initialPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+	}
+	if (Array.isArray(raw['associatedPullRequestUrls'])) {
+		const associatedPullRequestUrls = normalizeSessionPullRequestUrls(raw['associatedPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+		if (associatedPullRequestUrls.length > 0) {
+			result.associatedPullRequestUrls = associatedPullRequestUrls;
+		}
+	}
 	if (Array.isArray(raw['issueUrls'])) { result.issueUrls = raw['issueUrls'].filter((url): url is string => typeof url === 'string'); }
 	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
@@ -1404,6 +1649,25 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * `_meta` key marking a session as an un-adopted legacy Copilot CLI session
+ * surfaced (only under the migrate setting) as adoptable. Clients read it to
+ * avoid passively subscribing to — and thereby migrating — the session before
+ * the user opens it. Cleared implicitly once the session is adopted (it no
+ * longer surfaces as adoptable).
+ */
+export const SESSION_META_EHCLI_ADOPTABLE_KEY = 'ehcliAdoptable';
+
+/** Whether the session is an un-adopted legacy Copilot CLI session surfaced as adoptable. */
+export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true;
+}
+
+/** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
+export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

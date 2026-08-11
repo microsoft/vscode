@@ -160,6 +160,19 @@ export interface IChatUsagePromptTokenDetail {
 	percentageOfPrompt: number;
 }
 
+/**
+ * Whole-turn token consumption attributed to a single model. Unlike
+ * {@link IChatUsage.promptTokens}, which describes only the most recent model
+ * call, these are sums across every model call the response made — including
+ * calls made by subagents, which may run on a different model.
+ */
+export interface IChatUsageModelTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
+}
+
 export interface IChatUsage {
 	promptTokens: number;
 	completionTokens: number;
@@ -172,6 +185,11 @@ export interface IChatUsage {
 	 * lower bound on the session; prefer {@link sessionCopilotCredits} for that.
 	 */
 	copilotCredits?: number;
+	/**
+	 * Whole-turn token consumption per model, when the provider reports it.
+	 * Only agent host sessions supply this today.
+	 */
+	modelTotals?: readonly IChatUsageModelTotal[];
 	/**
 	 * The whole session's Copilot credit cost as reported by the backend, rather
 	 * than summed from the individual turns. Unlike {@link copilotCredits} this
@@ -1117,6 +1135,7 @@ export interface IChatPullRequestContent {
 export interface IChatSubagentToolInvocationData {
 	kind: 'subagent';
 	isActive?: boolean;
+	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	agentName?: string;
 	prompt?: string;
@@ -1274,21 +1293,22 @@ export interface IChatAgentFeedbackReviewComment {
  * Command ids the agent feedback review confirmation renderer (workbench/chat)
  * uses to fetch unreviewed comments and apply the user's selection. They are
  * implemented by the agent feedback feature in `vs/sessions`, keeping the chat
- * layer decoupled from the feedback model. Most take the owning session resource
- * (`UriComponents`) as their first argument; {@link AgentFeedbackReviewCommandId.RevealAt}
- * instead resolves the session from the file resource so a rendered tool call
- * can link to a comment without knowing the session URI.
+ * layer decoupled from the feedback model. Most take the rendered session or chat
+ * resource (`UriComponents`) as their first argument and resolve it to the owning
+ * session; {@link AgentFeedbackReviewCommandId.RevealAt} instead resolves the
+ * session from the file resource so a rendered tool call can link to a comment
+ * without knowing the session URI.
  */
 export const enum AgentFeedbackReviewCommandId {
-	/** `(sessionResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
+	/** `(sessionOrChatResource)` -> `IChatAgentFeedbackReviewComment[]` (the `created` reviewable comments). */
 	GetComments = '_agentFeedbackReview.getComments',
-	/** `(sessionResource, commentId)` -> opens the file and reveals the comment. */
+	/** `(sessionOrChatResource, commentId)` -> opens the file and reveals the comment. */
 	Reveal = '_agentFeedbackReview.reveal',
 	/** `(resourceUri, range)` -> resolves the owning session and reveals the comment at that file range. */
 	RevealAt = '_agentFeedbackReview.revealAt',
-	/** `(sessionResource, commentId)` -> deletes the comment entirely. */
+	/** `(sessionOrChatResource, commentId)` -> deletes the comment entirely. */
 	Delete = '_agentFeedbackReview.delete',
-	/** `(sessionResource, commentIds)` -> accepts (reveals) the given comments. */
+	/** `(sessionOrChatResource, commentIds)` -> accepts (reveals) the given comments. */
 	Accept = '_agentFeedbackReview.accept',
 }
 
@@ -1410,6 +1430,8 @@ export interface IChatPlanReview {
 	data?: IChatPlanReviewResult;
 	/** Whether the widget has been responded to. */
 	isUsed?: boolean;
+	/** Whether the backing plan file changed after this summary was generated. */
+	isOutdated?: boolean;
 	/** Source attribution. */
 	source?: ToolDataSource;
 }
@@ -1730,6 +1752,7 @@ export type ChatSendResult =
 export interface ChatSendResultRejected {
 	readonly kind: 'rejected';
 	readonly reason: string;
+	readonly reasonCode?: 'cancelled' | 'providerRemoved';
 	/** Set when the session was replaced before the request was rejected (e.g. untitled -> read-only contributed session). */
 	readonly newSessionResource?: URI;
 }
@@ -1743,6 +1766,8 @@ export interface ChatSendResultSent {
 
 export interface ChatSendResultQueued {
 	readonly kind: 'queued';
+	/** The id of the request model created for this queued message. */
+	readonly requestId: string;
 	/**
 	 * Promise that resolves when the queued message is actually processed.
 	 * Will resolve to a 'sent' or 'rejected' result.
@@ -1869,6 +1894,9 @@ export interface IChatSendRequestOptions {
 	 * such as terminal command completion.
 	 */
 	isSystemInitiated?: boolean;
+
+	/** Hide the request and its response from the transcript while retaining them in history. */
+	hideFromTranscript?: boolean;
 
 	/**
 	 * Display label for system-initiated requests. When set, the request row renders

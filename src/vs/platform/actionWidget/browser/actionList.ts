@@ -583,6 +583,9 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Optional action item id to focus when the list opens. */
+	readonly initialFocusItemId?: string;
+
 	/**
 	 * When false, non-submenu items do not reserve space for the submenu chevron.
 	 * Defaults to true for alignment consistency.
@@ -629,6 +632,11 @@ export interface IActionListOptions {
 	readonly className?: string;
 
 	/**
+	 * Optional CSS class name added to the containing action widget.
+	 */
+	readonly widgetClassName?: string;
+
+	/**
 	 * Optional CSS class and duration used to animate the containing action widget
 	 * before the context view is hidden.
 	 */
@@ -650,6 +658,7 @@ export class ActionListWidget<T> extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	private readonly _list: List<IActionListItem<T>>;
+	private _initialFocusItemId: string | undefined;
 
 	protected readonly _actionLineHeight: number;
 	protected readonly _headerLineHeight = 24;
@@ -698,6 +707,7 @@ export class ActionListWidget<T> extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._initialFocusItemId = this._options?.initialFocusItemId;
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
@@ -1283,6 +1293,26 @@ export class ActionListWidget<T> extends Disposable {
 	private _focusCheckedOrFirst(): void {
 		this._suppressHover = true;
 		try {
+			const initialFocusItemId = this._initialFocusItemId;
+			this._initialFocusItemId = undefined;
+			if (initialFocusItemId) {
+				for (let i = 0; i < this._list.length; i++) {
+					const element = this._list.element(i);
+					if (element.kind === ActionListItemKind.Action && (element.item as { id?: string })?.id === initialFocusItemId) {
+						this._list.setFocus([i]);
+						this._list.reveal(i);
+						return;
+					}
+				}
+			}
+			const [focusedIndex] = this._list.getFocus();
+			if (focusedIndex !== undefined) {
+				const focusedElement = this._list.element(focusedIndex);
+				if (focusedElement && this.focusCondition(focusedElement)) {
+					this._list.reveal(focusedIndex);
+					return;
+				}
+			}
 			// Try to focus the checked item first
 			for (let i = 0; i < this._list.length; i++) {
 				const element = this._list.element(i);
@@ -2050,6 +2080,7 @@ export class ActionList<T> extends Disposable {
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
+	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -2073,6 +2104,10 @@ export class ActionList<T> extends Disposable {
 
 	get closeAnimation(): IActionListCloseAnimation | undefined {
 		return this._widget.closeAnimation;
+	}
+
+	get widgetClassName(): string | undefined {
+		return this._widgetClassName;
 	}
 
 	/**
@@ -2104,6 +2139,7 @@ export class ActionList<T> extends Disposable {
 		super();
 		this._anchor = anchor;
 		this._preferredAnchorPosition = options?.anchorPosition;
+		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,

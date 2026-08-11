@@ -71,6 +71,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 		const handled = await Promise.all([
 			'engine.messages',
 			'engine.messages.length',
+			'conversation.repetition.detected',
 			'model.message.added',
 			'model.modelCall.input',
 			'model.modelCall.output',
@@ -82,11 +83,12 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			handled,
 			events: telemetry.events.map(({ destination, eventName }) => ({ destination, eventName })),
 		}, {
-			handled: [true, true, true, true, true, true, true],
+			handled: [true, true, true, true, true, true, true, true],
 			events: [
 				{ destination: 'enhancedGH', eventName: 'engine.messages' },
 				{ destination: 'enhancedGH', eventName: 'engine.messages.length' },
 				{ destination: 'internalMSFT', eventName: 'engine.messages.length' },
+				{ destination: 'enhancedGH', eventName: 'conversation.repetition.detected' },
 				{ destination: 'internalMSFT', eventName: 'model.message.added' },
 				{ destination: 'internalMSFT', eventName: 'model.modelCall.input' },
 				{ destination: 'internalMSFT', eventName: 'model.modelCall.output' },
@@ -155,7 +157,7 @@ suite('AgentHostGitHubTelemetryRouter', () => {
 			// No plain continuation family is produced.
 			plainContinuation: event.properties?.messagesJson_02,
 			// The full value round-trips from the compressed chunk family.
-			roundTrip: gunzip([event.properties?.messagesJsonChunk, event.properties?.messagesJsonChunk_2]),
+			roundTrip: gunzip([event.properties?.messagesJSONChunk, event.properties?.messagesJSONChunk_2]),
 		})), [
 			{ destination: 'enhancedGH', original: original.slice(0, 8192), plainContinuation: undefined, roundTrip: original },
 			{ destination: 'internalMSFT', original: original.slice(0, 8192), plainContinuation: undefined, roundTrip: original },

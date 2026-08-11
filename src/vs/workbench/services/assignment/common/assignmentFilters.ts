@@ -101,6 +101,10 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this.copilotIsSn = this._storageService.get(StorageVersionKeys.CopilotIsSn, StorageScope.PROFILE);
 		this.copilotIsFcv1 = this._storageService.get(StorageVersionKeys.CopilotIsFcv1, StorageScope.PROFILE);
 
+		this.updateExtensionVersions();
+		this.updateCopilotEntitlementInfo();
+		this.updateCopilotTokenInfo();
+
 		this._register(this._extensionService.onDidChangeExtensionsStatus(extensionIdentifiers => {
 			if (extensionIdentifiers.some(identifier => ExtensionIdentifier.equals(identifier, 'github.copilot') || ExtensionIdentifier.equals(identifier, 'github.copilot-chat'))) {
 				this.updateExtensionVersions();
@@ -114,10 +118,6 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this._register(this._defaultAccountService.onDidChangeCopilotTokenInfo(() => {
 			this.updateCopilotTokenInfo();
 		}));
-
-		this.updateExtensionVersions();
-		this.updateCopilotEntitlementInfo();
-		this.updateCopilotTokenInfo();
 	}
 
 	private async updateExtensionVersions() {

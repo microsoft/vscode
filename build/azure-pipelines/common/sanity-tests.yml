@@ -17,11 +17,19 @@ parameters:
   - name: args
     type: string
     default: ""
+  # Build pipeline artifacts to download before running. When set, targets resolve from them
+  # instead of the update service, which only serves published builds.
+  - name: artifacts
+    type: object
+    default: []
+  - name: continueOnError
+    type: boolean
+    default: true
 
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
-    continueOnError: true
+    continueOnError: ${{ parameters.continueOnError }}
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
@@ -43,10 +51,24 @@ jobs:
           continueOnError: true
           sbomEnabled: false
     variables:
-      TEST_DIR: $(Build.SourcesDirectory)/test/sanity
-      LOG_FILE: $(TEST_DIR)/results.xml
-      SCREENSHOTS_DIR: $(TEST_DIR)/screenshots
-      CRASH_DUMPS_DIR: $(TEST_DIR)/crash-dumps
+      - name: TEST_DIR
+        value: $(Build.SourcesDirectory)/test/sanity
+      - name: LOG_FILE
+        value: $(TEST_DIR)/results.xml
+      - name: SCREENSHOTS_DIR
+        value: $(TEST_DIR)/screenshots
+      - name: CRASH_DUMPS_DIR
+        value: $(TEST_DIR)/crash-dumps
+      # Kept under TEST_DIR so container runs see it through the volume run-docker.sh mounts at /root.
+      - name: ARTIFACTS_DIR
+        value: $(TEST_DIR)/artifacts
+      - name: ARTIFACTS_ARG
+        ${{ if eq(length(parameters.artifacts), 0) }}:
+          value: ""
+        ${{ elseif ne(parameters.container, '') }}:
+          value: --artifacts-dir /root/artifacts
+        ${{ else }}:
+          value: --artifacts-dir $(ARTIFACTS_DIR)
     steps:
       - checkout: self
         fetchDepth: 1
@@ -54,6 +76,14 @@ jobs:
         sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
         retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
+
+      - ${{ each artifact in parameters.artifacts }}:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: ${{ artifact }}
+            path: $(ARTIFACTS_DIR)/${{ artifact }}
+          retryCountOnTaskFailure: 3
+          displayName: Download ${{ artifact }}
 
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: mkdir "$(SCREENSHOTS_DIR)"
@@ -147,7 +177,7 @@ jobs:
 
       # Windows
       - ${{ if eq(parameters.os, 'windows') }}:
-        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -156,7 +186,7 @@ jobs:
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -165,7 +195,7 @@ jobs:
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
-        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
@@ -191,6 +221,7 @@ jobs:
               --screenshots-dir "/root/screenshots" \
               --crash-dumps-dir "/root/crash-dumps" \
               --verbose \
+              $(ARTIFACTS_ARG) \
               ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests

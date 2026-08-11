@@ -342,9 +342,14 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly isPremium?: boolean;
 	readonly degradationReason?: string;
 	readonly warningText?: Record<string, string>;
-	readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string };
+	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	readonly autoDiscount?: number;
 	/**
 	 * Normalized token pricing in AICs per million tokens.
 	 * Computed from the raw billing token_prices and normalized

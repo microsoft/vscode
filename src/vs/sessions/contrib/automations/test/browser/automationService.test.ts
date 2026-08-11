@@ -10,9 +10,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationService } from '../../browser/automationService.js';
+import { AutomationService, AutomationStore } from '../../browser/automationService.js';
 import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { createAutomationService } from './automationTestUtils.js';
+import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
 
 const FOLDER = URI.parse('file:///workspace');
 
@@ -64,6 +64,28 @@ suite('AutomationService', () => {
 		const { service } = createService();
 		assert.deepStrictEqual(service.automations.get(), []);
 		assert.deepStrictEqual(service.runs.get(), []);
+	});
+
+	test('provider stores isolate ledgers by storage key', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const automationStorage = new TestAutomationStorageService(storage);
+		const first = teardown.add(new AutomationStore('automations.first', storage, new NullLogService(), NullTelemetryService, automationStorage));
+		const second = teardown.add(new AutomationStore('automations.second', storage, new NullLogService(), NullTelemetryService, automationStorage));
+
+		await first.createAutomation({ name: 'First', prompt: 'first', schedule: dailySchedule(), target: workspaceTarget() });
+		await second.createAutomation({ name: 'Second', prompt: 'second', schedule: dailySchedule(), target: workspaceTarget() });
+
+		assert.deepStrictEqual({
+			first: first.automations.get().map(automation => automation.name),
+			second: second.automations.get().map(automation => automation.name),
+			firstPersisted: JSON.parse(storage.get('automations.first', StorageScope.APPLICATION)!).automations.map((automation: { name: string }) => automation.name),
+			secondPersisted: JSON.parse(storage.get('automations.second', StorageScope.APPLICATION)!).automations.map((automation: { name: string }) => automation.name),
+		}, {
+			first: ['First'],
+			second: ['Second'],
+			firstPersisted: ['First'],
+			secondPersisted: ['Second'],
+		});
 	});
 
 	test('createAutomation appends an entry and computes nextRunAt for non-manual schedules', async () => {
@@ -233,6 +255,18 @@ suite('AutomationService', () => {
 		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: 'vscode-chat-session://copilot/sess-1', completedAt: new Date().toISOString() });
 		assert.strictEqual(updated?.status, 'completed');
 		assert.strictEqual(updated?.sessionResource, 'vscode-chat-session://copilot/sess-1');
+	});
+
+	test('deleteRun removes only the matching history entry', async () => {
+		const { service } = createService();
+		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
+		const first = await claimRun(service, automation.id, 'manual');
+		await service.updateRun(first.id, { status: 'completed' });
+		const second = await claimRun(service, automation.id, 'manual');
+
+		await service.deleteRun(first.id);
+
+		assert.deepStrictEqual(service.runs.get().map(run => run.id), [second.id]);
 	});
 
 	test('recordRunStart updates lastRunAt and advances the next scheduled run', async () => {
