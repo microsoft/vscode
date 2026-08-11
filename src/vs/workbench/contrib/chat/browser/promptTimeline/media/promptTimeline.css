@@ -652,7 +652,7 @@
 	color: var(--vscode-editorHoverWidget-foreground);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 	/* A floating overlay, so it sits on the outer radius tier. Its 4px padding then leaves the rows
-	 * inside concentric with it at the control tier (8 − 4 = 4). */
+	 * inside concentric with it at the control tier (8 - 4 = 4). */
 	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	opacity: 0;

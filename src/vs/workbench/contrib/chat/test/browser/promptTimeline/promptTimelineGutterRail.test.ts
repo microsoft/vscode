@@ -38,7 +38,7 @@ suite('PromptTimelineGutterRail', () => {
 		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 	}
 
-	test('bands a row previewed from a dot, but leaves a row under the pointer to its own halves', () => {
+	test('highlights a row previewed from a dot, but leaves a row under the pointer to its own halves', () => {
 		const rail = createRail(Array.from({ length: 3 }, (_, index) => tick(index)));
 
 		const rows = Array.from(rail.domNode.querySelectorAll<HTMLElement>('.prompt-timeline-gutter-row'));
@@ -58,13 +58,12 @@ suite('PromptTimelineGutterRail', () => {
 
 		assert.deepStrictEqual({ rowHover, dotHover }, {
 			rowHover: {
-				// No band: the pointer is on the row, so its jump/diff halves light up individually
-				// (a band would cover both and make the two buttons read as one). The dot still pairs.
+				// The pointer is on the row, so its own half lights up instead. The dot still pairs.
 				rows: [false, false, false],
 				dots: [false, true, false],
 			},
 			dotHover: {
-				// The pointer is over on the dot column, so the whole row bands to point it out.
+				// The pointer is over on the dot column, so the row itself highlights to point it out.
 				rows: [false, false, true],
 				dots: [false, false, true],
 			},
@@ -81,11 +80,9 @@ suite('PromptTimelineGutterRail', () => {
 
 		assert.deepStrictEqual({
 			dotCount: dots.length,
-			previewRow: rows.findIndex(row => row.classList.contains('preview')),
 			previewDot: dots.findIndex(dot => dot.classList.contains('preview')),
 		}, {
 			dotCount: 50,
-			previewRow: 25,
 			previewDot: 24,
 		});
 	});
