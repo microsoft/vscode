@@ -20,7 +20,7 @@ export interface InlineEditsUnificationConfiguration {
 	readonly cacheDelay: number;
 }
 
-export const DEFAULT_INLINE_EDITS_UNIFICATION_CONFIGURATION: InlineEditsUnificationConfiguration = {
+export const DEFAULT_CONFIGURATION: InlineEditsUnificationConfiguration = {
 	nLinesBelow: 5,
 	nLinesAbove: 2,
 	unification: false,
@@ -47,7 +47,7 @@ export function resolveInlineEditsUnificationConfiguration(
 ): InlineEditsUnificationConfiguration {
 	const defaults = modelConfiguration.unification === InlineEditsUnification.CompletionsNes
 		? COMPLETIONS_NES_UNIFICATION_DEFAULTS
-		: DEFAULT_INLINE_EDITS_UNIFICATION_CONFIGURATION;
+		: DEFAULT_CONFIGURATION;
 
 	return {
 		nLinesBelow: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, experimentationService, defaults.nLinesBelow),
