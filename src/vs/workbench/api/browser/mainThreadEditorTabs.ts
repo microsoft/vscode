@@ -538,6 +538,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	private _updateTabsModel(changeEvent: IEditorsChangeEvent): void {
 		const event = changeEvent.event;
 		const groupId = changeEvent.groupId;
+		if (this._editorGroupsService.activeModalEditorPart?.groups.some(group => group.id === groupId)) {
+			return;
+		}
 		switch (event.kind) {
 			case GroupModelChangeKind.GROUP_ACTIVE:
 				if (groupId === this._editorGroupsService.activeGroup.id) {
