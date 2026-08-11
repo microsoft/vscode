@@ -41,10 +41,14 @@ import { IUpdateService } from '../../../../../../../platform/update/common/upda
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
+import { markOnboardingTarget } from '../../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getModelPickerIcon } from './modelProviderIcons.js';
 import { getModelPickerUnavailableReason, isAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+
+/** Onboarding spotlight target for the chat model picker control. */
+export const CHAT_MODEL_PICKER_ONBOARDING_TARGET_ID = 'chat.modelPicker';
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 type ChatModelChangeClassification = {
@@ -313,6 +317,7 @@ export class ModelPickerWidget extends Disposable {
 		// The container groups the individual buttons; only the buttons should be
 		// tab stops, not the container itself.
 		this._domNode.tabIndex = -1;
+		this._register(markOnboardingTarget(this._domNode, CHAT_MODEL_PICKER_ONBOARDING_TARGET_ID));
 
 		// Apply initial collapsed state now that _domNode exists
 		if (this._compact?.get()) {
