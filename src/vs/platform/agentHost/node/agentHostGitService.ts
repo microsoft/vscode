@@ -128,11 +128,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		const output = await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']);
-		if (!output) {
+		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+	}
+
+	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
+		if (!porcelainOutput) {
 			return [];
 		}
-		return output.split(/\r?\n/g)
+		return porcelainOutput.split(/\r?\n/g)
 			.filter(line => line.startsWith('worktree '))
 			.map(line => URI.file(line.substring('worktree '.length)));
 	}
@@ -215,29 +218,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 		try {
 			await this._runGit(repositoryRoot, args, { timeout: 60_000, throwOnError: true });
 		} catch (error) {
-			// Worktree removal is idempotent: archiving a session removes and
-			// de-registers its worktree, so deleting the archived session later
-			// finds nothing to remove and git fails with "'<path>' is not a
-			// working tree". When git no longer tracks the worktree the removal
-			// goal is already met, so treat it as success. Checked against git's
-			// own registry rather than the (truncatable, localizable) error text.
-			// Genuine failures (e.g. a dirty tree needing --force) leave the
-			// worktree registered and still propagate.
-			if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-				return;
+			// Idempotent: a worktree git no longer tracks is already gone (e.g. an archived session removed it earlier).
+			if (await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+				throw error;
 			}
-			throw error;
 		}
 	}
 
-	/** Whether `worktree` is still registered with git (its admin entry survives). */
+	/** Whether git still tracks `worktree`; fails closed (returns `true`) if the registry cannot be read. */
 	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
-		const registered = await this.getWorktreeRoots(repositoryRoot);
+		let registered: URI[];
+		try {
+			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+		} catch {
+			return true;
+		}
 		if (registered.length === 0) {
 			return false;
 		}
 		const target = await this._canonicalizeWorktreePath(worktree);
-		// Check every registered worktree in parallel and resolve as soon as one matches.
 		const matched = await firstParallel(
 			registered.map(async entry =>
 				extUriBiasedIgnorePathCase.isEqual(entry, worktree)
@@ -248,11 +247,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return matched ?? false;
 	}
 
-	/**
-	 * Resolves symlinks on the worktree's parent (which persists even after the
-	 * worktree directory itself is deleted) so a path we passed to git (e.g.
-	 * `/var/...`) matches the realpath'd form git reports (`/private/var/...`).
-	 */
+	/** Resolves symlinks on the worktree's parent so our path matches the realpath'd form git reports. */
 	private async _canonicalizeWorktreePath(worktree: URI): Promise<URI> {
 		try {
 			const parentReal = await fsPromises.realpath(path.dirname(worktree.fsPath));

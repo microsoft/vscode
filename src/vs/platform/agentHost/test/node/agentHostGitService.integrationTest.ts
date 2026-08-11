@@ -630,6 +630,14 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	// Fail-closed guard flagged in review: when git cannot confirm the worktree is
+	// unregistered (e.g. the repository is gone), a failed removal must propagate
+	// rather than be silently reported as success.
+	(hasGit ? test : test.skip)('removeWorktree rethrows when git cannot confirm removal', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-nonrepo-'));
+		await assert.rejects(svc!.removeWorktree(URI.file(tmpRoot), URI.file(join(tmpRoot, 'missing-worktree')), { force: true }));
+	});
+
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
