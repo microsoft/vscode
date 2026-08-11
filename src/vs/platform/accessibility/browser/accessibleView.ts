@@ -25,6 +25,7 @@ export const enum AccessibleViewProviderId {
 	InlineChat = 'inlineChat',
 	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
+	ChatInputWindow = 'chatInputWindow',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
@@ -50,6 +51,7 @@ export const enum AccessibleViewProviderId {
 	SessionsChanges = 'sessionsChanges',
 	Survey = 'survey',
 	Automations = 'automations',
+	BrowserElementCommenting = 'browserElementCommenting',
 }
 
 export const enum AccessibleViewType {

@@ -15,5 +15,5 @@
 .style-override.monaco-workbench.mac .part.titlebar > .titlebar-container > .titlebar-left,
 .style-override.monaco-workbench.mac .part.titlebar > .titlebar-container > .titlebar-center,
 .style-override.monaco-workbench.mac .part.titlebar > .titlebar-container > .titlebar-right {
-	padding-top: 2px;
+	padding-top: var(--vscode-spacing-size20);
 }

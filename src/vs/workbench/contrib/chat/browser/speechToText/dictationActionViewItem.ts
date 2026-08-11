@@ -15,6 +15,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IChatSpeechToTextService } from './chatSpeechToTextService.js';
+import { getDictationDownloadHoverContent } from './dictationDownloadRing.js';
 import { setupDictationMicGlow } from './dictationMicGlow.js';
 import { getDictationHoverContent } from './micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from './micButtonMenuActions.js';
@@ -37,12 +38,12 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly _dictationThemeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _dictationAccessibilityService: IAccessibilityService,
 		@IChatSpeechToTextService private readonly _speechToTextService: IChatSpeechToTextService,
 	) {
-		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _dictationAccessibilityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, _dictationThemeService, contextMenuService, _dictationAccessibilityService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -53,10 +54,13 @@ export class DictationActionViewItem extends MenuEntryActionViewItem {
 			() => getDictationContextMenuActions(this._commandService, this._configurationService, this._keybindingService, this._action.id),
 			this._contextMenuService,
 		));
-		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService));
+		this._register(setupDictationMicGlow(container, this._speechToTextService, this._dictationAccessibilityService, undefined, this._dictationThemeService));
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
+		if (this._speechToTextService.isPreparingModel) {
+			return getDictationDownloadHoverContent(this._speechToTextService);
+		}
 		return getDictationHoverContent(this.getTooltip() ?? '', this._configurationService);
 	}
 }

@@ -8,7 +8,7 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import type { SessionToolAuthenticationRequest, SessionToolClientExecutionRequest, SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
-import type { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
 
 export type ToolInvokedResult = 'success' | 'error' | 'userCancelled';
 
@@ -55,7 +55,13 @@ export function toolSourceKindFromContributor(contributor: ToolCallContributor |
 	}
 }
 
-function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
+/**
+ * Whether `next` is a safe refinement of the currently recorded contributor.
+ * A client contributor may only be refined by the same client, and a client
+ * contributor is never replaced by a non-client one, so execution ownership
+ * cannot be reassigned by a later, less specific signal.
+ */
+export function canRefineContributor(current: ToolCallContributor | undefined, next: ToolCallContributor): boolean {
 	if (current?.kind === ToolCallContributorKind.Client) {
 		return next.kind === ToolCallContributorKind.Client && next.clientId === current.clientId;
 	}
@@ -68,9 +74,13 @@ interface IToolCallTiming {
 	invocationStopWatch?: StopWatch;
 	readonly provider: string;
 	readonly session: string;
+	readonly turnId: string;
 	readonly toolId: string;
 	contributor: ToolCallContributor | undefined;
 	toolSourceKind: string;
+	model: string | undefined;
+	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	modelResolvedFromUsage: boolean;
 }
 
 interface IStalledToolCall {
@@ -95,6 +105,8 @@ interface IStalledToolCall {
 export class AgentHostToolCallTracker extends Disposable {
 
 	private readonly _toolCalls = new Map<string, IToolCallTiming>();
+	private readonly _turnModels = new Map<string, { model: string; modelTelemetryKind: AgentHostModelTelemetryKind }>();
+	private readonly _pendingToolReports = new Map<string, IAgentHostToolInvokedReport[]>();
 	private readonly _toolCallStallTimers = this._register(new DisposableMap<string>());
 	private readonly _stalledToolCalls = new Map<string, IStalledToolCall>();
 
@@ -102,15 +114,39 @@ export class AgentHostToolCallTracker extends Disposable {
 		super();
 	}
 
-	toolCallStarted(provider: string, session: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void {
+	toolCallStarted(provider: string, session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): void {
+		const resolvedModel = this._turnModels.get(this._turnKey(session, turnId));
 		this._toolCalls.set(this._key(session, toolCallId), {
 			lifecycleStopWatch: StopWatch.create(true),
 			provider,
 			session,
+			turnId,
 			toolId: toolName,
 			contributor,
 			toolSourceKind: toolSourceKindFromContributor(contributor),
+			model: resolvedModel?.model ?? model,
+			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
+			modelResolvedFromUsage: resolvedModel !== undefined,
 		});
+	}
+
+	updateTurnModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void {
+		const turnKey = this._turnKey(session, turnId);
+		this._turnModels.set(turnKey, { model, modelTelemetryKind });
+		for (const timing of this._toolCalls.values()) {
+			if (timing.session === session && timing.turnId === turnId) {
+				timing.model = model;
+				timing.modelTelemetryKind = modelTelemetryKind;
+				timing.modelResolvedFromUsage = true;
+			}
+		}
+		const pending = this._pendingToolReports.get(turnKey);
+		if (pending) {
+			this._pendingToolReports.delete(turnKey);
+			for (const report of pending) {
+				this._reporter.toolInvoked({ ...report, model, modelTelemetryKind });
+			}
+		}
 	}
 
 	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
@@ -143,16 +179,29 @@ export class AgentHostToolCallTracker extends Disposable {
 		this._toolCalls.delete(key);
 		const resultBucket = deriveToolInvokedResult(result);
 		const totalTimeMs = timing.lifecycleStopWatch.elapsed();
+		const resultSizeInCharacters = JSON.stringify(result).length;
 
-		this._reporter.toolInvoked({
+		const report: IAgentHostToolInvokedReport = {
 			provider: timing.provider,
 			session: timing.session,
+			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
+			toolCallId,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),
-		});
-
+			resultSizeInCharacters,
+			model: timing.model,
+			modelTelemetryKind: timing.modelTelemetryKind,
+		};
+		if (timing.modelResolvedFromUsage) {
+			this._reporter.toolInvoked(report);
+		} else {
+			const turnKey = this._turnKey(timing.session, timing.turnId);
+			const pending = this._pendingToolReports.get(turnKey) ?? [];
+			pending.push(report);
+			this._pendingToolReports.set(turnKey, pending);
+		}
 		const stalled = this._stalledToolCalls.get(key);
 		if (stalled) {
 			this._stalledToolCalls.delete(key);
@@ -202,6 +251,14 @@ export class AgentHostToolCallTracker extends Disposable {
 	 */
 	clearSession(session: string): void {
 		const prefix = `${session}\0`;
+		for (const [key, reports] of this._pendingToolReports) {
+			if (key.startsWith(prefix)) {
+				this._pendingToolReports.delete(key);
+				for (const report of reports) {
+					this._reporter.toolInvoked(report);
+				}
+			}
+		}
 		for (const key of this._toolCalls.keys()) {
 			if (key.startsWith(prefix)) {
 				this._toolCalls.delete(key);
@@ -217,15 +274,26 @@ export class AgentHostToolCallTracker extends Disposable {
 				this._stalledToolCalls.delete(key);
 			}
 		}
+		for (const key of this._turnModels.keys()) {
+			if (key.startsWith(prefix)) {
+				this._turnModels.delete(key);
+			}
+		}
 	}
 
 	clear(): void {
 		this._toolCalls.clear();
+		this._turnModels.clear();
+		this._pendingToolReports.clear();
 		this._toolCallStallTimers.clearAndDisposeAll();
 		this._stalledToolCalls.clear();
 	}
 
 	private _key(session: string, toolCallId: string): string {
 		return `${session}\0${toolCallId}`;
+	}
+
+	private _turnKey(session: string, turnId: string): string {
+		return `${session}\0${turnId}`;
 	}
 }

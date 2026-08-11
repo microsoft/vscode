@@ -26,6 +26,8 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
+import { SessionsWindowStartupExperiment } from '../../sessions/browser/sessionsWindowStartupExperiment.js';
+import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../browser/newSessionComposerService.js';
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -44,6 +46,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
 	) {
 		super();
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
@@ -93,10 +96,20 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 	private _getWindowOpenViewState(): ISessionsWindowOpenViewState {
 		const activeSession = this.sessionsService.activeSession.get();
+		const isNewSessionView = !activeSession || !activeSession.isCreated.get();
+		if (!isNewSessionView) {
+			return {
+				workspacePreselected: undefined,
+				workspacePreselectionSource: undefined,
+			};
+		}
+		const composerSource = this.newSessionComposerService.activeComposer.get()?.workspacePreselectionSource;
+		const workspacePreselected = activeSession?.workspace.get() !== undefined
+			|| (composerSource !== undefined && composerSource !== NewSessionWorkspacePreselectionSource.None);
 		return {
-			workspacePreselected: !activeSession || !activeSession.isCreated.get()
-				? activeSession?.workspace.get() !== undefined
-				: undefined,
+			workspacePreselected,
+			workspacePreselectionSource: composerSource
+				?? (workspacePreselected ? NewSessionWorkspacePreselectionSource.Unknown : NewSessionWorkspacePreselectionSource.None),
 		};
 	}
 
@@ -211,6 +224,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(SessionsWindowStartupExperiment.ID, SessionsWindowStartupExperiment, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's

@@ -110,7 +110,7 @@ export class SessionDataService implements ISessionDataService {
 		return this._databases.acquire(key);
 	}
 
-	async deleteSessionData(session: URI): Promise<void> {
+	async deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void> {
 		const dir = this.getSessionDataDir(session);
 		// Fire the will-delete event first so subscribers (notably the
 		// checkpoint service) can perform async cleanup that needs the
@@ -120,6 +120,7 @@ export class SessionDataService implements ISessionDataService {
 		try {
 			this._onWillDeleteSessionData.fire({
 				session,
+				workingDirectories,
 				waitUntil: p => { pending.push(p); },
 			});
 		} catch (err) {

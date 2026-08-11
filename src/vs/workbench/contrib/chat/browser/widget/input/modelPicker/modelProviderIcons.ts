@@ -15,16 +15,20 @@ const claudeModelProviderIcon = registerIcon('chat-model-provider-claude', Codic
 const geminiModelProviderIcon = registerIcon('chat-model-provider-gemini', Codicon.googleGemini, localize('chatModelProviderGeminiIcon', "Icon for Gemini models."));
 const kimiModelProviderIcon = registerIcon('chat-model-provider-kimi', Codicon.kimi, localize('chatModelProviderKimiIcon', "Icon for Kimi models."));
 const microsoftModelProviderIcon = registerIcon('chat-model-provider-microsoft', Codicon.microsoft, localize('chatModelProviderMicrosoftIcon', "Icon for Microsoft models."));
+const xAIModelProviderIcon = registerIcon('chat-model-provider-xai', Codicon.xai, localize('chatModelProviderXAIIcon', "Icon for xAI models."));
 const genericModelProviderIcon = registerIcon('chat-model-provider-generic', Codicon.sparkle, localize('chatModelProviderGenericIcon', "Icon for other model providers."));
 
 export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentifier): ThemeIcon {
+	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`.toLowerCase();
+	if (identity.includes('grok') || identity.includes('xai')) {
+		return xAIModelProviderIcon;
+	}
 	if (model.metadata.isBYOK) {
 		return genericModelProviderIcon;
 	}
 	if (isAutoLanguageModel(model)) {
 		return copilotModelProviderIcon;
 	}
-	const identity = `${model.metadata.vendor} ${model.metadata.family} ${model.metadata.id} ${model.metadata.name}`.toLowerCase();
 	if (identity.includes('claude') || identity.includes('anthropic')) {
 		return claudeModelProviderIcon;
 	}
@@ -40,7 +44,8 @@ export function getModelProviderIcon(model: ILanguageModelChatMetadataAndIdentif
 	if (identity.includes('openai') || identity.includes('gpt') || identity.includes('codex') || /\bo[134]\b/.test(identity)) {
 		return openAIModelProviderIcon;
 	}
-	if (identity.includes('copilot')) {
+	const modelIdentity = `${model.metadata.id} ${model.metadata.name}`.toLowerCase();
+	if (modelIdentity.includes('copilot')) {
 		return copilotModelProviderIcon;
 	}
 	return genericModelProviderIcon;

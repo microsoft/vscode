@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { McpSdkServerConfigWithInstance, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -23,11 +23,12 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { areAdditionalWorkingDirectoriesEqual, areSessionWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallContributorKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { isDefaultChatUri, type Customization, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
-import { toSdkModelId } from './claudeModelId.js';
+import { claudeTransportForProvider, parseClaudeModelSelection, toClaudeSdkModelId } from './claudeModelSelection.js';
 import { buildServerToolMcpServer, CLAUDE_SERVER_TOOL_MCP_SERVER_NAME, serverToolAllowList } from './claudeServerToolMcpServer.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
@@ -39,6 +40,7 @@ import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffecti
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { scanClaudeRules } from './customizations/scan/claudeRuleScan.js';
 import { discoverClaudeMultiRootCustomizations } from './customizations/claudeMultiRootCustomizationDiscovery.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
@@ -57,6 +59,14 @@ export type { IRematerializer } from './claudeSdkPipeline.js';
  * agent's per-session lookup, and the resume-vs-fresh discriminator).
  */
 export interface IMaterializeContext {
+	/**
+	 * Transport (proxy vs native) the agent resolved for this session's
+	 * provisional model, pinned here at materialize. The agent owns transport
+	 * resolution (it holds the live proxy handle and the host default mode); the
+	 * session only consumes the value and never calls back to re-resolve. A later
+	 * per-session provider switch is pushed in separately through
+	 * {@link ClaudeAgentSession.send}'s `switchTransport`.
+	 */
 	readonly transport: ClaudeTransport;
 	readonly canUseTool: NonNullable<Options['canUseTool']>;
 	readonly onElicitation: OnElicitation;
@@ -94,16 +104,6 @@ function resolveCurrentPermissionMode(
 	permissionModeFallback: ClaudePermissionMode,
 ): ClaudePermissionMode {
 	return readClaudePermissionMode(configurationService, sessionUri) ?? permissionModeFallback;
-}
-
-function sameWorkingDirectories(a: readonly URI[] | undefined, b: readonly URI[] | undefined): boolean {
-	if (!a || !b) {
-		return a === b;
-	}
-	if (a.length !== b.length) {
-		return false;
-	}
-	return a.every((directory, index) => isEqual(directory, b[index]));
 }
 
 /**
@@ -171,20 +171,21 @@ export class ClaudeAgentSession extends Disposable {
 	/**
 	 * The additional (non-primary) working directories this session's agent is
 	 * granted tool access to, in order (they follow index 0 = the primary
-	 * {@link workingDirectory}). A worktree remap only replaces the primary, so
-	 * this tail is stable from creation and is preserved across every SDK
-	 * (re)materialization. Empty for single-root sessions.
+	 * {@link workingDirectory}). Workspace-folder reconciliation can replace
+	 * this tail; the applied snapshot advances only after the rebuilt query and
+	 * its cold-resume metadata both succeed.
 	 */
-	private _additionalDirectories: readonly URI[];
+	private _desiredAdditionalDirectories: readonly URI[];
+	private _appliedAdditionalDirectories: readonly URI[];
 
 	/**
 	 * The full ordered working-directory set (index 0 = primary, 1..N =
-	 * {@link _additionalDirectories}). `undefined` only when the session has no
+	 * desired additional roots). `undefined` only when the session has no
 	 * resolved primary yet (workspace-less, pre-materialize).
 	 */
 	get workingDirectories(): readonly URI[] | undefined {
 		const primary = this.workingDirectory;
-		return primary ? [primary, ...this._additionalDirectories] : undefined;
+		return primary ? [primary, ...this._desiredAdditionalDirectories] : undefined;
 	}
 	private readonly _customizationWatcher = this._register(new MutableDisposable<DisposableStore>());
 
@@ -300,6 +301,42 @@ export class ClaudeAgentSession extends Disposable {
 	private _transportKind: ClaudeTransport['kind'] = 'proxy';
 
 	/**
+	 * Set by {@link setModel} when a model change crosses transports (Copilot ↔
+	 * native) on an already-materialized session. Rather than hot-swapping the
+	 * live subprocess (which stays on the old transport), the switch is deferred:
+	 * the flag makes the next {@link send} pre-flight rebind. The agent resolves
+	 * the new transport at send time and hands it in via `switchTransport` (kept
+	 * in {@link _pendingSwitchTransport}); the rematerializer rebuilds onto it and
+	 * clears both on success. A failed rebuild leaves them set so the following
+	 * send retries. Exposed via {@link hasPendingTransportSwitch} so the agent
+	 * resolves a transport only when one is actually pending.
+	 */
+	private _pendingTransportSwitch = false;
+
+	/**
+	 * The transport the agent resolved for a pending {@link _pendingTransportSwitch},
+	 * pushed in through {@link send}'s `switchTransport` at send time (when the
+	 * live proxy handle is current and a signed-out proxy switch throws). Consumed
+	 * by the next rebuild in preference to {@link _materializedTransport}, then
+	 * cleared once the new subprocess is live. `undefined` between the deferring
+	 * {@link setModel} and the send that supplies it.
+	 */
+	private _pendingSwitchTransport: ClaudeTransport | undefined;
+
+	/**
+	 * The full transport (kind + any live proxy handle) that backs the current
+	 * {@link _transportKind}, captured the last time {@link materialize} or the
+	 * rematerializer actually built the subprocess. Ordinary rebuilds (a tool /
+	 * customization diff, a resume) reuse it verbatim so a runtime flip of the
+	 * host default transport — e.g. a config change or a Copilot sign-in mutating
+	 * the agent's live transport mode — never reroutes the live conversation. Only
+	 * a deliberate {@link _pendingSwitchTransport} rebuilds onto a freshly
+	 * resolved transport; this pin keeps ordinary rebuilds on the transport fixed
+	 * at materialize, never re-derived.
+	 */
+	private _materializedTransport: ClaudeTransport | undefined;
+
+	/**
 	 * Accumulate proxy-reported billed credits for the in-flight turn.
 	 * Called from {@link ClaudeAgent} for every proxy `onDidReportCredits`
 	 * routed to this session. Ignores non-positive / non-finite values.
@@ -377,6 +414,7 @@ export class ClaudeAgentSession extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -390,7 +428,8 @@ export class ClaudeAgentSession extends Disposable {
 		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
-		this._additionalDirectories = additionalDirectories;
+		this._desiredAdditionalDirectories = additionalDirectories;
+		this._appliedAdditionalDirectories = additionalDirectories;
 		this.toolDiff = this._register(toolDiff);
 		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 
@@ -486,26 +525,32 @@ export class ClaudeAgentSession extends Disposable {
 			this._workingDirectory = resolvedPrimary;
 		}
 		if (ctx.workingDirectories && ctx.workingDirectories.length > 0) {
-			this._additionalDirectories = ctx.workingDirectories.slice(1);
+			this._desiredAdditionalDirectories = ctx.workingDirectories.slice(1);
+			this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
 		}
 		const currentWorkingDirectories = this.workingDirectories;
-		if (!sameWorkingDirectories(previousWorkingDirectories, currentWorkingDirectories)) {
+		// Claude advertises `multipleWorkingDirectories.immutablePrimary`, so its
+		// process root is pinned at index 0.
+		if (!areSessionWorkingDirectoriesEqual(previousWorkingDirectories, currentWorkingDirectories, true)) {
 			this._watchCustomizations(currentWorkingDirectories);
 		}
 		if (!this.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${this.sessionId}: workingDirectory is required`);
 		}
 		this._transportKind = ctx.transport.kind;
+		this._materializedTransport = ctx.transport;
 
 		const permissionMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
 		const { mcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
+		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
+		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.sessionUri.toString());
 
 		const options = await buildOptions(
 			{
 				sessionId: this.sessionId,
 				workingDirectory: this.workingDirectory,
-				additionalDirectories: this._additionalDirectories,
+				additionalDirectories: this._appliedAdditionalDirectories,
 				model: this._provisionalModel,
 				abortController: this.abortController,
 				permissionMode,
@@ -517,6 +562,8 @@ export class ClaudeAgentSession extends Disposable {
 				allowedTools,
 				plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 				agent: agentName,
+				telemetry,
+				traceContext,
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -561,7 +608,7 @@ export class ClaudeAgentSession extends Disposable {
 		// the user's last-chosen model / effort without losing the picker
 		// config. Read provisional state directly off the session.
 		pipeline.seedCurrentConfig(
-			toSdkModelId(this._provisionalModel?.id),
+			toClaudeSdkModelId(this._provisionalModel),
 			toRuntimeEffortLevel(resolveClaudeEffort(this._provisionalModel)),
 			permissionMode,
 		);
@@ -569,7 +616,8 @@ export class ClaudeAgentSession extends Disposable {
 		// Fresh sessions persist their customization-directory / model /
 		// permissionMode overlay so a later resume re-reads them. Resume
 		// sessions skip the write because they READ from the overlay
-		// upstream and would otherwise overwrite their source.
+		// upstream and would otherwise overwrite their source; only an explicit
+		// host root snapshot advances below.
 		if (!ctx.isResume) {
 			try {
 				await this._metadataStore.write(this._storageUri, {
@@ -581,12 +629,17 @@ export class ClaudeAgentSession extends Disposable {
 					// fork can recover the tail (the SDK catalog only stores `cwd`).
 					// Only meaningful when there is a tail; single-root sessions
 					// leave it absent so absence reads as single-root.
-					...(this._additionalDirectories.length > 0 && this.workingDirectories ? { workingDirectories: this.workingDirectories } : {}),
+					...(this._desiredAdditionalDirectories.length > 0 && this.workingDirectories ? { workingDirectories: this.workingDirectories } : {}),
 				});
 			} catch (err) {
 				this._logService.error(`[Claude] Failed to persist customization directory; aborting materialize`, err);
 				throw err;
 			}
+		} else if (ctx.workingDirectories && this.workingDirectories) {
+			// A host-supplied resume snapshot is newer than the cold overlay
+			// seed. Persist it only after startup accepted the runtime options so
+			// a future cold fallback cannot resurrect a removed directory.
+			await this._metadataStore.write(this._storageUri, { workingDirectories: this.workingDirectories });
 		}
 
 		// Final pre-commit abort gate. The first gate above caught aborts
@@ -600,15 +653,30 @@ export class ClaudeAgentSession extends Disposable {
 
 		pipeline.attachRematerializer(async (_reason) => {
 			const liveMode = readClaudePermissionMode(this._configurationService, this._storageUri) ?? this._permissionModeFallback;
+			const rebuildAbort = new AbortController();
+			let rebuildWarm: WarmQuery | undefined;
 			try {
+				// Pin the transport: prefer the one the agent staged for a deliberate
+				// per-session switch (`_pendingSwitchTransport`, already resolved and
+				// validated at `send` — the session only consumes it, never re-resolves),
+				// else reuse the transport captured at materialize. Reusing it keeps a
+				// runtime host-default flip (config change / Copilot sign-in) from
+				// rerouting a live conversation; an SDK-driven recover with nothing staged
+				// stays put and re-tries the switch on the next send.
+				const rebuildTransport = this._pendingSwitchTransport ?? this._materializedTransport;
+				if (!rebuildTransport) {
+					// Always set once `materialize` has run; a throwing guard (never a
+					// non-null assertion) keeps a rebuild honest rather than crashing on
+					// an impossible null.
+					throw new Error(`Cannot rebuild Claude session ${this.sessionId}: no transport resolved`);
+				}
 				const { mcpServers: rebuildMcp, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
-				const rebuildAbort = new AbortController();
 				const rebuildOptions = await buildOptions(
 					{
 						sessionId: this.sessionId,
 						workingDirectory: this.workingDirectory!,
-						additionalDirectories: this._additionalDirectories,
+						additionalDirectories: this._desiredAdditionalDirectories,
 						model: this._provisionalModel,
 						abortController: rebuildAbort,
 						permissionMode: liveMode,
@@ -620,19 +688,43 @@ export class ClaudeAgentSession extends Disposable {
 						allowedTools: rebuildAllowedTools,
 						plugins: this.clientCustomizationsDiff.consume(this._desiredClientPluginPaths()),
 						agent: rebuildAgentName,
+						telemetry,
+						traceContext,
 					},
-					ctx.transport,
+					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 				);
 				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
-				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
+				rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
+				const appliedWorkingDirectories = this.workingDirectories;
+				if (appliedWorkingDirectories) {
+					await this._metadataStore.write(this.sessionUri, { workingDirectories: appliedWorkingDirectories });
+				}
 				// Rebuild succeeded with the anchor applied — clear it so it
 				// isn't re-applied. A throw above keeps it staged (handled in the
 				// catch alongside the tool/customization diffs) so the next send
 				// retries the truncation instead of dropping the restore.
 				this._pendingResumeSessionAt = undefined;
+				this._appliedAdditionalDirectories = this._desiredAdditionalDirectories;
+				this._watchCustomizations(this.workingDirectories);
+				// Commit the (possibly switched) transport now that the new
+				// subprocess is live, so credit enrichment tracks the running
+				// transport. A throw above leaves everything untouched so the next
+				// send retries.
+				this._transportKind = rebuildTransport.kind;
+				this._materializedTransport = rebuildTransport;
+				if (this._pendingSwitchTransport) {
+					// Only a rebuild that actually consumed a pushed switch transport
+					// resolves the pending switch. An ordinary/SDK-recover rebuild that
+					// reused the materialized transport leaves the flag set so the next
+					// send still performs the deferred switch.
+					this._pendingTransportSwitch = false;
+					this._pendingSwitchTransport = undefined;
+				}
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
+				rebuildAbort.abort();
+				await rebuildWarm?.[Symbol.asyncDispose]();
 				this.toolDiff.markDirty();
 				this.clientCustomizationsDiff.markDirty();
 				throw err;
@@ -681,12 +773,15 @@ export class ClaudeAgentSession extends Disposable {
 				...(clientServers ?? {}),
 				...(serverToolServer ? { [CLAUDE_SERVER_TOOL_MCP_SERVER_NAME]: serverToolServer } : {}),
 			};
-		// Exclude server tools that require user confirmation from the
+		// Exclude server tools that can require user confirmation from the
 		// auto-approve allow-list so the SDK surfaces them via `canUseTool`
-		// (the host then renders a custom confirmation) instead of running them
-		// silently.
+		// (the host then decides per call whether to render a confirmation)
+		// instead of running them silently. This must use the session-independent
+		// answer: the allow-list is baked into the SDK options here and would go
+		// stale if a tool were allow-listed while it happened to have nothing to
+		// confirm.
 		const autoApproveToolNames = serverToolHost
-			? serverToolHost.toolNames.filter(name => !serverToolHost.requiresConfirmation(name))
+			? serverToolHost.toolNames.filter(name => !serverToolHost.canRequireConfirmation(name))
 			: undefined;
 		return { mcpServers, allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined };
 	}
@@ -703,6 +798,15 @@ export class ClaudeAgentSession extends Disposable {
 
 	/** Pre-materialize model selection accessor (read by materializer to build Options). */
 	get provisionalModel(): ModelSelection | undefined { return this._provisionalModel; }
+
+	/**
+	 * Whether a per-session provider switch is staged and awaiting the next
+	 * {@link send}. The agent reads this to decide whether to resolve a fresh
+	 * transport (it owns the live proxy handle) and push it in via `switchTransport`
+	 * — resolving one only when a switch is actually pending, so ordinary sends
+	 * never trip the signed-out proxy throw.
+	 */
+	get hasPendingTransportSwitch(): boolean { return this._pendingTransportSwitch; }
 
 	private _requirePipeline(): ClaudeSdkPipeline {
 		if (!this._pipeline) {
@@ -754,22 +858,52 @@ export class ClaudeAgentSession extends Disposable {
 	 *   The pipeline's bijective cache dedupes a no-op `setPermissionMode`,
 	 *   so this is free when nothing changed.
 	 *
+	 * When {@link hasPendingTransportSwitch} is set, the agent resolves the new
+	 * transport (it owns the live proxy handle) and passes it as `switchTransport`.
+	 * It is staged for the pre-flight rebuild below, which rebinds the subprocess
+	 * onto it. The agent resolves one only when a switch is pending, so ordinary
+	 * sends never carry a transport and the session never calls back to re-resolve.
+	 *
 	 * Model / effort are not threaded through here — the pipeline's current
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport): Promise<void> {
 		const pipeline = this._requirePipeline();
+		if (workingDirectories) {
+			this._replaceDesiredWorkingDirectories(workingDirectories);
+		}
+		if (switchTransport) {
+			// Stage the agent-resolved transport for the pending switch; the
+			// pre-flight rebuild below consumes it (see the rematerializer).
+			this._pendingSwitchTransport = switchTransport;
+		}
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths()) || this._pendingResumeSessionAt !== undefined) {
+		if (this.toolDiff.hasDifference
+			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths())
+			|| this._pendingResumeSessionAt !== undefined
+			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
+			|| this._pendingTransportSwitch) {
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this._storageUri, this._permissionModeFallback));
 		}
 		await this._reconcileMcpServerEnablement();
 		return pipeline.send(prompt, turnId);
+	}
+
+	private _replaceDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {
+		const primary = this.workingDirectory;
+		if (!primary || !isEqual(primary, workingDirectories[0])) {
+			throw new Error(`Cannot change Claude session primary working directory: ${this.sessionId}`);
+		}
+		const desiredAdditionalDirectories = workingDirectories.slice(1);
+		if (areAdditionalWorkingDirectoriesEqual(this._desiredAdditionalDirectories, desiredAdditionalDirectories)) {
+			return;
+		}
+		this._desiredAdditionalDirectories = desiredAdditionalDirectories;
 	}
 
 	/**
@@ -816,11 +950,52 @@ export class ClaudeAgentSession extends Disposable {
 	 *
 	 * In both cases the new model is persisted to the per-session
 	 * metadata overlay so a later resume sees the user's choice.
+	 *
+	 * A change that crosses transports (Copilot ↔ native) on a live session
+	 * defers to a rebuild on the next {@link send} rather than hot-swapping.
 	 */
 	async setModel(model: ModelSelection): Promise<void> {
 		this._provisionalModel = model;
-		if (this._pipeline) {
-			await this._pipeline.setModel(toSdkModelId(model.id));
+		// A model change that crosses transports (Copilot ↔ native) on a live
+		// session can't hot-swap — the running subprocess is pinned to the old
+		// transport. Detect that here and defer to a rebuild on the next `send`.
+		// A still-provisional session or a same-transport change resolves to
+		// `false`, preserving today's hot-swap exactly.
+		// Guard on `explicitProvider`: a bare/legacy id carries no provider of its
+		// own and the parser reports the `copilot` fallback, which must NOT
+		// masquerade as a native→proxy switch on a native session (mirrors the same
+		// guard in `resolveClaudeSessionTransport`). Only a genuinely
+		// provider-qualified id can move a live session across transports.
+		const parsed = parseClaudeModelSelection(model);
+		const crossesTransport =
+			this.isPipelineReady &&
+			parsed.explicitProvider &&
+			claudeTransportForProvider(parsed.provider) !== this._transportKind;
+		if (crossesTransport) {
+			// Cross-transport switch on a live session: the running subprocess is
+			// pinned to the old transport/credential, and pushing the new model onto
+			// it may 400 on a model that transport doesn't serve. Flag the switch and
+			// skip the hot-swap — the next `send` pre-flight rebuilds on the new
+			// transport (conversation preserved via the resume rebuild), and the
+			// rematerializer clears the flag once the new subprocess is live.
+			this._pendingTransportSwitch = true;
+			// Advance the pipeline's DESIRED model/effort (without touching the
+			// doomed old-transport Query) so the rebuild's config replay re-asserts
+			// THIS selection on the new subprocess. The resume replays the pre-switch
+			// `/model`, so skipping this lets the rebuilt subprocess silently revert
+			// to the old model on the new transport (→ `model_not_supported`).
+			this._pipeline?.bufferConfigForRebind(toClaudeSdkModelId(model), toRuntimeEffortLevel(resolveClaudeEffort(model)));
+		} else if (this._pipeline) {
+			// A same-transport hot-swap supersedes any still-pending cross-transport
+			// switch: the user has now landed on a model the live subprocess can serve,
+			// so clear the flag to spare the next `send` a needless full rebuild. The
+			// `setModel`/`setEffort` calls below re-assert this selection as the
+			// pipeline's desired config, overwriting whatever the deferred path buffered.
+			this._pendingTransportSwitch = false;
+			// Drop any transport a superseded switch's `send` had already staged, so a
+			// later ordinary rebuild can't pick it up and reroute this live session.
+			this._pendingSwitchTransport = undefined;
+			await this._pipeline.setModel(toClaudeSdkModelId(model));
 			// Always push the resolved effort, including `undefined`. Switching
 			// to a model that does not support reasoning effort (e.g. Haiku)
 			// resolves to `undefined`, which must actively CLEAR any effort the

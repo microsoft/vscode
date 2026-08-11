@@ -14,7 +14,8 @@ import { IActionWidgetDropdownAction } from '../../../../../../../platform/actio
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
-import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../../common/languageModelSourcePresentation.js';
 import { getModelHoverContent } from './modelPickerHover.js';
 import { getPriceCategoryLabel, isMultiplierPricing } from './modelPickerPresentation.js';
 
@@ -51,15 +52,6 @@ export function getProviderGroupKey(vendor: string, groupName: string): Provider
 	return `${vendor}\u0000${groupName}`;
 }
 
-function getVendorDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
-	if (vendor === 'copilotcli') {
-		// @vritant24: This is temporary until we we have 2 distinct vendors for Copilot CLI vs Copilot Chat.
-		return localize('chat.modelPicker.copilotGroup', "Copilot");
-	}
-	const descriptor = languageModelsService.getVendors().find(candidate => candidate.vendor === vendor);
-	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
-}
-
 export function buildModelToProviderGroupMap(languageModelsService: ILanguageModelsService): Map<string, IProviderGroupInfo> {
 	const map = new Map<string, IProviderGroupInfo>();
 	for (const vendor of languageModelsService.getVendors()) {
@@ -79,11 +71,18 @@ export function getProviderGroupForModel(
 	languageModelsService: ILanguageModelsService,
 ): IProviderGroupInfo {
 	if (model.metadata.modelGroup) {
-		return { vendor: model.metadata.vendor, groupName: getVendorDisplayName(languageModelsService, model.metadata.modelGroup.id) };
+		const byokGroup = model.metadata.byokModelIdentifier ? modelToGroup.get(model.metadata.byokModelIdentifier) : undefined;
+		const sourcePresentation = model.metadata.modelGroup.sourceId
+			? languageModelSourcePresentationRegistry.get(model.metadata.vendor, model.metadata.modelGroup.sourceId)
+			: undefined;
+		return byokGroup ?? {
+			vendor: model.metadata.vendor,
+			groupName: sourcePresentation?.label ?? getLanguageModelProviderDisplayName(languageModelsService, model.metadata.modelGroup.id),
+		};
 	}
 	return modelToGroup.get(model.identifier) ?? {
 		vendor: model.metadata.vendor,
-		groupName: getVendorDisplayName(languageModelsService, model.metadata.vendor),
+		groupName: getLanguageModelProviderDisplayName(languageModelsService, model.metadata.vendor),
 	};
 }
 
