@@ -132,6 +132,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _folderPickerRestoreBounds: IRectangle | undefined;
 	private _folderPickerSurface: HTMLElement | undefined;
 	private _folderPickerSurfaceHeight = 0;
+	private _folderPickerSurfaceFlex = '';
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
@@ -1185,6 +1186,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			this._folderPickerRestoreBounds = undefined;
 			this._folderPickerSurface = surface;
 			this._folderPickerSurfaceHeight = surface.getBoundingClientRect().height;
+			this._folderPickerSurfaceFlex = surface.style.flex;
 		}
 		this._folderPickerVisibilityCount++;
 		if (this._folderPickerVisibilityCount > 1) {
@@ -1225,7 +1227,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._folderPickerSurfaceHeight,
 				Math.ceil(widgetRect.bottom - surfaceRect.top + CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN)
 			);
-			surface.style.setProperty('height', `${height}px`, 'important');
+			this._setFolderPickerSurfaceHeight(surface, height);
 		};
 		const scheduleLayout = () => {
 			scheduledLayout.value = dom.scheduleAtNextAnimationFrame(sourceWindow, layout);
@@ -1248,17 +1250,27 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const displayBottom = display.y + display.height;
 			const height = Math.min(restoreBounds.height + CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT, display.height);
 			const y = Math.max(display.y, Math.min(restoreBounds.y, displayBottom - height));
-			surface.style.setProperty('height', `${this._folderPickerSurfaceHeight}px`, 'important');
+			this._setFolderPickerSurfaceHeight(surface, this._folderPickerSurfaceHeight);
 			surface.style.transform = `translateY(${restoreBounds.y - y}px)`;
 			return auxiliaryWindow.setBounds({ ...restoreBounds, y, height });
 		});
 	}
 
+	private _setFolderPickerSurfaceHeight(surface: HTMLElement, height: number): void {
+		surface.style.setProperty('height', `${height}px`, 'important');
+		surface.style.setProperty('flex', `0 0 ${height}px`, 'important');
+	}
+
 	private _resetFolderPickerSurface(): void {
 		this._folderPickerSurface?.style.removeProperty('height');
 		this._folderPickerSurface?.style.removeProperty('transform');
+		this._folderPickerSurface?.style.removeProperty('flex');
+		if (this._folderPickerSurface && this._folderPickerSurfaceFlex) {
+			this._folderPickerSurface.style.flex = this._folderPickerSurfaceFlex;
+		}
 		this._folderPickerSurface = undefined;
 		this._folderPickerSurfaceHeight = 0;
+		this._folderPickerSurfaceFlex = '';
 	}
 
 	private async _openActionWidgetWindow(auxiliaryWindow: IAuxiliaryWindow, generation: number, preferredPosition: AnchorPosition): Promise<void> {
@@ -1270,15 +1282,19 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			width: screen.availWidth,
 			height: screen.availHeight,
 		};
-		const height = Math.min(CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT, display.height);
 		const sourceBottom = sourceWindow.screenY + sourceWindow.outerHeight;
 		const displayBottom = display.y + display.height;
 		const displayRight = display.x + display.width;
+		const availableAbove = Math.max(1, sourceWindow.screenY - display.y);
+		const height = Math.min(
+			CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT,
+			preferredPosition === AnchorPosition.ABOVE ? availableAbove : display.height
+		);
 		const fitsAbove = sourceWindow.screenY - height >= display.y;
 		const fitsBelow = sourceBottom + height <= displayBottom;
 		const placeBelow = preferredPosition === AnchorPosition.BELOW
 			? fitsBelow || !fitsAbove
-			: !fitsAbove && fitsBelow;
+			: false;
 		const preferredY = placeBelow
 			? sourceBottom
 			: sourceWindow.screenY - height;
