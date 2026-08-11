@@ -1367,7 +1367,7 @@ export class ProtocolServerHandler extends Disposable {
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:
-						options = { fork: { source: URI.parse(source.chat), turnId: source.turnId } };
+						options = { fork: { source: URI.parse(source.chat), session: URI.parse(parseRequiredSessionUriFromChatUri(source.chat)), turnId: source.turnId } };
 						break;
 					case ChatSourceKind.SideChat:
 						options = {

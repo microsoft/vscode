@@ -3821,7 +3821,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.createChat(sessionUri, chatUri, {
 			model: cached.modelSelection,
-			fork: { source: sourceBackendUri, turnId },
+			fork: { source: sourceBackendUri, session: sessionUri, turnId },
 		});
 
 		const chat = await waitForState(

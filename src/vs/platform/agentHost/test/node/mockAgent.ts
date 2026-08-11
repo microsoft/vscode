@@ -10,7 +10,7 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatContext, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatContext, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -55,6 +55,7 @@ export class MockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
+	private readonly _initialChats = new Set<string>();
 	/** Active turn IDs per session, captured from sendMessage(). */
 	private readonly _activeTurnIds = new Map<string, string>();
 
@@ -261,17 +262,22 @@ export class MockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> => {
+		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			this._recordContext('createChat', chatUri, context);
 			const session = resolveAgentChatContext(context, chatUri).session;
-			if (options?.initialization) {
-				return Promise.resolve(this._createSessionRecord(session, options.initialization));
+			if (!this._sessions.has(AgentSession.id(session)) || this._initialChats.has(chatUri.toString())) {
+				this._initialChats.add(chatUri.toString());
+				return Promise.resolve(this._createSessionRecord(session, {
+					session,
+					model: options?.model,
+					agent: options?.agent,
+					workingDirectories: options?.workingDirectories,
+					config: options?.config,
+					activeClient: options?.activeClient,
+					importConversation: options?.importConversation,
+				}));
 			}
 			return this.createChat(session, chatUri, options);
-		},
-		fork: (chatUri: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			this._recordContext('fork', chatUri, context);
-			return this.createChat(resolveAgentChatContext(context, chatUri).session, chatUri, { ...options, fork: source });
 		},
 		disposeChat: (chatUri: URI, context?: URI | IAgentChatContext): Promise<void> => {
 			this._recordContext('disposeChat', chatUri, context);
@@ -965,15 +971,12 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	readonly chats: IAgentChats = {
-		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> => {
-			if (options?.initialization) {
-				const session = resolveAgentChatContext(context, chatUri).session;
+		createChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void> => {
+			const session = resolveAgentChatContext(context, chatUri).session;
+			if (!this._sessions.has(AgentSession.id(session))) {
 				return Promise.resolve(this._createSessionRecord(session));
 			}
 			throw new Error('Scripted mock agent does not support multiple chats');
-		},
-		fork: (_chat: URI, _context: URI | IAgentChatContext, _source: IAgentCreateChatForkSource, _options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			throw new Error('Scripted mock agent does not support chat forking');
 		},
 		disposeChat: (): Promise<void> => {
 			// Session-scoped teardown happens exclusively in finalizeSession

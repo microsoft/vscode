@@ -26,7 +26,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../common/reasoningEffort.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, isChatAction, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
@@ -457,11 +457,11 @@ interface ICodexSession {
 	readonly sessionId: string;
 	/**
 	 * Codex app-server thread id used in JSON-RPC `thread/*` and `turn/*` calls.
-	 * Undefined until the session has been materialized (first `sendMessage`
+	 * Undefined until the runtime has been materialized (first `sendMessage`
 	 * triggers `thread/start`). Decoupling materialization from
-	 * initializing `createChat` mirrors the Claude harness's provisional/materialize
-	 * split and avoids spawning an orphan codex thread when the workbench
-	 * rebinds a provisional URI after a chip-selection.
+	 * {@link IAgentChats.createChat} mirrors the Claude harness's
+	 * provisional/materialize split and avoids spawning an orphan codex thread
+	 * when the workbench rebinds a provisional URI after a chip-selection.
 	 */
 	threadId: string | undefined;
 	/**
@@ -489,16 +489,16 @@ interface ICodexSession {
 	/** Concrete host chat URI once bound; undefined only for direct create/fork before AH binds it. */
 	chatChannel: URI | undefined;
 	/**
-	 * Effective working directory. Starts as the folder the client passed to
-	 * an initializing {@link IAgentChats.createChat} call; at first materialization it is
+	 * Effective working directory. Starts as the folder Agent Host resolved for
+	 * {@link IAgentChats.createChat}; at first materialization it is
 	 * replaced with the host-resolved working directory (the isolated worktree
 	 * for worktree-isolation sessions) before `thread/start` locks the codex
 	 * subprocess `cwd`. When the client supplies none (e.g. an editor window
 	 * with no workspace folder open), a managed temp folder is lazily created
 	 * as a fallback at materialize time (tracked by
 	 * {@link managedWorkingDirectory} for cleanup). Mutable so both the
-	 * worktree swap and the lazy assignment can happen after the provisional
-	 * initializing `createChat`.
+	 * worktree swap and the lazy assignment can happen after a provisional
+	 * creation.
 	 */
 	workingDirectory: URI | undefined;
 	/**
@@ -770,13 +770,13 @@ function mcpServersSignature(servers: Record<string, ICodexMcpServerConfigJson>)
  *
  * `sessionId` is the id of the **runtime** backing the chat — the key its
  * {@link ICodexSession} is registered under — and never the app-server thread
- * id. The two coincide for a chat whose runtime was minted by `thread/start`
- * (a peer chat or a fork, per Codex's session-id == thread-id convention) but
- * NOT for a session-backing chat, whose runtime keeps the host-minted session
- * id it was provisioned with and decouples its thread id into the metadata
- * overlay. Recording the thread id there instead would re-key the restored
- * runtime under an id no host-addressed call ever uses, and it would go stale
- * the moment a rematerialization mints a new thread.
+ * id. The two coincide for a chat whose runtime is identified by the thread it
+ * minted (Codex's session-id == thread-id convention) but NOT for a chat whose
+ * runtime adopted the owning session's identity, which keeps the host-minted
+ * session id it was provisioned with and decouples its thread id into the
+ * metadata overlay. Recording the thread id there instead would re-key the
+ * restored runtime under an id no host-addressed call ever uses, and it would
+ * go stale the moment a rematerialization mints a new thread.
  */
 interface ICodexPersistedChat {
 	readonly sessionId: string;
@@ -2958,31 +2958,29 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	// ---- Chat surface ------------------------------------------------------
 	//
-	// Codex supports multiple chats per session. AH binds the session's default
-	// conversation channel URI; each additional chat is backed by its own
-	// top-level Codex thread (session id == thread id) minted eagerly on
-	// `createChat`/`fork`, bound to the concrete chat URI AH supplies, and
-	// reported back as a `backingSession` so the orchestrator suppresses it from
-	// the top-level session list. Addressed operations resolve only through an
-	// explicit binding or transient host context.
+	// Codex supports multiple chats per session, and every one of them — the
+	// chat a session is provisioned with as much as any later one, fresh or
+	// forked — is created through the one `createChat` seam and backed by its
+	// own top-level Codex thread bound to the concrete chat URI AH supplies.
+	// While the owning session has no backing yet, the chat's runtime adopts the
+	// session's own identity so every session-addressed call keeps resolving;
+	// any further chat is identified by the thread it mints and reports it as a
+	// `backingSession` so the orchestrator suppresses it from the top-level
+	// session list. Addressed operations resolve only through an explicit
+	// binding or transient host context.
 
 	/**
 	 * The chat-addressed operation surface for the conversations within a
-	 * session. Creating a chat mints a fresh backing Codex
-	 * thread bound to the new chat URI; forking `thread/fork`s the source chat's
-	 * thread. The remaining methods operate on the concrete conversation channel
-	 * URI AH has already bound to that session.
+	 * session. Creation is one method running one algorithm
+	 * ({@link _createChat}) for every form — fresh or forked
+	 * ({@link IAgentCreateChatOptions.fork}), a session's first chat or an
+	 * additional one — so there is no caller-visible chat classification and no
+	 * second creation entry point. The remaining methods operate on the concrete
+	 * chat URI AH has already bound to a runtime.
 	 */
 	readonly chats: IAgentChats = {
-		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> => {
-			const resolved = resolveAgentChatContext(context, chat);
-			if (options?.initialization) {
-				return this._createSession({ ...options.initialization, session: resolved.session }, { resource: chat });
-			}
-			return this._createChat(chat, resolved, options);
-		},
-		fork: (chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
-			return this._forkChat(chat, resolveAgentChatContext(context, chat), source, options);
+		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
+			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
 		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
 		releaseChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
@@ -3027,87 +3025,205 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Provision a session, binding it directly to `target` (the
-	 * initializing {@link IAgentChats.createChat} exact-chat seam) as part of the
-	 * same creation step — never as a follow-up assignment once the caller
-	 * already has the result in hand. Every session-creation form (fresh,
-	 * fork, and the explicit import rejection) flows through here with an
-	 * exact chat, so a Codex runtime is never observably unbound.
+	 * Create the chat addressed by `chat`. This is the single creation
+	 * algorithm every Codex chat goes through, whatever form the host asked
+	 * for: a session's first chat or a later one, fresh or forked.
+	 *
+	 * The call consumes the fully resolved options Agent Host supplies (model,
+	 * agent, working directories, config, active client, fork source) and never
+	 * reads any of them back from another session's state. It mints exactly one
+	 * backing Codex thread, records the exact chat→backing binding as part of
+	 * the same creation step — never as a follow-up assignment once the caller
+	 * already has the result in hand — and reports that exact backing.
+	 *
+	 * The one decision it makes is which identity the backing takes:
+	 *
+	 * - While the owning session has no backing yet, the runtime adopts the
+	 *   session's own identity, so every session-addressed call (config,
+	 *   metadata, finalization, session-scoped signals) keeps resolving against
+	 *   the URI Agent Host owns. A fresh backing of that kind stays
+	 *   provisional: its `thread/start` is deferred to prewarm or the first
+	 *   send, because the workbench may still rebind the URI after a
+	 *   chip-selection change and each rebind would otherwise leak an orphan
+	 *   thread.
+	 * - Otherwise the runtime is identified by the thread it mints, and that
+	 *   thread is started eagerly so the reported
+	 *   {@link IAgentCreateChatResult.backingSession} names it exactly.
 	 */
-	private async _createSession(
-		config: IAgentCreateSessionConfig,
-		target: ICodexTargetChat,
-	): Promise<IAgentCreateSessionResult> {
-		this._logService.info(`[Codex DEBUG] initializeChat accountStatus=${this._openAIAccountState.status} session=${config.session?.toString() ?? '(none)'} model=${config.model?.id ?? '(none)'} cwd=${config.workingDirectories?.[0]?.toString() ?? '(none)'}`);
+	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		const target: ICodexTargetChat = { resource: chat };
+		const owningSessionId = AgentSession.id(context.session);
+		this._logService.info(`[Codex DEBUG] createChat accountStatus=${this._openAIAccountState.status} session=${context.session.toString()} chat=${chat.toString()} model=${options?.model?.id ?? '(none)'} cwd=${options?.workingDirectories?.[0]?.toString() ?? '(none)'}`);
+
 		// Codex has no SDK-level conversation-import primitive: unlike fork
 		// (a `thread/fork` of an existing thread), there is no way to seed a
 		// brand-new thread's history from arbitrary caller-supplied turns.
 		// Reject explicitly rather than silently falling through to a fresh,
-		// empty session and dropping the imported turns.
-		if (config.importConversation) {
-			throw new Error('Codex does not support importing an existing conversation into a new session.');
+		// empty chat and dropping the imported turns.
+		if (options?.importConversation) {
+			throw new Error('Codex does not support importing an existing conversation into a new chat.');
 		}
-		if (config.fork) {
-			return this._forkSession(config, config.fork, target);
-		}
-		// Codex requires a working directory to start a thread, but the client
-		// may not have one to give (e.g. an editor window with no workspace
-		// folder open). Rather than reject session creation — which would break
-		// both the session and the first-use SDK download progress notification
-		// that keys off a successful initializing `createChat` — defer: a managed temp
-		// folder is created lazily at materialize time (see `_materialize`).
 
-		// Provisional / lazy materialize. We DON'T call `thread/start` here
-		// because the workbench may rebind this URI to a fresh one when the
-		// user changes a chip selection, and we'd otherwise leak an
-		// orphan codex thread per rebind. The actual `thread/start` happens
-		// on the first `sendMessage` (or `getSessionMetadata` for restore).
-		const effectiveModel = this._supportedModelOrUndefined(config.model);
-		if (config.model && !effectiveModel) {
-			throw new Error(`Codex model '${config.model.id}' is not available.`);
+		// A create for a chat that already has a backing — a workbench rebind
+		// after a chip-selection change, or a retried create. Refresh the
+		// resolved options onto that backing and hand it back, so a second
+		// create never mints a thread the first one is orphaned by.
+		const boundSessionId = this._sessionIdByChatUri.get(chat.toString());
+		if (boundSessionId !== undefined) {
+			return this._rebindChat(boundSessionId, context, target, options);
 		}
-		this._ensureModelProviderAuthenticated(effectiveModel);
-		const sessionId = config.session ? AgentSession.id(config.session) : generateUuid();
-		const sessionUri = config.session ?? AgentSession.uri(this.id, sessionId);
-		const multiRootEnabled = this._isMultiRootEnabled();
-		const workingDirectories = multiRootEnabled && (config.workingDirectories?.length ?? 0) > 1
-			? distinctWorkingDirectories(config.workingDirectories)
-			: undefined;
 
-		// If the workbench is rebinding this URI (initializing createChat arriving
-		// after a previous dispose for the same id), reuse the existing
-		// entry so we don't lose accumulated state.
+		// Populate the catalog before any path validates a model selection, so
+		// a model picked before models finished loading isn't dropped.
+		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
+			await this._modelsRefreshPromise;
+		}
+		const adoptedSessionId = this._hasSessionBacking(owningSessionId) ? undefined : owningSessionId;
+		const session = options?.fork
+			? await this._forkChatBacking(options.fork, options, adoptedSessionId, target)
+			: adoptedSessionId !== undefined
+				? this._deferChatBacking(adoptedSessionId, options, target)
+				: await this._startChatBacking(context, options, target);
+
+		// Seed the eager active client over the exact chat this call binds — the
+		// agent never invents a chat URI to stand in for it — before the prewarm
+		// below reads the client's tools into a `thread/start`.
+		await this._seedEagerActiveClient(session.sessionUri, options?.activeClient, [target.resource]);
+		if (session.threadId === undefined) {
+			this._schedulePrewarm(session);
+		}
+		// Server tools are session-scoped, so they are advertised on the session
+		// Agent Host addressed — the only URI it knows this chat by.
+		if (!session.serverToolsAdvertised && this._serverToolHost) {
+			session.serverToolsAdvertised = true;
+			this._serverToolHost.advertise(context.session.toString());
+		}
+		this._logService.info(`[Codex] created chat ${chat.toString()} backed by ${session.sessionUri.toString()} thread=${session.threadId ?? '(deferred)'} (session ${context.session.toString()})`);
+		return this._createChatResult(context, session);
+	}
+
+	/**
+	 * Hand back the backing already bound to a chat, refreshed with the
+	 * caller's resolved options. Creation is idempotent: a second create for an
+	 * already-bound chat must neither mint a second thread nor leave the
+	 * runtime unbound.
+	 */
+	private async _rebindChat(sessionId: string, context: IAgentChatContext, target: ICodexTargetChat, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		const existing = this._sessions.get(sessionId);
-		if (existing) {
-			existing.model = effectiveModel ?? existing.model;
-			existing.agent = config.agent ?? existing.agent;
-			this._recordChatTarget(target.resource, sessionUri);
-			await this._seedEagerActiveClient(sessionUri, config.activeClient, [target.resource]);
-			const cwd = existing.workingDirectory ?? config.workingDirectories?.[0];
+		if (!existing) {
+			// The runtime was released — a release is non-destructive and keeps
+			// the binding — so its durable backing is untouched. Report that
+			// backing unchanged and let `materializeChat` re-attach it.
+			const backingSession = AgentSession.uri(this.id, sessionId);
+			const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId);
 			return {
-				session: sessionUri,
-				resolvedWorkingDirectory: cwd,
-				provisional: existing.threadId === undefined,
-				chat: {
-					providerData: encodeCodexChat({
-						sessionId,
-						...(existing.model ? { model: existing.model } : {}),
-						...(existing.managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
-					}),
-				},
+				...(isEqual(backingSession, context.session) ? { session: context.session } : { backingSession }),
+				providerData: encodeCodexChat({
+					sessionId,
+					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
+				}),
 			};
 		}
+		if (options?.model) {
+			existing.model = this._resolveCreationModel(options.model) ?? existing.model;
+		}
+		if (options?.agent) {
+			existing.agent = options.agent;
+		}
+		this._recordChatTarget(target.resource, existing.sessionUri);
+		await this._seedEagerActiveClient(existing.sessionUri, options?.activeClient, [target.resource]);
+		return this._createChatResult(context, existing);
+	}
 
+	/**
+	 * Whether a runtime already backs `sessionId` — live, or released but still
+	 * bound to a chat. A creation adopts the owning session's identity only
+	 * while it is free; every later chat mints a backing thread of its own.
+	 */
+	private _hasSessionBacking(sessionId: string): boolean {
+		if (this._sessions.has(sessionId)) {
+			return true;
+		}
+		for (const boundSessionId of this._sessionIdByChatUri.values()) {
+			if (boundSessionId === sessionId) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Resolve the model a creation runs with: the caller's explicit selection
+	 * when the catalog knows it, else the `fallback` a forked chat inherits
+	 * from its source, else Codex's default. An explicitly requested model the
+	 * catalog does not know is rejected rather than silently replaced, and the
+	 * resolved model's provider must be authenticated before any thread work.
+	 */
+	private _resolveCreationModel(requested: ModelSelection | undefined, fallback?: ModelSelection): ModelSelection | undefined {
+		const selection = requested ?? fallback;
+		const model = this._supportedModelOrUndefined(selection);
+		if (selection && !model) {
+			throw new Error(`Codex model '${selection.id}' is not available.`);
+		}
+		this._ensureModelProviderAuthenticated(model);
+		return model;
+	}
+
+	/**
+	 * Describe the exact backing this creation bound to the chat.
+	 *
+	 * `session` is set precisely when the backing adopted the owning session's
+	 * identity — that is, when this call stood the session's runtime up.
+	 * `backingSession` names the app-server thread whenever that thread is a
+	 * record of its own, so the orchestrator can suppress it from the top-level
+	 * session list; the session's own record is never reported as an internal
+	 * chat backing, since that marker would hide the session itself.
+	 */
+	private _createChatResult(context: IAgentChatContext, session: ICodexSession): IAgentCreateChatResult {
+		const backingSession = AgentSession.uri(this.id, session.threadId ?? session.sessionId);
+		const managedWorkingDirectory = session.managedWorkingDirectory ?? this._releasedManagedWorkingDirectories.get(session.sessionId);
+		return {
+			...(isEqual(session.sessionUri, context.session) ? { session: context.session } : {}),
+			...(session.workingDirectory ? { resolvedWorkingDirectory: session.workingDirectory } : {}),
+			...(session.threadId === undefined ? { provisional: true } : {}),
+			...(isEqual(backingSession, context.session) ? {} : { backingSession }),
+			providerData: encodeCodexChat({
+				sessionId: session.sessionId,
+				...(session.model ? { model: session.model } : {}),
+				...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
+			}),
+		};
+	}
+
+	/**
+	 * Register a backing whose codex thread is deferred.
+	 *
+	 * We DON'T call `thread/start` here because the workbench may rebind this
+	 * URI to a fresh one when the user changes a chip selection, and we'd
+	 * otherwise leak an orphan codex thread per rebind. The actual
+	 * `thread/start` happens on prewarm, the first `sendMessage`, or
+	 * `getSessionMetadata` for restore. Codex also requires a working directory
+	 * to start a thread while the client may not have one to give (e.g. an
+	 * editor window with no workspace folder open); deferring lets a managed
+	 * temp folder be created lazily at materialize time (see `_materialize`)
+	 * instead of rejecting the creation.
+	 */
+	private _deferChatBacking(sessionId: string, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): ICodexSession {
+		const model = this._resolveCreationModel(options?.model);
+		const multiRootEnabled = this._isMultiRootEnabled();
+		const workingDirectories = multiRootEnabled && (options?.workingDirectories?.length ?? 0) > 1
+			? distinctWorkingDirectories(options?.workingDirectories)
+			: undefined;
 		const clientToolSet = new ActiveClientToolSet();
 		const now = Date.now();
 		const session: ICodexSession = {
 			sessionId,
 			threadId: undefined,
-			sessionUri,
+			sessionUri: AgentSession.uri(this.id, sessionId),
 			startTime: now,
 			modifiedTime: now,
 			chatChannel: target.resource,
-			workingDirectory: config.workingDirectories?.[0],
+			workingDirectory: options?.workingDirectories?.[0],
 			workingDirectories,
 			multiRootEnabled,
 			managedWorkingDirectory: undefined,
@@ -3124,8 +3240,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedMcpSig: undefined,
 			materializedCustomizationsSig: undefined,
 			firstTurnSent: false,
-			model: effectiveModel,
-			agent: config.agent,
+			model,
+			agent: options?.agent,
 			customizationDirectory: undefined,
 			currentTurnId: undefined,
 			turnStopWatch: undefined,
@@ -3145,97 +3261,57 @@ export class CodexAgent extends Disposable implements IAgent {
 			clientCustomizations: new CodexClientCustomizationStore(),
 		};
 		this._sessions.set(sessionId, session);
-		// Record the exact-chat binding before scheduling prewarm below, so the
-		// runtime is never observably unbound between construction and a
-		// caller awaiting the initializing `createChat` result.
+		// Record the exact-chat binding as part of registration, so the runtime
+		// is never observably unbound between construction and a caller awaiting
+		// the create result.
 		this._sessionIdByChatUri.set(target.resource.toString(), sessionId);
-		await this._seedEagerActiveClient(sessionUri, config.activeClient, [target.resource]);
-		this._schedulePrewarm(session);
-		return {
-			session: sessionUri,
-			resolvedWorkingDirectory: config.workingDirectories?.[0],
-			provisional: true,
-			chat: {
-				providerData: encodeCodexChat({
-					sessionId,
-					...(effectiveModel ? { model: effectiveModel } : {}),
-				}),
-			},
-		};
+		return session;
 	}
 
 	/**
-	 * Create a chat within an existing session. Codex is a
-	 * single-thread-per-conversation harness, so each chat is backed by
-	 * its own fresh top-level thread (session id == thread id) started eagerly
-	 * here and bound to the concrete chat URI AH supplies. It inherits the
-	 * owning session's working directory and permissions from the
-	 * orchestrator-supplied {@link IAgentCreateChatOptions.inheritedContext}. The
-	 * backing thread is returned as {@link IAgentCreateChatResult.backingSession}
-	 * so the orchestrator suppresses it from the top-level session list, and its
-	 * id is persisted as opaque `providerData` for a cold restore via
-	 * {@link materializeChat}.
+	 * Start a backing thread now and register the runtime it identifies. Used
+	 * when the owning session's identity is already taken: the new chat is a
+	 * top-level codex thread of its own (session id == thread id), so the
+	 * thread has to exist before the creation can name it as the chat's exact
+	 * backing. It runs in the host-resolved working directory, or in a managed
+	 * temp folder when the session has none, and inherits nothing from the
+	 * parent session beyond the resolved options and its live active clients.
 	 */
-	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
-		const parentSession = context.session;
-		const parentSessionId = AgentSession.id(parentSession);
-		const target: ICodexTargetChat = { resource: chat };
-
-		// Idempotent re-create: hand back the existing binding.
-		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
-		if (existingSessionId && existingSessionId !== parentSessionId) {
-			const existing = this._sessions.get(existingSessionId);
-			const managedWorkingDirectory = existing?.managedWorkingDirectory ?? this._releasedManagedWorkingDirectories.get(existingSessionId);
-			return {
-				backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId),
-				providerData: encodeCodexChat({
-					sessionId: existingSessionId,
-					...(existing?.model ? { model: existing.model } : {}),
-					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
-				}),
-			};
-		}
-
-		const inherited = options?.inheritedContext;
-		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
-			await this._modelsRefreshPromise;
-		}
-		// Model/agent arrive via the draft path after creation; use the client-
-		// supplied model when present, else Codex's default (never the parent's).
-		const model = this._supportedModelOrUndefined(options?.model);
+	private async _startChatBacking(context: IAgentChatContext, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): Promise<ICodexSession> {
+		const owningSessionId = AgentSession.id(context.session);
+		const model = this._resolveCreationModel(options?.model);
 		if (!model) {
 			throw new Error('Codex has no available models.');
 		}
-		this._ensureModelProviderAuthenticated(model);
-		const inheritedWorkingDirectory = inherited?.workingDirectories[0];
-		const managedWorkingDirectory = inheritedWorkingDirectory
+		const hostWorkingDirectory = options?.workingDirectories?.[0];
+		const managedWorkingDirectory = hostWorkingDirectory
 			? undefined
 			: await this._createManagedWorkingDirectory(`chat-${generateUuid()}`);
-		const workingDirectory = inheritedWorkingDirectory ?? managedWorkingDirectory;
+		const workingDirectory = hostWorkingDirectory ?? managedWorkingDirectory;
 		if (!workingDirectory) {
-			throw new Error(`[Codex] createChat: failed to resolve a working directory for session ${parentSession.toString()}`);
+			throw new Error(`[Codex] createChat: failed to resolve a working directory for session ${context.session.toString()}`);
 		}
 
 		try {
-			// Inherit the owning session's permissions and settings from the
-			// orchestrator-supplied config, never read back from the parent session.
-			const inheritedConfig = inherited?.config ?? {};
-			const forkDefaults = {
+			// Permissions and settings come from the orchestrator-supplied
+			// config, never read back from the owning session's own state.
+			const resolvedConfig = options?.config ?? {};
+			const permissionDefaults = {
 				approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 				sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 			};
 			const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
-				migrateCodexPermissionValues(inheritedConfig, forkDefaults),
-				forkDefaults,
+				migrateCodexPermissionValues(resolvedConfig, permissionDefaults),
+				permissionDefaults,
 			);
 
 			// A scratch entry (never registered) lets the MCP/dynamic-tool helpers
 			// compute the thread/start params while the new chat's own client state
 			// is empty; they read root config + server tools, not session config.
-			const scratch = this._createResumedSessionEntry(parentSessionId, '', workingDirectory, model, target);
+			const scratch = this._createResumedSessionEntry(owningSessionId, '', workingDirectory, model, target);
 			const mcpServers = this._buildSessionMcpServers(scratch);
 			const dynamicTools = this._buildDynamicTools(scratch);
-			const validatedConfig = codexSessionConfigSchema.validateOrDefault(inheritedConfig, codexSessionConfigDefaults);
+			const validatedConfig = codexSessionConfigSchema.validateOrDefault(resolvedConfig, codexSessionConfigDefaults);
 			const threadConfig: Record<string, JsonValue> = {
 				web_search: narrowWebSearchMode(validatedConfig[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 			};
@@ -3255,106 +3331,34 @@ export class CodexAgent extends Disposable implements IAgent {
 				config: threadConfig,
 				dynamicTools,
 			});
-			const newThreadId = startResult.thread.id;
-			const newSessionUri = AgentSession.uri(this.id, newThreadId);
+			const threadId = startResult.thread.id;
 
 			// The freshly started thread is live and subscribed, so build a
 			// materialized (not resumed) entry keyed by the thread id.
-			const session = this._createResumedSessionEntry(newThreadId, newThreadId, workingDirectory, model, target);
+			const session = this._createResumedSessionEntry(threadId, threadId, workingDirectory, model, target, undefined, undefined, options?.agent);
 			session.needsResume = false;
 			session.firstTurnSent = false;
 			session.materializedEventFired = false;
 			session.materializedMcpSig = mcpServersSignature(mcpServers);
 			session.materializedToolsSig = toolsSignature(session.clientToolSet.merged());
 			session.managedWorkingDirectory = managedWorkingDirectory;
-			this._sessions.set(newThreadId, session);
-			this._sessionIdByThreadId.set(newThreadId, newThreadId);
-			this._sessionIdByChatUri.set(chat.toString(), newThreadId);
-			const activeClientPrefix = `${parentSessionId}\u0000`;
+			this._sessions.set(threadId, session);
+			this._sessionIdByThreadId.set(threadId, threadId);
+			this._sessionIdByChatUri.set(target.resource.toString(), threadId);
+			const activeClientPrefix = `${owningSessionId}\u0000`;
 			for (const [key, handle] of this._activeClientHandles) {
 				if (key.startsWith(activeClientPrefix)) {
 					handle.addSession(session);
 				}
 			}
-			if (!session.serverToolsAdvertised && this._serverToolHost) {
-				session.serverToolsAdvertised = true;
-				this._serverToolHost.advertise(parentSession.toString());
-			}
 			this._persistMaterializedSession(session);
-			this._logService.info(`[Codex] created additional chat ${chat.toString()} backed by thread ${newThreadId} (parent ${parentSession.toString()})`);
-			return {
-				backingSession: newSessionUri,
-				providerData: encodeCodexChat({
-					sessionId: newThreadId,
-					model,
-					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
-				}),
-			};
+			return session;
 		} catch (err) {
 			if (managedWorkingDirectory) {
 				await this._removeManagedWorkingDirectory(managedWorkingDirectory);
 			}
 			throw err;
 		}
-	}
-
-	/**
-	 * Fork an existing chat into a new chat. Reuses
-	 * {@link _forkSession} to `thread/fork` the source chat's backing thread at
-	 * the requested turn, then binds the resulting thread to the new chat URI
-	 * and reports it as a backing session (see {@link _createChat}).
-	 */
-	private async _forkChat(chat: URI, context: IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
-		const parentSessionId = AgentSession.id(context.session);
-
-		// Idempotent re-fork: hand back the existing binding instead of minting
-		// a second orphan thread.
-		const existingSessionId = this._sessionIdByChatUri.get(chat.toString());
-		if (existingSessionId && existingSessionId !== parentSessionId) {
-			const existing = this._sessions.get(existingSessionId);
-			const managedWorkingDirectory = existing?.managedWorkingDirectory ?? this._releasedManagedWorkingDirectories.get(existingSessionId);
-			return {
-				backingSession: existing?.sessionUri ?? AgentSession.uri(this.id, existingSessionId),
-				providerData: encodeCodexChat({
-					sessionId: existingSessionId,
-					...(existing?.model ? { model: existing.model } : {}),
-					...(managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
-				}),
-			};
-		}
-
-		const sourceSession = this._resolveConversationSession(source.source);
-		if (!sourceSession) {
-			throw new Error(`[Codex] fork: cannot resolve source chat ${source.source.toString()}`);
-		}
-		const result = await this._forkSession(
-			{ ...(options?.model ? { model: options.model } : {}) },
-			{
-				session: sourceSession,
-				chat: source.source,
-				turnId: source.turnId,
-				// The chat-fork source carries no positional index; the turn id
-				// resolves the boundary, and an unresolvable id is rejected.
-				turnIndex: -1,
-				...(source.turnIdMapping ? { turnIdMapping: source.turnIdMapping } : {}),
-			},
-		);
-		this._recordChatTarget(chat, result.session);
-		const newThreadId = AgentSession.id(result.session);
-		const forked = this._sessions.get(newThreadId);
-		if (forked && !forked.serverToolsAdvertised && this._serverToolHost) {
-			forked.serverToolsAdvertised = true;
-			this._serverToolHost.advertise(context.session.toString());
-		}
-		this._logService.info(`[Codex] forked chat ${chat.toString()} from ${source.source.toString()} into thread ${newThreadId} (parent ${context.session.toString()})`);
-		return {
-			backingSession: result.session,
-			providerData: encodeCodexChat({
-				sessionId: newThreadId,
-				...(forked?.model ? { model: forked.model } : {}),
-				...(forked?.managedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
-			}),
-		};
 	}
 
 	/**
@@ -3412,7 +3416,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Seed the active client supplied with initializing `createChat` before the agent
+	 * Seed the active client supplied with {@link IAgentChats.createChat} before the agent
 	 * host asks for the initial customization snapshot. The initial state is
 	 * assigned directly rather than dispatched as `session/activeClientSet`, so
 	 * without this step Codex would not receive the client's tools or
@@ -3422,7 +3426,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * creating call is binding. The agent never invents a chat URI to stand in
 	 * for it.
 	 */
-	private async _seedEagerActiveClient(sessionUri: URI, activeClient: IAgentCreateSessionConfig['activeClient'], chats: readonly URI[]): Promise<void> {
+	private async _seedEagerActiveClient(sessionUri: URI, activeClient: IAgentCreateChatOptions['activeClient'], chats: readonly URI[]): Promise<void> {
 		if (!activeClient) {
 			return;
 		}
@@ -3499,26 +3503,28 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Fork an existing codex session at a turn into a brand-new session.
+	 * Fork the exact source chat's backing thread into a new backing for the
+	 * chat being created.
 	 *
-	 * Codex is single-conversation, so the workbench routes the
-	 * "fork conversation" gesture here (via {@link AgentHostSessionHandler})
-	 * instead of minting a sibling conversation. We `thread/fork` the source
-	 * thread — which copies its full
-	 * history — then `thread/rollback` the trailing turns so the fork retains
-	 * only the turns up to and including `fork.turnId`. The forked thread is
-	 * registered as a resumable session (its first send issues a
-	 * `thread/resume`) keyed by its new thread id, preserving the Codex
-	 * convention that a session id equals its thread id.
+	 * We `thread/fork` the source thread — which copies its full history — then
+	 * `thread/rollback` the trailing turns so the fork retains only the turns up
+	 * to and including `fork.turnId`. The forked thread already exists on the
+	 * app-server, so the runtime is registered as resumable (its first send
+	 * issues a `thread/resume`).
+	 *
+	 * `adoptedSessionId`, when set, is the owning session's identity this
+	 * backing adopts (the session's runtime is stood up by this fork); otherwise
+	 * the runtime is keyed by the forked thread id, preserving the Codex
+	 * convention that a chat-owned session id equals its thread id.
 	 */
-	private async _forkSession(config: IAgentCreateSessionConfig, fork: NonNullable<IAgentCreateSessionConfig['fork']>, target?: ICodexTargetChat): Promise<IAgentCreateSessionResult> {
-		const sourceSessionUri = this._resolveConversationSession(fork.chat, { session: fork.session, resource: fork.session });
+	private async _forkChatBacking(fork: IAgentCreateChatForkSource, options: IAgentCreateChatOptions | undefined, adoptedSessionId: string | undefined, target: ICodexTargetChat): Promise<ICodexSession> {
+		const sourceSessionUri = this._resolveConversationSession(fork.source, { session: fork.session, resource: fork.session });
 		if (!sourceSessionUri) {
-			throw new Error(`Cannot fork codex chat ${fork.chat.toString()}: backing thread could not be resolved`);
+			throw new Error(`Cannot fork codex chat ${fork.source.toString()}: backing thread could not be resolved`);
 		}
 		const sourceRead = await this._readSession(sourceSessionUri);
 		if (!sourceRead) {
-			throw new Error(`Cannot fork codex chat ${fork.chat.toString()}: source thread could not be read`);
+			throw new Error(`Cannot fork codex chat ${fork.source.toString()}: source thread could not be read`);
 		}
 		const sourceThreadId = sourceRead.thread.id;
 		const sourceTurns = sourceRead.thread.turns ?? [];
@@ -3527,7 +3533,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sourceManagedWorkingDirectory = sourceSession?.managedWorkingDirectory
 			?? this._releasedManagedWorkingDirectories.get(AgentSession.id(sourceSessionUri))
 			?? (sourceOverlay?.ownsManagedWorkingDirectory ? sourceOverlay.cwd : undefined);
-		const sourcePrimary = sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0];
+		const sourcePrimary = sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : options?.workingDirectories?.[0];
 		const sourceStoredWorkingDirectories = sourceSession?.workingDirectories ?? sourceRead.persistedWorkingDirectories;
 		const inheritedWorkingDirectories = sourcePrimary
 			? distinctWorkingDirectories([sourcePrimary, ...(sourceStoredWorkingDirectories?.slice(1) ?? [])])
@@ -3546,9 +3552,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		// full history: if neither the mapped codex turn id nor the caller's
 		// `turnIndex` lands inside the source turns, a `numTurnsToDrop` of 0 would
 		// branch from the wrong point (the tip instead of the requested turn).
-		const boundary = resolveForkBoundary(sourceTurns.map(t => t.id), codexTurnId, fork.turnIndex);
+		// A chat-fork source may carry no positional index; the turn id then
+		// resolves the boundary alone, and an unresolvable id is rejected.
+		const fallbackTurnIndex = fork.turnIndex ?? -1;
+		const boundary = resolveForkBoundary(sourceTurns.map(t => t.id), codexTurnId, fallbackTurnIndex);
 		if (!boundary.resolved) {
-			throw new Error(`Cannot fork codex session ${sourceThreadId}: unable to resolve fork boundary for turn ${fork.turnId} (turnIndex=${fork.turnIndex}, turns=${sourceTurns.length})`);
+			throw new Error(`Cannot fork codex session ${sourceThreadId}: unable to resolve fork boundary for turn ${fork.turnId} (turnIndex=${fallbackTurnIndex}, turns=${sourceTurns.length})`);
 		}
 		const { keepThroughIndex, numTurnsToDrop } = boundary;
 
@@ -3556,24 +3565,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		const inheritedModel = sourceSession?.model
 			?? (sourceRead.persistedModelId ? { id: sourceRead.persistedModelId } : undefined)
 			?? this._models.get().find(candidate => parseCodexModelSelection(candidate).modelProvider === sourceRead.thread.modelProvider);
-		const requestedModel = config.model ?? inheritedModel;
-		const model = this._supportedModelOrUndefined(requestedModel);
-		if (requestedModel && !model) {
-			throw new Error(`Codex model '${requestedModel.id}' is not available.`);
-		}
-		this._ensureModelProviderAuthenticated(model);
+		const model = this._resolveCreationModel(options?.model, inheritedModel);
 		const resolvedModel = model ? parseCodexModelSelection(model) : undefined;
 		// Inherit the source session's effective permissions so forking an
 		// auto-review / full-access / read-only session doesn't silently reset the
 		// fork back to the Default preset. Fork callers typically pass an empty
-		// `config.config`; any explicit override there still wins.
+		// `config`; any explicit override there still wins.
 		const sourceConfigValues = this._configurationService.getSessionConfigValues(fork.session.toString());
 		const forkDefaults = {
 			approvalPolicy: codexSessionConfigDefaults[CodexSessionConfigKey.ApprovalPolicy],
 			sandboxMode: codexSessionConfigDefaults[CodexSessionConfigKey.SandboxMode],
 		};
 		const { approvalPolicy, sandboxMode, approvalsReviewer } = resolveCodexPermissions(
-			migrateCodexPermissionValues({ ...sourceConfigValues, ...config.config }, forkDefaults),
+			migrateCodexPermissionValues({ ...sourceConfigValues, ...options?.config }, forkDefaults),
 			forkDefaults,
 		);
 		const forkManagedWorkingDirectory = sourceManagedWorkingDirectory
@@ -3633,13 +3637,17 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
-		// Codex convention (Decision 7): session id == thread id, so a restore
-		// round-trips through `getSessionMetadata`.
-		const newSessionUri = AgentSession.uri(this.id, newThreadId);
+		// The runtime's durable id: the owning session's when this fork stands
+		// that session up (so every session-addressed call keeps resolving), and
+		// otherwise the forked thread id — the Codex convention that a
+		// chat-owned session id equals its thread id. Either way the thread id
+		// itself is decoupled into the metadata overlay by
+		// `_persistMaterializedSession`, so a restore round-trips.
+		const sessionId = adoptedSessionId ?? newThreadId;
 		const workingDirectory = forkManagedWorkingDirectory
 			?? (forkResult.cwd
 				? URI.file(forkResult.cwd)
-				: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : config.workingDirectories?.[0]));
+				: (sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : options?.workingDirectories?.[0]));
 		const forkWorkingDirectories = multiRootEnabled
 			? distinctWorkingDirectories(
 				forkResult.runtimeWorkspaceRoots?.length
@@ -3649,30 +3657,22 @@ export class CodexAgent extends Disposable implements IAgent {
 			: undefined;
 
 		const session = this._createResumedSessionEntry(
-			newThreadId,
+			sessionId,
 			newThreadId,
 			workingDirectory,
 			model,
 			target,
 			forkWorkingDirectories,
 			multiRootEnabled,
-			config.agent ?? sourceSession?.agent,
+			options?.agent ?? sourceSession?.agent,
 		);
 		session.managedWorkingDirectory = forkManagedWorkingDirectory;
-		this._sessions.set(newThreadId, session);
-		this._sessionIdByThreadId.set(newThreadId, newThreadId);
-		// Record the exact-chat binding (if any) at registration time, mirroring
-		// the fresh path: the fork must never be observably unbound between the
-		// session entering `_sessions` and a caller awaiting the result.
-		if (target) {
-			this._sessionIdByChatUri.set(target.resource.toString(), newThreadId);
-		}
-		// Forked threads skip materialization (the thread already exists), so
-		// advertise the server tools here for client-side parity.
-		if (!session.serverToolsAdvertised && this._serverToolHost) {
-			session.serverToolsAdvertised = true;
-			this._serverToolHost.advertise(session.sessionUri.toString());
-		}
+		this._sessions.set(sessionId, session);
+		this._sessionIdByThreadId.set(newThreadId, sessionId);
+		// Record the exact-chat binding at registration time, mirroring the
+		// deferred path: the fork must never be observably unbound between the
+		// runtime entering `_sessions` and a caller awaiting the result.
+		this._sessionIdByChatUri.set(target.resource.toString(), sessionId);
 		this._persistMaterializedSession(session);
 
 		// Seed the host→codex turn-id map for the copied turns so a later
@@ -3684,7 +3684,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// leaves the map unseeded (same as before), never blocking the fork.
 		if (fork.turnIdMapping && fork.turnIdMapping.size > 0) {
 			try {
-				const forkedRead = await this._readSession(newSessionUri);
+				const forkedRead = await this._readSession(session.sessionUri);
 				const forkedTurns = forkedRead?.thread.turns ?? [];
 				const entries = planForkedTurnIdMap(
 					sourceTurns.map(t => t.id),
@@ -3701,27 +3701,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 
-		this._logService.info(`[Codex] forked session ${sourceThreadId} → ${newThreadId} (kept ${sourceTurns.length - numTurnsToDrop}/${sourceTurns.length} turns)`);
-		return {
-			session: newSessionUri,
-			resolvedWorkingDirectory: workingDirectory,
-			provisional: false,
-			// A fork is materialized on return, so it never emits the
-			// first-send materialize receipt that carries a fresh backing —
-			// this is its only chance to hand the host one. Without it the fork
-			// restores with no backing at all and its runtime comes back
-			// unbound from the chat Agent Host addresses it by. No
-			// `backingSession`: this runtime *is* the session, and marking a
-			// session's own record as an internal chat backing would hide it
-			// from `listSessions` (I7).
-			chat: {
-				providerData: encodeCodexChat({
-					sessionId: newThreadId,
-					...(model ? { model } : {}),
-					...(forkManagedWorkingDirectory ? { ownsManagedWorkingDirectory: true } : {}),
-				}),
-			},
-		};
+		this._logService.info(`[Codex] forked chat ${target.resource.toString()} from ${fork.source.toString()}: thread ${sourceThreadId} → ${newThreadId} (kept ${sourceTurns.length - numTurnsToDrop}/${sourceTurns.length} turns)`);
+		// A fork is materialized on return, so it never emits the first-send
+		// materialize receipt that carries a fresh backing — the create result
+		// is the host's only chance to persist one. Without it the fork restores
+		// with no backing at all and its runtime comes back unbound from the
+		// chat Agent Host addresses it by.
+		return session;
 	}
 
 	/**

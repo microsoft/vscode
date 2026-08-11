@@ -27,7 +27,7 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSch
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChats, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agentService.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -428,11 +428,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._chatEntriesBySdkId.get(sessionId)?.chatSession;
 	}
 
-	private _createChatResult(sdkSessionId: string): IAgentCreateChatResult {
-		const backing: IClaudeChatBacking = { sdkSessionId };
+	/**
+	 * The opaque half of a creation result: the blob the orchestrator persists
+	 * verbatim, plus the separately-enumerable SDK conversation it must
+	 * suppress from the top-level session list.
+	 */
+	private _chatBackingResult(backing: IClaudeChatBacking): IAgentCreateChatResult {
 		return {
 			providerData: encodeProviderData(_toPersistedChat(backing)),
-			backingSession: AgentSession.uri(this.id, sdkSessionId),
+			backingSession: AgentSession.uri(this.id, backing.sdkSessionId),
 		};
 	}
 
@@ -898,111 +902,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	// #region Stubs — implemented in later phases
 
 	/**
-	 * Provision a session and bind its session-backed (default) `chat` in one
-	 * call — the single seam Agent Host uses for every session creation form
-	 * (fresh, fork, and import). The host mints both the session URI and the
-	 * exact target chat URI, so the SDK conversation is bound to that chat
-	 * immediately and no runtime is ever left unbound.
-	 */
-	private async _createSession(
-		config: IAgentCreateSessionConfig,
-		sessionUri: URI,
-		chat: URI,
-	): Promise<IAgentCreateSessionResult> {
-		// `importConversation.model` (mirroring Copilot's `_importConversation`)
-		// is the effective model of the imported turns' originating session,
-		// not a caller override, so it takes precedence over `config.model`.
-		// Mutually exclusive with `config.fork` (per the contract), so this
-		// never changes the model a fork inherits below.
-		const initialModel = config.importConversation?.model ?? config.model;
-		this._ensureAuthenticated(initialModel);
-		if (config.fork) {
-			return this._forkSession(config, config.fork, sessionUri, chat);
-		}
-		const ownerSessionId = AgentSession.id(sessionUri);
-		// The exact-chat seam mints an SDK id independent of the AH session id.
-		const sdkSessionId = generateUuid();
-
-		const existing = this._findChatByUri(chat);
-		if (existing) {
-			// Re-apply the eager active client on reconnect: AgentService
-			// reissues provisioning for an existing chat, so the reconnected
-			// client's tools/customizations must still reach Claude (mirrors
-			// Copilot).
-			await this._seedEagerActiveClient(sessionUri, chat, config.activeClient);
-			if (!existing.isPipelineReady) {
-				return {
-					session: sessionUri,
-					resolvedWorkingDirectory: existing.workingDirectory,
-					provisional: true,
-					...(existing.project ? { project: existing.project } : {}),
-					chat: this._createChatResult(existing.sessionId),
-				};
-			}
-			return {
-				session: sessionUri,
-				resolvedWorkingDirectory: config.workingDirectories?.[0],
-				chat: this._createChatResult(existing.sessionId),
-			};
-		}
-
-		// A workspace-less session (no `workingDirectories` supplied, and not a
-		// fork) runs in a stable per-session scratch dir shared with the Copilot
-		// agent; without a cwd Claude throws at materialize. The workspace-less
-		// marker itself is owned/persisted centrally by the AH service.
-		const requestedWorkingDirectory = config.workingDirectories?.[0];
-		const workingDirectory = requestedWorkingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, ownerSessionId);
-
-		// Only probe for a project when the caller supplied a real folder; a
-		// scratch dir is never a code project.
-		const project = requestedWorkingDirectory
-			? await projectFromCopilotContext({ cwd: requestedWorkingDirectory.fsPath }, this._gitService)
-			: undefined;
-
-		const permissionMode = this._resolvePermissionMode(config.config);
-		const additionalDirectories = config.workingDirectories?.slice(1) ?? [];
-
-		// `importConversation` has no native transcript-seeding capability on
-		// Claude (unlike Copilot's JSONL event-log import): there is no SDK API
-		// to seed a conversation from arbitrary `Turn[]`. The exact target chat
-		// is still bound immediately below exactly like any other fresh
-		// session, so initializing `createChat` never leaves an unbound runtime; the
-		// imported turns' display is the host-level catalog's responsibility
-		// (`seedDefaultChatTurns` in `agentService.ts`) until the chat's own
-		// first real `sendMessage` starts a genuine SDK transcript.
-		const session = ClaudeAgentSession.createProvisional(
-			sdkSessionId,
-			chat,
-			workingDirectory,
-			project,
-			initialModel,
-			config.agent,
-			config.config,
-			new PendingRequestRegistry<CallToolResult>(),
-			permissionMode,
-			this._instantiationService,
-			additionalDirectories,
-		);
-		this._registerLiveChat(chat, session);
-		await this._seedEagerActiveClient(sessionUri, chat, config.activeClient);
-
-		return {
-			session: sessionUri,
-			resolvedWorkingDirectory: workingDirectory,
-			provisional: true,
-			...(project ? { project } : {}),
-			chat: this._createChatResult(sdkSessionId),
-		};
-	}
-
-	/**
 	 * Seed the eagerly-claimed active client (tools + customizations) into the
-	 * SDK at session creation, mirroring the Copilot agent. Runs for fresh AND
-	 * reconnected sessions: when the workbench session state already carries the
+	 * SDK at chat creation, mirroring the Copilot agent. Runs for fresh AND
+	 * re-created chats: when the workbench session state already carries the
 	 * active client, no follow-up `session/activeClientSet` is dispatched to
 	 * trigger the customization sync, so the built-in skills bundle would never
 	 * reach Claude otherwise. Progress is suppressed (`quiet`) because the AH
-	 * service has not created the session state yet — a
+	 * service may not have created the session state yet — a
 	 * `SessionCustomizationUpdated` envelope would be orphaned; the completed
 	 * snapshot is provided via `getSessionCustomizations` immediately after.
 	 *
@@ -1010,7 +916,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * Host replaces it with the session's full authoritative set on the next
 	 * `session/activeClientSet` / `session/chatAdded` fan-out.
 	 */
-	private async _seedEagerActiveClient(sessionUri: URI, chat: URI, activeClient: IAgentCreateSessionConfig['activeClient']): Promise<void> {
+	private async _seedEagerActiveClient(sessionUri: URI, chat: URI, activeClient: IAgentCreateChatOptions['activeClient']): Promise<void> {
 		if (!activeClient) {
 			return;
 		}
@@ -1113,22 +1019,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * The chat-addressed operation surface
 	 * ({@link IAgentChats}). Every method addresses a chat by a single,
-	 * already-resolved chat URI; `createChat`/`fork` additionally receive
-	 * transient host context from AH (see
-	 * {@link IAgentChats.createChat}) — this maps to the `(session, chat)`
-	 * pair the agent's internal SDK storage is keyed by (via
-	 * {@link _resolveChatContext}).
+	 * already-resolved chat URI; `createChat` additionally receives transient
+	 * host context from AH (see {@link IAgentChats.createChat}) — this maps to
+	 * the `(session, chat)` pair the agent's internal SDK storage is keyed by
+	 * (via {@link _resolveChatContext}).
+	 *
+	 * `createChat` is the only creation seam. It neither knows nor asks whether
+	 * the chat it is creating is a session's first chat or an additional one,
+	 * and there is no separate fork entry point: a fork is just a creation
+	 * whose options name a source ({@link IAgentCreateChatOptions.fork}), so
+	 * every creation form (fresh, fork, import, side chat) runs the one
+	 * algorithm in {@link _createChat}.
 	 */
 	readonly chats: IAgentChats = {
-		createChat: (chat, context, options) => {
-			const resolved = resolveAgentChatContext(context, chat);
-			if (options?.initialization) {
-				return this._createSession({ ...options.initialization, session: resolved.session }, resolved.session, chat);
-			}
-			return this._createChat(chat, resolved, options);
-		},
-		fork: (chat, context, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions) =>
-			this._createChat(chat, resolveAgentChatContext(context, chat), { ...options, fork: source }),
+		createChat: (chat, context, options) =>
+			this._createChat(chat, resolveAgentChatContext(context, chat), options),
 		disposeChat: (chat, context) => this._disposeChat(chat, context),
 		releaseChat: (chat, context) => this._releaseChat(chat, context),
 		sendMessage: (chatUri, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientTypeOrContext, context) => {
@@ -1147,117 +1052,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		},
 		getMessages: (chat, context) => this._getChatMessages(chat, context),
 	};
-
-	/**
-	 * NOT started here (CONTEXT M9): `forkSession` writes the transcript to
-	 * disk and we return; the `Query` materializes lazily on the first
-	 * {@link sendMessage} via {@link _resolveOrResumeChatSessionLocked}.
-	 * `turnId` is translated to the SDK envelope `uuid` by
-	 * {@link resolveForkAnchorUuid}; `config.fork.turnIdMapping` is ignored
-	 * (the SDK already remaps uuids).
-	 *
-	 * The forked SDK conversation is always bound directly to an exact chat,
-	 * mirroring the fresh-session path, so no runtime is ever left unbound and
-	 * no later bind step exists: initializing {@link IAgentChats.createChat} forks
-	 * into the host-minted session and its exact target chat, and the real
-	 * forked SDK id is exposed only via `chat.backingSession` / `providerData`.
-	 */
-	private async _forkSession(
-		config: IAgentCreateSessionConfig,
-		fork: NonNullable<IAgentCreateSessionConfig['fork']>,
-		sessionUri: URI,
-		boundChat: URI,
-	): Promise<IAgentCreateSessionResult> {
-		if (isSubagentSession(fork.session)) {
-			throw new Error('Cannot fork a subagent session');
-		}
-		// The source is addressed by its exact chat: its SDK conversation is
-		// the one backing recorded for that chat, never a session-shaped guess.
-		const sourceSessionId = this._chatBackings.get(fork.chat.toString())?.sdkSessionId;
-		if (!sourceSessionId) {
-			throw new Error(`Cannot fork Claude chat ${fork.chat.toString()}: backing SDK session not found`);
-		}
-		const existingSource = this._findAnySession(sourceSessionId);
-		if (existingSource && !existingSource.isPipelineReady) {
-			throw new Error('Cannot fork a provisional/never-sent session');
-		}
-		// Serialize against the SOURCE session so the transcript read + fork
-		// can't race an in-flight `sendMessage` mutating that session.
-		return this._sessionSequencer.queue(sourceSessionId, async () => {
-			const messages = await this._sdkService.getSessionMessages(sourceSessionId, { includeSystemMessages: true });
-			const upToMessageId = resolveForkAnchorUuid(messages, fork.turnId);
-			if (upToMessageId === undefined) {
-				throw new Error(`Cannot fork session ${sourceSessionId}: turn ${fork.turnId} not found in transcript`);
-			}
-			const { sessionId: newSessionId } = await this._sdkService.forkSession(sourceSessionId, { upToMessageId });
-
-			// Inherit the source's model / permissionMode / agent (create-config
-			// overrides win) so the lazy `_resumeSession` seeds `Options` from
-			// it. `customizationDirectory` is NOT inherited — it is the source's
-			// per-session synced plugin dir (Phase 11); the fork re-syncs its own.
-			let sourceOverlay: IClaudeSessionOverlay = {};
-			try {
-				sourceOverlay = await this._metadataStore.read(fork.session);
-			} catch (err) {
-				this._logService.warn(`[Claude] fork: source overlay read failed for ${sourceSessionId}; continuing with defaults`, err);
-			}
-			const model = config.model ?? sourceOverlay.model;
-			const agent = config.agent ?? sourceOverlay.agent;
-			const permissionMode = narrowClaudePermissionMode(config.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? sourceOverlay.permissionMode;
-
-			// Resolve the forked session's working directory now so we can fail
-			// fast (rather than at the first `sendMessage` when `_resumeSession`
-			// requires a cwd). The Query itself starts lazily — see the JSDoc.
-			const sdkInfo = await this._sdkService.getSessionInfo(newSessionId);
-			const workingDirectory = sdkInfo?.cwd
-				? URI.file(sdkInfo.cwd)
-				: existingSource?.workingDirectory ?? sourceOverlay.workingDirectories?.[0];
-			if (!workingDirectory) {
-				throw new Error(`Cannot fork session ${sourceSessionId}: forked session ${newSessionId} has no working directory (SDK cwd and source working directory missing)`);
-			}
-
-			// The protocol ignores request-time workingDirectories for forks:
-			// inherit the live source set, or its persisted overlay when unloaded.
-			const additionalDirectories = existingSource?.workingDirectories?.slice(1)
-				?? sourceOverlay.workingDirectories?.slice(1)
-				?? [];
-			// The forked conversation is bound to the host-supplied exact chat,
-			// and every later resolution/materialize site
-			// (`_createProvisionalChatSession`, `_persistSessionOverlay`) reads
-			// the overlay back by that chat's persistence resource — its owning
-			// session, since it is a session-backed default chat. Key the write
-			// to match: the host-minted session.
-			await this._metadataStore.write(sessionUri, {
-				...(model ? { model } : {}),
-				...(permissionMode ? { permissionMode } : {}),
-				...(agent ? { agent } : {}),
-				...(additionalDirectories.length > 0 ? { workingDirectories: [workingDirectory, ...additionalDirectories] } : {}),
-			});
-
-			let project: IAgentSessionProjectInfo | undefined;
-			try {
-				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
-			} catch (err) {
-				this._logService.warn(`[Claude] fork: project resolution failed for ${newSessionId}; continuing without project`, err);
-			}
-
-			// Bind the exact chat directly to the forked SDK conversation,
-			// without materializing it — the Query still starts lazily on the
-			// first `sendMessage` (see the JSDoc above). Registering only the
-			// `_chatBackings` entry (no live `ClaudeAgentSession` /
-			// `_chatEntriesBySdkId` leaf yet) routes later resolution through
-			// `_createProvisionalChatSession`, which resumes from the SDK's real
-			// transcript (`isResume: true`) exactly like any other exact-chat
-			// cold resume.
-			this._chatBackings.set(boundChat.toString(), { sdkSessionId: newSessionId });
-			return {
-				session: sessionUri,
-				resolvedWorkingDirectory: workingDirectory,
-				...(project ? { project } : {}),
-				chat: this._createChatResult(newSessionId),
-			};
-		});
-	}
 
 	/**
 	 * Builds the SDK `canUseTool` permission bridge for a session/chat. The
@@ -1379,7 +1173,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Pull `permissionMode` out of the post-validation `IAgentCreateSessionConfig.config`
+	 * Pull `permissionMode` out of the post-validation `IAgentCreateChatOptions.config`
 	 * bag, narrowing the runtime `unknown` value to the SDK's `PermissionMode`
 	 * union (5/6 values, excluding `dontAsk`; sdk.d.ts:1560). Falls back to
 	 * `'default'` when the bag is absent or carries something the schema
@@ -1405,105 +1199,275 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._deleteSession(session);
 	}
 
-	// #region Concrete chat backings
+	// #region Chat creation — the one algorithm every chat is created by
 
 	/**
-	 * Create a concrete chat backing using the host-supplied context `session`.
-	 * its own SDK chat (a fresh one, or a fork of the source chat at a turn)
-	 * that shares the session's working directory and inherited model / agent
-	 * / permission-mode. The backing is recorded in {@link _chatBackings} and
-	 * returned as an opaque `providerData` blob for the orchestrator to
-	 * persist; the chat's metadata overlay is seeded so a later lazy resume
-	 * inherits the session's settings. The live {@link ClaudeAgentSession} is
-	 * built lazily on the chat's first send (mirroring how the session's own
-	 * conversation materializes lazily).
+	 * The single chat-creation algorithm.
+	 *
+	 * Every chat Agent Host creates runs exactly this path — a session's first
+	 * chat, an additional chat, a fork, an import, a side chat. There is no
+	 * session-versus-additional branch and no provider-side chat role: this
+	 * consumes the fully-resolved options AH hands over (model, agent, working
+	 * directories, project, config, active client, plus the optional
+	 * import / fork / side-chat sources), binds the addressed chat to exactly
+	 * one SDK conversation, records that conversation as the chat's exact
+	 * opaque backing, and hands the backing back.
+	 *
+	 * The result reports what this creation resolved — the owning session, the
+	 * resolved `project` / `resolvedWorkingDirectory`, and the `provisional`
+	 * bit for a runtime that has not reached the SDK yet — next to the opaque
+	 * `providerData` blob and the separately-enumerable `backingSession` AH
+	 * suppresses from its session list. What any of that means for the chat's
+	 * role in the session is Agent Host's decision, not this provider's.
 	 */
-	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
-		// Fast-fail when the requested transport plainly needs a proxy handle we
-		// don't have. With no explicit chat model the effective model is inherited
-		// from the parent and only resolved inside the queue below, so defer the
-		// gate to `_resolveOrResumeChatSessionLocked` (which sees the resolved provisional
-		// model) rather than falsely gating an inherited native chat on the proxy
-		// default. Only fast-fail here when the chat carries its own explicit model.
-		if (options?.model) {
-			this._ensureAuthenticated(options.model);
+	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		// `importConversation.model` (mirroring Copilot's `_importConversation`)
+		// is the effective model of the imported turns' originating conversation,
+		// not a caller override, so it takes precedence over `options.model`.
+		// Mutually exclusive with `options.fork` (per the contract), so it never
+		// changes the model a fork inherits below.
+		const model = options?.importConversation?.model ?? options?.model;
+		// An inherited model is resolved from the source conversation at materialization.
+		if (model || (!options?.fork && !options?.sideChat)) {
+			this._ensureAuthenticated(model);
 		}
-		const inheritedContext = options?.inheritedContext;
-		if (!inheritedContext?.workingDirectories.length) {
-			throw new Error(`[Claude] createChat: missing inherited working directories for ${chat.toString()}`);
+		if (options?.fork && isSubagentSession(options.fork.session)) {
+			throw new Error('Cannot fork a subagent session');
 		}
 		const chatKey = chat.toString();
-		let result: IAgentCreateChatResult | undefined;
-		await this._sessionSequencer.queue(chatKey, async () => {
+		return this._sessionSequencer.queue(chatKey, async () => {
 			const existing = this._chatBackings.get(chatKey);
-			if (existing) {
-				// Idempotent re-create: hand back the existing backing so the
-				// orchestrator re-persists a consistent blob.
-				result = { providerData: encodeProviderData(_toPersistedChat(existing)), backingSession: AgentSession.uri(this.id, existing.sdkSessionId) };
-				return;
-			}
-			// Model/agent arrive via the client (model) and the draft path
-			// (agent) — never read back from the parent session. The permission
-			// mode is inherited from the orchestrator-supplied config.
-			const model = options?.model;
-
-			let sdkSessionId: string | undefined;
-			let sideChat: IPersistedChat['sideChat'];
-			if (options?.fork) {
-				// If the fork point can't be resolved, fall through to a fresh
-				// chat rather than inheriting the whole source backend.
-				sdkSessionId = (await this._forkChat(options.fork))?.sessionId;
-			} else if (options?.sideChat) {
-				const forked = await this._forkChat({ source: options.sideChat.source, turnId: options.sideChat.providerAnchorTurnId ?? options.sideChat.turnId });
-				sdkSessionId = forked?.sessionId;
-				// The bounded source-chat context is a host fact whenever Agent
-				// Host can produce one (an active or host-only local source
-				// turn): it hands it over on `sideChat.sourceContext`, and it
-				// wins outright — a fork anchored at the preceding concrete
-				// turn still needs it to carry turns the SDK transcript does
-				// not have. Otherwise, when the fork could not anchor, the
-				// provider bounds the context from its OWN transcript. The
-				// source chat's host state is never read back.
-				const fallbackContext = options.sideChat.sourceContext
-					?? (forked ? undefined : await this._buildSideChatContextFromTranscript(options.sideChat.source, options.sideChat.turnId));
-				if (!forked && !fallbackContext && !options.sideChat.partialResponse) {
-					// Nothing was inheritable: the fork could not be anchored,
-					// Agent Host published no bounded source context, and there
-					// was no in-flight partial response. Create the side chat
-					// anyway — a context-less side chat is a degraded branch,
-					// but failing `createChat` outright would leave the user
-					// with no chat at all.
-					this._logService.warn(`[Claude] createChat side chat: nothing to inherit from source turn ${options.sideChat.turnId} of ${options.sideChat.source.toString()}; creating the side chat without branching context`);
-				}
-				sideChat = {
-					turnId: options.sideChat.turnId,
-					...(options.sideChat.selection ? { selection: options.sideChat.selection } : {}),
-					inheritedTurnCount: forked?.inheritedTurnCount ?? 0,
-					...(fallbackContext ? { context: fallbackContext } : {}),
-					...(options.sideChat.partialResponse ? { partialResponse: options.sideChat.partialResponse } : {}),
-				};
-			}
-			sdkSessionId ??= generateUuid();
-
-			// Record the backing and hand the opaque blob back to the
-			// orchestrator to persist. Agent Host owns session→chat membership:
-			// it re-fans every active client out over the grown catalog once the
-			// chat is added, so nothing is pushed onto client handles here.
-			const backing: IClaudeChatBacking = { sdkSessionId, ...(model ? { model } : {}), ...(sideChat ? { sideChat } : {}) };
-			this._chatBackings.set(chatKey, backing);
-			result = { providerData: encodeProviderData(_toPersistedChat(backing)), backingSession: AgentSession.uri(this.id, sdkSessionId) };
-
-			// Seed the chat's own metadata overlay so a later lazy resume (this
-			// process or a restart) inherits the session's permission mode.
-			const permissionMode = narrowClaudePermissionMode(inheritedContext.config?.[ClaudeSessionConfigKey.PermissionMode]);
-			await this._metadataStore.write(context.resource, {
-				...(model ? { model } : {}),
-				...(permissionMode ? { permissionMode } : {}),
-				workingDirectories: inheritedContext.workingDirectories,
-			});
-			this._logService.info(`[Claude] Created chat backing ${chat.toString()} for context ${context.session.toString()}${options?.fork ? ' (forked)' : ''}`);
+			const created = existing
+				? this._recreatedChatResult(existing, options)
+				: await this._bindChatConversation(chat, context, model, options);
+			// Seed the eagerly-claimed active client on every creation, including
+			// an idempotent re-create: AgentService re-issues provisioning for an
+			// existing chat on reconnect, so the reconnected client's tools and
+			// customizations must still reach Claude.
+			await this._seedEagerActiveClient(context.session, chat, options?.activeClient);
+			return { session: context.session, ...created };
 		});
-		return result;
+	}
+
+	/**
+	 * Re-creation of a chat this provider already backs: hand the recorded
+	 * backing back verbatim so the orchestrator re-persists a consistent blob,
+	 * together with whatever its live runtime (if any) has resolved so far.
+	 */
+	private _recreatedChatResult(backing: IClaudeChatBacking, options?: IAgentCreateChatOptions): IAgentCreateChatResult {
+		const live = this._findAnySession(backing.sdkSessionId);
+		const resolvedWorkingDirectory = live?.workingDirectory ?? options?.workingDirectories?.[0];
+		return {
+			...(live?.project ? { project: live.project } : {}),
+			...(resolvedWorkingDirectory ? { resolvedWorkingDirectory } : {}),
+			...(live && !live.isPipelineReady ? { provisional: true } : {}),
+			...this._chatBackingResult(backing),
+		};
+	}
+
+	/**
+	 * Bind the addressed chat to exactly one SDK conversation: the one
+	 * inherited from a fork / side-chat source when that source resolves, a
+	 * freshly minted one otherwise.
+	 */
+	private async _bindChatConversation(chat: URI, context: IAgentChatContext, model: ModelSelection | undefined, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+		const { sdkSessionId, sideChat } = await this._inheritSourceConversation(options);
+		return sdkSessionId !== undefined
+			? this._bindInheritedConversation(chat, context, sdkSessionId, sideChat, model, options)
+			: this._bindFreshConversation(chat, context, sideChat, model, options);
+	}
+
+	/**
+	 * Resolve the SDK conversation a new chat inherits from its fork or
+	 * side-chat source, plus the side-chat provenance recorded on the backing.
+	 *
+	 * An unresolvable source — the source chat has no backing, or its turn is
+	 * absent from the SDK transcript, which is the normal case for a source
+	 * conversation that is still live and unflushed — is deliberately not
+	 * fatal: the chat is created fresh instead of inheriting the whole source
+	 * backend or failing outright. Agent Host has already seeded the visible
+	 * turns it forked, so a fresh backing is a degraded branch rather than a
+	 * lost chat.
+	 */
+	private async _inheritSourceConversation(options?: IAgentCreateChatOptions): Promise<{ readonly sdkSessionId?: string; readonly sideChat?: IPersistedChat['sideChat'] }> {
+		if (options?.fork) {
+			const forked = await this._forkChat(options.fork);
+			return forked ? { sdkSessionId: forked.sessionId } : {};
+		}
+		if (!options?.sideChat) {
+			return {};
+		}
+		const source = options.sideChat;
+		const forked = await this._forkChat({ source: source.source, turnId: source.providerAnchorTurnId ?? source.turnId });
+		// The bounded source-chat context is a host fact whenever Agent Host
+		// can produce one (an active or host-only local source turn): it hands
+		// it over on `sideChat.sourceContext`, and it wins outright — a fork
+		// anchored at the preceding concrete turn still needs it to carry turns
+		// the SDK transcript does not have. Otherwise, when the fork could not
+		// anchor, the provider bounds the context from its OWN transcript. The
+		// source chat's host state is never read back.
+		const fallbackContext = source.sourceContext
+			?? (forked ? undefined : await this._buildSideChatContextFromTranscript(source.source, source.turnId));
+		if (!forked && !fallbackContext && !source.partialResponse) {
+			// Nothing was inheritable: the fork could not be anchored, Agent
+			// Host published no bounded source context, and there was no
+			// in-flight partial response. Create the side chat anyway — a
+			// context-less side chat is a degraded branch, but failing
+			// `createChat` outright would leave the user with no chat at all.
+			this._logService.warn(`[Claude] createChat side chat: nothing to inherit from source turn ${source.turnId} of ${source.source.toString()}; creating the side chat without branching context`);
+		}
+		return {
+			...(forked ? { sdkSessionId: forked.sessionId } : {}),
+			sideChat: {
+				turnId: source.turnId,
+				...(source.selection ? { selection: source.selection } : {}),
+				inheritedTurnCount: forked?.inheritedTurnCount ?? 0,
+				...(fallbackContext ? { context: fallbackContext } : {}),
+				...(source.partialResponse ? { partialResponse: source.partialResponse } : {}),
+			},
+		};
+	}
+
+	/**
+	 * Bind a chat to an SDK conversation inherited from a fork / side-chat
+	 * source. That conversation already owns a transcript on disk, so nothing
+	 * is materialized here: recording the backing alone routes the chat's first
+	 * send through {@link _createProvisionalChatSession}, which cold-resumes it
+	 * (`isResume: true`) exactly like any other restored chat — see CONTEXT M9.
+	 * Its resolved settings are persisted to the overlay right away precisely
+	 * because there is no in-memory runtime holding them in the meantime.
+	 *
+	 * Everything inherited comes from the source's own provider state (its SDK
+	 * `cwd`, its live runtime, its overlay); host-supplied options override it.
+	 */
+	private async _bindInheritedConversation(
+		chat: URI,
+		context: IAgentChatContext,
+		sdkSessionId: string,
+		sideChat: IPersistedChat['sideChat'],
+		model: ModelSelection | undefined,
+		options?: IAgentCreateChatOptions,
+	): Promise<IAgentCreateChatResult> {
+		// The source's settings live under its owning session's persistence
+		// scope: the session AH named on the fork source, or — for a side chat,
+		// which always branches within its own session — this chat's session.
+		const sourceScope = options?.fork?.session ?? context.session;
+		let sourceOverlay: IClaudeSessionOverlay = {};
+		try {
+			sourceOverlay = await this._metadataStore.read(sourceScope);
+		} catch (err) {
+			this._logService.warn(`[Claude] createChat: source overlay read failed for ${sourceScope.toString()}; continuing with defaults`, err);
+		}
+		const sourceChat = options?.fork?.source ?? options?.sideChat?.source;
+		const sourceSdkId = sourceChat ? this._sourceChatSdkId(sourceChat) : undefined;
+		const liveSource = sourceSdkId ? this._findAnySession(sourceSdkId) : undefined;
+		const inheritedModel = model ?? liveSource?.provisionalModel ?? sourceOverlay.model;
+		const agent = options?.agent ?? liveSource?.provisionalAgent ?? sourceOverlay.agent;
+		const permissionMode = narrowClaudePermissionMode(options?.config?.[ClaudeSessionConfigKey.PermissionMode]) ?? liveSource?.permissionModeFallback ?? sourceOverlay.permissionMode;
+
+		// Resolve the inherited conversation's working directories now so we
+		// fail fast rather than at the first `sendMessage`. The forked
+		// conversation's own `cwd` is authoritative; its additional roots come
+		// from the live source or, when the source is unloaded, its overlay.
+		// The requested set is the last resort — an inherited conversation runs
+		// where its transcript was recorded, not where the request pointed.
+		const sdkInfo = await this._sdkService.getSessionInfo(sdkSessionId);
+		const inheritedDirectories = liveSource?.workingDirectories ?? sourceOverlay.workingDirectories ?? options?.workingDirectories;
+		const workingDirectory = sdkInfo?.cwd ? URI.file(sdkInfo.cwd) : inheritedDirectories?.[0];
+		if (!workingDirectory) {
+			throw new Error(`Cannot create chat ${chat.toString()}: inherited conversation ${sdkSessionId} has no working directory (SDK cwd and source working directories missing)`);
+		}
+		const workingDirectories = [workingDirectory, ...(inheritedDirectories?.slice(1) ?? [])];
+
+		// Every later resolution/materialize site
+		// (`_createProvisionalChatSession`, `_persistSessionOverlay`) reads this
+		// chat's overlay back by its host-supplied persistence resource, so key
+		// the write to exactly that.
+		await this._metadataStore.write(context.resource, {
+			...(inheritedModel ? { model: inheritedModel } : {}),
+			...(permissionMode ? { permissionMode } : {}),
+			...(agent ? { agent } : {}),
+			workingDirectories,
+		});
+		const project = await this._resolveProject(workingDirectory);
+		const backing = this._recordChatBacking(chat, { sdkSessionId, ...(inheritedModel ? { model: inheritedModel } : {}), ...(sideChat ? { sideChat } : {}) });
+		this._logService.info(`[Claude] Bound chat ${chat.toString()} to inherited conversation ${sdkSessionId} for session ${context.session.toString()}`);
+		return {
+			resolvedWorkingDirectory: workingDirectory,
+			...(project ? { project } : {}),
+			...this._chatBackingResult(backing),
+		};
+	}
+
+	/**
+	 * Bind a chat to a freshly minted SDK conversation, whose id is independent
+	 * of the Agent Host session id. The conversation is provisional: nothing
+	 * reaches the SDK (and nothing is persisted) until the chat's first send
+	 * materializes it, so the in-memory {@link ClaudeAgentSession} carries the
+	 * resolved model / agent / config / permission mode until
+	 * {@link _persistSessionOverlay} writes them at materialize time.
+	 *
+	 * `importConversation` has no native transcript-seeding capability on
+	 * Claude (unlike Copilot's JSONL event-log import): there is no SDK API to
+	 * seed a conversation from arbitrary `Turn[]`. The imported turns' display
+	 * is the host-level catalog's responsibility until this chat's first real
+	 * `sendMessage` starts a genuine SDK transcript.
+	 */
+	private async _bindFreshConversation(
+		chat: URI,
+		context: IAgentChatContext,
+		sideChat: IPersistedChat['sideChat'],
+		model: ModelSelection | undefined,
+		options?: IAgentCreateChatOptions,
+	): Promise<IAgentCreateChatResult> {
+		const sdkSessionId = generateUuid();
+		// A chat AH resolved no working directory for (a workspace-less quick
+		// chat) runs in a stable per-session scratch dir shared with the Copilot
+		// agent; without a cwd Claude throws at materialize. The workspace-less
+		// marker itself is owned/persisted centrally by the AH service.
+		const requestedWorkingDirectory = options?.workingDirectories?.[0];
+		const workingDirectory = requestedWorkingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, AgentSession.id(context.session));
+		// Only probe for a project when AH resolved a real folder; a scratch dir
+		// is never a code project.
+		const project = requestedWorkingDirectory ? await this._resolveProject(requestedWorkingDirectory) : undefined;
+		const backing = this._recordChatBacking(chat, { sdkSessionId, ...(model ? { model } : {}), ...(sideChat ? { sideChat } : {}) });
+		const session = ClaudeAgentSession.createProvisional(
+			sdkSessionId,
+			chat,
+			workingDirectory,
+			project,
+			model,
+			options?.agent,
+			options?.config,
+			new PendingRequestRegistry<CallToolResult>(),
+			this._resolvePermissionMode(options?.config),
+			this._instantiationService,
+			options?.workingDirectories?.slice(1) ?? [],
+		);
+		this._registerLiveChat(chat, session);
+		this._logService.info(`[Claude] Bound chat ${chat.toString()} to fresh conversation ${sdkSessionId} for session ${context.session.toString()}`);
+		return {
+			resolvedWorkingDirectory: workingDirectory,
+			provisional: true,
+			...(project ? { project } : {}),
+			...this._chatBackingResult(backing),
+		};
+	}
+
+	/** Record a chat's exact backing, replacing any previous one. */
+	private _recordChatBacking(chat: URI, backing: IClaudeChatBacking): IClaudeChatBacking {
+		this._chatBackings.set(chat.toString(), backing);
+		return backing;
+	}
+
+	/** Best-effort git project metadata for a resolved working directory. */
+	private async _resolveProject(workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined> {
+		try {
+			return await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+		} catch (err) {
+			this._logService.warn(`[Claude] project resolution failed for ${workingDirectory.toString()}; continuing without project`, err);
+			return undefined;
+		}
 	}
 
 	/**
@@ -1549,13 +1513,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Fork the source chat's SDK chat at the requested turn into a new
-	 * chat and return its SDK session id. Returns `undefined` (so the
-	 * caller creates a fresh chat instead) when the source chat or the
-	 * fork anchor cannot be resolved.
+	 * Fork the source chat's SDK conversation at the requested turn and return
+	 * the new conversation's id (plus how many of the source's turns it
+	 * inherited, which a side chat records as its hidden prefix). Returns
+	 * `undefined` — so the caller mints a fresh conversation instead — when the
+	 * source chat has no backing or the fork anchor is absent from the SDK
+	 * transcript.
 	 *
+	 * Deliberately NOT serialized against the source conversation: a side chat
+	 * branches from a turn that is typically still in flight, so waiting for
+	 * the source's sequencer would park the new chat behind the very turn it
+	 * branches from. The SDK's flushed transcript is read-only here.
 	 */
-	private async _forkChat(fork: IAgentCreateChatOptions['fork'] & {}): Promise<{ sessionId: string; inheritedTurnCount: number } | undefined> {
+	private async _forkChat(fork: { readonly source: URI; readonly turnId: string }): Promise<{ sessionId: string; inheritedTurnCount: number } | undefined> {
 		const sourceSdkId = this._sourceChatSdkId(fork.source);
 		if (!sourceSdkId) {
 			this._logService.warn(`[Claude] createChat fork: source ${fork.source.toString()} has no SDK chat; creating fresh chat`);
@@ -1631,7 +1601,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (existing?.isPipelineReady) {
 			return existing;
 		}
-		const chatSession = existing ?? await this._createProvisionalChatSession(session, chat, resource);
+		// The send's own resolved snapshot is the last-resort placement for a
+		// chat whose conversation never reached the SDK and whose overlay was
+		// never written (a fresh chat created in a previous window).
+		const chatSession = existing ?? await this._createProvisionalChatSession(session, chat, resource, workingDirectories);
 		// Resume when the SDK already has a transcript for this chat
 		// (forked or restored); otherwise materialize a fresh one.
 		const sdkInfo = await this._sdkService.getSessionInfo(chatSession.sessionId);

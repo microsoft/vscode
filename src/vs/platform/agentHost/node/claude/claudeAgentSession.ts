@@ -152,7 +152,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * — there is no runtime control-plane equivalent.
 	 */
 	private _provisionalAgent: AgentSelection | undefined;
-	/** Pre-materialize `IAgentCreateSessionConfig.config` bag. Read at materialize time. */
+	/** Pre-materialize `IAgentCreateChatOptions.config` bag. Read at materialize time. */
 	readonly provisionalConfig: Record<string, unknown> | undefined;
 	/** Resolved project metadata captured at create time (if any). */
 	readonly project: IAgentSessionProjectInfo | undefined;

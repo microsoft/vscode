@@ -1126,15 +1126,24 @@ export function resolveAgentHostCustomizations(context?: URI | IAgentChatContext
 
 /** Options for creating an additional chat within a session. */
 export interface IAgentCreateChatOptions {
-	/**
-	 * Initial provider configuration when this chat creates its owning runtime.
-	 * Absent when adding another independently-backed chat to an existing runtime.
-	 */
-	readonly initialization?: IAgentCreateSessionConfig;
 	/** Optional display title for the new chat. */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
+	/** Optional custom agent selection. */
+	readonly agent?: AgentSelection;
+	/** Complete ordered working-directory set resolved by Agent Host. */
+	readonly workingDirectories?: readonly URI[];
+	/** Project metadata resolved by Agent Host. */
+	readonly project?: IAgentSessionProjectInfo;
+	/** Provider-specific configuration resolved by Agent Host. */
+	readonly config?: Record<string, unknown>;
+	/** Active client to seed before the first turn. */
+	readonly activeClient?: SessionActiveClient;
+	/** Defer creating the provider SDK backing until the chat's first send. */
+	readonly deferBacking?: boolean;
+	/** Existing conversation turns to import into this chat. */
+	readonly importConversation?: IAgentCreateSessionConfig['importConversation'];
 	/**
 	 * Fork an existing chat into this new chat. The new chat starts
 	 * pre-populated with the source chat's turns up to and including
@@ -1143,13 +1152,6 @@ export interface IAgentCreateChatOptions {
 	 */
 	readonly fork?: IAgentCreateChatForkSource;
 	/**
-	 * The owning session's resolved context, supplied by the orchestrator when
-	 * adding an additional chat to an existing session. The agent uses these
-	 * values to stand up the new chat's backing conversation and MUST NOT read
-	 * them back from the parent session's own state.
-	 */
-	readonly inheritedContext?: IAgentInheritedChatContext;
-	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
 	 * chat (via `/btw`). Unlike {@link fork}, inherited context is provider-owned
 	 * and must not appear in the chat's visible history.
@@ -1157,26 +1159,16 @@ export interface IAgentCreateChatOptions {
 	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
 
-/**
- * The owning session's resolved context the orchestrator passes to an agent
- * when creating an additional chat, so the agent never resolves it from the
- * parent session.
- */
-export interface IAgentInheritedChatContext {
-	/** The AH-resolved working directories the chat can access. */
-	readonly workingDirectories: readonly URI[];
-	/** The owning session's resolved project metadata. */
-	readonly project?: IAgentSessionProjectInfo;
-	/** The owning session's config values, for provider-specific setting resolution (e.g. permissions). */
-	readonly config?: Record<string, unknown>;
-}
-
 /** Identifies a source chat and turn to fork a new chat from. */
 export interface IAgentCreateChatForkSource {
 	/** URI of the existing chat to fork from. */
 	readonly source: URI;
+	/** Owning session of {@link source}, supplied explicitly by Agent Host. */
+	readonly session: URI;
 	/** Turn ID in the source chat; content up to and including this turn is copied. */
 	readonly turnId: string;
+	/** Zero-based source turn index, when the provider needs it for import/fork mapping. */
+	readonly turnIndex?: number;
 	/**
 	 * Maps old source turn IDs to fresh turn IDs for the forked chat. Populated
 	 * by the agent service so the agent can remap per-turn data (e.g. SDK event
@@ -1213,6 +1205,9 @@ export interface IAgentCreateChatSideChatSource {
 export interface IAgentCreateChatResult {
 	/** Owning session when this call initialized its provider runtime. */
 	readonly session?: URI;
+	readonly project?: IAgentSessionProjectInfo;
+	readonly resolvedWorkingDirectory?: URI;
+	readonly provisional?: boolean;
 	/**
 	 * Opaque, agent-owned token the orchestrator persists verbatim in the chat
 	 * catalog and hands back to {@link IAgent.materializeChat} on
@@ -1359,25 +1354,15 @@ export namespace SubagentChatSignal {
 export interface IAgentChats {
 	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
-	 * inheriting the session's working directory and config via
-	 * {@link IAgentCreateChatOptions.inheritedContext}. `chat` is the
-	 * client-chosen channel URI the new chat is addressed by. The orchestrator
+	 * using the complete working directory and config supplied in
+	 * {@link IAgentCreateChatOptions}. `chat` is the client-chosen channel URI.
+	 * The orchestrator
 	 * supplies the owning session plus the provider-owned persistence scope via
 	 * `context`, so the agent never has to recover either by parsing `chat`.
-	 * When {@link IAgentCreateChatOptions.initialization} is present, this call
-	 * also initializes the provider runtime for the owning session. Otherwise it
-	 * adds an independently-backed chat to an existing runtime.
+	 * Agent Host supplies the complete resolved creation options. The agent
+	 * creates one independently-backed chat without classifying its role.
 	 */
 	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
-
-	/**
-	 * Fork a new chat from an existing one. The new `chat`
-	 * inherits `source`'s backing up to and including
-	 * {@link IAgentCreateChatForkSource.turnId} and then continues
-	 * independently. `context` carries the new chat's owning session plus its
-	 * host-chosen persistence scope.
-	 */
-	fork(chat: URI, context: URI | IAgentChatContext, source: IAgentCreateChatForkSource, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
 	/** Dispose the addressed chat and free its backing. */
 	disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void>;

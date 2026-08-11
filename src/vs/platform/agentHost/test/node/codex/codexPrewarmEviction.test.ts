@@ -27,7 +27,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentSession, isAgentCreateSessionResult, type AgentSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult } from '../../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agentService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
@@ -219,17 +219,20 @@ function defaultChatOf(session: URI): URI {
 }
 
 /**
- * Provision a session through an initializing {@link IAgentChats.createChat}
- * call, already addressed by the exact chat URI Agent Host minted.
+ * Provision a session by creating its first chat through the single
+ * {@link IAgentChats.createChat} seam, already addressed by the exact chat URI
+ * Agent Host minted. Such a call stands the session's runtime up, so it reports
+ * the owning session back.
  */
-async function createSession(agent: CodexAgent, config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
-	const session = config.session ?? AgentSession.uri(agent.id, generateUuid());
+async function createSession(agent: CodexAgent, options: IAgentCreateChatOptions & { readonly session?: URI } = {}): Promise<IAgentCreateChatResult & { readonly session: URI }> {
+	const { session: requestedSession, ...chatOptions } = options;
+	const session = requestedSession ?? AgentSession.uri(agent.id, generateUuid());
 	const chat = defaultChatOf(session);
-	const result = await agent.chats.createChat(chat, { session, resource: chat }, { initialization: { ...config, session } });
-	if (!result || !isAgentCreateSessionResult(result)) {
-		throw new Error('Expected initialized chat metadata');
+	const result = await agent.chats.createChat(chat, { session, resource: chat }, { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
+	if (!result?.session) {
+		throw new Error('Expected the creation to report the session runtime it stood up');
 	}
-	return result;
+	return { ...result, session: result.session };
 }
 
 async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'add'>, completePrewarmBeforeSend: boolean): Promise<void> {
@@ -1212,7 +1215,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 			const forkPromise = createSession(agent, {
 				workingDirectories: [requestedA, requestedB],
-				fork: { session: source.session, chat: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
+				fork: { session: source.session, source: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
 			});
 
 			const read = await readNextRequest(peer.outbound);
@@ -1298,7 +1301,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const forkChat = defaultChatOf(forkSession);
 		const forking = createSession(agent, {
 			session: forkSession,
-			fork: { session: source.session, chat: sourceChat, turnId: 'turn-1', turnIndex: 0 },
+			fork: { session: source.session, source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 		});
 		const read = await readNextRequest(peer.outbound);
 		peer.push({

@@ -138,7 +138,7 @@ function createTestSideEffects(
 async function createAgentSession(agent: IAgent): Promise<URI> {
 	const session = AgentSession.uri(agent.id, generateUuid());
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	await agent.chats.createChat(defaultChat, session, { initialization: { session } });
+	await agent.chats.createChat(defaultChat, session);
 	return session;
 }
 

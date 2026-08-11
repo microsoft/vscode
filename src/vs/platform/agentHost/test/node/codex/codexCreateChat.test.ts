@@ -18,7 +18,7 @@ import { InMemoryFileSystemProvider } from '../../../../../platform/files/common
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { AgentSession, isAgentCreateSessionResult, type AgentSignal, type IAgentChatContext, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentMaterializeSessionEvent } from '../../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeSessionEvent } from '../../../common/agentService.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -187,12 +187,17 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	return agent;
 }
 
-async function createSessionChat(agent: CodexAgent, chat: URI, context: IAgentChatContext, config: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
-	const result = await agent.chats.createChat(chat, context, { initialization: config });
-	if (!result || !isAgentCreateSessionResult(result)) {
-		throw new Error('Expected initialized chat metadata');
+/**
+ * Create a session's first chat over the single {@link IAgentChats.createChat}
+ * seam, with the fully resolved options Agent Host supplies. Such a call also
+ * stands the owning session's runtime up, so it must report that session back.
+ */
+async function createSessionBackedChat(agent: CodexAgent, chat: URI, context: IAgentChatContext, options: IAgentCreateChatOptions = {}): Promise<IAgentCreateChatResult & { readonly session: URI }> {
+	const result = await agent.chats.createChat(chat, context, { deferBacking: !options.fork && !options.importConversation, ...options });
+	if (!result?.session) {
+		throw new Error('Expected the creation to report the session runtime it stood up');
 	}
-	return result;
+	return { ...result, session: result.session };
 }
 
 function connectPeer(agent: CodexAgent, peer: ITestPeer): void {
@@ -220,7 +225,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 	};
 }
 
-suite('CodexAgent createSessionChat', () => {
+suite('CodexAgent createChat', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -230,8 +235,7 @@ suite('CodexAgent createSessionChat', () => {
 		const chat = URI.parse(buildDefaultChatUri(sessionUri));
 		const folder = URI.file('/repo/fresh');
 
-		const created = await createSessionChat(agent, chat, { session: sessionUri, resource: chat }, {
-			session: sessionUri,
+		const created = await createSessionBackedChat(agent, chat, { session: sessionUri, resource: chat }, {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -255,8 +259,7 @@ suite('CodexAgent createSessionChat', () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'legacy-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
-		await createSessionChat(agent, chat, { session, resource: chat }, {
-			session,
+		await createSessionBackedChat(agent, chat, { session, resource: chat }, {
 			workingDirectories: [URI.file('/repo/legacy')],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -276,22 +279,20 @@ suite('CodexAgent createSessionChat', () => {
 		});
 	});
 
-	test('fresh: a rebind (same session id, new createSessionChat call) binds directly as part of creation', async () => {
+	test('fresh: a rebind (same session id, new createChat call) binds directly as part of creation', async () => {
 		const agent = await createAgent(disposables);
 		const sessionUri = AgentSession.uri('codex', 'session-rebind');
 		const chat = URI.parse(buildDefaultChatUri(sessionUri));
 		const folder = URI.file('/repo/rebind');
 
-		await createSessionChat(agent, chat, { session: sessionUri, resource: chat }, {
-			session: sessionUri,
+		await createSessionBackedChat(agent, chat, { session: sessionUri, resource: chat }, {
 			workingDirectories: [folder],
 		});
 
-		// Workbench rebind: a second createSessionChat for the same session id,
+		// Workbench rebind: a second createChat for the same session id,
 		// e.g. after a chip-selection change re-mints the request. Model
 		// changes here, so the reconnect ("existing") branch runs.
-		const rebound = await createSessionChat(agent, chat, { session: sessionUri, resource: chat }, {
-			session: sessionUri,
+		const rebound = await createSessionBackedChat(agent, chat, { session: sessionUri, resource: chat }, {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -313,8 +314,7 @@ suite('CodexAgent createSessionChat', () => {
 		const chat = URI.parse(buildDefaultChatUri(sessionUri));
 
 		await assert.rejects(
-			createSessionChat(agent, chat, { session: sessionUri, resource: chat }, {
-				session: sessionUri,
+			createSessionBackedChat(agent, chat, { session: sessionUri, resource: chat }, {
 				workingDirectories: [URI.file('/repo/import')],
 				importConversation: { turns: [] },
 			}),
@@ -339,8 +339,7 @@ suite('CodexAgent createSessionChat', () => {
 			const sourceSessionUri = AgentSession.uri('codex', 'session-source');
 			const sourceChat = URI.parse(buildDefaultChatUri(sourceSessionUri));
 			const folder = URI.file('/repo/source');
-			await createSessionChat(agent, sourceChat, { session: sourceSessionUri, resource: sourceChat }, {
-				session: sourceSessionUri,
+			await createSessionBackedChat(agent, sourceChat, { session: sourceSessionUri, resource: sourceChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -351,9 +350,8 @@ suite('CodexAgent createSessionChat', () => {
 
 			const forkSessionUri = AgentSession.uri('codex', 'session-fork-target');
 			const forkChat = URI.parse(buildDefaultChatUri(forkSessionUri));
-			const forking = createSessionChat(agent, forkChat, { session: forkSessionUri, resource: forkChat }, {
-				session: forkSessionUri,
-				fork: { session: sourceSessionUri, chat: sourceChat, turnId: 'turn-1', turnIndex: 0 },
+			const forking = createSessionBackedChat(agent, forkChat, { session: forkSessionUri, resource: forkChat }, {
+				fork: { session: sourceSessionUri, source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 			});
 
 			const read = await readNextRequest(peer.outbound);
@@ -377,15 +375,23 @@ suite('CodexAgent createSessionChat', () => {
 
 			assert.deepStrictEqual({
 				provisional: forked.provisional,
-				forkedSessionMatchesThread: forked.session.toString() === AgentSession.uri('codex', newThreadId).toString(),
+				// The fork stands the owning session's runtime up, so it adopts
+				// that session's identity and reports the forked thread as the
+				// exact backing — the host keeps addressing the session by the
+				// URI it minted.
+				session: forked.session.toString(),
+				backingSession: forked.backingSession?.toString(),
 				// The exact-chat binding must already be in place by the time the
 				// caller observes the result — creation is the only binding seam.
 				boundSessionId: agent['_sessionIdByChatUri'].get(forkChat.toString()),
-				chatChannel: agent['_sessions'].get(newThreadId)?.chatChannel?.toString(),
+				threadId: agent['_sessions'].get('session-fork-target')?.threadId,
+				chatChannel: agent['_sessions'].get('session-fork-target')?.chatChannel?.toString(),
 			}, {
-				provisional: false,
-				forkedSessionMatchesThread: true,
-				boundSessionId: newThreadId,
+				provisional: undefined,
+				session: forkSessionUri.toString(),
+				backingSession: AgentSession.uri('codex', newThreadId).toString(),
+				boundSessionId: 'session-fork-target',
+				threadId: newThreadId,
 				chatChannel: forkChat.toString(),
 			});
 
@@ -404,6 +410,150 @@ suite('CodexAgent createSessionChat', () => {
 		}
 	});
 
+	test('an additional chat mints a backing thread of its own, and re-creating it never mints a second', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-additional');
+			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const additionalChat = URI.parse(buildChatUri(sessionUri, 'additional'));
+			const folder = URI.file('/repo/additional');
+			await createSessionBackedChat(agent, sessionChat, { session: sessionUri, resource: sessionChat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const sessionStart = await readNextRequest(peer.outbound);
+			peer.push({ id: sessionStart.id, result: { thread: { id: 'session-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('session-additional')!.materializePromise;
+
+			const creating = agent.chats.createChat(additionalChat, { session: sessionUri, resource: additionalChat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+				config: {},
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'additional-thread', cwd: folder.fsPath } } });
+			const created = await creating;
+
+			// A repeated create for the same chat must hand the exact same
+			// backing back; a second thread/start here would orphan the first.
+			const recreated = await agent.chats.createChat(additionalChat, { session: sessionUri, resource: additionalChat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+
+			assert.deepStrictEqual({
+				started: { method: start.method, cwd: start.params.cwd },
+				// The owning session's identity is already taken, so this chat is
+				// identified by the thread it minted and reported as an internal
+				// backing rather than as a session of its own.
+				session: created?.session,
+				backingSession: created?.backingSession?.toString(),
+				backingId: created?.providerData ? JSON.parse(created.providerData).sessionId : undefined,
+				recreatedBackingId: recreated?.providerData ? JSON.parse(recreated.providerData).sessionId : undefined,
+				recreatedBackingSession: recreated?.backingSession?.toString(),
+				boundSessionId: agent['_sessionIdByChatUri'].get(additionalChat.toString()),
+				sessionRuntimeUntouched: agent['_sessions'].get('session-additional')?.threadId,
+			}, {
+				started: { method: 'thread/start', cwd: folder.fsPath },
+				session: undefined,
+				backingSession: AgentSession.uri('codex', 'additional-thread').toString(),
+				backingId: 'additional-thread',
+				recreatedBackingId: 'additional-thread',
+				recreatedBackingSession: AgentSession.uri('codex', 'additional-thread').toString(),
+				boundSessionId: 'additional-thread',
+				sessionRuntimeUntouched: 'session-thread',
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('forking an additional chat goes through createChat({ fork }) like every other creation', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-fork-chat');
+			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const forkChat = URI.parse(buildChatUri(sessionUri, 'forked'));
+			const folder = URI.file('/repo/fork-chat');
+			await createSessionBackedChat(agent, sessionChat, { session: sessionUri, resource: sessionChat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const sessionStart = await readNextRequest(peer.outbound);
+			peer.push({ id: sessionStart.id, result: { thread: { id: 'fork-chat-source', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('session-fork-chat')!.materializePromise;
+
+			// There is no separate fork entry point: a fork is a create whose
+			// options name the source chat to branch from.
+			const forking = agent.chats.createChat(forkChat, { session: sessionUri, resource: forkChat }, {
+				model: { id: COPILOT_TEST_MODEL },
+				workingDirectories: [folder],
+				fork: { source: sessionChat, session: sessionUri, turnId: 'turn-1' },
+			});
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: { thread: { id: 'fork-chat-source', cwd: folder.fsPath, turns: [{ id: 'turn-1' }] } },
+			});
+			const fork = await readNextRequest(peer.outbound);
+			peer.push({ id: fork.id, result: { thread: { id: 'fork-chat-thread', cwd: folder.fsPath }, cwd: folder.fsPath } });
+			const forked = await forking;
+
+			assert.deepStrictEqual({
+				forkRequest: { method: fork.method, threadId: fork.params.threadId },
+				session: forked?.session,
+				backingSession: forked?.backingSession?.toString(),
+				backingId: forked?.providerData ? JSON.parse(forked.providerData).sessionId : undefined,
+				boundSessionId: agent['_sessionIdByChatUri'].get(forkChat.toString()),
+				chatChannel: agent['_sessions'].get('fork-chat-thread')?.chatChannel?.toString(),
+			}, {
+				forkRequest: { method: 'thread/fork', threadId: 'fork-chat-source' },
+				session: undefined,
+				backingSession: AgentSession.uri('codex', 'fork-chat-thread').toString(),
+				backingId: 'fork-chat-thread',
+				boundSessionId: 'fork-chat-thread',
+				chatChannel: forkChat.toString(),
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('importConversation is rejected for every chat, not only a session\u2019s first', async () => {
+		const agent = await createAgent(disposables);
+		const sessionUri = AgentSession.uri('codex', 'session-import-additional');
+		const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
+		const additionalChat = URI.parse(buildChatUri(sessionUri, 'import'));
+		const folder = URI.file('/repo/import-additional');
+		await createSessionBackedChat(agent, sessionChat, { session: sessionUri, resource: sessionChat }, {
+			workingDirectories: [folder],
+			model: { id: COPILOT_TEST_MODEL },
+		});
+
+		await assert.rejects(
+			agent.chats.createChat(additionalChat, { session: sessionUri, resource: additionalChat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+				importConversation: { turns: [] },
+			}),
+			/does not support importing/,
+		);
+
+		assert.deepStrictEqual({
+			hasBinding: agent['_sessionIdByChatUri'].has(additionalChat.toString()),
+			runtimes: [...agent['_sessions'].keys()],
+		}, {
+			hasBinding: false,
+			runtimes: ['session-import-additional'],
+		});
+	});
+
 	test('fresh: prewarm and the exact chat binding cooperate so a first send never needs a separate bind', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const peer = disposables.add(createTestPeer());
@@ -413,8 +563,7 @@ suite('CodexAgent createSessionChat', () => {
 			const sessionUri = AgentSession.uri('codex', 'session-prewarm');
 			const chat = URI.parse(buildDefaultChatUri(sessionUri));
 			const folder = URI.file('/repo/prewarm');
-			const created = await createSessionChat(agent, chat, { session: sessionUri, resource: chat }, {
-				session: sessionUri,
+			const created = await createSessionBackedChat(agent, chat, { session: sessionUri, resource: chat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -462,8 +611,7 @@ suite('CodexAgent exact chat routing', () => {
 			const materialized: string[] = [];
 			disposables.add(agent.onDidMaterializeSession(e => materialized.push(e.resource.toString())));
 
-			await createSessionChat(agent, chat, { session: sessionUri, resource: chat }, {
-				session: sessionUri,
+			await createSessionBackedChat(agent, chat, { session: sessionUri, resource: chat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 				activeClient: { clientId: 'client-1', tools: [{ name: 'client_tool', description: 'client tool', inputSchema: { type: 'object' } }] },
@@ -505,8 +653,7 @@ suite('CodexAgent exact chat routing', () => {
 			const chat = sessionChatWithPeerShape(sessionUri);
 			const context = { session: sessionUri, resource: chat };
 
-			await createSessionChat(agent, chat, context, {
-				session: sessionUri,
+			await createSessionBackedChat(agent, chat, context, {
 				workingDirectories: [URI.file('/repo/dispose')],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -548,8 +695,7 @@ suite('CodexAgent exact chat routing', () => {
 			const chat = sessionChatWithPeerShape(sessionUri);
 			const context = { session: sessionUri, resource: chat };
 
-			await createSessionChat(agent, chat, context, {
-				session: sessionUri,
+			await createSessionBackedChat(agent, chat, context, {
 				workingDirectories: [URI.file('/repo/release')],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -590,8 +736,7 @@ suite('CodexAgent exact chat routing', () => {
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-chat'));
 			const folder = URI.file('/repo/truncate');
 
-			await createSessionChat(agent, sessionChat, { session: sessionUri, resource: sessionChat }, {
-				session: sessionUri,
+			await createSessionBackedChat(agent, sessionChat, { session: sessionUri, resource: sessionChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -602,7 +747,8 @@ suite('CodexAgent exact chat routing', () => {
 
 			const creatingPeer = agent.chats.createChat(peerChat, { session: sessionUri, resource: peerChat }, {
 				model: { id: COPILOT_TEST_MODEL },
-				inheritedContext: { workingDirectories: [folder], config: {} },
+				workingDirectories: [folder],
+				config: {},
 			});
 			const peerStart = await readNextRequest(peer.outbound);
 			peer.push({ id: peerStart.id, result: { thread: { id: 'peer-thread', cwd: folder.fsPath } } });
@@ -650,8 +796,7 @@ suite('CodexAgent chat backing durability', () => {
 		const receipts: IAgentMaterializeSessionEvent[] = [];
 		const listener = agent.onDidMaterializeSession(e => receipts.push(e));
 		try {
-			await createSessionChat(agent, chat, { session, resource: chat }, {
-				session,
+			await createSessionBackedChat(agent, chat, { session, resource: chat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -835,9 +980,8 @@ suite('CodexAgent chat backing durability', () => {
 
 			const forkSession = AgentSession.uri('codex', 'fork-target');
 			const forkChat = URI.parse(buildDefaultChatUri(forkSession));
-			const forking = createSessionChat(agent, forkChat, { session: forkSession, resource: forkChat }, {
-				session: forkSession,
-				fork: { session: source, chat: sourceChat, turnId: 'turn-1', turnIndex: 0 },
+			const forking = createSessionBackedChat(agent, forkChat, { session: forkSession, resource: forkChat }, {
+				fork: { session: source, source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 			});
 			const read = await readNextRequest(peer.outbound);
 			peer.push({ id: read.id, result: { thread: { id: 'source-thread', cwd: folder.fsPath, turns: [{ id: 'turn-1' }] } } });
@@ -849,17 +993,20 @@ suite('CodexAgent chat backing durability', () => {
 				session: forked.session.toString(),
 				// The fork is materialized on return, so `onDidMaterializeSession`
 				// never fires for it — the create result is the host's only
-				// chance to persist a backing it can restore from.
-				backingSessionId: forked.chat?.providerData ? JSON.parse(forked.chat.providerData).sessionId : undefined,
-				// A session-backing runtime must not be reported as an internal
-				// chat backing: that marker hides a session from `listSessions`.
-				backingSession: forked.chat?.backingSession?.toString(),
-				runtimeSessionUri: agent['_sessions'].get('forked-thread')?.sessionUri.toString(),
+				// chance to persist a backing it can restore from. The blob names
+				// the runtime's own durable id, the thread id is decoupled into
+				// the metadata overlay, and the thread itself is reported as the
+				// exact backing so the host can mark it internal.
+				backingSessionId: forked.providerData ? JSON.parse(forked.providerData).sessionId : undefined,
+				backingSession: forked.backingSession?.toString(),
+				runtimeSessionUri: agent['_sessions'].get('fork-target')?.sessionUri.toString(),
+				runtimeThreadId: agent['_sessions'].get('fork-target')?.threadId,
 			}, {
-				session: AgentSession.uri('codex', 'forked-thread').toString(),
-				backingSessionId: 'forked-thread',
-				backingSession: undefined,
-				runtimeSessionUri: AgentSession.uri('codex', 'forked-thread').toString(),
+				session: forkSession.toString(),
+				backingSessionId: 'fork-target',
+				backingSession: AgentSession.uri('codex', 'forked-thread').toString(),
+				runtimeSessionUri: forkSession.toString(),
+				runtimeThreadId: 'forked-thread',
 			});
 		} finally {
 			peer.dispose();
