@@ -7537,6 +7537,16 @@ suite('CopilotAgentSession', () => {
 				},
 			});
 			assert.deepStrictEqual(withAlias.runtime.createClientSdkTools().map(tool => tool.name), ['tool_search_tool', 'my_tool']);
+
+			const invalidAlias = await createAgentSession(disposables, {
+				clientSnapshot: toolSearchSnapshot,
+				modelId: 'preview-model-x',
+				rootValues: {
+					[CopilotCliConfigKey.ToolSearchEnabled]: true,
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-' } },
+				},
+			});
+			assert.deepStrictEqual(invalidAlias.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
 		});
 
 		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {

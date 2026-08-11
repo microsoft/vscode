@@ -741,7 +741,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */
-	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ reasoningEffort?: string; excludedTools?: string[] }> {
+	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ model?: string; reasoningEffort?: string; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -755,7 +755,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools: () => [], createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ reasoningEffort?: string; excludedTools?: string[] }> })._buildSessionConfig(plan, runtime);
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> })._buildSessionConfig(plan, runtime);
 	}
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
@@ -774,17 +774,52 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('uses the resolved per-model family as the SDK model on resume', async () => {
+		const store = new DisposableStore();
+		const model: ModelSelection = { id: 'preview-model', config: { thinkingLevel: 'medium' } };
+		const specific = await buildResumeConfig(createLauncher(store, {
+			modelCapabilityOverrides: {
+				'*': { family: 'gpt-5' },
+				'preview-model': { family: 'claude-opus-4.8' },
+			},
+		}), model);
+		const invalid = await buildResumeConfig(createLauncher(store, {
+			modelCapabilityOverrides: { 'preview-model': { family: 'not a model id' } },
+		}), model);
+		const none = await buildResumeConfig(createLauncher(store, {}), model);
+
+		assert.deepStrictEqual(
+			[specific.model, invalid.model, none.model],
+			['claude-opus-4.8', 'preview-model', 'preview-model']
+		);
+		store.dispose();
+	});
+
 	test('a session with no stored model still gets the wildcard entry effort and tool filters', async () => {
 		const store = new DisposableStore();
 		// Sessions created without an explicit model (server-side "Auto") resume
 		// with `fallback.model === undefined`; `*` means every session, so
 		// exempting them would make the entry mean "every model except Auto".
-		const launcher = createLauncher(store, { modelCapabilityOverrides: { '*': { reasoningEffort: 'high', excludedTools: ['mcp:*'] }, 'gpt-5': { reasoningEffort: 'low' } } });
+		const launcher = createLauncher(store, { modelCapabilityOverrides: { '*': { family: 'claude-opus-4.8', reasoningEffort: 'high', excludedTools: ['mcp:*'] }, 'gpt-5': { reasoningEffort: 'low' } } });
 		const config = await buildResumeConfig(launcher, undefined);
 
 		assert.deepStrictEqual(
-			[config.reasoningEffort, config.excludedTools],
-			['high', ['mcp:*']]
+			[config.model, config.reasoningEffort, config.excludedTools],
+			['claude-opus-4.8', 'high', ['mcp:*']]
+		);
+		store.dispose();
+	});
+
+	test('forwards a configured modelCapabilities override and ignores a non-object one', async () => {
+		const store = new DisposableStore();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		const valid = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { modelCapabilities: { supports: { vision: false } } } } }), model);
+		const invalid = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { modelCapabilities: 'oops' as never } } }), model);
+		const none = await buildResumeConfig(createLauncher(store, {}), model);
+
+		assert.deepStrictEqual(
+			[valid.modelCapabilities, invalid.modelCapabilities, none.modelCapabilities],
+			[{ supports: { vision: false } }, undefined, undefined]
 		);
 		store.dispose();
 	});

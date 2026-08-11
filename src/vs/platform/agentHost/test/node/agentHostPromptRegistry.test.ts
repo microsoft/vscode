@@ -187,7 +187,7 @@ suite('AgentHostPromptRegistry', () => {
 		// the real Opus contributor, whose custom `matchesModel` checks the id.
 		// The alias helper's own behavior is covered in copilotCliConfig.test.ts.
 		test('an aliased preview model routes to the family contributor', () => {
-			const overrides = { 'preview-model-x': { family: 'claude-opus-4-8' } };
+			const overrides = { 'preview-model-x': { family: 'claude-opus-4.8' } };
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
 				applyModelFamilyAlias({ id: 'preview-model-x' }, overrides),
 				context({ [CopilotCliConfigKey.Opus48Prompt]: true })

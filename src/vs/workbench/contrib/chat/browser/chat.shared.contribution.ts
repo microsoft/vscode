@@ -1562,13 +1562,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
-			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating preview models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4-8`) to route a model to that family's tuned system prompt without a code change (the model id sent to the runtime is unaffected), a `reasoningEffort` to pin its effort level, or `availableTools`/`excludedTools` to filter its tool set. Tool filters apply when a session launches; the reasoning effort also re-applies when a session resumes and on a mid-session model change. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to launch the SDK session with that family as its model id so the runtime applies the family's tuned prompt and capabilities, a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. The family, reasoning effort, tool filter, and model capability overrides apply when a session launches; family, reasoning effort, and model capability overrides also re-apply when a session resumes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
 			additionalProperties: {
 				type: 'object',
 				properties: {
 					family: {
 						type: 'string',
-						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`). On the `*` entry the alias is also applied to the Copilot runtime process, so the runtime's own family-keyed configuration follows it; changing it restarts the runtime."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.family', "Alias the SDK session's model id for prompt and runtime capability routing (e.g. `claude-opus-4.8`). Applied when the session launches or resumes."),
 					},
 					reasoningEffort: {
 						type: 'string',
@@ -1584,6 +1584,11 @@ configurationRegistry.registerConfiguration({
 						type: 'array',
 						items: { type: 'string' },
 						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.excludedTools', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it."),
+					},
+					modelCapabilities: {
+						type: 'object',
+						additionalProperties: true,
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.modelCapabilities', "Per-property model capability overrides passed through to the Copilot SDK's `modelCapabilities` session field (e.g. `{ \"supports\": { \"vision\": false }, \"limits\": { \"max_context_window_tokens\": 64000 } }`), deep-merged over the runtime's resolved defaults for this model. Applied when the session launches or resumes."),
 					},
 				},
 			},

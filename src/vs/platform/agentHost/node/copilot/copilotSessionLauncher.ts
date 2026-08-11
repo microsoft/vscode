@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isStringArray } from '../../../../base/common/types.js';
+import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentSession } from '../../common/agent.js';
@@ -311,7 +311,7 @@ export function resolveConfiguredReasoningEffortOverride(model: ModelSelection |
 	if (perModel !== undefined) {
 		if (isCopilotReasoningEffort(perModel)) {
 			logService.info(`[Copilot:${sessionId}] Applying per-model reasoning-effort override '${perModel}' for '${describeModelId(model)}'`);
-			return perModel;
+			return toSdkReasoningEffort(perModel);
 		}
 		logService.warn(`[Copilot:${sessionId}] Ignoring invalid per-model reasoning-effort override '${perModel}' for '${describeModelId(model)}'; expected one of [${ReasoningEfforts.join(', ')}]`);
 	}
@@ -323,7 +323,7 @@ export function resolveConfiguredReasoningEffortOverride(model: ModelSelection |
 	}
 	if (isCopilotReasoningEffort(override)) {
 		logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
-		return override;
+		return toSdkReasoningEffort(override);
 	}
 	logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
 	return undefined;
@@ -337,6 +337,41 @@ export function resolveConfiguredReasoningEffortOverride(model: ModelSelection |
  */
 export function resolveCopilotReasoningEffort(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
 	return resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model);
+}
+
+/** Validates a family alias before it is used for prompt routing or sent to the SDK. */
+function getModelFamilyOverride(value: unknown, modelId: string, logService: ILogService, sessionId: string): string | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const family = normalizeModelFamilyAlias(value);
+	if (family === undefined) {
+		const description = typeof value === 'string' ? JSON.stringify(value.slice(0, 40)) : typeof value;
+		logService.warn(`[Copilot:${sessionId}] Ignoring invalid 'family' capability override ${description} for '${modelId}'; expected an id like 'claude-opus-4.8' (letters, digits, '.', '_', '-'; 64 characters max)`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Applying 'family' capability override '${family}' for '${modelId}'`);
+	return family;
+}
+
+/**
+ * Validates a per-model `modelCapabilities` override before it is passed
+ * through to the SDK's `modelCapabilities` field. Only checked for shape (a
+ * plain object): the SDK deep-merges it over its resolved defaults for the
+ * model and ignores unrecognized keys, so no field-level validation happens
+ * here — mirroring the tool-filter and family overrides, whose deeper
+ * validation also lives at the SDK/runtime boundary.
+ */
+function getModelCapabilitiesOverride(value: unknown, modelId: string, logService: ILogService, sessionId: string): ModelCapabilitiesOverride | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (!isObject(value)) {
+		logService.warn(`[Copilot:${sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
+		return undefined;
+	}
+	logService.info(`[Copilot:${sessionId}] Applying 'modelCapabilities' capability override for '${modelId}'`);
+	return value as ModelCapabilitiesOverride;
 }
 
 /**
@@ -567,20 +602,26 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: CopilotSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
+		const modelFamilyAliased = config.model !== undefined && config.model !== plan.model?.id;
+		// Picker tuning belongs to the originally selected model. When a family
+		// alias changes the SDK model id, let that family's runtime defaults apply
+		// unless the capability override explicitly pins an effort.
+		const reasoningEffort = modelFamilyAliased
+			? resolveConfiguredReasoningEffortOverride(plan.model, this._configurationService, this._logService, plan.sessionId)
+			: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId);
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
 			streaming: true,
-			model: plan.model?.id,
-			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
-			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
+			reasoningEffort,
+			contextTier: modelFamilyAliased ? undefined : getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
 		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 		// TODO: Remove this post-create update once the SDK exposes verbosity in
 		// SessionConfig, alongside create-session options such as reasoningEffort.
-		if (isGpt56Model(plan.model?.id)) {
+		if (isGpt56Model(config.model)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
 
@@ -703,20 +744,25 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// entry drives the tool filters below.
 		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
 		const capabilityOverride = resolveModelCapabilityOverride(capabilityOverrides, model?.id);
+		const modelFamily = getModelFamilyOverride(capabilityOverride?.family, describeModelId(model), this._logService, plan.sessionId);
 		// Per-model tool filters, passed through to the SDK's allow/deny fields
 		// (`excludedTools` wins inside the SDK). Like the system message, they
 		// are frozen at launch — a mid-session model change cannot re-apply them.
 		const availableTools = getToolFilterOverride(capabilityOverride?.availableTools, 'availableTools', describeModelId(model), this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(capabilityOverride?.excludedTools, 'excludedTools', describeModelId(model), this._logService, plan.sessionId);
+		// A model-capability override has no picker equivalent to fall back to,
+		// so it is simply omitted from the returned config when unset; unlike
+		// `availableTools`/`excludedTools` it applies on every (re)launch,
+		// including resume.
+		const modelCapabilities = getModelCapabilitiesOverride(capabilityOverride?.modelCapabilities, describeModelId(model), this._logService, plan.sessionId);
 		// Client tools (browser tools, tasks, etc.) are addressed by the name the
 		// agent sees them under; the FILTERED set gates tool-specific prompt
 		// sections so the prompt never advertises a tool the filters disabled.
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
-		// Prompt routing uses the family-aliased selection; the wire model id in
-		// _createSession comes from plan.model and is unaffected.
+		// Prompt routing and the SDK runtime use the same effective model id.
 		const effectiveModel = applyModelFamilyAlias(model, capabilityOverrides);
-		if (model && effectiveModel !== model) {
-			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${model.id}' as family '${effectiveModel?.id}'`);
+		if (modelFamily) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: launching '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
 		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
@@ -743,11 +789,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return {
 			...byok,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			model: effectiveModel?.id,
 			// Resume only: `_createSession` re-resolves the full effort (override
 			// over picker) for a create. A resumed session keeps the effort the
 			// runtime persisted for it, so only a configured override is sent —
 			// otherwise the field stays absent and nothing is re-pinned.
 			...(plan.kind === 'resume' ? { reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId) } : {}),
+			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },
 			enableFileHooks: true,

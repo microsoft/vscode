@@ -160,18 +160,19 @@ matches every model, a specific entry wins field-by-field) carry the non-prompt
 experimentation knobs the launcher applies: `family` (prompt-routing alias, so
 a preview model resolves through another family's contributor),
 `reasoningEffort` (wins over `chat.agentHost.reasoningEffortOverride`,
-re-applied on session resume and mid-session model change), and
-`availableTools`/`excludedTools` (SDK tool filters; launch-frozen).
+re-applied on session resume and mid-session model change),
+`availableTools`/`excludedTools` (SDK tool filters; launch-frozen),
+and `modelCapabilities` (per-property overrides passed through to the SDK's
+`modelCapabilities` field — e.g. vision support, token limits — applied on
+every launch and resume).
 
 `family` has a second, runtime-side half. The Copilot runtime keys its *own*
 per-model config (system-prompt parts, model capabilities, reasoning-effort
-profile) off the model id, falling back to a family when the id is unknown — and
-that family can be aliased only through the process-scoped
-`service.agent.modelFamily` runtime setting (env `COPILOT_MODEL_FAMILY`; the SDK
-has no per-session field for it). `CopilotAgent` therefore lowers the `'*'`
-entry's `family` — the one entry that is model-independent — onto the CLI
-subprocess env, restarting the client when it changes. Per-model `family`
-entries stay VS Code-side.
+profile) off the model id, and family values such as `claude-opus-4.8` are model
+ids in that config. `CopilotSessionLauncher` therefore passes the resolved
+wildcard/per-model `family` through the SDK's existing `model` field on every
+create and resume. The host prompt and runtime use the same effective model id
+without a process-wide environment override or client restart.
 
 > **Security note.** The setting is workspace-configurable and forwarded to the
 > agent host, so entries must never carry content that reaches the prompt or

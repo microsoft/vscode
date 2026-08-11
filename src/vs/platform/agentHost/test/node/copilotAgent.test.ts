@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, ModelInfo, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
@@ -3140,52 +3140,44 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('restarts only for the wildcard family override, which is the half that reaches the runtime env', async () => {
+		test('does not restart the shared client when model-family overrides change', async () => {
 			const client = new StopCountingClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listSessions();
 
-				// A per-model entry only affects VS Code-side prompt routing, which is
-				// read per session launch — no client env, so no restart.
-				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'claude-sonnet': { family: 'gpt-5' } } });
-				await Promise.resolve();
-				assert.strictEqual(client.stopCount, 0);
-
-				// The wildcard family is baked into `COPILOT_MODEL_FAMILY` at spawn.
-				configurationService.updateRootConfig({ modelCapabilityOverrides: { '*': { family: 'claude-opus-4-8' }, 'claude-sonnet': { family: 'gpt-5' } } });
-				await Promise.resolve();
-				assert.strictEqual(client.stopCount, 1);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('aborts an in-flight start when the wildcard family changes while the client is coming up', async () => {
-			const client = new StopCountingClient([]);
-			// Hold the client inside `start()` so the config change lands after the
-			// env was built but before the client is published as `_client`.
-			const releaseStart = new DeferredPromise<void>();
-			client.start = async () => { await releaseStart.p; };
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				const inFlight = agent.listSessions();
+				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-4.8' } } });
+				await timeout(0);
+				configurationService.updateRootConfig({ modelCapabilityOverrides: { '*': { family: 'gpt-5' } } });
 				await timeout(0);
 
-				configurationService.updateRootConfig({ modelCapabilityOverrides: { '*': { family: 'claude-opus-4-8' } } });
-				releaseStart.complete();
-
-				// Without the check the stale client would come up carrying the old
-				// (absent) COPILOT_MODEL_FAMILY and never be restarted, because the
-				// restart pass already saw no `_client` to stop.
-				await assert.rejects(inFlight, /startup config changed/);
-				assert.strictEqual(client.stopCount, 1);
+				assert.strictEqual(client.stopCount, 0);
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('does not pass an ambient model-family override to the shared runtime', async () => {
+			const previousModelFamily = process.env['COPILOT_MODEL_FAMILY'];
+			process.env['COPILOT_MODEL_FAMILY'] = 'claude-opus-4.8';
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual((agent as TestableCopilotAgent).lastClientOptions?.env?.['COPILOT_MODEL_FAMILY'], undefined);
+			} finally {
+				if (previousModelFamily === undefined) {
+					delete process.env['COPILOT_MODEL_FAMILY'];
+				} else {
+					process.env['COPILOT_MODEL_FAMILY'] = previousModelFamily;
+				}
+				await disposeAgent(agent);
+			}
+		});
+
 	});
 
 	test('models include billing multiplier metadata when SDK provides it', async () => {
@@ -5833,7 +5825,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('materialization applies the per-model capability overrides (effort, tool filters)', async () => {
+		test('materialization applies the per-model capability overrides (family, effort, tool filters)', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
@@ -5849,7 +5841,7 @@ suite('CopilotAgent', () => {
 						// The bare '*' entries are stripped (the SDK throws on them at
 						// createSession): availableTools empties out and reads as unset;
 						// excludedTools keeps its remaining pattern.
-						'claude-sonnet': { reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'] },
+						'claude-sonnet': { family: 'claude-opus-4.8', reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'], modelCapabilities: { supports: { vision: false } } },
 					},
 				});
 				await agent.authenticate('https://api.github.com', 'token');
@@ -5860,74 +5852,72 @@ suite('CopilotAgent', () => {
 					workingDirectories: [URI.file('/workspace')],
 					model: { id: 'claude-sonnet', config: { thinkingLevel: 'medium' } },
 				});
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello');
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined);
 
 				assert.deepStrictEqual({
+					model: capturedConfig?.model,
 					reasoningEffort: capturedConfig?.reasoningEffort,
 					availableTools: capturedConfig?.availableTools,
 					excludedTools: capturedConfig?.excludedTools,
+					modelCapabilities: capturedConfig?.modelCapabilities,
 				}, {
+					model: 'claude-opus-4.8',
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
 					availableTools: undefined,
 					excludedTools: ['mcp:*'],
+					modelCapabilities: { supports: { vision: false } },
 				});
 			} finally {
 				await disposeAgent(agent);
 			}
 		});
 
-		test('the wildcard family override is lowered onto the CLI subprocess env', async () => {
-			const client = new TestCopilotClient([]);
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
-			const testable = agent as TestableCopilotAgent;
+		test('a family alias does not forward tuning from the original model', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'preview-model', name: 'Preview Model' }]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			const verbosityUpdates: unknown[] = [];
+			client.createSession = async config => {
+				capturedConfig = config;
+				const session = new MockCopilotSession() as unknown as CopilotSession;
+				session.rpc.options.update = async options => {
+					if (options.verbosity !== undefined) {
+						verbosityUpdates.push({ verbosity: options.verbosity });
+					}
+					return { success: true };
+				};
+				return session;
+			};
+
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
 			try {
 				configurationService.updateRootConfig({
 					modelCapabilityOverrides: {
-						// only the model-independent '*' entry reaches the runtime process
-						'*': { family: 'claude-opus-4-8' },
-						'claude-sonnet': { family: 'gpt-5' },
+						'preview-model': { family: 'gpt-5.6-sol' },
 					},
 				});
 				await agent.authenticate('https://api.github.com', 'token');
-				// Force the client to start so the subprocess env is built.
-				await agent.listSessions();
+				await waitForState(agent.models, m => m.length > 0);
 
-				assert.strictEqual(testable.lastClientOptions?.env?.['COPILOT_MODEL_FAMILY'], 'claude-opus-4-8');
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'family-tuning-session'),
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'preview-model', config: { thinkingLevel: 'minimal' } },
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined);
 
-		test('a per-model family override stays out of the CLI subprocess env', async () => {
-			const client = new TestCopilotClient([]);
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
-			const testable = agent as TestableCopilotAgent;
-			try {
-				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'claude-sonnet': { family: 'gpt-5' } } });
-				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listSessions();
-
-				assert.strictEqual(testable.lastClientOptions?.env?.['COPILOT_MODEL_FAMILY'], undefined);
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('a family value that is not id-shaped never reaches the subprocess env', async () => {
-			const client = new TestCopilotClient([]);
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
-			const testable = agent as TestableCopilotAgent;
-			try {
-				// The setting is workspace-configurable and this is the only
-				// capability-override field that crosses into the subprocess env:
-				// a NUL makes `child_process.spawn` throw, which would take the
-				// whole (window-shared) client down rather than just this setting.
-				configurationService.updateRootConfig({ modelCapabilityOverrides: { '*': { family: 'claude\u0000opus' } } });
-				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listSessions();
-
-				assert.strictEqual(testable.lastClientOptions?.env?.['COPILOT_MODEL_FAMILY'], undefined);
+				assert.deepStrictEqual({
+					model: capturedConfig?.model,
+					reasoningEffort: capturedConfig?.reasoningEffort,
+					contextTier: capturedConfig?.contextTier,
+					verbosityUpdates,
+				}, {
+					model: 'gpt-5.6-sol',
+					reasoningEffort: undefined,
+					contextTier: undefined,
+					verbosityUpdates: [{ verbosity: 'medium' }],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
