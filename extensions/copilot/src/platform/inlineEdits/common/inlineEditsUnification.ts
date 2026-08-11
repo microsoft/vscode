@@ -71,5 +71,9 @@ function getConfigWithDefault<T extends boolean | number | string>(
 	}
 
 	const value = configurationService.getExperimentBasedConfig(key, experimentationService);
-	return value !== configurationService.getDefaultValue(key) ? value ?? defaultValue : defaultValue;
+	if (value !== configurationService.getDefaultValue(key)) {
+		return value ?? defaultValue;
+	}
+
+	return defaultValue;
 }
