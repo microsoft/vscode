@@ -259,7 +259,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		auxiliaryWindow.container.style.overflow = 'hidden';
 		auxiliaryWindow.window.document.body.classList.add('chat-input-window-body');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
-		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'visible', 'important');
+		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'hidden', 'important');
 
 		this._windowDisposables.clear();
 
@@ -557,7 +557,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 						? height
 						: height + element.offsetHeight;
 				}, 0);
-			const contentHeight = rowHeight + extraHeight + 2;
+			const contentHeight = rowHeight + extraHeight + 4;
 			if (contentHeight === lastContentHeight) {
 				return;
 			}
@@ -588,13 +588,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				parent.style.width = `${available}px`;
 				widget.input.layout(available);
 				widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), available);
-
-				const spill = parent.scrollWidth - parent.clientWidth;
-				if (spill > 0) {
-					const compensatedWidth = Math.max(0, available - spill);
-					widget.input.layout(compensatedWidth);
-					widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), compensatedWidth);
-				}
 				fitWindowToInput();
 			} finally {
 				layingOut = false;
