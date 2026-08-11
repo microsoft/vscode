@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -582,6 +582,51 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/dirty-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Regression for #329982: deleting an archived session removed its worktree
+	// twice — archiving removes/de-registers it, then deleting the archived
+	// session removes it again. The second removal must not fail with
+	// "'<path>' is not a working tree".
+	(hasGit ? test : test.skip)('removeWorktree is idempotent when the worktree was already removed', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-idem-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/idempotent-worktree', 'main');
+			// First removal succeeds and de-registers the worktree (mirrors archive).
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+			assert.strictEqual(existsSync(wtPath), false, 'worktree directory should be gone after the first removal');
+			// Second removal (mirrors deleting the already-archived session) must
+			// not throw even though git no longer tracks the worktree.
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/idempotent-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Residual case of #329982: a partial removal (e.g. an undeletable file) can
+	// de-register the worktree while leaving its directory on disk. Removal must
+	// still succeed because git no longer tracks the path.
+	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-orphan-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			// De-register the worktree (delete git's admin entries) while leaving
+			// the working-tree directory in place.
+			const adminRoot = join(dir, '.git', 'worktrees');
+			for (const entry of readdirSync(adminRoot)) {
+				rmSync(join(adminRoot, entry), { recursive: true, force: true });
+			}
+			assert.strictEqual(existsSync(wtPath), true, 'worktree directory should still exist');
+			// Removal must treat an already-de-registered worktree as success.
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+		} finally {
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 

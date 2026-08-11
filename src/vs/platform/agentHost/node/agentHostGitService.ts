@@ -7,6 +7,7 @@ import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
 import * as path from '../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { parse } from '../../../base/common/glob.js';
@@ -18,7 +19,7 @@ import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../c
 import { buildGitBlobUri } from './gitDiffContent.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
-import { Limiter, SequencerByKey } from '../../../base/common/async.js';
+import { firstParallel, Limiter, SequencerByKey } from '../../../base/common/async.js';
 
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
@@ -211,7 +212,54 @@ export class AgentHostGitService implements IAgentHostGitService {
 			args.push('--force');
 		}
 		args.push(worktree.fsPath);
-		await this._runGit(repositoryRoot, args, { timeout: 60_000, throwOnError: true });
+		try {
+			await this._runGit(repositoryRoot, args, { timeout: 60_000, throwOnError: true });
+		} catch (error) {
+			// Worktree removal is idempotent: archiving a session removes and
+			// de-registers its worktree, so deleting the archived session later
+			// finds nothing to remove and git fails with "'<path>' is not a
+			// working tree". When git no longer tracks the worktree the removal
+			// goal is already met, so treat it as success. Checked against git's
+			// own registry rather than the (truncatable, localizable) error text.
+			// Genuine failures (e.g. a dirty tree needing --force) leave the
+			// worktree registered and still propagate.
+			if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+				return;
+			}
+			throw error;
+		}
+	}
+
+	/** Whether `worktree` is still registered with git (its admin entry survives). */
+	private async _isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
+		const registered = await this.getWorktreeRoots(repositoryRoot);
+		if (registered.length === 0) {
+			return false;
+		}
+		const target = await this._canonicalizeWorktreePath(worktree);
+		// Check every registered worktree in parallel and resolve as soon as one matches.
+		const matched = await firstParallel(
+			registered.map(async entry =>
+				extUriBiasedIgnorePathCase.isEqual(entry, worktree)
+				|| extUriBiasedIgnorePathCase.isEqual(await this._canonicalizeWorktreePath(entry), target)),
+			isMatch => isMatch,
+			false,
+		);
+		return matched ?? false;
+	}
+
+	/**
+	 * Resolves symlinks on the worktree's parent (which persists even after the
+	 * worktree directory itself is deleted) so a path we passed to git (e.g.
+	 * `/var/...`) matches the realpath'd form git reports (`/private/var/...`).
+	 */
+	private async _canonicalizeWorktreePath(worktree: URI): Promise<URI> {
+		try {
+			const parentReal = await fsPromises.realpath(path.dirname(worktree.fsPath));
+			return URI.file(path.join(parentReal, path.basename(worktree.fsPath)));
+		} catch {
+			return worktree;
+		}
 	}
 
 	async branchExists(repositoryRoot: URI, branchName: string): Promise<boolean> {
