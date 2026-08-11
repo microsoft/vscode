@@ -2102,6 +2102,41 @@ suite('ChatThinkingContentPart', () => {
 			button.click();
 			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources again after collapsing');
 		});
+
+		test('should not show external resources for terminal tools that render their own image pills', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const serializedTerminalImageTool: IChatToolInvocationSerialized = {
+				...createMockSerializedImageToolInvocation('run_in_terminal', 'Ran command', 'terminal-image-call-1'),
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'download image' },
+					language: 'shellscript',
+				},
+			};
+
+			part.appendItem(() => ({ domNode: $('div.test-terminal-tool') }), serializedTerminalImageTool.toolId, serializedTerminalImageTool);
+
+			const externalResources = part.domNode.querySelector('.chat-thinking-external-resources') as HTMLElement;
+			assert.deepStrictEqual({
+				display: externalResources.style.display,
+				attachmentCount: externalResources.querySelectorAll('.chat-attached-context-attachment').length,
+			}, {
+				display: 'none',
+				attachmentCount: 0,
+			});
+		});
 	});
 
 	suite('Diff aggregation in thinking header', () => {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode, hide, show } from '../../../../../../base/browser/dom.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -66,11 +65,7 @@ export class ChatThinkingExternalResourceWidget extends Disposable {
 	private rebuild(): void {
 		const allParts: IChatCollapsibleIODataPart[] = [];
 		for (const parts of this.resourcePartsByToolCallId.values()) {
-			for (const part of parts) {
-				if (!allParts.some(existingPart => hasSameImageContent(existingPart, part))) {
-					allParts.push(part);
-				}
-			}
+			allParts.push(...parts);
 		}
 
 		this.resourceGroupWidgetHeightListener.clear();
@@ -90,12 +85,4 @@ export class ChatThinkingExternalResourceWidget extends Disposable {
 		this.setCollapsed(this.isCollapsed);
 		this._onDidChangeHeight.fire();
 	}
-}
-
-function hasSameImageContent(first: IChatCollapsibleIODataPart, second: IChatCollapsibleIODataPart): boolean {
-	return !!first.value
-		&& !!second.value
-		&& first.mimeType?.startsWith('image/') === true
-		&& first.mimeType === second.mimeType
-		&& VSBuffer.wrap(first.value).equals(VSBuffer.wrap(second.value));
 }
