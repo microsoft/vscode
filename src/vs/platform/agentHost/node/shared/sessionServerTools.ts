@@ -123,7 +123,7 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
-		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Use this before starting code changes or creating a session to find overlapping active work across the same project or repository, including sessions in different worktrees. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
+		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Sessions from different worktrees may belong to the same repository; use project and git/GitHub metadata to identify potentially overlapping work. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 	},
@@ -137,7 +137,7 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.CreateSession,
 		title: 'Create Session',
-		description: 'Create a session in a workspace and start it with an initial prompt. Before creating one, use `list_sessions` to check for overlapping active work in the same project or repository, even when working directories differ. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
+		description: 'Create a session in a workspace and start it with an initial prompt. Before creating one, use `list_sessions` to check for potentially overlapping active work. The UI shows a "Session Created" confirmation with a button to open it, so reply with a single short sentence confirming the session was created and do NOT print the session URL or tell the user to click a button.',
 		inputSchema: createSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},

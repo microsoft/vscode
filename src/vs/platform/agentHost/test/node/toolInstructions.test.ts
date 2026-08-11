@@ -40,12 +40,20 @@ suite('toolInstructions', () => {
 		test('always renders the registered host-wide lines from the default registry', () => {
 			assert.deepStrictEqual([
 				COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
-				COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION,
 				universalToolInstructions(hasTools()),
 			], [
 				'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.',
-				'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for overlapping activity, branches, pull requests, or changes; when overlap is plausible, use `get_session_context` and `send_message` to coordinate, and reuse or wait for existing work instead of duplicating it or editing the same area concurrently.',
 				BASE_LINES,
+			]);
+		});
+
+		test('renders session coordination guidance from the default registry', () => {
+			assert.deepStrictEqual([
+				COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION,
+				universalToolInstructions(hasTools())?.includes(SESSION_COORDINATION_LINE),
+			], [
+				'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for potentially overlapping work. If another session may overlap based on its activity, branch, pull request, or changes, inspect it with `get_session_context` and use `send_message` to coordinate work between sessions. Prefer dividing or sequencing work to avoid duplicate effort, conflicting edits, and unnecessary merge conflicts.',
+				true,
 			]);
 		});
 

@@ -45,8 +45,13 @@ const agenticBrowserToolNames = browserChatToolReferenceNames.filter(name => nam
 export const COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION = 'When a tool reports that its output was saved to a temporary file because it was too large, ONLY use the `view` tool with a narrow `view_range` to inspect that file. NEVER read it with shell commands such as `cat`, `head`, `tail`, or `sed`, because their output may be offloaded again.';
 const largeOutputToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION;
 
-/** Coordinates work across sessions that may use different worktrees for the same repository. */
-export const COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION = 'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for overlapping activity, branches, pull requests, or changes; when overlap is plausible, use `get_session_context` and `send_message` to coordinate, and reuse or wait for existing work instead of duplicating it or editing the same area concurrently.';
+/**
+ * Coordinates work across sessions that may use different worktrees for the
+ * same repository. Session-management server tools are contributed to every
+ * Agent Host session; `hasTool` only reflects client tools, so this is
+ * intentionally unconditional.
+ */
+export const COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION = 'Before beginning code changes or creating a session, use `list_sessions` to check active sessions across the same project or repository—not only the same working directory—for potentially overlapping work. If another session may overlap based on its activity, branch, pull request, or changes, inspect it with `get_session_context` and use `send_message` to coordinate work between sessions. Prefer dividing or sequencing work to avoid duplicate effort, conflicting edits, and unnecessary merge conflicts.';
 const sessionCoordinationToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION;
 
 /**
