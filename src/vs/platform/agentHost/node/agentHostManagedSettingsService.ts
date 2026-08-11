@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 
 export const IAgentHostManagedSettingsService = createDecorator<IAgentHostManagedSettingsService>('agentHostManagedSettingsService');
 
 export interface IAgentHostManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
-	readonly permissions: ManagedSettingsPermissions;
-	setClientPermissions(clientId: string, permissions: ManagedSettingsPermissions): void;
+	readonly permissions: IAgentHostManagedSettingsPermissions;
+	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void;
 	removeClientPermissions(clientId: string): void;
 }
 
@@ -25,14 +25,14 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private readonly _permissionsByClient = new Map<string, ManagedSettingsPermissions>();
-	private _permissions: ManagedSettingsPermissions = {};
+	private readonly _permissionsByClient = new Map<string, IAgentHostManagedSettingsPermissions>();
+	private _permissions: IAgentHostManagedSettingsPermissions = {};
 
-	get permissions(): ManagedSettingsPermissions {
+	get permissions(): IAgentHostManagedSettingsPermissions {
 		return this._permissions;
 	}
 
-	setClientPermissions(clientId: string, permissions: ManagedSettingsPermissions): void {
+	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void {
 		if (Object.keys(permissions).length === 0) {
 			this._permissionsByClient.delete(clientId);
 		} else {
@@ -48,7 +48,7 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 	}
 
 	private _updatePermissions(): void {
-		const permissions: ManagedSettingsPermissions = {};
+		const permissions: IAgentHostManagedSettingsPermissions = {};
 		const deny = new Set<string>();
 		const ask = new Set<string>();
 		for (const contribution of this._permissionsByClient.values()) {

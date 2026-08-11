@@ -62,8 +62,8 @@ Bridge invariants:
 - the bridge is guarded by its own false-by-default experimental compatibility setting;
 - add mappings only for legacy settings that already exist; never create a new setting
   for this bridge;
-- mappings select one VS Code setting and use a callback typed against the SDK managed
-  permissions contract;
+- mappings select one VS Code setting and use a callback typed against the host-owned managed
+  permissions DTO;
 - mappings contribute only fields that can be flattened restrictively (`disable`, `deny`,
   and `ask`); do not flatten independent `allow` lists in VS Code;
 - only explicit global layers participate, in policy, user, then application precedence;
@@ -73,7 +73,7 @@ Bridge invariants:
 - the aggregate is supplied on SDK create and resume;
 - an empty aggregate is forwarded when settings are removed so stale restrictions clear
   across JSON/AHP serialization;
-- contributions use a typed, client-owned AHP extension request and a dedicated Agent
+- contributions use a typed, client-owned AHP extension notification and a dedicated Agent
   Host managed-settings service; do not route them through root configuration;
 - the host aggregates contributions by client and removes an owner's contribution after
   its disconnect grace expires;

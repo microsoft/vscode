@@ -30,7 +30,8 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
@@ -104,6 +105,12 @@ function getRootConfig(notification: JsonRpcNotification): Record<string, RootCo
 
 function findLastRootConfigNotification(messages: readonly ProtocolTransportMessage[], configKey: string): JsonRpcNotification {
 	return findRootConfigNotification([...messages].reverse(), configKey);
+}
+
+function findLastManagedSettingsNotification(messages: readonly ProtocolTransportMessage[]): ProtocolTransportMessage {
+	const match = [...messages].reverse().find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+	assert.ok(match, 'Expected a setClientManagedSettingsPermissions notification');
+	return match;
 }
 
 /** The value forwarded for `configKey` in the first root-config notification carrying it. */
@@ -951,6 +958,47 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const enabled = findLastRootConfigNotification(transport.sentMessages, AgentHostDisableRepoInfoTelemetryConfigKey);
 		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostDisableRepoInfoTelemetryConfigKey]: false });
+	});
+
+	test('forwards and clears legacy managed permissions for the local host', async () => {
+		const configurationService = new TestConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+		});
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: {
+				permissions: {
+					disableBypassPermissionsMode: 'disable',
+					ask: ['Shell'],
+				},
+			},
+		});
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, true);
+		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		});
 	});
 
 	test('forwards terminal auto-approve rules on connect', async () => {

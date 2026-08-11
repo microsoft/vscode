@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ManagedSettingsPermissions } from '@github/copilot-sdk';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { getExplicitGlobalConfigurationValue, getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
 
-type ManagedSettingsPermissionsContribution = Pick<ManagedSettingsPermissions, 'disableBypassPermissionsMode' | 'deny' | 'ask'>;
+export interface IAgentHostManagedSettingsPermissions {
+	disableBypassPermissionsMode?: 'disable';
+	deny?: string[];
+	ask?: string[];
+}
 
 export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
 
 interface IManagedPermissionsSettingMapping {
 	readonly settingId: string;
-	contribute(configurationService: IConfigurationService): ManagedSettingsPermissionsContribution | undefined;
+	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
-function managedPermissionsSetting<T>(settingId: string, transform: (value: T) => ManagedSettingsPermissionsContribution | undefined): IManagedPermissionsSettingMapping {
+function managedPermissionsSetting<T>(settingId: string, transform: (value: T) => IAgentHostManagedSettingsPermissions | undefined): IManagedPermissionsSettingMapping {
 	return {
 		settingId,
 		contribute: configurationService => {
@@ -38,7 +41,7 @@ export const managedPermissionsConfigurationIds = [
 	...managedPermissionsSettings.map(mapping => mapping.settingId),
 ];
 
-export function isManagedSettingsPermissions(value: unknown): value is ManagedSettingsPermissions {
+export function isManagedSettingsPermissions(value: unknown): value is IAgentHostManagedSettingsPermissions {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 		return false;
 	}
@@ -55,12 +58,12 @@ function isStringArrayOrUndefined(value: unknown): boolean {
 	return value === undefined || (Array.isArray(value) && value.every(item => typeof item === 'string'));
 }
 
-export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): ManagedSettingsPermissions {
+export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions {
 	if (getGlobalConfigurationValue<boolean>(configurationService, AgentHostMapLegacySettingsToManagedSettingsSettingId) !== true) {
 		return {};
 	}
 
-	const permissions: ManagedSettingsPermissions = {};
+	const permissions: IAgentHostManagedSettingsPermissions = {};
 	for (const mapping of managedPermissionsSettings) {
 		const contribution = mapping.contribute(configurationService);
 		if (contribution?.disableBypassPermissionsMode) {

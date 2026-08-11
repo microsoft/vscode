@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotClient, CopilotSession, ManagedSettingsPermissions, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, Verbosity } from '@github/copilot-sdk';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -42,7 +43,7 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 
-function createTestLauncher(managedSettingsPermissions?: ManagedSettingsPermissions): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions): CopilotSessionLauncher {
 	const configurationService = {
 		getRootValue: () => undefined,
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
@@ -342,7 +343,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				return session;
 			},
 		};
-		const managedSettingsPermissions: ManagedSettingsPermissions = {
+		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
 			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
 		};
