@@ -110,6 +110,8 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	 * Options for the underlying ActionList (filter, collapsible sections).
 	 */
 	readonly listOptions?: IActionListOptions;
+	/** Returns the action id to focus each time the dropdown opens. */
+	readonly getInitialFocusActionId?: () => string | undefined;
 }
 
 /**
@@ -179,6 +181,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 			// Push actions for each category
 			for (const action of categoryActions) {
+				const isCheckable = action.checked !== undefined;
 				actionWidgetItems.push({
 					item: action,
 					tooltip: action.tooltip,
@@ -191,9 +194,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					inlineToggle: action.inlineToggle,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
-					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
+					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(isCheckable && action.checked ? Codicon.check.id : Codicon.blank.id) },
 					disabled: !action.enabled,
-					hideIcon: false,
+					hideIcon: !isCheckable && !action.icon,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?
 						(action.keybinding ?? this.keybindingService.lookupKeybinding(action.id)) :
@@ -264,7 +267,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
-				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
+				return element.kind === ActionListItemKind.Action ? element.item?.checked : undefined;
 			},
 			getSetSize: () => nonSeparatorItems.length,
 			getPosInSet: (_element, index) => {
@@ -283,7 +286,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					case ActionListItemKind.Action:
 						// Auxiliary actions are not checkable options, so use 'menuitem' to
 						// avoid screen readers announcing them as unchecked checkboxes.
-						return e.item && auxiliaryActionIds.has(e.item.id) ? 'menuitem' : 'menuitemcheckbox';
+						return e.item && (auxiliaryActionIds.has(e.item.id) || e.item.checked === undefined) ? 'menuitem' : 'menuitemcheckbox';
 					case ActionListItemKind.Separator:
 						return 'separator';
 					default:
@@ -295,6 +298,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 
 		super.show();
 
+		const listOptions = withActionWidgetDropdownMotion(this._options.listOptions);
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',
 			false,
@@ -304,7 +308,10 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			undefined,
 			[],
 			accessibilityProvider,
-			withActionWidgetDropdownMotion(this._options.listOptions)
+			{
+				...listOptions,
+				initialFocusItemId: this._options.getInitialFocusActionId?.() ?? listOptions.initialFocusItemId,
+			}
 		);
 	}
 

@@ -148,12 +148,32 @@
 	border-top-color: transparent !important;
 }
 
-/* The activity bar is an inset navigation rail between the full-width title and status bars. */
+/* The activity bar is a navigation rail between the full-width title and status bars. */
 .monaco-workbench.floating-panels .part.activitybar {
 	margin: var(--vscode-spacing-size40);
+	width: calc(var(--activity-bar-width, 48px) + var(--vscode-spacing-size40));
 	height: calc(100% - (var(--vscode-spacing-size40) * 2));
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
+}
+
+/* Extend the rail to the window edge with extra space outside the activity items. */
+.monaco-workbench.floating-panels .part.activitybar.left {
+	margin-left: 0;
+	margin-right: 0;
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size20);
+	width: calc(var(--activity-bar-width, 48px) + var(--vscode-spacing-size80));
+	border-radius: 0 var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0;
+}
+
+.monaco-workbench.floating-panels .part.activitybar.right {
+	margin-left: var(--vscode-spacing-size20);
+	margin-right: 0;
+	padding-left: var(--vscode-spacing-size20);
+	padding-right: var(--vscode-spacing-size60);
+	width: calc(var(--activity-bar-width, 48px) + var(--vscode-spacing-size80));
+	border-radius: var(--vscode-cornerRadius-medium) 0 0 var(--vscode-cornerRadius-medium);
 }
 
 .monaco-workbench.floating-panels .part.activitybar.bordered::before {
@@ -191,8 +211,8 @@
  * `activitybar-compact` is mirrored onto the workbench root by activitybarPart.ts;
  * the `:not` keeps a hidden compact bar resolving to the hidden inset below. */
 .monaco-workbench.floating-panels.activitybar-compact:not(.noactivitybar) .part.statusbar {
-	padding-left: var(--vscode-spacing-size20);
-	padding-right: var(--vscode-spacing-size20);
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
 }
 
 /* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like

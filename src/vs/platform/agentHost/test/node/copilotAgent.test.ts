@@ -48,7 +48,7 @@ import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../c
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -1169,6 +1169,40 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	test('queries managed settings with pre-resolved token authentication', async () => {
+		let receivedInput: { authInfo?: { type: 'token'; host: string; token: string }; token?: string; signal?: AbortSignal } | undefined;
+		const runtimeSdk = {
+			getManagedSettings: async (input?: typeof receivedInput) => {
+				receivedInput = input;
+				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
+			},
+		};
+		const signal = new AbortController().signal;
+
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal);
+
+		assert.deepStrictEqual({
+			authInfo: receivedInput?.authInfo,
+			token: receivedInput?.token,
+			signalForwarded: receivedInput?.signal === signal,
+		}, {
+			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
+			token: 'token',
+			signalForwarded: true,
+		});
+	});
+
+	test('identifies a stalled managed settings query', async () => {
+		const runtimeSdk = {
+			getManagedSettings: () => new Promise<never>(() => { }),
+		};
+
+		await assert.rejects(
+			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
+			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
+		);
 	});
 
 	test('returns empty models and lists sessions before authentication', async () => {
@@ -3065,7 +3099,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3121,7 +3155,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3170,7 +3204,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3484,6 +3518,52 @@ suite('CopilotAgent', () => {
 					importFork: undefined,
 					importedTurnIds: [forkedTurnId],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes restored provider history without a persisted turn event mapping', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'restored-source-session');
+			const target = AgentSession.uri('copilotcli', 'restored-target-session');
+			const sourceTurnId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: sourceTurnId,
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [sourceTurn],
+				getTurnEventId: async () => undefined,
+				workingDirectory: URI.file('/source-workspace'),
+				dispose: () => { },
+			});
+
+			let importedTurnIds: readonly string[] | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async config => {
+				importedTurnIds = config.importConversation?.turns.map(turn => turn.id);
+				return { session: target, resolvedWorkingDirectory: URI.file('/source-workspace') };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				await agent.createSession({
+					session: target,
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurnId,
+						turnIdMapping: new Map([[sourceTurnId, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual(importedTurnIds, [forkedTurnId]);
 			} finally {
 				await disposeAgent(agent);
 			}
