@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../platform/contextkey/common/contextkey.js';
 import { Context } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
+import { raceTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { registerAction2, Action2, MenuRegistry } from '../../../platform/actions/common/actions.js';
@@ -55,6 +55,7 @@ import * as json from '../../../base/common/json.js';
 import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js';
 import { IAgentHostService } from '../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -731,6 +732,22 @@ function managedValueCell(value: ManagedSettingValue | undefined): string {
 
 /** Header row + separator for the report's two-column `Property | Value` tables. */
 const PROPERTY_VALUE_TABLE_HEADER = '| Property | Value |\n|----------|-------|\n';
+const AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT = 6000;
+
+interface IPolicyDiagnosticsServices {
+	editorService: IEditorService;
+	configurationService: IConfigurationService;
+	productService: IProductService;
+	defaultAccountService: IDefaultAccountService;
+	authenticationService: IAuthenticationService;
+	authenticationAccessService: IAuthenticationAccessService;
+	policyService: IPolicyService;
+	accountPolicyGateService: IAccountPolicyGateService;
+	agentHostService: IAgentHostService;
+	agentHostEnablementService: IAgentHostEnablementService;
+	nativeManagedSettingsService: INativeManagedSettingsService | undefined;
+	fileManagedSettingsService: IFileManagedSettingsService | undefined;
+}
 
 class PolicyDiagnosticsAction extends Action2 {
 
@@ -754,6 +771,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
 		const agentHostService = accessor.get(IAgentHostService);
 		const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
+		const progressService = accessor.get(IProgressService);
 		// Native MDM is a desktop-only channel, registered in the renderer service collection on
 		// desktop and Agents windows but absent in web. Resolve it now, synchronously, because the
 		// accessor is only valid before the first `await` below.
@@ -772,6 +790,41 @@ class PolicyDiagnosticsAction extends Action2 {
 			// no file channel in this window (e.g. web)
 		}
 
+		return progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('policyDiagnostics.progress', "Generating policy diagnostics..."),
+			type: 'loading',
+		}, () => this.openPolicyDiagnostics({
+			editorService,
+			configurationService,
+			productService,
+			defaultAccountService,
+			authenticationService,
+			authenticationAccessService,
+			policyService,
+			accountPolicyGateService,
+			agentHostService,
+			agentHostEnablementService,
+			nativeManagedSettingsService,
+			fileManagedSettingsService,
+		}));
+	}
+
+	private async openPolicyDiagnostics(services: IPolicyDiagnosticsServices): Promise<void> {
+		const {
+			editorService,
+			configurationService,
+			productService,
+			defaultAccountService,
+			authenticationService,
+			authenticationAccessService,
+			policyService,
+			accountPolicyGateService,
+			agentHostService,
+			agentHostEnablementService,
+			nativeManagedSettingsService,
+			fileManagedSettingsService,
+		} = services;
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 		let content = '# VS Code Policy Diagnostics\n\n';
@@ -987,16 +1040,19 @@ class PolicyDiagnosticsAction extends Action2 {
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';
 			} else {
 				try {
-					const runtimeDiagnostics = await agentHostService.getManagedSettingsDiagnostics();
-					if (runtimeDiagnostics.length === 0) {
+					const runtimeDiagnostics = await raceTimeout(agentHostService.getManagedSettingsDiagnostics(), AGENT_RUNTIME_DIAGNOSTICS_TIMEOUT);
+					if (!runtimeDiagnostics) {
+						content += '*The Agent Host did not return provider diagnostics within 6 seconds. The report continued without a runtime snapshot; check the Agent Host log for a stalled provider.*\n\n';
+					} else if (runtimeDiagnostics.length === 0) {
 						content += '*No agent provider exposes managed-settings diagnostics.*\n\n';
-					}
-					for (const diagnostic of runtimeDiagnostics) {
-						content += `#### ${diagnostic.provider}\n\n`;
-						if (diagnostic.error) {
-							content += `*Probe failed: ${diagnostic.error}*\n\n`;
-						} else {
-							content += jsonBlock(diagnostic.snapshot);
+					} else {
+						for (const diagnostic of runtimeDiagnostics) {
+							content += `#### ${diagnostic.provider}\n\n`;
+							if (diagnostic.error) {
+								content += `*Probe failed: ${diagnostic.error}*\n\n`;
+							} else {
+								content += jsonBlock(diagnostic.snapshot);
+							}
 						}
 					}
 				} catch (error) {

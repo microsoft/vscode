@@ -73,7 +73,7 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChatResource } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -1150,6 +1150,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 				dom.EventHelper.stop(e, true);
 				this._openReferencedChat(chatResource);
 			}
+
 		}));
 	}
 
@@ -1163,6 +1164,38 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 		// gracefully in that case — the chip stays but no error dialog is shown.
 		await this.openerService.open(link);
 	}
+}
+
+export class TranscriptContextAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: IChatRequestTranscriptContextVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
+
+		const label = attachment.fullName ?? attachment.name;
+		this.label.setLabel(attachment.icon ? `$(${attachment.icon.id})\u00A0${label}` : label, undefined);
+		this.element.style.cursor = 'pointer';
+		this.element.ariaLabel = this.appendDeletionHint(localize('chat.attachment.transcriptContext', "Open {0} in Browser", attachment.name));
+		this._register(hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: attachment.tooltip ?? localize('chat.attachment.transcriptContext.hover', "Open {0} in Browser", attachment.name),
+		}, commonHoverLifecycleOptions));
+		this._register(registerOpenEditorListeners(this.element, async () => {
+			await openTranscriptContextAttachment(this.openerService, attachment);
+		}));
+	}
+}
+
+export function openTranscriptContextAttachment(openerService: IOpenerService, attachment: IChatRequestTranscriptContextVariableEntry): Promise<boolean> {
+	return openerService.open(attachment.uri, { openExternal: true });
 }
 
 export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachmentWidget {

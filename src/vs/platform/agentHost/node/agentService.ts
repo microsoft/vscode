@@ -9,7 +9,7 @@ import { DeferredPromise, disposableTimeout, ResourceQueue } from '../../../base
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { LRUCache, ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
@@ -23,7 +23,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, AgentSignal, AgentHostSessionReleaseGraceMsEnvVar, IAgent, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentHostAuthTokenRequest, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkEndpoint, IAgentHostNetworkFetchResult, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionAdoptionResult, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, IMcpNotification, IRestoredSubagentSession, SubagentChatSignal } from '../common/agentService.js';
-import { type ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
+import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -35,7 +35,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -43,8 +43,10 @@ import { AgentConfigurationService, IAgentConfigurationService } from './agentCo
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
+import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
+import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
@@ -330,8 +332,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 * agents stay unaware of the folder-vs-worktree distinction.
 	 */
 	private _worktree: WorktreeIsolation | undefined;
-	/** Successful list-time repository-root resolutions; eviction only causes safe re-resolution. */
-	private readonly _normalizedWorktreeRepositoryRoots = new LRUCache<string, URI>(100);
 	/** Single source of truth for GitHub (Enterprise) endpoints and protected resources. */
 	private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
@@ -581,8 +581,7 @@ export class AgentService extends Disposable implements IAgentService {
 				void this._gitStateService.attachSessionGitHubPullRequest(session, workingDirStr ? URI.parse(workingDirStr) : undefined);
 			},
 			onUserMessage: (session, text) => {
-				// Record the GitHub issues the message references on the session.
-				void this._gitStateService.attachSessionGitHubIssues(session.toString(), text);
+				void this._gitStateService.attachSessionGitHubReferences(session.toString(), text);
 			},
 		}));
 
@@ -934,41 +933,6 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	/**
-	 * Repairs repository roots written by older builds that treated a parent linked checkout as the repository.
-	 * Listing performs this migration because archived sessions may never resume through WorktreeIsolation's metadata reader.
-	 */
-	private async _normalizeListedWorktreeRepositoryRoot(session: IAgentSessionMetadata, database: ISessionDatabase, repositoryRootRaw: string): Promise<string> {
-		const storedRepositoryRootRaw = repositoryRootRaw;
-		const persistedRoot = URI.parse(repositoryRootRaw);
-		const sessionStr = session.session.toString();
-		let primaryRoot = this._normalizedWorktreeRepositoryRoots.get(sessionStr);
-		if (!primaryRoot) {
-			const workingDirectory = session.workingDirectories?.[0];
-			const checkoutRoot = workingDirectory && await this._fileExistsSafe(workingDirectory) ? workingDirectory : persistedRoot;
-			try {
-				primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, checkoutRoot)
-					?? (checkoutRoot.toString() !== persistedRoot.toString() ? await tryResolvePrimaryWorktreeRoot(this._gitService, persistedRoot) : undefined);
-				if (primaryRoot) {
-					this._normalizedWorktreeRepositoryRoots.set(sessionStr, primaryRoot);
-				}
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to resolve primary worktree for ${session.session}`, error);
-			}
-		}
-		if (primaryRoot) {
-			repositoryRootRaw = primaryRoot.toString();
-		}
-		if (repositoryRootRaw !== storedRepositoryRootRaw) {
-			try {
-				await database.setMetadata(WORKTREE_META_REPOSITORY_ROOT, repositoryRootRaw);
-			} catch (error) {
-				this._logService.warn(`[AgentService][listSessions] Failed to normalize worktree repository metadata for ${session.session}`, error);
-			}
-		}
-		return repositoryRootRaw;
-	}
-
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
 		const results = await Promise.all(
@@ -1042,11 +1006,8 @@ export class AgentService extends Disposable implements IAgentService {
 						updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
 					}
 
-					let repositoryRootRaw = m[WORKTREE_META_REPOSITORY_ROOT];
-					if (repositoryRootRaw) {
-						repositoryRootRaw = await this._normalizeListedWorktreeRepositoryRoot(updated, ref.object, repositoryRootRaw);
-					}
-					const worktreeProject = worktreeProjectFromRepositoryRoot(repositoryRootRaw);
+					// Use the persisted root as-is to keep listing off Git; the metadata reader re-canonicalizes it on open.
+					const worktreeProject = worktreeProjectFromRepositoryRoot(m[WORKTREE_META_REPOSITORY_ROOT]);
 					if (worktreeProject) {
 						updated = { ...updated, project: worktreeProject };
 					}
@@ -1469,6 +1430,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// don't see `Ready` until the agent actually has an SDK
 			// session, working directory, etc.
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			const gitHubState = readSessionGitHubState(this._stateManager.getSessionSummary(session.toString())?._meta);
+			if (gitHubState) {
+				await this._gitStateService.setSessionGitHubState(session.toString(), gitHubState);
+			}
 		}
 
 		// Refresh the git state for the session's process root.
@@ -1899,11 +1864,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _buildInitialSummary(provider: IAgent, session: URI, config: IAgentCreateSessionConfig | undefined, created: { project?: { uri: URI; displayName: string }; resolvedWorkingDirectory?: URI }, title: string): SessionSummary {
 		const now = new Date().toISOString();
+		const explicitGitHubState = readSessionGitHubState(config?._meta);
 		const explicitMultiRoot = readSessionMultiRootMetadata(config?._meta);
 		const inheritedMultiRoot = config?.fork
 			? readSessionMultiRootMetadata(this._stateManager.getSessionSummary(config.fork.session.toString())?._meta)
 			: undefined;
-		let _meta = withSessionMultiRootMetadata(undefined, explicitMultiRoot ?? inheritedMultiRoot);
+		let _meta = withSessionGitHubState(undefined, explicitGitHubState);
+		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot ?? inheritedMultiRoot);
 		_meta = !config?.fork && !config?.workingDirectories
 			? withSessionWorkspaceless(_meta, true)
 			: _meta;
@@ -1985,6 +1952,10 @@ export class AgentService extends Disposable implements IAgentService {
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+		const gitHubState = readSessionGitHubState(summary._meta);
+		if (gitHubState) {
+			void this._gitStateService.setSessionGitHubState(sessionKey, gitHubState);
+		}
 
 		// Attach git state for the resolved process root (index 0), if present.
 		void this._gitStateService.refreshSessionGitState(e.session.toString(), e.workingDirectories?.[0]);
@@ -4329,11 +4300,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._gitService) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git service unavailable for: ${fields.repoRelativePath}`);
 		}
-		const workingDirectory = this._stateManager.getSessionState(fields.sessionUri)?.workingDirectories?.[0];
+		const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields);
 		if (!workingDirectory) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Session has no working directory for git-blob URI: ${fields.sessionUri}`);
+			throw new ProtocolError(AhpErrorCodes.NotFound, `No session repository resolves git-blob path: ${fields.absolutePath || fields.repoRelativePath}`);
 		}
-		const blob = await this._gitService.showBlob(URI.parse(workingDirectory), fields.sha, fields.repoRelativePath);
+		const blob = await this._gitService.showBlob(workingDirectory, fields.sha, fields.repoRelativePath);
 		if (!blob) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
 		}
@@ -4342,6 +4313,67 @@ export class AgentService extends Disposable implements IAgentService {
 			encoding: ContentEncoding.Utf8,
 			contentType: 'text/plain',
 		};
+	}
+
+	/**
+	 * Picks the working directory to run `git show` from for a `git-blob:` URI.
+	 *
+	 * The directory is chosen only from the session's own, server-trusted working
+	 * directories — never from anything client-supplied — so opening a diff can
+	 * never be steered into an arbitrary repository. `fields.absolutePath` (the
+	 * file's absolute path, carried in the URI) is used only to *select* which
+	 * repo to run in; it is never used as the cwd itself.
+	 *
+	 * Selection rules:
+	 * - Single-folder session: return the one working directory directly, without
+	 *   a containment check (preserves legacy behavior for relocated/remapped
+	 *   worktrees whose stored path no longer sits under the current root).
+	 * - Multi-root session: resolve each working directory to its repo root and
+	 *   return the deepest root that contains `absolutePath`; if none contains it,
+	 *   return `undefined` (→ NotFound) rather than reading from the wrong repo.
+	 * - Legacy URI with no `absolutePath` (`''`): fall back to the primary
+	 *   working directory, since there is no path to match.
+	 *
+	 * Examples (roots index 0 = primary):
+	 *   [/work/app]                    + /work/app/src/a.ts   → /work/app
+	 *   [/work/app]                    + /elsewhere/x.ts      → /work/app
+	 *   [/work/app, /work/app/pkgs/ui] + /work/app/pkgs/ui/b  → /work/app/pkgs/ui
+	 *   [/work/app, /work/lib]         + /outside/c.ts        → undefined (NotFound)
+	 *   [/work/app, /work/lib]         + ''  (legacy)         → /work/app
+	 */
+	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields): Promise<URI | undefined> {
+		const gitService = this._gitService;
+		if (!gitService) {
+			return undefined;
+		}
+		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(fields.sessionUri);
+		// Backwards-compat: no resolvable absolute path means we cannot match a
+		// repository root, so fall back to today's primary-directory behavior.
+		if (!fields.absolutePath) {
+			const primary = workingDirectories?.[0];
+			return primary ? URI.parse(primary) : undefined;
+		}
+		if (!workingDirectories?.length) {
+			return undefined;
+		}
+		// Single-folder sessions keep today's behavior EXACTLY: run against the
+		// one working directory directly, without the multi-root path-containment
+		// check. This preserves AC-1.1 (single-folder unchanged) — e.g. a
+		// git-blob URI whose stored absolute path no longer sits under the
+		// current root (a remapped/relocated worktree) still resolves against the
+		// primary directory as it did before multi-root support.
+		if (!isMultiRootSession(workingDirectories)) {
+			return URI.parse(workingDirectories[0]);
+		}
+		const { gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), gitService);
+		if (!gitRepositories.length) {
+			return undefined;
+		}
+		// The absolute path was stored as a bare path (its scheme/authority were
+		// dropped when the URI was built); rebuild it against the session roots'
+		// own scheme/authority so it lines up with the repository roots.
+		const blobResource = gitRepositories[0].with({ path: fields.absolutePath });
+		return findDeepestContainingWorkingDirectory(blobResource, gitRepositories);
 	}
 
 	/**
