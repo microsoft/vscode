@@ -458,7 +458,15 @@ export class ApplicationService {
 		}
 	}
 
-	async stopApplication(): Promise<void> {
+	async stopApplication(application?: Application): Promise<void> {
+		if (application) {
+			if (this._application === application) {
+				await this._closeApplication(application);
+			} else if (this._closing) {
+				await this._closing;
+			}
+			return;
+		}
 		if (this._creating) {
 			try {
 				await this._creating.promise;

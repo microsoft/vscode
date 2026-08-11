@@ -175,7 +175,7 @@ export class EvidenceService {
 			}
 			try {
 				await app.stopTracing(undefined, true);
-				await this.appService.stopApplication();
+				await this.appService.stopApplication(app);
 			} catch {
 				// Preserve the startup error.
 			} finally {
@@ -333,7 +333,7 @@ export class EvidenceService {
 						run.pageListener?.(page);
 					}
 					await app.stopTracing(undefined, true);
-					await this.appService.stopApplication();
+					await this.appService.stopApplication(app);
 				} catch (error) {
 					if (await this.appService.getApplicationIfRunning()) {
 						throw error;
@@ -370,8 +370,10 @@ export class EvidenceService {
 				app.code.driver.browserContext.off('page', run.pageListener);
 			}
 			try {
-				await app?.stopTracing(undefined, true);
-				await this.appService.stopApplication();
+				if (app) {
+					await app.stopTracing(undefined, true);
+					await this.appService.stopApplication(app);
+				}
 			} catch {
 				// Preserve the primary result or finalization error.
 			}
