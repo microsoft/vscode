@@ -150,6 +150,22 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
+	test('uses resource presentation for associated resources by default', () => {
+		const input = createInput({
+			id: 'file-browser',
+			url: URI.file('/workspace/index.html').toString(),
+			associatedResource: URI.file('/workspace/index.html')
+		});
+
+		assert.deepStrictEqual({
+			name: input.getName(),
+			icon: input.getIcon()
+		}, {
+			name: 'index.html',
+			icon: undefined
+		});
+	});
+
 	test('describes and restricts resource-backed pages for browser tools', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({

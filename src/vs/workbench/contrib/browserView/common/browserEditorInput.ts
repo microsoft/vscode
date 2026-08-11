@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -233,6 +233,8 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getIcon(): ThemeIcon | URI | undefined {
+		const defaultIcon = this._associatedResource ? undefined : Codicon.globe;
+
 		// Use model data if available, otherwise fall back to initial data
 		if (this._model) {
 			if (this._model.loading) {
@@ -242,19 +244,22 @@ export class BrowserEditorInput extends EditorInput {
 			if (this._model.favicon) {
 				return URI.parse(this._model.favicon);
 			}
-			// Model exists but no favicon yet, use default
-			return Codicon.globe;
+			return defaultIcon;
 		}
 		// Model not created yet, use initial data if available
 		if (this._initialData.favicon) {
 			return URI.parse(this._initialData.favicon);
 		}
-		return Codicon.globe;
+		return defaultIcon;
 	}
 
 	override getName(): string {
 		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
-		const name = hasTitle ? this.title! : this.getDescription(Verbosity.SHORT) || BrowserEditorInput.DEFAULT_LABEL;
+		if (hasTitle) {
+			return truncate(this.title!, MAX_TITLE_LENGTH);
+		}
+
+		const name = this._associatedResource ? basename(this._associatedResource) : this.getDescription(Verbosity.SHORT) || BrowserEditorInput.DEFAULT_LABEL;
 		return truncate(name, MAX_TITLE_LENGTH);
 	}
 
