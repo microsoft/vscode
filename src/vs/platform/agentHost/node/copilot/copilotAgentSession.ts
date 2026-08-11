@@ -936,8 +936,7 @@ export class CopilotAgentSession extends Disposable {
 		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
 		const model = this._launchPlan.kind === 'create' ? this._launchPlan.model : this._launchPlan.fallback.model;
-		// Capability decisions use the family-aliased selection so they agree
-		// with the model id the launcher sends to the SDK.
+		// Aliased, to agree with the model id the launcher sends to the SDK.
 		const effectiveModel = applyModelFamilyAlias(model, this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
 		this._toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)

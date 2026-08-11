@@ -42,9 +42,8 @@ export interface IAgentHostPromptContext {
 	 * gates on one of those names silently resolves to `false`; broadening this
 	 * is the context-enrichment follow-up.
 	 *
-	 * Reflects the session's per-model tool filters: a client tool removed by
-	 * `availableTools`/`excludedTools` reads as absent, so gated prompt lines
-	 * never advertise a tool the runtime has disabled.
+	 * A tool removed by the per-model `availableTools`/`excludedTools` filters
+	 * reads as absent, so gated lines never advertise a disabled tool.
 	 */
 	hasClientTool(name: string): boolean;
 
@@ -75,9 +74,8 @@ export interface IAgentHostPromptContext {
 export interface IAgentHostPrompt {
 	/**
 	 * Full system-prompt override. Resolved into `{ mode: 'replace' }`, which
-	 * drops the SDK foundation prompt and its guardrails. The registry still
-	 * appends the universal tool instructions, workspaceless guidance, and
-	 * file-link contract after the replacement content.
+	 * drops the SDK foundation prompt and its guardrails; the registry still
+	 * appends the universal layers after the replacement content.
 	 */
 	resolveFullSystemPrompt?(model: ModelSelection, context: IAgentHostPromptContext): string | undefined;
 
@@ -143,13 +141,10 @@ export class AgentHostPromptRegistry {
 	}
 
 	/**
-	 * Resolves the {@link SystemMessageConfig} for a session's model: the
-	 * per-model (or default) config from {@link _resolveModelConfig}, with the
-	 * universal layers applied on top: the model-agnostic tool instructions,
-	 * the workspaceless scratch guidance, and the file-link contract. The
-	 * universal layers apply to every mode, including a full `replace` prompt
-	 * (appended after its content), so a replacement owns the prompt body but
-	 * not the host's plumbing.
+	 * The per-model (or default) config with the universal layers on top. Those
+	 * layers apply to every mode, including a full `replace` prompt (appended
+	 * after its content), so a replacement owns the prompt body but not the
+	 * host's plumbing.
 	 *
 	 * Lifetime: the SDK accepts a system message only at session create/resume
 	 * (there is no mid-session update), so this is resolved once per (re)launch
@@ -187,10 +182,7 @@ export class AgentHostPromptRegistry {
 			return fullSystemPrompt(fullPrompt);
 		}
 		const sections = contributor.resolveSectionOverrides?.(model, context);
-		// Contributor sections are composed OVER the default sections, so a
-		// contributor only overrides what it names — the default identity
-		// survives unless it sets `identity` itself. An empty/absent overrides
-		// object thus resolves to the plain default.
+		// Composed OVER the defaults, so a contributor only overrides what it names.
 		if (sections && Object.keys(sections).length > 0) {
 			return withDefaultSections(sectionOverrides(sections));
 		}
@@ -198,17 +190,10 @@ export class AgentHostPromptRegistry {
 	}
 
 	/**
-	 * Layers the tool instructions that apply to EVERY model on top of the base
-	 * config (see {@link resolveToolInstructionsOverride}), which the agent host
-	 * wants for all models rather than gating per-model like the Opus prompt.
-	 *
-	 * For a `customize` config the lines are composed into the
-	 * `tool_instructions` section — a per-model override of that section is
-	 * composed with, not overwritten by, the universal lines. For a full
-	 * `replace` prompt (which has no sections) the lines are appended after the
-	 * replacement content via {@link appendUniversalToolInstructions}, so a
-	 * replacement doesn't silently lose the tool guidance. No-op for `append`
-	 * mode, which leaves the foundation sections untouched.
+	 * Layers the tool instructions that apply to EVERY model over the base config.
+	 * A `customize` config composes them into its `tool_instructions` section
+	 * rather than being overwritten by them; a `replace` prompt has no sections,
+	 * so they are appended after its content instead of being silently lost.
 	 */
 	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
 		if (config.mode === 'replace') {
@@ -225,11 +210,8 @@ export class AgentHostPromptRegistry {
 	}
 
 	/**
-	 * Appends the scratch/repoless workspace-less guidance (see
-	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) as trailing
-	 * `content` when {@link IAgentHostPromptContext.workspaceless} is set, so it
-	 * composes on top of whatever the base config carries — including after a
-	 * full `replace` prompt's content. No-op for workspace-bound sessions.
+	 * Appends the scratch/repoless guidance as trailing `content`, so it composes
+	 * on top of whatever the base config carries — including a `replace` prompt.
 	 */
 	private _withWorkspacelessScratch(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
 		if (!context.workspaceless) {

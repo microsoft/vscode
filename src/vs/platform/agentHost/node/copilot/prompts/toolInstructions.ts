@@ -90,10 +90,8 @@ export function universalToolInstructions(hasTool: (name: string) => boolean, li
 }
 
 /**
- * Appends the applicable universal tool-instruction lines after `content` —
- * the full-prompt counterpart of {@link resolveToolInstructionsOverride} for
- * `replace`-mode system messages, which have no sections to compose into.
- * Returns `content` unchanged when no lines apply.
+ * The `replace`-mode counterpart of {@link resolveToolInstructionsOverride},
+ * for system messages with no sections to compose into.
  */
 export function appendUniversalToolInstructions(content: string, hasTool: (name: string) => boolean, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): string {
 	const instructions = universalToolInstructions(hasTool, lines);

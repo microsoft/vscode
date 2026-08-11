@@ -21,8 +21,7 @@ import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptCo
  *  - subagents: the model spawns fewer by default, so give explicit fan-out
  *    guidance.
  * The guide warns against forcing interim-progress scaffolding ("summarize
- * after every N tool calls"), so none is added here. The agent-host identity
- * is inherited from the default sections the registry composes underneath.
+ * after every N tool calls"), so none is added here.
  */
 function opus48SectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
 	return {

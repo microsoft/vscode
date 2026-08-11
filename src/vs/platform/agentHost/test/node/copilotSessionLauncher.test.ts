@@ -626,8 +626,7 @@ suite('resolveCopilotReasoningEffort', () => {
 
 	/** Stubs the config service with a fixed root-value bag. */
 	function configOf(values: SchemaValues<typeof copilotCliConfigSchema.definition>): Pick<IAgentConfigurationService, 'getRootValue'> {
-		// The runtime value is correct by construction; `never` satisfies the
-		// generic return type without widening the stub to `any`.
+		// `never` satisfies the generic return type without widening to `any`.
 		return { getRootValue: (_schema, key) => values[key as keyof typeof values] as never };
 	}
 
@@ -663,9 +662,7 @@ suite('resolveCopilotReasoningEffort', () => {
 				// same precedence as the full resolution...
 				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
 				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
-				// ...but with no picker fallback: nothing configured (or only
-				// invalid values) reads as "leave the session's effort alone",
-				// which is what the resume path forwards.
+				// ...but no picker fallback: unconfigured means "leave it alone"
 				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
 				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'turbo' }), log, 's1'),
 				resolveConfiguredReasoningEffortOverride(model, configOf({}), log, 's1'),
@@ -807,6 +804,8 @@ suite('CopilotSessionLauncher resume config', () => {
 		}), model);
 		const none = await buildResumeConfig(createLauncher(store, {}), model);
 
+		// Unlike the effort, the model IS re-sent without an override — the
+		// resumed session is pinned to the selection the picker shows.
 		assert.deepStrictEqual(
 			[specific.model, invalid.model, none.model],
 			['claude-opus-4.8', 'preview-model', 'preview-model']

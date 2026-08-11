@@ -171,8 +171,11 @@ per-model config (system-prompt parts, model capabilities, reasoning-effort
 profile) off the model id, and family values such as `claude-opus-4.8` are model
 ids in that config. `CopilotSessionLauncher` therefore passes the resolved
 wildcard/per-model `family` through the SDK's existing `model` field on every
-create and resume. The host prompt and runtime use the same effective model id
-without a process-wide environment override or client restart.
+create and resume, and `CopilotAgent._changeModel` sends the same aliased id on
+a mid-session model change (stored metadata keeps the un-aliased selection, so
+the alias is re-resolved on every relaunch). The host prompt and runtime use the
+same effective model id without a process-wide environment override or client
+restart.
 
 > **Security note.** The setting is workspace-configurable and forwarded to the
 > agent host, so entries must never carry content that reaches the prompt or

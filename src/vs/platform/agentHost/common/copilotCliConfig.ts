@@ -66,18 +66,15 @@ export function normalizeToolSearchDeferThreshold(value: number | undefined): nu
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 export interface ICopilotCliModelCapabilityOverride {
-	/**
-	 * Alias the model's family for prompt/capability routing (e.g. `"claude-opus-4.8"`).
-	 * The alias is passed to the SDK as the session model id.
-	 */
+	/** Family alias (e.g. `"claude-opus-4.8"`), passed to the SDK as the session model id. */
 	readonly family?: string;
-	/** Reasoning effort for sessions on this model; wins over the global {@link CopilotCliConfigKey.ReasoningEffortOverride}. Unrecognized values are ignored. */
+	/** Wins over the global {@link CopilotCliConfigKey.ReasoningEffortOverride}. */
 	readonly reasoningEffort?: string;
-	/** SDK tool allowlist, passed through as the session's `availableTools` (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
+	/** SDK tool allowlist (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
 	readonly availableTools?: readonly string[];
-	/** SDK tool denylist, passed through as the session's `excludedTools`; takes precedence over {@link availableTools}. */
+	/** SDK tool denylist; takes precedence over {@link availableTools}. */
 	readonly excludedTools?: readonly string[];
-	/** Per-property model capability overrides (e.g. `supports.vision`, `limits.max_context_window_tokens`) passed through to the SDK's `modelCapabilities` field, deep-merged over the runtime's resolved defaults for this model. Malformed (non-object) values are ignored. */
+	/** Deep-merged over the runtime's resolved defaults (e.g. `supports.vision`). */
 	readonly modelCapabilities?: Record<string, unknown>;
 }
 
@@ -88,21 +85,15 @@ export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModel
 export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
 
 /**
- * Resolves the effective capability override for `modelId`: the wildcard
- * ({@link MODEL_CAPABILITY_OVERRIDE_WILDCARD}) entry merged field-by-field
- * under the model's own entry, so a specific entry's fields win and the
- * wildcard fills the gaps. Returns `undefined` when neither entry exists.
+ * The wildcard entry merged field-by-field under the model's own entry, so a
+ * specific entry's fields win and the wildcard fills the gaps.
  *
  * `modelId` is optional because a session can run without a chosen model
- * (server-side "Auto"). Such a session has no model-id entry to look up, but
- * the wildcard still applies to it — it is defined as matching every session,
- * and silently exempting model-less sessions would make a `*` entry mean
- * "every model except Auto".
+ * (server-side "Auto"); the wildcard still applies to it, since exempting such
+ * sessions would make `*` mean "every model except Auto".
  *
- * Field values are NOT validated here: the root-config validator only checks
- * that the setting is an object (it does not descend into
- * `additionalProperties`), so use sites validate each field defensively —
- * mirroring {@link getModelFamilyAlias}.
+ * Field values are NOT validated here — the root-config validator does not
+ * descend into `additionalProperties`, so use sites validate defensively.
  */
 export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): ICopilotCliModelCapabilityOverride | undefined {
 	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];

@@ -5838,9 +5838,8 @@ suite('CopilotAgent', () => {
 			try {
 				configurationService.updateRootConfig({
 					modelCapabilityOverrides: {
-						// The bare '*' entries are stripped (the SDK throws on them at
-						// createSession): availableTools empties out and reads as unset;
-						// excludedTools keeps its remaining pattern.
+						// Bare '*' is stripped: availableTools empties out and reads as
+						// unset, excludedTools keeps its remaining pattern.
 						'claude-sonnet': { family: 'claude-opus-4.8', reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'], modelCapabilities: { supports: { vision: false } } },
 					},
 				});
@@ -6531,7 +6530,7 @@ suite('CopilotAgent', () => {
 			readonly remapCalls: ReadonlyMap<string, string>[];
 			readonly sends: { prompt: string; turnId: string | undefined; mode: unknown; senderClientId: string | undefined }[];
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
-			readonly modelCalls: { id: string; effort: string | undefined }[];
+			readonly modelCalls: { id: string; effort: string | undefined; tier?: string | undefined }[];
 			readonly agentCalls: (string | undefined)[];
 		}
 
@@ -6566,7 +6565,7 @@ suite('CopilotAgent', () => {
 					rec.sends.push({ prompt, turnId, mode, senderClientId });
 				},
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
-				async setModel(id: string, reasoningEffort?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort }); },
+				async setModel(id: string, reasoningEffort?: string, contextTier?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
@@ -7435,8 +7434,40 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(a.rec.modelCalls, [
 					// the specific entry wins; the wildcard covers every other model,
 					// beating the picker's thinking level
-					{ id: 'model-x', effort: 'low' },
-					{ id: 'model-y', effort: 'high' },
+					{ id: 'model-x', effort: 'low', tier: undefined },
+					{ id: 'model-y', effort: 'high', tier: undefined },
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel sends the family alias as the model id and drops the picker tuning', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				configurationService.updateRootConfig({
+					modelCapabilityOverrides: {
+						'preview-model': { family: 'claude-opus-4.8' },
+						'pinned-model': { family: 'gpt-5', reasoningEffort: 'high' },
+						'bad-model': { family: 'not a model id' },
+					},
+				});
+				const session = AgentSession.uri('copilotcli', 'model-family');
+				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
+				const a = makeFakeChatSession(session, 'sdk-a');
+				setPeerChatStub(agent, chatA, a.fake);
+
+				await agent.chats.changeModel(chatA, { id: 'preview-model', config: { thinkingLevel: 'medium' } });
+				await agent.chats.changeModel(chatA, { id: 'pinned-model' });
+				await agent.chats.changeModel(chatA, { id: 'bad-model', config: { thinkingLevel: 'medium' } });
+
+				assert.deepStrictEqual(a.rec.modelCalls, [
+					// aliased: the family's defaults replace the picker's thinking level
+					{ id: 'claude-opus-4.8', effort: undefined, tier: undefined },
+					// an override still pins the effort through the alias
+					{ id: 'gpt-5', effort: 'high', tier: undefined },
+					// a malformed alias falls through to the un-aliased model
+					{ id: 'bad-model', effort: 'medium', tier: undefined },
 				]);
 			} finally {
 				await disposeAgent(agent);
