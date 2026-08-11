@@ -92,6 +92,15 @@ export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<I
 	});
 }
 
+/**
+ * Whether Settings search results are safe to focus from the search input.
+ * `searchPending` must be the boolean from {@link Delayer.isTriggered} (call the method —
+ * a bare method reference is always truthy and would incorrectly block focus forever).
+ */
+export function isSettingsSearchUpToDate(searchPending: boolean, renderedSearchQuery: string | undefined, currentSearchValue: string): boolean {
+	return !searchPending && renderedSearchQuery === currentSearchValue.trim();
+}
+
 const $ = DOM.$;
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
@@ -705,7 +714,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * focus is not moved into stale results.
 	 */
 	private isSearchUpToDate(): boolean {
-		return !this.searchInputDelayer.isTriggered && this.renderedSearchQuery === this.searchWidget.getValue().trim();
+		return isSettingsSearchUpToDate(this.searchInputDelayer.isTriggered(), this.renderedSearchQuery, this.searchWidget.getValue());
 	}
 
 	/**
@@ -739,7 +748,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// Do not select all if the user is already searching.
-		this.searchWidget.focus(selectAll && !this.searchInputDelayer.isTriggered);
+		this.searchWidget.focus(selectAll && !this.searchInputDelayer.isTriggered());
 	}
 
 	clearSearchResults(): void {

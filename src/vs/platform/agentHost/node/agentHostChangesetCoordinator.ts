@@ -8,13 +8,13 @@ import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isAhpChatChannel } from '../common/state/sessionState.js';
+import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -44,7 +44,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
@@ -53,22 +53,16 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	) {
 		super();
 
-		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator, this._stateManager));
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
 		this._register(gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
+		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
 
 	/**
-	 * Called at session create time. Registers the static changeset URIs
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass.
-	 *
-	 * The catalogue summary (`summary.changesets`) is seeded synchronously
-	 * by `_buildInitialSummary` in {@link AgentService} via
-	 * {@link buildDefaultChangesetCatalogue}; this method only registers
-	 * the backing per-changeset state. Both halves run before
-	 * `SessionReady` is dispatched.
+	 * Seeds the create-time catalogue and registers its backing changeset state
+	 * before `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
 		this._changesets.refreshChangesetCatalog(sessionStr);
@@ -336,5 +330,30 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		// changeset currently subscribed for the session (the service
 		// reads the exposed subscription list).
 		this._changesets.recomputeSubscribedChangesets(sessionStr);
+	}
+
+	/**
+	 * Called when a session's effective working-directory set changes (a root
+	 * was added or removed, e.g. in the Editor Window). Multi-root suppression
+	 * of `turn` / `compare-turns` operations depends on this set, so recompute
+	 * operations for every subscribed changeset: `getOperations` re-applies the
+	 * guard, so those changesets drop to empty when the session becomes
+	 * multi-root and regain their operations when it returns to single-root.
+	 *
+	 * Subagent sessions inherit the parent's working directories
+	 * (`getEffectiveWorkingDirectories`), so a parent change flips their
+	 * multi-root state too. Refresh their operations as well, keeping the
+	 * advertised operations consistent with the invoke-time suppression (which
+	 * already uses the inherited set). `updateOperations` only dispatches for
+	 * subscribed changesets, so refreshing subagents without subscriptions is a
+	 * no-op.
+	 */
+	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
+		this._changesetOperationService.updateOperations(sessionStr);
+		for (const candidate of this._stateManager.getSessionUris()) {
+			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
+				this._changesetOperationService.updateOperations(candidate);
+			}
+		}
 	}
 }

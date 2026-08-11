@@ -18,6 +18,7 @@ import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { WSLRelayTransport } from './wslRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { agentsWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import {
 	IWSLRemoteAgentHostService,
 	WSL_REMOTE_AGENT_HOST_CHANNEL,
@@ -53,7 +54,7 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
 		) : undefined;
 		const transport = this._instantiationService.createInstance(WSLRelayTransport, connectionId, mainService, logger);
-		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport, undefined, undefined, agentsWindowAgentHostClientInfo);
 	}
 }
 

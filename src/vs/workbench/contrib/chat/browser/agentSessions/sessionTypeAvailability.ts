@@ -8,7 +8,6 @@ import { localize } from '../../../../../nls.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
-import { hasModelsTargetingSession } from '../widget/input/chatModelSelectionLogic.js';
 
 /**
  * Why a session type cannot currently be selected, or
@@ -95,7 +94,7 @@ export function getSessionTypeAvailability(
 function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
 	return languageModelsService.getLanguageModelIds().some(id => {
 		const metadata = languageModelsService.lookupLanguageModel(id);
-		return !!metadata && hasModelsTargetingSession([{ identifier: id, metadata }], type);
+		return metadata?.targetChatSessionType === type;
 	});
 }
 

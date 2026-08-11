@@ -14,7 +14,7 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  * `undefined`, otherwise the UI shows an "undefined" state.
  *
  * Selection order:
- *  - claude families  → 'high' if available
+ *  - claude / Kimi K3 families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
  */
@@ -23,7 +23,7 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const preferred = lowerFamily.startsWith('claude') ? 'high' : 'medium';
+	const preferred = lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3') ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}
@@ -80,6 +80,51 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
 		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
 		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
 		default: pickDefaultReasoningEffort(effortLevels, family),
+		group: 'navigation',
+	};
+}
+
+/**
+ * Returns the localized, title-cased picker label for an Auto routing tier.
+ * Falls back to capitalizing an unknown value.
+ */
+export function getAutoModeTierLabel(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Eco');
+		case 'balanced': return l10n.t('Balanced');
+		case 'max': return l10n.t('Max');
+		case 'fast': return l10n.t('Fast');
+		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
+	}
+}
+
+/**
+ * Returns the localized description shown in the picker hover for an Auto
+ * routing tier. Falls back to the raw tier for unknown values.
+ */
+export function getAutoModeTierDescription(tier: string): string {
+	switch (tier) {
+		case 'eco': return l10n.t('Cheaper models for everyday tasks');
+		case 'balanced': return l10n.t('Balances capability and cost');
+		case 'max': return l10n.t('Most capable models, higher cost');
+		case 'fast': return l10n.t('Lowest latency models');
+		default: return tier;
+	}
+}
+
+/**
+ * Builds the `tier` property descriptor for the Auto model's
+ * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
+ * same way thinking effort is, but labelled "Tier".
+ */
+export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+	return {
+		type: 'string',
+		title: l10n.t('Tier'),
+		enum: [...tiers],
+		enumItemLabels: tiers.map(getAutoModeTierLabel),
+		enumDescriptions: tiers.map(getAutoModeTierDescription),
+		default: defaultTier,
 		group: 'navigation',
 	};
 }

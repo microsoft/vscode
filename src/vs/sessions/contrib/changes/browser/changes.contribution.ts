@@ -23,7 +23,9 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
+import './changesetReviewActions.js';
 import './checksActions.js';
+import './media/multiFileDiffEditor.css';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from './changesViewService.js';
@@ -31,8 +33,6 @@ import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-
-registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
 
 /**
  * Registers the custom single-pane Changes editor (multi-diff pane with the header
@@ -144,3 +144,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
+registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);

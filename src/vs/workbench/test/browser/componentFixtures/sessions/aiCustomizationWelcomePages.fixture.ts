@@ -83,6 +83,7 @@ function renderWelcomePage(ctx: ComponentFixtureContext): void {
 			selectSection: () => { },
 			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
+			migratePromptFiles: () => { },
 			prefillChat: () => { },
 		},
 		createMockCommandService(),

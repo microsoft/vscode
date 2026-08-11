@@ -190,7 +190,7 @@ export class ChatMarkdownDecorationsRenderer {
 					{
 						location: widget.location,
 						agentId: agent.id,
-						userSelectedModelId: widget.input.currentLanguageModel,
+						...widget.getSelectedModelRequestOptions(),
 						modeInfo: widget.input.currentModeInfo
 					});
 			}));
@@ -227,7 +227,7 @@ export class ChatMarkdownDecorationsRenderer {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,
-				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getSelectedModelRequestOptions(),
 				modeInfo: widget.input.currentModeInfo
 			});
 		}));

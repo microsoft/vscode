@@ -5,32 +5,31 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize2 } from '../../../../nls.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { URI } from '../../../../base/common/uri.js';
+import { observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
-import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
-import { IChangesViewService } from '../common/changesViewService.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
-import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionHasChangesContext } from '../../../common/contextkeys.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
+import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { Menus } from '../../../browser/menus.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
+import { IChangesViewService } from '../common/changesViewService.js';
+import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
+import { SessionChangesEditor } from './sessionChangesEditor.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -63,6 +62,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsService sessionsService: ISessionsService,
 		@IChangesViewService changesViewService: IChangesViewService,
+		@IEditorService editorService: IEditorService,
 	) {
 		super();
 
@@ -79,6 +79,9 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
 			return changesViewService.viewModeObs.read(reader);
 		}));
+
+		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
+		this._register(bindContextKey(SinglePaneDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
 	}
 }
 
@@ -126,7 +129,19 @@ registerAction2(OpenPullRequestAction);
 const singlePaneChangesEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
-	ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true)
+	SinglePaneLayoutEnabledContext
+);
+
+const singlePaneFileDiffEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	SinglePaneDiffEditorInputActiveContext,
+	SinglePaneLayoutEnabledContext
+);
+
+const singlePaneTextDiffEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	TextCompareEditorActiveContext,
+	SinglePaneLayoutEnabledContext
 );
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
@@ -143,12 +158,24 @@ const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
 	MainEditorAreaVisibleContext
 );
 
-/**
- * Anchor action hosting the Create Pull Request button bar ({@link ChangesActionsBar})
- * in the single-pane title bar (right side — the session actions area). The custom action
- * view item is registered for {@link Menus.TitleBarSessionMenu} via IActionViewItemService
- * in changesView.ts. The bar hides itself when its underlying menu has no actions.
- */
+const singlePaneDiffEditorTitle = ContextKeyExpr.and(
+	ContextKeyExpr.or(singlePaneChangesEditorActive, singlePaneFileDiffEditorActive),
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext
+);
+
+const singlePaneTextDiffEditorTitle = ContextKeyExpr.and(
+	singlePaneTextDiffEditorActive,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext
+);
+
+const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
+	ContextKeyExpr.or(singlePaneChangesEditorTitle, singlePaneTextDiffEditorTitle),
+	MainEditorAreaVisibleContext
+);
+
+/** Anchor action hosting the Create Pull Request button bar in the title bar. */
 class ChangesHeaderActionsAction extends Action2 {
 	constructor() {
 		super({
@@ -162,7 +189,8 @@ class ChangesHeaderActionsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
-					ContextKeyExpr.equals(`config.${DOCK_DETAIL_PANEL_SETTING}`, true),
+					SinglePaneLayoutEnabledContext,
+					SessionIsCreatedContext,
 					SessionHasChangesContext
 				)
 			},
@@ -187,10 +215,10 @@ class SetChangesListViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitle,
+					singlePaneDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
 			}
@@ -218,10 +246,10 @@ class SetChangesTreeViewModeAction extends Action2 {
 				// Always in the overflow ("…") of the right header, whether the editor
 				// area is visible or collapsed (as long as the changes list is shown).
 				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary',
+				group: 'secondary/2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitle,
+					singlePaneDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
 			}
@@ -299,39 +327,40 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 
 registerAction2(ExpandAllSessionChangesDiffsAction);
 
-class ToggleSessionChangesInlineViewAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.toggleInlineView';
+// The Agents window reuses the workbench `toggle.diff.renderSideBySide` command so a
+// user's keybinding for it carries over here (issue #324765). The sessions override of
+// IDiffEditorCommandsService flips the workspace `diffEditor.renderSideBySide` setting,
+// which the Changes editor observes.
 
-	constructor() {
-		super({
-			id: ToggleSessionChangesInlineViewAction.ID,
-			title: localize2('agentSessions.toggleInlineView', "Toggle Inline View"),
-			icon: Codicon.diffSidebyside,
-			f1: false,
-			toggled: EditorContextKeys.multiDiffEditorRenderSideBySide.negate(),
-			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: '1_diff',
-				order: 20,
-				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					MainEditorAreaVisibleContext)
-			}
-		});
-	}
+// Primary header button with state-specific titles: "Show Side by Side Diff" when
+// currently inline, and (checked) "Show Inline Diff" when currently side by side.
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize('showSideBySideDiff', "Show Side by Side Diff"),
+		icon: Codicon.diffSidebyside,
+		toggled: {
+			condition: ContextKeyExpr.or(
+				ContextKeyExpr.and(singlePaneChangesEditorActive, EditorContextKeys.multiDiffEditorRenderSideBySide),
+				ContextKeyExpr.and(singlePaneFileDiffEditorActive, EditorContextKeys.diffEditorInlineMode.negate())
+			)!,
+			title: localize('showInlineDiff', "Show Inline Diff"),
+		},
+	},
+	group: '1_diff',
+	order: 20,
+	when: singlePaneDiffEditorTitleVisible
+});
 
-	run(accessor: ServicesAccessor, ...args: unknown[]): void {
-		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
-		const pane = resolvedContext.groupedEditors[0]?.group.activeEditorPane ?? accessor.get(IEditorService).activeEditorPane;
-		if (pane instanceof SessionChangesEditor) {
-			pane.toggleInlineView();
-		}
-	}
-}
-
-registerAction2(ToggleSessionChangesInlineViewAction);
+// Discoverable in the command palette while a Changes diff editor is visible.
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TOGGLE_DIFF_SIDE_BY_SIDE,
+		title: localize2('toggleDiffView', "Toggle Diff View"),
+		category: localize2('changes', "Changes"),
+	},
+	when: singlePaneDiffEditorTitleVisible
+});
 
 class OpenChangesAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openChanges';

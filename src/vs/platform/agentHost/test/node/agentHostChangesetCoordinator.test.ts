@@ -21,7 +21,7 @@ import { IAgentHostChangesetOperationService } from '../../common/agentHostChang
 import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
@@ -42,7 +42,7 @@ suite('ChangesetSessionCoordinator', () => {
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
-			workingDirectory,
+			workingDirectories: workingDirectory ? [workingDirectory] : undefined,
 		}, { emitNotification });
 		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalog(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
@@ -56,6 +56,7 @@ suite('ChangesetSessionCoordinator', () => {
 		gitService: IAgentHostGitService & { readonly rootLookupCalls: string[]; waitForRootLookups(count: number): Promise<void> };
 		gitStateService: TestGitStateService;
 		coordinator: AgentHostChangesetCoordinator;
+		updateOperationsCalls: string[];
 	} {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const logService = new NullLogService();
@@ -65,16 +66,18 @@ suite('ChangesetSessionCoordinator', () => {
 		const monitor = disposables.add(new TestFileMonitorService());
 		const gitService = createGitService(root);
 		const gitStateService = disposables.add(new TestGitStateService());
+		const updateOperationsCalls: string[] = [];
 		const operationContributionService: IAgentHostChangesetOperationService = {
 			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
 			getOperations: () => [],
-			updateOperations: () => { },
+			updateOperations: (sessionKey: string) => { updateOperationsCalls.push(sessionKey); },
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },
 		};
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostChangesetOperationService, operationContributionService],
 			[IAgentHostChangesetService, changesets],
@@ -83,9 +86,48 @@ suite('ChangesetSessionCoordinator', () => {
 			[IAgentHostGitService, gitService],
 			[IAgentHostGitStateService, gitStateService],
 		), /*strict*/ true));
-		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator, stateManager));
-		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator };
+		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
+		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator, updateOperationsCalls };
 	}
+
+	test('refreshes changeset operations when a session gains or loses a working directory', () => {
+		const session = AgentSession.uri('mock', 'session-wd').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repoA');
+		const baseline = environment.updateOperationsCalls.length;
+
+		// Editor Window adds a second root -> multi-root: operations must refresh.
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(baseline), [session], 'adding a root refreshes the session operations');
+
+		// A no-op working-directory action (same root) must not refresh again.
+		const afterAdd = environment.updateOperationsCalls.length;
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+		assert.strictEqual(environment.updateOperationsCalls.length, afterAdd, 'a no-op working-directory action does not refresh');
+
+		// Removing the second root -> back to single-root: operations refresh again (restore).
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///repoB' });
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session], 'removing a root refreshes the session operations');
+	});
+
+	test('a parent working-directory change also refreshes inheriting subagent sessions', () => {
+		const parentSession = AgentSession.uri('mock', 'session-parent').toString();
+		const subagentSession = buildSubagentSessionUri(parentSession, 'tool-1');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, parentSession, 'file:///repoA');
+		// A subagent with NO own working directories inherits the parent's set,
+		// so a parent root change flips its multi-root state too.
+		createSession(environment.stateManager, subagentSession);
+		const baseline = environment.updateOperationsCalls.length;
+
+		environment.stateManager.dispatchServerAction(parentSession, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+
+		assert.deepStrictEqual(
+			[...environment.updateOperationsCalls.slice(baseline)].sort(),
+			[parentSession, subagentSession].sort(),
+			'a parent root change refreshes both the parent and its inheriting subagent',
+		);
+	});
 
 	test('shares root watchers across sessions and fans out root changes to static refreshes', async () => {
 		const firstSession = AgentSession.uri('mock', 'session-1').toString();
@@ -147,7 +189,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, rootLookups: environment.gitService.rootLookupCalls }, { acquisitions: [], rootLookups: [] });
 
 		const summary = environment.stateManager.getSessionSummary(session)!;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectories: ['file:///repo/worktree'] });
 		environment.coordinator.onSessionMaterialized(session);
 		await environment.monitor.waitForAcquisitions(1);
 
@@ -169,7 +211,7 @@ suite('ChangesetSessionCoordinator', () => {
 		await tick();
 
 		const summary = environment.stateManager.getSessionSummary(session)!;
-		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectories: ['file:///repo/worktree'] });
 		environment.coordinator.onSessionMaterialized(session);
 		await tick();
 
@@ -374,6 +416,7 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 	}
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
+	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
 }
 
 class TestFileMonitorService extends Disposable implements IAgentHostFileMonitorService {

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
-import { systemCertificatesNodeDefault } from '../../request/common/request.js';
+import { AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../request/common/request.js';
 import { IAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 
 export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>('agentHostProxyResolver');
@@ -37,6 +37,9 @@ export interface IAgentHostProxyResolver {
 	 * that runs in VS Code (Electron session) via the reverse channel.
 	 */
 	resolveProxy(url: string): Promise<string | undefined>;
+
+	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
+	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 }
 
 export class AgentHostProxyResolver implements IAgentHostProxyResolver {
@@ -44,7 +47,9 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
-	private _resolveProxyURL: ((url: string) => Promise<string | undefined>) | undefined;
+	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
+	private _proxyAgentParams: ProxyAgentParams | undefined;
+	private _fetch: typeof globalThis.fetch | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -61,11 +66,19 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 	}
 
 	resolveProxy(url: string): Promise<string | undefined> {
-		return this._getResolveProxyURL()(url);
+		return this._getProxyResolver().resolveProxyURL(url);
 	}
 
-	private _getResolveProxyURL(): (url: string) => Promise<string | undefined> {
-		if (!this._resolveProxyURL) {
+	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+		if (!this._fetch) {
+			const proxyResolver = this._getProxyResolver();
+			this._fetch = createFetchPatch(this._proxyAgentParams!, globalThis.fetch, proxyResolver.resolveProxyURL);
+		}
+		return this._fetch(input, init);
+	}
+
+	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
+		if (!this._proxyResolver) {
 			// Mirror `workbench/api/node/proxyResolver.ts`.
 			const config = <T>(key: string): T | undefined => this._configurationService.getValue<T>(key);
 			const systemCertificatesV2 = () => config<boolean>('http.experimental.systemCertificatesV2') ?? false;
@@ -75,6 +88,11 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 				// renderer, whose IRequestService.resolveProxy hits the Electron
 				// session (system settings / PAC scripts).
 				resolveProxy: (url) => this._hostResolveProxy(url),
+				lookupProxyAuthorization: createProxyAuthorizationLookup({
+					log: this._logService,
+					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
+					lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(url),
+				}),
 				getProxyURL: () => config<string>('http.proxy'),
 				getProxySupport: () => config<ProxySupportSetting>('http.proxySupport') || 'off',
 				getNoProxyConfig: () => config<string[]>('http.noProxy') || [],
@@ -108,15 +126,38 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 				getNetworkInterfaceCheckInterval: () => (config<number>('http.experimental.networkInterfaceCheckInterval') ?? 300) * 1000,
 				env: process.env,
 			};
-			this._resolveProxyURL = createProxyResolver(params).resolveProxyURL;
+			this._proxyAgentParams = params;
+			this._proxyResolver = createProxyResolver(params);
 		}
-		return this._resolveProxyURL;
+		return this._proxyResolver;
 	}
 
 	private async _hostResolveProxy(url: string): Promise<string | undefined> {
 		for (const connection of this._connections.values()) {
 			try {
 				return await connection.resolveProxy(url);
+			} catch {
+				// This renderer could not serve the lookup; try the next one.
+			}
+		}
+		return undefined;
+	}
+
+	private async _hostLookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		for (const connection of this._connections.values()) {
+			try {
+				return await connection.lookupAuthorization(authInfo);
+			} catch {
+				// This renderer could not serve the lookup; try the next one.
+			}
+		}
+		return undefined;
+	}
+
+	private async _hostLookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		for (const connection of this._connections.values()) {
+			try {
+				return await connection.lookupKerberosAuthorization(url);
 			} catch {
 				// This renderer could not serve the lookup; try the next one.
 			}

@@ -18,7 +18,7 @@ const $ = DOM.$;
  */
 export interface IChatDebugEditorOptions extends IEditorOptions {
 	readonly sessionResource?: URI;
-	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart' | 'cache';
+	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart' | 'cache' | 'wirelog';
 	/** When set, automatically applies this text as the log filter. */
 	readonly filter?: string;
 }
@@ -29,6 +29,7 @@ export const enum ViewState {
 	Logs = 'logs',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
+	WireLog = 'wirelog',
 }
 
 export const enum LogsViewMode {
@@ -37,6 +38,7 @@ export const enum LogsViewMode {
 }
 
 export const CHAT_DEBUG_FILTER_ACTIVE = new RawContextKey<boolean>('chatDebugFilterActive', false);
+export const CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST = new RawContextKey<boolean>('chatDebug.activeSessionIsAgentHost', false);
 export const CHAT_DEBUG_KIND_TOOL_CALL = new RawContextKey<boolean>('chatDebug.kindToolCall', true);
 export const CHAT_DEBUG_KIND_MODEL_TURN = new RawContextKey<boolean>('chatDebug.kindModelTurn', true);
 export const CHAT_DEBUG_KIND_PROMPT_DISCOVERY = new RawContextKey<boolean>('chatDebug.kindPromptDiscovery', true);

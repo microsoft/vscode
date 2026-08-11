@@ -35,7 +35,7 @@ import { ServiceCollection } from '../../../../util/vs/platform/instantiation/co
 import { LanguageModelDataPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelTextPart2, LanguageModelToolMCPSource, LanguageModelToolResult } from '../../../../vscodeTypes';
 import { isImageDataPart } from '../../../conversation/common/languageModelChatMessageHelpers';
 import { IResultMetadata } from '../../../prompt/common/conversation';
-import { IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
+import { getSubAgentInvocationId, IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
 import { toJsonSchema } from '../../../tools/common/toJsonSchema';
 import { ToolName } from '../../../tools/common/toolNames';
 import { CopilotToolMode } from '../../../tools/common/toolsRegistry';
@@ -121,7 +121,11 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const children: PromptElement[] = [];
 
 		// Don't include this when rendering and triggering summarization
-		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{ modelId: this.promptEndpoint.model, marker: round.statefulMarker }} />;
+		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{
+			modelId: this.promptEndpoint.model,
+			marker: round.statefulMarker,
+			summarizedAtRoundId: round.statefulMarkerSummarizedAtRoundId,
+		}} />;
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
@@ -291,7 +295,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						inputObj = hookResult.updatedInput;
 					}
 
-					const subAgentInvocationId = promptContext.request?.subAgentInvocationId;
+					const subAgentInvocationId = getSubAgentInvocationId(promptContext);
 					// Capture the active trace context (from the invoke_agent span) so that
 					// the execute_tool span is properly parented even when async context
 					// propagation doesn't carry the active span.

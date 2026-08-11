@@ -5,16 +5,15 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { hash } from '../../../../base/common/hash.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -27,14 +26,35 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionShouldShowChatTabsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSubagentsContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
+import { CLOSE_CHAT_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getUntitledSessionTitle, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { $, append, EventHelper, reset } from '../../../../base/browser/dom.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { OS } from '../../../../base/common/platform.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
+import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
+import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
+import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
+import { groupSessionsForPicker } from './sessionsPicker.js';
+import { getSessionConversationActionId, getSessionConversationGroupId } from '../../../browser/sessionConversationGroups.js';
+import { SessionConversationsActionViewItem } from '../../../browser/parts/sessionConversationsActionViewItem.js';
+import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
 
@@ -49,7 +69,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 				weight: KeybindingWeight.SessionsContrib,
 				when: IsSessionsWindowContext,
 			},
@@ -64,9 +84,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 
 		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
-		const recentSessions = recent.filter(s => !s.isArchived.get());
-		const otherSessions = other.filter(s => !s.isArchived.get());
-
+		const sessionGroups = groupSessionsForPicker(recent, other);
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
@@ -74,6 +92,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		}
 
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
+		let firstSessionItem: ISessionPickItem | undefined;
 
 		// New session item
 		items.push({
@@ -81,16 +100,12 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			session: undefined,
 		});
 
-		let activeItem: ISessionPickItem | undefined;
-
 		const toPickItem = (session: ISession): ISessionPickItem => {
 			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
 
-			// Status icon, mirroring the sessions list and session header. Use the
-			// list model service's read state (not session.isRead) so the icon
-			// matches what the sessions list shows.
+			// Status icon, mirroring the sessions list and session header.
 			const status = session.status.get();
-			const isRead = sessionsListModelService.isSessionRead(session);
+			const isRead = session.isRead.get();
 			const isArchived = session.isArchived.get();
 			const workspace = session.workspace.get();
 			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
@@ -110,33 +125,30 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			}
 			detailParts.push(fromNow(session.updatedAt.get(), true, true));
 
-			const isActive = activeSessionId !== undefined && session.sessionId === activeSessionId;
-			const item: ISessionPickItem = {
+			return {
 				label: title,
 				detail: detailParts.join(' \u00B7 '),
 				iconClass: ThemeIcon.asClassName(icon),
 				session,
-				picked: isActive,
 			};
-			if (isActive) {
-				activeItem = item;
-			}
-			return item;
 		};
 
-		if (recentSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('recentlyOpened', "recently opened") });
-			for (const session of recentSessions) {
-				items.push(toPickItem(session));
+		const appendSessions = (label: string, sessions: readonly ISession[]): void => {
+			if (sessions.length === 0) {
+				return;
 			}
-		}
+			items.push({ type: 'separator', label });
+			for (const session of sessions) {
+				const item = toPickItem(session);
+				firstSessionItem ??= item;
+				items.push(item);
+			}
+		};
 
-		if (otherSessions.length > 0) {
-			items.push({ type: 'separator', label: localize('otherSessions', "other sessions") });
-			for (const session of otherSessions) {
-				items.push(toPickItem(session));
-			}
-		}
+		appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+		appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
+		appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
+		appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
 
 		const picker = quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true });
 		picker.items = items;
@@ -144,10 +156,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-
-		// Default to the currently active session so it is selected on open.
-		if (activeItem) {
-			picker.activeItems = [activeItem];
+		if (firstSessionItem) {
+			picker.activeItems = [firstSessionItem];
 		}
 
 		const disposables = new DisposableStore();
@@ -208,7 +218,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_NEXT_ID, true),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
 });
 
 const SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID = 'sessions.showSessionsPicker.navigatePrevious';
@@ -218,7 +228,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: getQuickNavigateHandler(SESSIONS_PICKER_NAVIGATE_PREVIOUS_ID, false),
 	when: SessionsPickerVisibleContext,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR },
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyR },
 });
 
 // -- Go Back --
@@ -240,9 +250,9 @@ registerAction2(class GoBackAction extends Action2 {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 			},
 			menu: [{
@@ -282,9 +292,9 @@ registerAction2(class GoForwardAction extends Action2 {
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 			},
 			menu: [{
@@ -518,7 +528,7 @@ export interface IChatTabContext {
 registerAction2(class CloseChatAction extends Action2 {
 	constructor() {
 		super({
-			id: 'sessions.chatCompositeBar.closeChat',
+			id: CLOSE_CHAT_COMMAND_ID,
 			title: localize2('closeActiveChat', "Close Chat"),
 			icon: Codicon.close,
 			// Hidden from the palette: closing a specific chat is contextual (the
@@ -610,7 +620,10 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 			if (chat.status.get() === SessionStatus.Untitled) {
 				await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 			} else {
-				await sessionsService.closeChat(session, chat);
+				// Closing the whole batch is one gesture, so it is not offered to
+				// Reopen Closed Chat or Session — that would reopen only the last
+				// chat of the batch.
+				await sessionsService.closeChat(session, chat, { skipHistory: true });
 			}
 		}
 	}
@@ -662,13 +675,6 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			precondition: SessionSupportsMultipleChatsContext,
-			keybinding: {
-				weight: CHAT_TAB_KEYBINDING_WEIGHT,
-				// Like Cmd/Ctrl+Shift+T in a browser — reopens the most recently
-				// closed chat tab. Scoped to the agents window, outside editor area.
-				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
-			},
 		});
 	}
 
@@ -685,6 +691,33 @@ registerAction2(class ReopenLastClosedChatAction extends Action2 {
 		}
 		await sessionsService.openChat(session, lastClosed.resource);
 		sessionsPartService.focusSession(session);
+	}
+});
+
+registerAction2(class ReopenLastClosedItemAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.reopenLastClosedItem',
+			title: localize2('reopenLastClosedItem', "Reopen Closed Chat or Session"),
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				weight: CHAT_TAB_KEYBINDING_WEIGHT,
+				// Like Ctrl/Cmd+Shift+T in a browser. Outside the editor scope the
+				// chord always belongs to the sessions area (it is a no-op when
+				// nothing was closed); inside it, VS Code's own Reopen Closed
+				// Editor takes over.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsEditorScopeContext.negate()),
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsHasClosedItemContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(ISessionsService).reopenLastClosedItem();
 	}
 });
 
@@ -738,7 +771,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
-	// mirroring the Conversations submenu) and adds the closed chats below.
+	// mirroring the Chats dropdown) and adds the closed chats below.
 	const openItems = (mru
 		? session.visibleChatTabs.get()
 		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
@@ -889,6 +922,261 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab },
 });
 
+/**
+ * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
+ * buttons, the empty file editor's "Search Files" button). Subclasses provide the command id,
+ * label and hover/aria text.
+ */
+export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
+
+	constructor(
+		action: IAction,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+	) {
+		super(undefined, action);
+	}
+
+	/** Command id used to look up the trailing keybinding hint. */
+	protected abstract get commandId(): string;
+
+	/** Visible pill label (e.g. "New", "New Chat"). */
+	protected abstract get label(): string;
+
+	/** Hover text; receives the resolved keybinding label, if any. */
+	protected abstract getHoverContent(keybindingLabel: string | undefined): string;
+
+	/** Accessible name; receives the resolved keybinding aria label, if any. */
+	protected abstract getAriaLabel(keybindingAriaLabel: string | undefined): string;
+
+	/** Optional onboarding spotlight target id for the pill. */
+	protected get onboardingTargetId(): string | undefined {
+		return undefined;
+	}
+
+	/** Whether to render the trailing keybinding hint chip in the label. */
+	protected get showKeybindingHint(): boolean {
+		return true;
+	}
+
+	/** Hook invoked right before the action runs (e.g. for telemetry). */
+	protected onRun(): void { }
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		if (!this.element) {
+			return;
+		}
+
+		const button = this._register(new Button(this.element, {
+			...defaultButtonStyles,
+			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
+			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
+			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
+			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
+			secondary: true,
+			supportIcons: true,
+		}));
+		button.element.classList.add('agent-sessions-compact-new-button');
+		const onboardingTargetId = this.onboardingTargetId;
+		if (onboardingTargetId) {
+			this._register(markOnboardingTarget(button.element, onboardingTargetId));
+		}
+		this._register(button.onDidClick(e => {
+			// Stop propagation so the parent <li> click handler doesn't run the action twice.
+			EventHelper.stop(e, true);
+			if (!this.action.enabled) {
+				return;
+			}
+			this.onRun();
+			this.actionRunner.run(this.action, this._context);
+		}));
+
+		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
+		const keybindingHint = $('span.new-session-keybinding-hint');
+		const keybindingHintLabel = this.showKeybindingHint
+			? this._register(new KeybindingLabel(keybindingHint, OS, {
+				disableTitle: true,
+				keybindingLabelBackground: 'transparent',
+				keybindingLabelForeground: 'inherit',
+				keybindingLabelBorder: 'transparent',
+				keybindingLabelBottomBorder: undefined,
+				keybindingLabelShadow: undefined,
+			}))
+			: undefined;
+		reset(button.element, buttonLabel);
+
+		const getKeybinding = () => {
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(this.commandId, this.contextKeyService, true);
+			const resolvedKeybindings = this.keybindingService.lookupKeybindings(this.commandId);
+			return primaryKeybinding ?? resolvedKeybindings[0];
+		};
+
+		this._register(this.hoverService.setupDelayedHover(button.element, () => ({
+			content: this.getHoverContent(getKeybinding()?.getLabel() ?? undefined),
+			appearance: { compact: true },
+			position: { hoverPosition: HoverPosition.BELOW },
+		})));
+
+		let lastRenderedKeybindingLabel: string | undefined | null = null;
+		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
+		const updateButton = () => {
+			const keybinding = getKeybinding();
+			const keybindingLabel = keybinding?.getLabel() ?? undefined;
+			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
+			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
+				return;
+			}
+
+			lastRenderedKeybindingLabel = keybindingLabel;
+			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
+
+			keybindingHintLabel?.set(keybinding);
+			if (keybindingHintLabel && keybinding) {
+				if (keybindingHint.parentElement !== button.element) {
+					append(button.element, keybindingHint);
+				}
+			} else {
+				keybindingHint.remove();
+			}
+
+			button.element.setAttribute('aria-label', this.getAriaLabel(keybindingAriaLabel));
+		};
+		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateButton));
+	}
+}
+
+/**
+ * Renders the new-session action as the compact "New" pill, shared by the sessions sidebar
+ * header and the titlebar.
+ */
+class NewSessionActionViewItem extends CompactButtonActionViewItem {
+
+	constructor(
+		action: IAction,
+		private readonly telemetrySource: SessionsInteractionSource,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(action, keybindingService, hoverService, contextKeyService);
+	}
+
+	protected override get commandId(): string {
+		return NEW_SESSION_ACTION_ID;
+	}
+
+	protected override get label(): string {
+		return localize('newCompact', "New");
+	}
+
+	protected override get onboardingTargetId(): string {
+		return 'sessions.newSession.button';
+	}
+
+	protected override getHoverContent(keybindingLabel: string | undefined): string {
+		return keybindingLabel
+			? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
+			: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
+	}
+
+	protected override getAriaLabel(keybindingAriaLabel: string | undefined): string {
+		return keybindingAriaLabel
+			? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
+			: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session");
+	}
+
+	protected override onRun(): void {
+		logSessionsInteraction(this.telemetryService, 'newSession', this.telemetrySource);
+	}
+}
+
+/**
+ * Registers {@link NewSessionActionViewItem} in the sessions sidebar header and the titlebar.
+ * The titlebar entry is gated behind an A/B experiment via {@link SessionsTitleBarNewSessionEnabledContext}.
+ */
+export class NewSessionActionViewItemContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.newSessionActionViewItem';
+
+	/** ExP treatment that shows the new-session button in the titlebar. */
+	private static readonly NEW_SESSION_TITLEBAR_TREATMENT = 'agentSessionsTitleBarNewSession';
+
+	private readonly titleBarEnabledContext: IContextKey<boolean>;
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+	) {
+		super();
+
+		this.titleBarEnabledContext = SessionsTitleBarNewSessionEnabledContext.bindTo(contextKeyService);
+
+		const onDidRegister = this._register(new Emitter<void>());
+		const menus: MenuId[] = [Menus.SidebarSessionsHeader, Menus.TitleBarLeftLayout];
+		for (const menu of menus) {
+			const source: SessionsInteractionSource = menu === Menus.TitleBarLeftLayout ? 'titleBar' : 'sidebar';
+			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
+				if (!(action instanceof MenuItemAction)) {
+					return undefined;
+				}
+				return instantiationService.createInstance(NewSessionActionViewItem, action, source);
+			}, onDidRegister.event));
+		}
+		onDidRegister.fire();
+
+		// Resolve the titlebar experiment now and on refetch.
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this.updateTitleBarTreatment()));
+		this.updateTitleBarTreatment();
+	}
+
+	private async updateTitleBarTreatment(): Promise<void> {
+		// Always show in dev builds (running from sources) to ease development, regardless of the experiment.
+		if (!this.environmentService.isBuilt) {
+			this.titleBarEnabledContext.set(true);
+			return;
+		}
+		const enabled = await this.assignmentService.getTreatment<boolean>(NewSessionActionViewItemContribution.NEW_SESSION_TITLEBAR_TREATMENT);
+		this.titleBarEnabledContext.set(enabled === true);
+	}
+}
+
+/**
+ * Renders the "New Chat" action in the session header as the compact pill, matching the
+ * "New" session pill in the sessions list header / titlebar.
+ */
+class NewChatActionViewItem extends CompactButtonActionViewItem {
+
+	protected override get commandId(): string {
+		return ADD_CHAT_TO_SESSION_ACTION_ID;
+	}
+
+	protected override get label(): string {
+		return localize('chatCompositeBar.addChat.compact', "New Chat");
+	}
+
+	protected override get showKeybindingHint(): boolean {
+		return false;
+	}
+
+	protected override getHoverContent(keybindingLabel: string | undefined): string {
+		return keybindingLabel
+			? localize('newChatButtonTitle', "New Chat ({0})", keybindingLabel)
+			: localize('newChatButtonTitleWithoutKeybinding', "New Chat");
+	}
+
+	protected override getAriaLabel(keybindingAriaLabel: string | undefined): string {
+		return keybindingAriaLabel
+			? localize('newChatButtonAriaLabel', "New Chat ({0})", keybindingAriaLabel)
+			: localize('newChatButtonAriaLabelWithoutKeybinding', "New Chat");
+	}
+}
+
 export class SessionNewChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessions.newChatActionViewItem';
@@ -903,57 +1191,58 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 		// picks up this factory; otherwise New Chat stays icon-only until its menu
 		// next changes.
 		const onDidRegister = this._register(new Emitter<void>());
-		this._register(actionViewItemService.register(Menus.SessionBarToolbar, ADD_CHAT_TO_SESSION_ACTION_ID, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionBarToolbar, ADD_CHAT_TO_SESSION_ACTION_ID, (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(SessionHeaderMetaActionViewItem, undefined, action, options);
+			return instantiationService.createInstance(NewChatActionViewItem, action);
 		}, onDidRegister.event));
 		onDidRegister.fire();
 	}
 }
 
-// The "Conversations" toolbar entry is a submenu (rendered as a dropdown): it
-// lists every chat in the session with a checkbox. Checked chats are shown as
-// tabs; unchecked chats are closed (hidden from the tab strip). Toggling an entry
-// closes or reopens the corresponding chat. The main chat is always shown and
-// cannot be closed, so its entry is checked and disabled.
-//
-// It surfaces in one of two places depending on whether the chat tab strip is
-// shown: when the strip is hidden it lives in the session header toolbar; once the
-// session has more than one open chat (the tab strip is shown) it moves to the
-// chat tab bar action menu at the end of the strip instead (see
-// Menus.SessionChatTabBar below). It also surfaces when the active chat has
-// subagents (a separate group at the bottom lists them), even if that is the only
-// committed chat.
-MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
-	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Conversations"),
-	icon: Codicon.commentDiscussion,
-	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext.negate()),
-});
+export class SessionConversationsActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
-// Mirror of the header Conversations submenu, rendered at the end of the chat tab
-// bar action menu while the tab strip is shown (more than one open chat). The two
-// `when` clauses are mutually exclusive on SessionShouldShowChatTabsContext so
-// the Conversations menu only ever appears in one place at a time.
-MenuRegistry.appendMenuItem(Menus.SessionChatTabBar, {
+	static readonly ID = 'workbench.contrib.sessions.conversationsActionViewItem';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+	) {
+		super();
+		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, Menus.SessionConversations, (action, _options, instantiationService) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(SessionConversationsActionViewItem, action);
+		}));
+	}
+}
+
+// The "Chats" toolbar entry is backed by a submenu whose groups are rendered by
+// the Sessions workbench as an Action Widget dropdown. Selecting an entry opens
+// or focuses that chat.
+//
+// It is always rendered in the session header meta row, after the pills
+// (workspace folder / changes / pull request) as the meta toolbar's default
+// dropdown icon, independent of whether the chat tab strip is shown. It surfaces
+// once the session has more than one committed chat, or when the active chat has
+// subagents (a separate group at the bottom lists them) even if that is the only
+// committed chat.
+MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 	submenu: Menus.SessionConversations,
-	title: localize2('chatCompositeBar.conversations', "Conversations"),
+	title: localize2('chatCompositeBar.conversations', "Chats"),
 	icon: Codicon.commentDiscussion,
 	group: 'navigation',
-	order: 10,
-	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(SessionHasMultipleCommittedChatsContext, SessionActiveChatHasSubagentsContext), SessionShouldShowChatTabsContext),
+	order: 100,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate(), ContextKeyExpr.or(ContextKeyExpr.and(SessionSupportsMultipleChatsContext, SessionHasMultipleCommittedChatsContext), SessionActiveChatHasSubagentsContext)),
 });
 
 /**
- * Populates the {@link Menus.SessionConversations} submenu for every visible
+ * Populates the {@link Menus.SessionConversations} menu for every visible
  * session. {@link Menus.SessionBarToolbar} is rendered once per session view
  * (header/floating toolbar) against that view's scoped context key service, so
- * the submenu items are scoped per session via {@link SessionIdContext}: each
- * session's per-chat toggle actions only render in (and act on) their own
+ * the menu items are scoped per session via {@link SessionIdContext}: each
+ * session's per-chat navigation actions only render in (and act on) their own
  * session's toolbar. The actions are (re)registered whenever the set of visible
  * sessions or their chat lists change.
  */
@@ -980,23 +1269,16 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		const that = this;
 		const extUri = this._uriIdentityService.extUri;
 
-		// Scope every entry to this session's toolbar: the submenu is rendered once
+		// Scope every entry to this session's toolbar: the menu is rendered once
 		// per session view against its own scoped context key service, where
 		// `sessionId` resolves to that view's session.
 		const scopedToSession = ContextKeyExpr.equals(SessionIdContext.key, session.sessionId);
 
 		const allChats = session.chats.read(reader);
-		const mainResource = session.mainChat.read(reader).resource;
-		const visibleChatTabs = session.visibleChatTabs.read(reader);
-		const activeChatResource = session.activeChat.read(reader).resource;
+		const activeChat = session.activeChat.read(reader);
 
-		const registerToggle = (chat: IChat, group: string, order: number) => {
+		const registerOpen = (chat: IChat, group: string, order: number) => {
 			const chatResource = chat.resource;
-			// Whether the chat is currently shown as a tab. For regular chats this
-			// mirrors `openChats`; for subagents it reflects the shown-subagent set,
-			// which is what open/close toggles.
-			const isShown = visibleChatTabs.some(c => extUri.isEqual(c.resource, chatResource));
-			const isMain = extUri.isEqual(chatResource, mainResource);
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
 			// chat resource (which is stable per chat) rather than embedding the raw
@@ -1004,10 +1286,8 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 			store.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `sessions.toggleChat.${session.sessionId}.${hash(chatResource.toString())}`,
+						id: getSessionConversationActionId(session.sessionId, chatResource),
 						title,
-						toggled: isShown ? ContextKeyExpr.true() : undefined,
-						precondition: isMain ? ContextKeyExpr.false() : undefined,
 						menu: { id: Menus.SessionConversations, group, order, when: scopedToSession },
 					});
 				}
@@ -1017,40 +1297,23 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 					if (!targetChat) {
 						return;
 					}
-					if (target.visibleChatTabs.get().some(c => extUri.isEqual(c.resource, chatResource))) {
-						await that._sessionsService.closeChat(target, targetChat);
-					} else {
-						// Opening a closed chat (or hidden subagent) un-hides it in the tab strip.
-						await that._sessionsService.openChat(target, targetChat.resource);
-					}
+					await that._sessionsService.openChat(target, targetChat.resource);
 				}
 			}));
 		};
 
 		allChats.forEach((chat, index) => {
 			// Skip untitled (in-composer) draft chats: they are transient "New
-			// Chat" drafts that can't be meaningfully closed/reopened, and listing
+			// Chat" drafts that cannot be meaningfully selected, and listing
 			// them here (titled "New Chat") just duplicates the New Chat action.
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			// Subagent (tool-origin) chats are surfaced in their own group below,
-			// scoped to the currently-active chat.
-			if (chat.origin?.kind === ChatOriginKind.Tool) {
-				return;
+			const group = getSessionConversationGroupId(chat, activeChat, extUri);
+			if (group) {
+				registerOpen(chat, group, index);
 			}
-			registerToggle(chat, '1_chats', index);
 		});
-
-		// Subagents of the currently-active chat, shown as a separate group at the
-		// bottom (a separator divides them from the session's chats). This group
-		// changes as the active chat changes.
-		allChats
-			.filter(chat =>
-				chat.origin?.kind === ChatOriginKind.Tool &&
-				!!chat.origin.parentChat &&
-				extUri.isEqual(chat.origin.parentChat, activeChatResource))
-			.forEach((chat, index) => registerToggle(chat, '2_subagents', index));
 
 		return store;
 	}

@@ -87,8 +87,8 @@ function makeAgentToolCallTurn(toolCallId: string, opts: { prompt?: string; suff
 			},
 		}],
 		state: 0 as unknown as Turn['state'],
-		startedAt: 1,
-		endedAt: 2,
+		startedAt: '1970-01-01T00:00:00.001Z',
+		duration: 2,
 		usage: undefined,
 	} as Turn;
 }

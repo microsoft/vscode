@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea } from '../../../base/browser/dom.js';
-import { DisposableMap } from '../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { DisposableMap, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -15,25 +14,11 @@ import { IEditorGroupViewOptions, IEditorPartCreationOptions, IEditorPartsView }
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../common/sessionConfig.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { MainEditorPart } from './editorPart.js';
 import { SinglePaneAuxiliaryBarPart } from './singlePaneAuxiliaryBarPart.js';
-
-/**
- * Whether the Agents window should use the single-pane detail-panel layout, where
- * the auxiliary bar is owned by (docked inside) the editor part. True only when the
- * setting is enabled on a non-phone viewport — the classic and mobile layouts keep
- * the auxiliary bar as a standalone part. This is the single source of truth for
- * selecting the single-pane workbench, editor part, and auxiliary bar together.
- */
-export function shouldUseSinglePaneLayout(configurationService: IConfigurationService): boolean {
-	const { width } = getClientArea(mainWindow.document.body);
-	const isPhoneLayout = width < 640;
-	return !isPhoneLayout && configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING) === true;
-}
 
 /**
  * Single-pane editor part: owns the docked auxiliary bar so "tab bar + editor
@@ -43,25 +28,50 @@ export function shouldUseSinglePaneLayout(configurationService: IConfigurationSe
  * that docks and sizes the auxiliary bar inside the editor part. The full-width
  * header itself is rendered by the editor group from the group's configured header
  * menus ({@link Menus.SessionsEditorHeaderPrimary} / {@link Menus.SessionsEditorHeaderSecondary},
- * supplied via {@link getGroupViewOptions}) whenever the active editor opts in via
- * {@link IEditorPane.getHeaderActions}; the part only reacts to its height to
- * reposition the docked auxiliary bar.
+ * supplied via {@link getGroupViewOptions}) and also hosts breadcrumbs in that row
+ * for text file editors. The part only reacts to the header's height to reposition
+ * the docked auxiliary bar.
  */
 export class SinglePaneMainEditorPart extends MainEditorPart {
 
 	private _auxiliaryBar: SinglePaneAuxiliaryBarPart | undefined;
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
-	private readonly _groupHeaderListeners = this._register(new DisposableMap<EditorGroupView>());
+	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
 				headerSecondary: Menus.SessionsEditorHeaderSecondary,
+				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
-				tabsBarContext: Menus.SessionsEditorTabsBarContext
-			}
+				tabsBarContext: Menus.SessionsEditorTabsBarContext,
+				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
+			},
+			showHeader: true
 		};
+	}
+
+	// Double-click resets detail-only to its default; with editor content visible
+	// the grid distributes the Sessions and editor siblings evenly.
+	get preferredWidth(): number | undefined {
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return DockedAuxiliaryBarController.DEFAULT_WIDTH;
+		}
+		return undefined;
+	}
+
+	// Matches the sessions list's minimum while only the detail panel is shown.
+	override get minimumWidth(): number {
+		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return DockedAuxiliaryBarController.NO_EDITOR_MIN_WIDTH;
+		}
+		return super.minimumWidth;
+	}
+
+	// Snap-collapse via sash-drag, like the sessions list, only when detail-only.
+	override get snap(): boolean {
+		return !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	constructor(
@@ -75,6 +85,39 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+
+		const tabsOverride = this._register(new MutableDisposable());
+		let enforcedShowTabs: 'multiple' | 'single' | undefined;
+		const updateTabsOverride = () => {
+			const nextShowTabs = this._getShowTabsOverride(
+				configurationService.getValue('workbench.editor.showTabs'),
+				layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+				layoutService.isVisible(Parts.AUXILIARYBAR_PART, mainWindow)
+			);
+			if (nextShowTabs === enforcedShowTabs) {
+				return;
+			}
+			enforcedShowTabs = nextShowTabs;
+			tabsOverride.value = nextShowTabs ? this.enforcePartOptions({ showTabs: nextShowTabs }) : undefined;
+		};
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration('workbench.editor.showTabs')) {
+				updateTabsOverride();
+			}
+		}));
+		this._register(layoutService.onDidChangePartVisibility(event => {
+			if (event.partId === Parts.EDITOR_PART || event.partId === Parts.AUXILIARYBAR_PART) {
+				updateTabsOverride();
+			}
+		}));
+		updateTabsOverride();
+	}
+
+	private _getShowTabsOverride(configuredShowTabs: 'multiple' | 'single' | 'none', editorVisible: boolean, auxiliaryBarVisible: boolean): 'multiple' | 'single' | undefined {
+		if (auxiliaryBarVisible && !editorVisible) {
+			return 'multiple';
+		}
+		return configuredShowTabs === 'none' ? 'single' : undefined;
 	}
 
 	/**
@@ -96,7 +139,7 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	protected override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 		const container = super.createContentArea(parent, options);
 
-		this._registerGroupHeaders();
+		this._registerGroupRelayoutListeners();
 
 		const layoutService = this.layoutService as IAgentWorkbenchLayoutService;
 		this._dockedAuxBar = this._register(new DockedAuxiliaryBarController(
@@ -108,9 +151,12 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 				isEditorAreaVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				isEditorVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
-				hideAuxiliaryBar: () => layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART),
+				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
-				getHeaderHeight: () => (this.activeGroup as EditorGroupView).headerHeight,
+				getHeaderHeight: () => {
+					const { total, offset } = (this.activeGroup as EditorGroupView).titleHeight;
+					return total - offset;
+				},
 			},
 		));
 
@@ -118,19 +164,18 @@ export class SinglePaneMainEditorPart extends MainEditorPart {
 	}
 
 	/**
-	 * Repositions the docked auxiliary bar when a group's header height changes,
-	 * so the aux bar and sash stay aligned with the editor content below the header.
+	 * Keeps the docked auxiliary bar aligned after group-local relayouts.
 	 */
-	private _registerGroupHeaders(): void {
+	private _registerGroupRelayoutListeners(): void {
 		for (const group of this.groups) {
-			this._registerGroupHeader(group as EditorGroupView);
+			this._registerGroupRelayoutListener(group as EditorGroupView);
 		}
-		this._register(this.onDidAddGroup(group => this._registerGroupHeader(group as EditorGroupView)));
-		this._register(this.onDidRemoveGroup(group => this._groupHeaderListeners.deleteAndDispose(group as EditorGroupView)));
+		this._register(this.onDidAddGroup(group => this._registerGroupRelayoutListener(group as EditorGroupView)));
+		this._register(this.onDidRemoveGroup(group => this._groupRelayoutListeners.deleteAndDispose(group as EditorGroupView)));
 	}
 
-	private _registerGroupHeader(group: EditorGroupView): void {
-		this._groupHeaderListeners.set(group, group.onDidChangeHeaderHeight(() => this._dockedAuxBar?.layout()));
+	private _registerGroupRelayoutListener(group: EditorGroupView): void {
+		this._groupRelayoutListeners.set(group, group.onDidRelayout(() => this._dockedAuxBar?.layout()));
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
