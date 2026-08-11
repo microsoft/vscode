@@ -156,11 +156,11 @@ suite('ChatSessionRoutingController', () => {
 		let dismissed: { resource: string; requestId: string | undefined } | undefined;
 		const controller = new ChatSessionRoutingController(
 			{
-				placeBadge: badge => container.appendChild(badge),
-				onDidDismissRoute: (dismissedResource, requestId) => {
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				onDidDismissRoute: (dismissedResource: URI, requestId: string | undefined) => {
 					dismissed = { resource: dismissedResource.toString(), requestId };
 				},
-			} as IChatSessionRoutingHost,
+			} as unknown as IChatSessionRoutingHost,
 			'test',
 			{ getSession: () => undefined } as unknown as IChatService,
 			{ model: { getSession: () => undefined, onDidChangeSessions: Event.None } } as never,
