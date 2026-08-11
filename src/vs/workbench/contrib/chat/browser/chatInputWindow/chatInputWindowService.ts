@@ -130,8 +130,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetWindowAnchorY = 0;
 	private _actionWidgetAnchorPosition = AnchorPosition.BELOW;
 	private _actionWidgetPlacement: ChatInputActionWidgetPlacement = 'above';
-	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
+	/** Bounds of the window that invoked omni, captured before the auxiliary window opens. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
+	private _invokingWindow = mainWindow;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -217,9 +218,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (this._openOperation) {
 			return this._openOperation;
 		}
+		this._invokingWindow = dom.getActiveWindow();
 		this._invokingWindowBounds = this._isUsableWindowBounds(invokingWindowBounds)
 			? invokingWindowBounds
-			: this._windowBounds(dom.getActiveWindow());
+			: this._windowBounds(this._invokingWindow);
 		this._openOperation = this._doOpenWindow();
 		try {
 			await this._openOperation;
@@ -446,7 +448,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
 				inputPickerAnchor: anchor => this._getActionWidgetAnchor(anchor),
 				inputPickerOpenOnMouseUp: true,
-				renderInputNotifications: false,
 				editorOverflowWidgetsDomNode,
 			},
 			{
@@ -499,6 +500,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			getPendingReplySessionResource: () => this._activePendingSessionResource,
 			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
 			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
+			prepareForCommandExecution: () => this.hostService.focus(this._invokingWindow),
 			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),
 			onDidRejectRoute: resource => this.voiceSessionController.clearRoutedRequest(resource),
 			onDidResolveRoute: (resource, kind, _isVoiceModeInput, requestId) => {
@@ -776,8 +778,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				enableImplicitContext: false,
 				defaultMode: ChatMode.Ask,
 				menus: { telemetrySource: 'chatInputWindowPending' },
-				renderInputNotifications: false,
-				fitQuestionCarouselToContent: true,
 			},
 			{
 				inputEditorBackground: inputBackground,
@@ -928,16 +928,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
 			const hasMultiple = pendingModels.length > 1;
-			const title = model.title || localize('chatInputWindow.pending.untitledSource', "Chat");
+			header.classList.toggle('hidden', !hasMultiple);
 			label.textContent = hasMultiple
-				? localize(
-					'chatInputWindow.pending.sourceAndCount',
-					"{0} — {1} of {2} waiting on you",
-					title,
-					this._pendingPromptIndex + 1,
-					pendingModels.length,
-				)
-				: localize('chatInputWindow.pending.source', "{0} waiting on you", title);
+				? localize('chatInputWindow.pending.count', "Request {0} of {1}", this._pendingPromptIndex + 1, pendingModels.length)
+				: '';
 			navigation.classList.toggle('hidden', !hasMultiple);
 			for (const button of [previous, next]) {
 				button.classList.toggle('disabled', !hasMultiple);

@@ -22,14 +22,18 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { MenuItemAction, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -49,7 +53,11 @@ const ROUTE_MAX_CHOICES = 6;
  * routed target. Long enough to read the target and intervene, short enough to
  * keep a hands-free/voice flow moving.
  */
-const ROUTE_AUTOSEND_DELAY_MS = 10000;
+const ROUTE_AUTOSEND_DELAY_MS = 5000;
+const MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS = 10000;
+
+/** How long command review remains available before the command runs. */
+const COMMAND_AUTORUN_DELAY_MS = 5000;
 
 /** Resolved destination for a submitted request: an existing session or a new one. */
 type PendingTarget =
@@ -154,6 +162,8 @@ export interface IChatSessionRoutingHost {
 	pickFolder?(defaultUri: URI | undefined): Promise<URI | undefined>;
 	/** Notify the host that a new request will be independently routed. */
 	onWillRoute?(): void;
+	/** Prepare the window and context that should receive a detected command. */
+	prepareForCommandExecution?(): Promise<void>;
 	/** Notify the host immediately before sending so stale destination state can be invalidated. */
 	onWillDispatchRoute?(resource: URI): void;
 	/** Roll back pre-dispatch state when the send is rejected or fails. */
@@ -191,6 +201,10 @@ export class ChatSessionRoutingController extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 	}
@@ -219,7 +233,7 @@ export class ChatSessionRoutingController extends Disposable {
 		// widget's own submit state never changes). Cleared when the submission
 		// resolves, is cancelled, or the user edits the draft.
 		this._setSubmissionPhase('routing');
-		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
+		ariaAlert(localize('chatSessionRouting.checkingIntent', "Checking how to handle your request."));
 
 		// The host cancels the in-flight submission on teardown so we never
 		// dispatch after close.
@@ -262,6 +276,41 @@ export class ChatSessionRoutingController extends Disposable {
 			this._dispatchImmediately(followupTarget, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
+		const commandCandidates = selectCommandIntentCandidates(utterance, this._collectCommandCandidates());
+		const intent = detectExactCommandTitleIntent(utterance, commandCandidates)
+			?? await this._detectIntent(commandCandidates, utterance, token);
+		if (token.isCancellationRequested) {
+			return true;
+		}
+		if (isHighConfidenceCommandIntent(intent)) {
+			const command = commandCandidates.find(candidate => candidate.commandId === intent.commandId);
+			if (command) {
+				this._setSubmissionPhase('awaitingChoice');
+				this._beginPendingCommand(
+					command,
+					query,
+					submittedAttachmentIds,
+					cts,
+					() => this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts),
+				);
+				return true;
+			}
+		}
+		await this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts);
+		return true;
+	}
+
+	private async _routeToChat(
+		query: string,
+		submittedAttachmentIds: readonly string[],
+		utterance: string,
+		attachedContext: readonly IChatRequestVariableEntry[] | undefined,
+		requestOptions: IChatSendRequestOptions,
+		cts: CancellationTokenSource,
+	): Promise<void> {
+		const token = cts.token;
+		this._setSubmissionPhase('routing');
+		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
 		this.host.onWillRoute?.();
 
 		const folders = this.workspaceContextService.getWorkspace().folders;
@@ -271,10 +320,10 @@ export class ChatSessionRoutingController extends Disposable {
 			? collectedCandidates.filter(candidate => resolveSessionWorkspaceFolder(candidate, folders) === mentionedFolder)
 			: collectedCandidates;
 		this.logService.info(
-			`[chatSessionRouting] owner=${this.debugOwner} voice=${isVoiceModeInput === true} workspaceFolders=[${folders.map(folder => folder.name).join(', ')}] mentionedFolder=${mentionedFolder?.name ?? '<none>'} candidates=${collectedCandidates.length} filteredCandidates=${candidates.length}`
+			`[chatSessionRouting] owner=${this.debugOwner} voice=${requestOptions.isVoiceModeInput === true} workspaceFolders=[${folders.map(folder => folder.name).join(', ')}] mentionedFolder=${mentionedFolder?.name ?? '<none>'} candidates=${collectedCandidates.length} filteredCandidates=${candidates.length}`
 		);
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 
 		// Every candidate receives a lightweight semantic pass before we bound the
@@ -284,17 +333,17 @@ export class ChatSessionRoutingController extends Disposable {
 			? await this._route(candidates, utterance, token)
 			: [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
 		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 
 		const results = enriched.length ? await this._route(enriched, utterance, token) : [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 		this._setSubmissionPhase('awaitingChoice');
 
@@ -307,10 +356,9 @@ export class ChatSessionRoutingController extends Disposable {
 		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
 		if (target.kind === 'new' && !hasSessionChoice) {
 			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
-			return true;
+			return;
 		}
 		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
-		return true;
 	}
 
 	private _dispatchOrReviewNewSession(target: NewSessionTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
@@ -356,6 +404,33 @@ export class ChatSessionRoutingController extends Disposable {
 
 	private _setSubmissionPhase(phase: SubmissionPhase): void {
 		this.host.widget.input.setSubmitPending(phase !== 'idle', phase === 'routing' || phase === 'dispatching');
+	}
+
+	private _collectCommandCandidates(): ICommandIntentCandidate[] {
+		const contextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const actions = this.menuService.getMenuActions(MenuId.CommandPalette, contextKeyService)
+			.flatMap(([, groupActions]) => groupActions)
+			.filter((action): action is MenuItemAction => action instanceof MenuItemAction && action.enabled);
+		const commands = new Map<string, ICommandIntentCandidate>();
+		for (const action of actions) {
+			const category = typeof action.item.category === 'string' ? action.item.category : action.item.category?.value;
+			commands.set(action.id, {
+				commandId: action.id,
+				label: category ? `${category}: ${action.label}` : action.label,
+			});
+		}
+		return filterOmniCommandIntentCandidates([...commands.values()]);
+	}
+
+	private async _detectIntent(commands: readonly ICommandIntentCandidate[], utterance: string, token: CancellationToken): Promise<ICommandIntentResult> {
+		try {
+			return await this.sessionRouter.detectIntent({ utterance, commands }, token);
+		} catch (err) {
+			if (!token.isCancellationRequested) {
+				this.logService.warn('[chatSessionRouting] command intent detection failed:', err);
+			}
+			return { kind: 'chat' };
+		}
 	}
 
 	/** Run the router, degrading to an empty ranking on failure/cancellation. */
@@ -558,6 +633,150 @@ export class ChatSessionRoutingController extends Disposable {
 		this._renderCountdownBadge(badge, store, target, newSessionTarget, results, candidates, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 	}
 
+	private _beginPendingCommand(
+		command: ICommandIntentCandidate,
+		submittedInput: string,
+		submittedAttachmentIds: readonly string[],
+		cts: CancellationTokenSource,
+		sendToChat: () => Promise<void>,
+	): void {
+		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			this.logService.warn('[chatSessionRouting] no surface available for command review; preserving draft');
+			cts.cancel();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('idle');
+			return;
+		}
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._pendingSend.value = store;
+
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(Codicon.play));
+		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		const countdown = dom.append(badge, dom.$('span.chat-routing-badge-countdown'));
+		let remainingSeconds = Math.ceil(COMMAND_AUTORUN_DELAY_MS / 1000);
+		const renderCountdown = () => {
+			label.textContent = localize('chatSessionRouting.runCommand', "Running command {0}", command.label);
+			countdown.textContent = localize('chatSessionRouting.commandCountdown', "in {0}s", remainingSeconds);
+		};
+
+		let didRun = false;
+		const timer = store.add(new MutableDisposable());
+		const reviewControls = store.add(new DisposableStore());
+		const reviewActions: HTMLElement[] = [];
+		const clearReviewControls = () => {
+			reviewControls.clear();
+			for (const action of reviewActions) {
+				action.remove();
+			}
+		};
+		const run = async () => {
+			if (didRun) {
+				return;
+			}
+			didRun = true;
+			timer.clear();
+			clearReviewControls();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('dispatching');
+			mark.replaceChildren(renderIcon(Codicon.loading));
+			label.textContent = localize('chatSessionRouting.runningCommand', "Running command {0}…", command.label);
+			countdown.textContent = '';
+			try {
+				if (this.host.prepareForCommandExecution) {
+					await this.host.prepareForCommandExecution();
+				}
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				if (!this._collectCommandCandidates().some(candidate => candidate.commandId === command.commandId)) {
+					throw new Error(`Command is no longer available: ${command.commandId}`);
+				}
+				await this.commandService.executeCommand(command.commandId);
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
+				this._setSubmissionPhase('idle');
+				this._pendingSend.clear();
+				this._submitCts.clear();
+				this._showCommandResult(command.label, true);
+			} catch (err) {
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				this.logService.warn('[chatSessionRouting] command execution failed:', command.commandId, err);
+				this._setSubmissionPhase('idle');
+				this._pendingSend.clear();
+				this._submitCts.clear();
+				this._showCommandResult(command.label, false);
+			}
+		};
+		const cancel = () => {
+			this._cancelPending(true);
+			ariaAlert(localize('chatSessionRouting.commandCancelled', "Cancelled command {0}.", command.label));
+		};
+		const routeToChat = () => {
+			if (didRun) {
+				return;
+			}
+			didRun = true;
+			timer.clear();
+			this._pendingSend.clear();
+			void sendToChat();
+		};
+
+		reviewActions.push(
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run()),
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat),
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel),
+		);
+		renderCountdown();
+		ariaAlert(localize('chatSessionRouting.runningCommandIn', "Running command {0} in {1} seconds. Activate Cancel or press Escape to cancel.", command.label, remainingSeconds));
+		const targetWindow = dom.getWindow(badge);
+		const handle = targetWindow.setInterval(() => {
+			remainingSeconds--;
+			if (remainingSeconds <= 0) {
+				void run();
+				return;
+			}
+			renderCountdown();
+		}, 1000);
+		timer.value = toDisposable(() => targetWindow.clearInterval(handle));
+
+		reviewControls.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Escape)) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				cancel();
+			}
+		}, true));
+	}
+
+	private _showCommandResult(label: string, success: boolean): void {
+		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(success ? Codicon.pass : Codicon.error));
+		const message = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		message.textContent = success
+			? localize('chatSessionRouting.commandRan', "Ran command {0}", label)
+			: localize('chatSessionRouting.commandFailed', "Could not run command {0}. Your draft was preserved.", label);
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+		this._pendingSend.value = store;
+		ariaAlert(message.textContent);
+	}
+
 	/**
 	 * Confident-match badge: names the routed session and counts down, then
 	 * auto-sends. The user can select another destination, choose several,
@@ -577,6 +796,9 @@ export class ChatSessionRoutingController extends Disposable {
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
+		const routeAutosendDelay = this.workspaceContextService.getWorkspace().folders.length > 1
+			? MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS
+			: ROUTE_AUTOSEND_DELAY_MS;
 		badge.classList.add('chat-routing-badge-ranked');
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
@@ -858,9 +1080,11 @@ export class ChatSessionRoutingController extends Disposable {
 		};
 		renderSelection();
 		const initialTarget = options[preselected];
-		ariaAlert(localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000)));
+		ariaAlert(initialTarget.kind === 'session'
+			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(routeAutosendDelay / 1000))
+			: localize('chatSessionRouting.confirmNewSession', "No confident match. Choose a destination before sending."));
 
-		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
+		let remainingSeconds = Math.ceil(routeAutosendDelay / 1000);
 		const renderCountdown = () => {
 			countdownEl.textContent = localize('chatSessionRouting.sendingIn', "sending in {0}s", remainingSeconds);
 		};
@@ -1192,7 +1416,7 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/** Append an accessible link-style action to the badge. */
-	private _addActionLink(store: DisposableStore, badge: HTMLElement, text: string, run: () => void): void {
+	private _addActionLink(store: DisposableStore, badge: HTMLElement, text: string, run: () => void): HTMLElement {
 		const el = dom.append(badge, dom.$('a.chat-routing-badge-action', { role: 'button', tabindex: '0' }));
 		el.textContent = text;
 		store.add(dom.addDisposableListener(el, dom.EventType.CLICK, run));
@@ -1202,6 +1426,7 @@ export class ChatSessionRoutingController extends Disposable {
 				run();
 			}
 		}));
+		return el;
 	}
 
 	/** Dispatch a resolved pending target. */

@@ -154,6 +154,9 @@ import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
+import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
+import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js';
+import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
@@ -260,15 +263,11 @@ export interface IChatInputPartOptions {
 	 * can pass `0` so the editor fills the box and its scrollbar sits at the edge.
 	 */
 	inputPartHorizontalPadding?: number;
-	onDidChangeInputOnboardingVisible?: (visible: boolean) => void;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
 	inputPickerPosition?: AnchorPosition | (() => AnchorPosition);
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
-	renderInputNotifications?: boolean;
-	fitQuestionCarouselToContent?: boolean;
-	onDidChangeInputNotificationVisible?: (visible: boolean) => void;
 }
 
 export interface IWorkingSetEntry {
@@ -469,6 +468,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	get gettingStartedTipContainerElement(): HTMLElement {
 		return this.chatGettingStartedTipContainer;
 	}
+
+	/** Arbitrates which notice occupies the area above this input. */
+	readonly noticeHost = this._register(new ChatInputNoticeHost(() => this.focus()));
 
 	getChatPetPlatformTop(): number {
 		const inputTop = this.inputContainer.getBoundingClientRect().top;
@@ -762,6 +764,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IDictationOnboardingService private readonly dictationOnboardingService: IDictationOnboardingService,
+		@IChatInputNoticeHubService private readonly chatInputNoticeHubService: IChatInputNoticeHubService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -2771,9 +2774,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Ensures the notification widget is instantiated and appended to the notification container.
 	 */
 	private ensureNotificationWidget(): void {
-		if (this.options.renderInputNotifications === false) {
-			return;
-		}
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
@@ -2786,7 +2786,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				sessionResource: this._currentSessionResourceObservable,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
-				onDidChangeVisibility: visible => this.options.onDidChangeInputNotificationVisible?.(visible),
+				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
+				focusInput: () => this.focus(),
 			});
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
@@ -3092,12 +3093,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatPlanReviewContainer = elements.chatPlanReviewContainer;
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
+		this._register(this.chatInputNoticeHubService.registerHost(this.noticeHost, this.container));
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
-		const onDidChangeInputOnboardingVisible = () => this.options.onDidChangeInputOnboardingVisible?.(
-			this.voiceModeOnboardingService.isVisible || this.dictationOnboardingService.isVisible
-		);
-		this._register(this.voiceModeOnboardingService.registerHost(elements.voiceModeOnboardingContainer, this.container, () => this.focus(), elements.chatGettingStartedTipContainer, onDidChangeInputOnboardingVisible));
-		this._register(this.dictationOnboardingService.registerHost(elements.dictationOnboardingContainer, this.container, elements.chatGettingStartedTipContainer, onDidChangeInputOnboardingVisible));
+		this._register(registerChatInputOnboardingHosts(
+			this.noticeHost,
+			{ voice: elements.voiceModeOnboardingContainer, dictation: elements.dictationOnboardingContainer },
+			this.container,
+			() => this.focus(),
+			this.voiceModeOnboardingService,
+			this.dictationOnboardingService,
+		));
 		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
@@ -4095,10 +4100,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._questionCarouselSessionResources.set(carouselKey, context.element.sessionResource);
 		}
 
-		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
-			...options,
-			fitContent: this.options.fitQuestionCarouselToContent,
-		});
+		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, options);
 		this._chatQuestionCarouselWidgets.set(carouselKey, part);
 		this._hasQuestionCarouselContextKey?.set(true);
 

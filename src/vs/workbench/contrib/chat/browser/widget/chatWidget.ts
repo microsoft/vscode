@@ -88,8 +88,7 @@ import { ChatListWidget } from './chatListWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
 import { IChatTipService } from '../chatTipService.js';
-import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
-import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
+import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -355,10 +354,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
-	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
-	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
-	private _isInputOnboardingVisible = false;
-	private _isInputNotificationVisible = false;
+	private readonly _gettingStartedTip = this._register(new MutableDisposable<ChatInputTipPresenter>());
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -1094,19 +1090,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.focusQuestionCarouselTerminal();
 	}
 
-	toggleTipFocus(): boolean {
-		if (this._gettingStartedTipPartRef?.hasFocus()) {
-			this.focusInput();
-			return true;
-		}
-
-		if (!this._gettingStartedTipPartRef) {
-			return false;
-		}
-		this._gettingStartedTipPartRef.focus();
-		return true;
-	}
-
 	hasInputFocus(): boolean {
 		return this.input.hasFocus();
 	}
@@ -1204,23 +1187,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private updateChatViewVisibility(): void {
 		if (this.viewModel) {
-			const isStandardLayout = this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal';
 			const numItems = this.viewModel.getItems().length;
 			const showWelcome = shouldShowChatWelcome(numItems, this.transcriptProgressActive || this.transcriptContextValue !== undefined);
 			dom.setVisibility(showWelcome, this.welcomeMessageContainer);
 			dom.setVisibility(!showWelcome, this.listContainer);
 
-			// Show/hide the getting-started tip container based on empty state.
-			// Only use this in the standard chat layout where the welcome view is shown.
-			if (isStandardLayout && this.inputPart) {
-				if (showWelcome) {
-					this.renderGettingStartedTipIfNeeded();
-				} else {
-					// Dispose the cached tip part so the next empty state picks a
-					// fresh (rotated) tip instead of re-showing the stale one.
-					this.clearGettingStartedTip();
-				}
-			}
+			// Re-evaluate the getting-started tip. When the empty state goes away the
+			// presenter drops the cached tip so the next empty state picks a fresh
+			// (rotated) one instead of re-showing the stale tip.
+			this.renderGettingStartedTipIfNeeded();
 		}
 
 		// Only show welcome getting started until setup is completed
@@ -1333,94 +1308,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
+		this._gettingStartedTip.value?.update();
+	}
+
+	/**
+	 * Whether this surface currently wants to show a getting-started tip. Mirrors
+	 * the conditions under which the welcome view is shown, since the tip only
+	 * belongs to the empty state of the standard chat layout.
+	 */
+	private isGettingStartedTipEligible(): boolean {
 		if (this.viewOptions.renderGettingStartedTip === false) {
-			this.clearGettingStartedTip();
-			return;
+			return false;
 		}
-		if (!this.inputPart || !this.viewModel) {
-			return;
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			return false;
 		}
-		if (this.isGettingStartedTipSuppressed()) {
-			this.clearGettingStartedTip();
-			return;
+		if (!this.viewModel) {
+			return false;
 		}
-
-		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-
-		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
-		if (!tip) {
-			this.clearGettingStartedTip();
-			return;
-		}
-
-		// Already showing an eligible tip
-		if (this._gettingStartedTipPart.value) {
-			dom.setVisibility(true, tipContainer);
-			return;
-		}
-
-		const store = new DisposableStore();
-		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
-		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart,
-			tip,
-			renderer,
-		));
-		this._gettingStartedTipPartRef = tipPart;
-
-		store.add(tipPart.onDidHide(() => {
-			tipPart.domNode.remove();
-			this._gettingStartedTipPartRef = undefined;
-			this._gettingStartedTipPart.clear();
-			dom.setVisibility(false, tipContainer);
-			this.focusInput();
-		}));
-
-		// Set the guard before appending to DOM so that any re-entrant calls
-		// triggered by context-key changes during construction see the guard
-		// and return early without adding a duplicate tip node.
-		this._gettingStartedTipPart.value = store;
-		// Clear any stale nodes left from a previous tip that was not properly
-		// removed (e.g. if re-entrancy bypassed the guard above).
-		dom.clearNode(tipContainer);
-		tipContainer.appendChild(tipPart.domNode);
-		dom.setVisibility(true, tipContainer);
+		return shouldShowChatWelcome(this.viewModel.getItems().length, this.transcriptProgressActive || this.transcriptContextValue !== undefined);
 	}
 
 	private clearGettingStartedTip(): void {
-		this._gettingStartedTipPartRef = undefined;
-		this._gettingStartedTipPart.clear();
-		if (this.inputPart) {
-			const tipContainer = this.inputPart.gettingStartedTipContainerElement;
-			dom.clearNode(tipContainer);
-			dom.setVisibility(false, tipContainer);
-		}
+		this._gettingStartedTip.value?.clear();
 	}
 
-	private isInputOnboardingVisible(): boolean {
-		return this._isInputOnboardingVisible;
-	}
-
-	private setInputOnboardingVisible(visible: boolean): void {
-		this._isInputOnboardingVisible = visible;
-		this.updateGettingStartedTipVisibility();
-	}
-
-	private setInputNotificationVisible(visible: boolean): void {
-		this._isInputNotificationVisible = visible;
-		this.updateGettingStartedTipVisibility();
-	}
-
-	private isGettingStartedTipSuppressed(): boolean {
-		return this.isInputOnboardingVisible() || this._isInputNotificationVisible;
-	}
-
-	private updateGettingStartedTipVisibility(): void {
-		if (this.isGettingStartedTipSuppressed()) {
-			this.clearGettingStartedTip();
-		} else if (this.isEmpty()) {
-			this.renderGettingStartedTipIfNeeded();
-		}
-	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
 		// Start checking for instruction files immediately if not already done
@@ -2217,15 +2129,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			modelPickerSessionType: this.viewOptions.modelPickerSessionType,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
-			onDidChangeInputOnboardingVisible: visible => this.setInputOnboardingVisible(visible),
 			onDidChangeModelPickerVisibility: this.viewOptions.onDidChangeModelPickerVisibility,
 			inputPickerPosition: this.viewOptions.inputPickerPosition,
 			inputPickerContainer: this.viewOptions.inputPickerContainer,
 			inputPickerAnchor: this.viewOptions.inputPickerAnchor,
 			inputPickerOpenOnMouseUp: this.viewOptions.inputPickerOpenOnMouseUp,
-			renderInputNotifications: this.viewOptions.renderInputNotifications,
-			fitQuestionCarouselToContent: this.viewOptions.fitQuestionCarouselToContent,
-			onDidChangeInputNotificationVisible: visible => this.setInputNotificationVisible(visible),
 		};
 
 		if (this.viewModel?.editing) {
@@ -2266,6 +2174,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.render(container, '', this);
+		this._gettingStartedTip.value = this.instantiationService.createInstance(
+			ChatInputTipPresenter,
+			{
+				container: this.input.gettingStartedTipContainerElement,
+				isEligible: () => this.isGettingStartedTipEligible(),
+				focusInput: () => this.focusInput(),
+			},
+			this.input.noticeHost,
+		);
 		// Keep read-only chats' composer hidden if the input part was rebuilt.
 		this._applyInputVisibility();
 		if (this.bodyDimension?.width) {
@@ -2356,10 +2273,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			previousModelIdentifier = modelIdentifier;
-			if (!this._gettingStartedTipPartRef) {
+			if (!this._gettingStartedTip.value?.current) {
 				return;
 			}
 
+			// Re-selects the tip for the new model; promotion/rotation reaches the
+			// rendered tip through `onDidNavigateTip`, so the result is unused here.
 			this.chatTipService.getWelcomeTip(this.contextKeyService);
 		}));
 
