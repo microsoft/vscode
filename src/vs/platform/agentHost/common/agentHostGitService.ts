@@ -254,6 +254,11 @@ export interface IAgentHostGitService {
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
 
 	/**
+	 * Merges `branchName` into the currently checked-out branch. A failed merge is aborted before the error is rethrown.
+	 */
+	mergeBranch(workingDirectory: URI, branchName: string): Promise<string>;
+
+	/**
 	 * Restores files in the working tree via `git restore`. When
 	 * {@link options.staged} is true, restores the index instead of the
 	 * working tree. When {@link options.ref} is provided, the contents are

@@ -182,6 +182,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async commitAll(): Promise<void> { }
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pull(): Promise<void> { }
@@ -3143,7 +3144,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3199,7 +3200,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3248,7 +3249,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
