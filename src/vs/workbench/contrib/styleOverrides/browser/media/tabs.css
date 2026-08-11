@@ -53,8 +53,8 @@
 	--tab-border-top-color: transparent !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container > .title.tabs:not(.show-file-icons) .tabs-container > .tab:not(.sticky-compact) {
-	padding: 0 var(--vscode-spacing-size80) !important;
+.modern-ui-tabs .part.editor > .content .editor-group-container > .title.tabs:not(.show-file-icons) .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
+	padding-left: var(--vscode-spacing-size80) !important;
 }
 
 .modern-ui-tabs .part.editor .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
