@@ -117,6 +117,7 @@
 }
 
 .new-session-prompt-option.has-title-detail .new-session-prompt-option-title {
+	align-items: center;
 	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
 	font-size: var(--vscode-agents-fontSize-label1);
 	font-weight: var(--vscode-agents-fontWeight-regular);
@@ -127,7 +128,8 @@
 .new-session-prompt-options-list > .new-session-prompt-option.has-title-detail .new-session-prompt-option-action-icon {
 	color: inherit;
 	flex-shrink: 0;
-	font-size: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize);
+	transform: translateY(-1px);
 }
 
 .new-session-prompt-option.has-title-detail .new-session-prompt-option-description {

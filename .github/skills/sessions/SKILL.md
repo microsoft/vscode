@@ -36,7 +36,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **GitHub prompt-option action labels must not masquerade as repository titles**: leading with an equal-weight "Tackle issue #123" row makes the generic action look like the issue name. Lead with the issue/PR title beside its state icon, then align quiet action/number metadata with that title and append a directional arrow; do not right-align the row or start it beneath the icon.
 
-- **Decorative prompt-option codicons must inherit their metadata row color**: the global workbench `.codicon` rule otherwise makes an inline arrow brighter than muted action text and can override its compact size. Use a component-owned selector with enough specificity to set `color: inherit` and the compact icon token.
+- **Prompt-option action arrows retain base visual weight and align optically to their metadata row**: the global workbench `.codicon` color makes an inline arrow brighter than muted action text, while forcing the compact size makes it smaller than the intended affordance. Use a component-owned selector with enough specificity for `color: inherit` and the base icon token, center the row's flex children, then offset the bottom-heavy arrow glyph upward by 1px for optical alignment.
 
 - **Prompt-option selection has two generated input forms**: the selected option stays switchable while the input is empty, exactly matches its full prompt, or exactly matches that prompt after its editable placeholder was activated and removed; every other edit disables the cards. Animate only the first insertion, replace later selections immediately, focus the input on activation, and use the card foreground for selected borders rather than conflating selection with the blue focus color.
 
