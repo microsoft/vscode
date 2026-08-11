@@ -9,14 +9,11 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
-import { readSessionGitState, type ISessionGitState, type SessionState } from '../common/state/sessionState.js';
-import { getRemoteTrackingRef } from './agentHostGitService.js';
+import { hasSessionPullRequestForBranch, readSessionGitHubState, readSessionGitState, type SessionState } from '../common/state/sessionState.js';
 
 export class AgentHostMergeOperationHandler implements IChangesetOperationHandler {
 
@@ -24,10 +21,10 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 
 	constructor(
 		private readonly _getSessionState: (sessionKey: string) => SessionState | undefined,
+		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onGitStateChanged: (sessionKey: string) => Promise<void>,
 		private readonly _onMerged: (sessionKey: string, commit: string) => Promise<void>,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
@@ -56,14 +53,15 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		}
 		this._throwIfCancelled(token);
 
-		const gitState = await this._gitService.getSessionGitState(worktreeRoot) ?? readSessionGitState(sessionState._meta);
+		const storedGitState = readSessionGitState(sessionState._meta);
+		const targetBranch = await this._resolveBaseBranchName(sessionUri);
+		if (!targetBranch) {
+			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
+		}
+		const gitState = await this._gitService.getSessionGitState(worktreeRoot, targetBranch) ?? storedGitState;
 		const sourceBranch = gitState?.branchName ?? await this._gitService.getCurrentBranch(worktreeRoot);
 		if (!sourceBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.sourceBranchMissing', "Could not determine the worktree branch."));
-		}
-		const targetBranch = await this._resolveTargetBranch(sessionUri, sessionState, gitState);
-		if (!targetBranch) {
-			throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.merge.targetBranchMissing', "Could not determine the branch to merge into."));
 		}
 		if (sourceBranch === targetBranch) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.merge.sameBranch', "The worktree is already on the target branch '{0}'.", targetBranch));
@@ -91,12 +89,15 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		let didCommit = false;
 		let shouldRefresh = false;
 		try {
-			if (await this._gitService.hasUncommittedChanges(worktreeRoot)) {
+			const hasUncommittedChanges = await this._gitService.hasUncommittedChanges(worktreeRoot);
+			this._throwIfPullRequestExists(sessionUri, sourceBranch);
+			if (hasUncommittedChanges) {
 				await this._gitService.commitAll(worktreeRoot, localize('agentHost.changeset.merge.commitMessage', "Agent Host changes for {0}", sourceBranch));
 				didCommit = true;
 				shouldRefresh = true;
 			}
 			this._throwIfCancelled(token);
+			this._throwIfPullRequestExists(sessionUri, sourceBranch);
 
 			this._logService.info(`[AgentHostMergeOperationHandler] Merging ${sourceBranch} into ${targetBranch} for session ${sessionUri}`);
 			try {
@@ -135,22 +136,11 @@ export class AgentHostMergeOperationHandler implements IChangesetOperationHandle
 		return { message: { markdown: localize('agentHost.changeset.merge.merged', "Merged changes from '{0}' into '{1}'.", sourceBranch, targetBranch) } };
 	}
 
-	private async _resolveTargetBranch(sessionUri: string, sessionState: SessionState, gitState: ISessionGitState | undefined): Promise<string | undefined> {
-		const configuredBranch = sessionState.config?.values[SessionConfigKey.Branch];
-		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
-			return configuredBranch.trim();
+	private _throwIfPullRequestExists(sessionUri: string, branchName: string): void {
+		const gitHubState = readSessionGitHubState(this._getSessionState(sessionUri)?._meta);
+		if (hasSessionPullRequestForBranch(gitHubState, branchName)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.merge.pullRequestExists', "Merge Changes is no longer available because a pull request exists for branch '{0}'.", branchName));
 		}
-
-		const databaseRef = this._sessionDataService.openDatabase(URI.parse(sessionUri));
-		let persistedBaseBranch: string | undefined;
-		try {
-			persistedBaseBranch = await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH);
-		} finally {
-			databaseRef.dispose();
-		}
-
-		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, gitState?.baseBranchName);
-		return baseBranch ? getRemoteTrackingRef(baseBranch)?.branchName : undefined;
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

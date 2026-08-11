@@ -64,6 +64,8 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	root.style.setProperty('--vscode-spacing-size40', '4px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
 	root.style.setProperty('--vscode-spacing-size320', '32px');
+	root.style.setProperty('--vscode-fontWeight-regular', '400');
+	root.style.setProperty('--vscode-fontWeight-semiBold', '600');
 	const part = appendElement(root, 'part pane-composite-part');
 	const title = appendElement(part, 'title');
 	title.style.height = `${titleHeight}px`;
@@ -286,6 +288,33 @@ suite('StyleOverridesContribution', () => {
 			agentsIconIndicatorBottomInset: 5.5,
 			agentsIconBadgeTop: '13px',
 			agentsIconBadgeRight: '2px',
+		});
+	});
+
+	test('pane composite actions use regular label weight', () => {
+		const regularRoot = document.createElement('div');
+		regularRoot.className = 'monaco-workbench style-override modern-ui-tabs';
+		document.body.appendChild(regularRoot);
+		store.add(toDisposable(() => regularRoot.remove()));
+		const regular = createCompositeAction(regularRoot, 40, true);
+		const auxiliary = createCompositeAction(regularRoot, 40, true);
+		auxiliary.actionItem.closest('.part')?.classList.add('auxiliarybar');
+
+		const agentsRoot = document.createElement('div');
+		agentsRoot.className = 'monaco-workbench modern-ui-tabs';
+		document.body.appendChild(agentsRoot);
+		store.add(toDisposable(() => agentsRoot.remove()));
+		const agents = createCompositeAction(agentsRoot, 35, true);
+
+		const targetWindow = getWindow(regular.actionLabel);
+		assert.deepStrictEqual({
+			regularLabelWeight: targetWindow.getComputedStyle(regular.actionLabel).fontWeight,
+			auxiliaryLabelWeight: targetWindow.getComputedStyle(auxiliary.actionLabel).fontWeight,
+			agentsLabelWeight: targetWindow.getComputedStyle(agents.actionLabel).fontWeight,
+		}, {
+			regularLabelWeight: '400',
+			auxiliaryLabelWeight: '400',
+			agentsLabelWeight: '400',
 		});
 	});
 

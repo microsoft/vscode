@@ -88,6 +88,8 @@ describe('ConfigurationServiceImpl - externally configurable advanced settings',
 			[ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine.fullyQualifiedId]: 0,
 			[ConfigKey.TeamInternal.InlineEditsDebounce.fullyQualifiedId]: 0,
 			[ConfigKey.TeamInternal.InlineEditsCacheDelay.fullyQualifiedId]: 0,
+			[ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove.fullyQualifiedId]: 0,
+			[ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow.fullyQualifiedId]: 7,
 		};
 		mockConfigStore.defaults = {};
 
@@ -105,6 +107,8 @@ describe('ConfigurationServiceImpl - externally configurable advanced settings',
 			extraDebounceEndOfLine: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, experimentationService),
 			debounce: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsDebounce, experimentationService),
 			cacheDelay: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, experimentationService),
+			nLinesAbove: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesAbove, experimentationService),
+			nLinesBelow: service.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, experimentationService),
 		}).toEqual({
 			unification: true,
 			excludedProviders: 'completions,github.copilot',
@@ -116,6 +120,8 @@ describe('ConfigurationServiceImpl - externally configurable advanced settings',
 			extraDebounceEndOfLine: 0,
 			debounce: 0,
 			cacheDelay: 0,
+			nLinesAbove: 0,
+			nLinesBelow: 7,
 		});
 	});
 });
