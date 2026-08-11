@@ -21,7 +21,7 @@
 
 		.chat-view-title-navigation-toolbar {
 			flex: 1 1 auto;
-			min-width: 0;
+			min-width: 80px;
 			overflow: hidden;
 
 			> .monaco-action-bar {
@@ -42,7 +42,7 @@
 
 		.chat-view-title-session-meta {
 			display: none;
-			flex: 0 1 auto;
+			flex: 0 0 auto;
 			min-width: 0;
 			margin-left: var(--vscode-spacing-size60);
 
@@ -64,6 +64,25 @@
 			.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
 				width: 100%;
 				overflow: hidden;
+			}
+
+			&.compact {
+				.session-changes-meta-action {
+					.chat-composite-bar-meta-item-icon,
+					.chat-composite-bar-meta-item-label {
+						display: none;
+					}
+				}
+
+				.session-pull-request-meta-action {
+					.chat-composite-bar-meta-item-label {
+						display: none;
+					}
+
+					.monaco-button.chat-composite-bar-meta-item-button {
+						gap: 0;
+					}
+				}
 			}
 		}
 

@@ -187,4 +187,76 @@ suite('AgentSessionChangesMultiDiffSourceResolver', () => {
 			goToFile: toAgentHostUri(URI.file('/workspace/file.ts'), 'test').toString(),
 		});
 	});
+
+	test('routes ambient git blob snapshots through the Agent Host file system', async () => {
+		const sessionResource = URI.parse('agent-host-copilot:/1');
+		const backendSession = URI.parse('copilot:/1');
+		const branchChangeset = URI.parse('copilot:/1/changeset/branch');
+		const sessionState: SessionState = {
+			provider: 'copilot',
+			title: 'Fix issue',
+			status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			changesets: [{ label: 'Branch Changes', changeKind: 'branch', uriTemplate: branchChangeset.toString() }],
+		};
+		const gitBlobUri = URI.parse('git-blob:/workspace/file.ts?snapshot');
+		const fileUri = URI.file('/workspace/file.ts');
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: fileUri.toString(),
+				edit: {
+					before: {
+						uri: fileUri.toString(),
+						content: { uri: gitBlobUri.toString() },
+					},
+					after: {
+						uri: fileUri.toString(),
+						content: { uri: fileUri.toString() },
+					},
+				},
+			}],
+		};
+		const connection = {
+			getSubscription: <T extends StateComponents>(kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> => {
+				const subscription = kind === StateComponents.Session
+					? createSubscription(sessionState)
+					: createSubscription(changesetState);
+				return {
+					object: subscription as unknown as IAgentSubscription<ComponentToState[T]>,
+					dispose() { },
+				};
+			},
+		} as IAgentConnection;
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			declare readonly _serviceBrand: undefined;
+			override readonly onDidChangeConnections = Event.None;
+			override readonly connections = [{
+				authority: 'local',
+				address: undefined,
+				name: 'Local',
+				isAmbient: true,
+				connection,
+			}];
+			override resolveSessionResource() { return { connection, backendSession }; }
+		};
+		const session = createSession('agent-host-copilot', sessionResource, { files: 1, insertions: 1, deletions: 1 });
+		const resolver = disposables.add(createResolver(session, connectionsService));
+		const input = createAgentSessionChangesEditorInput(session);
+		assert.ok(input?.multiDiffSource);
+
+		const source = await resolver.resolveDiffSource(input.multiDiffSource);
+		const [item] = source.resources.value;
+		assert.deepStrictEqual({
+			original: item.originalUri?.toString(),
+			modified: item.modifiedUri?.toString(),
+			goToFile: item.goToFileUri?.toString(),
+		}, {
+			original: toAgentHostUri(gitBlobUri, 'local').toString(),
+			modified: fileUri.toString(),
+			goToFile: fileUri.toString(),
+		});
+	});
 });

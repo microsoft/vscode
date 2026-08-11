@@ -31,7 +31,7 @@ import { ISessionContext } from '../../../services/sessions/browser/sessionConte
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
-import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
+import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest, type IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 import { createPullRequestHoverElement } from './pullRequestHover.js';

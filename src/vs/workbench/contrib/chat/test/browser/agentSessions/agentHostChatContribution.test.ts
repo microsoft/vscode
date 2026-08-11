@@ -9146,6 +9146,34 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('list controller projects the session-related pull request from summary metadata', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const controller = createSessionListController(disposables, instantiationService, agentHostService);
+			const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/229';
+
+			agentHostService.addSession({
+				session: AgentSession.uri('copilot', 'sess-pr'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'With PR',
+				_meta: {
+					github: {
+						owner: 'microsoft',
+						repo: 'vscode',
+						pullRequestUrls: [pullRequestUrl],
+					},
+				},
+			});
+			await controller.refresh(CancellationToken.None);
+
+			assert.deepStrictEqual(controller.items[0].metadata, {
+				pullRequestUrl,
+				owner: 'microsoft',
+				name: 'vscode',
+				pullRequestNumber: 229,
+			});
+		});
+
 		test('handler works with any IAgentConnection, not just IAgentHostService', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 

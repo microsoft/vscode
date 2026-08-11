@@ -9,9 +9,11 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../base/browse
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IAction } from '../../../base/common/actions.js';
 import { structuralEquals } from '../../../base/common/equals.js';
-import { autorun, derivedOpts, IObservable, IReader } from '../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IReader } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../platform/theme/browser/defaultStyles.js';
+import { AnimatedCounterWidget } from '../animatedCounterWidget.js';
 
 /**
  * Renders a session header meta action as a compact secondary button pill.
@@ -114,7 +116,6 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 			content.push($('span.chat-composite-bar-meta-item-label', undefined, labelText));
 		}
 
-		content.push(...this.getAdditionalLabelContent());
 		return content;
 	}
 
@@ -130,9 +131,6 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		return this._action.label;
 	}
 
-	protected getAdditionalLabelContent(): Array<HTMLElement | string> {
-		return [];
-	}
 }
 
 /** Aggregate file-change stats displayed by a session metadata pill. */
@@ -147,12 +145,14 @@ export interface ISessionDiffStats {
 export class SessionChangesMetaActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	private readonly diffStats: IObservable<ISessionDiffStats>;
+	private filesLabel: HTMLElement | undefined;
 
 	constructor(
 		context: unknown,
 		action: IAction,
 		options: IActionViewItemOptions,
 		computeDiffStats: (reader: IReader) => ISessionDiffStats,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(context, action, options);
 		this.diffStats = derivedOpts({ owner: this, equalsFn: structuralEquals }, computeDiffStats);
@@ -164,19 +164,49 @@ export class SessionChangesMetaActionViewItem extends SessionHeaderMetaActionVie
 		}));
 	}
 
+	override render(container: HTMLElement): void {
+		container.classList.add('session-changes-meta-action');
+		super.render(container);
+	}
+
+	protected override updateLabel(): void {
+		if (!this.button) {
+			return;
+		}
+
+		if (!this.filesLabel) {
+			const content: HTMLElement[] = [];
+			const iconElement = this.getIconElement();
+			if (iconElement) {
+				content.push(iconElement);
+			}
+
+			this.filesLabel = $('span.chat-composite-bar-meta-item-label');
+			content.push(this.filesLabel);
+			reset(this.button.element, ...content);
+
+			this._register(this.instantiationService.createInstance(AnimatedCounterWidget, this.button.element, {
+				prefix: '+',
+				direction: 'topToBottom',
+				cssClassName: 'chat-composite-bar-meta-added',
+				count: derived(this, reader => this.diffStats.read(reader).insertions),
+			}));
+			this._register(this.instantiationService.createInstance(AnimatedCounterWidget, this.button.element, {
+				prefix: '-',
+				direction: 'bottomToTop',
+				cssClassName: 'chat-composite-bar-meta-removed',
+				count: derived(this, reader => this.diffStats.read(reader).deletions),
+			}));
+		}
+
+		this.filesLabel.textContent = this.getLabelText();
+	}
+
 	protected override getLabelText(): string {
 		const { files } = this.diffStats.get();
 		return files === 1
 			? localize('sessionChanges.file', "{0} file", files)
 			: localize('sessionChanges.files', "{0} files", files);
-	}
-
-	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
-		const { insertions, deletions } = this.diffStats.get();
-		return [
-			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
-			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
-		];
 	}
 
 	protected override getTooltip(): string {

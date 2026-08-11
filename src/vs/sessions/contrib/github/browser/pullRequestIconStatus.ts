@@ -6,7 +6,7 @@
 import { IReaderWithStore } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IGitHubInfo } from '../../../services/sessions/common/session.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, type IGitHubPullRequest, type IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
 import { IPullRequestIconCache } from './pullRequestIconCache.js';
 

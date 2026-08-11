@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -153,6 +154,7 @@ export function createFixturePullRequestIconCache(): IPullRequestIconCache {
 	const icons = new Map<string, ThemeIcon>();
 	return {
 		_serviceBrand: undefined,
+		onDidChange: Event.None,
 		get: link => icons.get(link),
 		set: (link, icon) => { icons.set(link, icon); },
 	};

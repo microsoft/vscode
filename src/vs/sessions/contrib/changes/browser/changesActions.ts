@@ -247,6 +247,7 @@ export class ViewAllChangesActionViewItem extends SessionChangesMetaActionViewIt
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, options, reader => {
 			const session = sessionContext.session.read(reader);
@@ -281,7 +282,7 @@ export class ViewAllChangesActionViewItem extends SessionChangesMetaActionViewIt
 				insertions,
 				deletions,
 			};
-		});
+		}, instantiationService);
 	}
 }
 

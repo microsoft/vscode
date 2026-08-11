@@ -159,6 +159,7 @@ function isCommandSessionItem(item: unknown): item is { readonly resource: URI; 
 class TestPullRequestIconCache implements IPullRequestIconCache {
 
 	declare readonly _serviceBrand: undefined;
+	readonly onDidChange = Event.None;
 
 	private readonly _icons = new Map<string, ReturnType<typeof computePullRequestIcon>>();
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -21,7 +22,7 @@ suite('PullRequestIconCache', () => {
 	const mergedIcon: ThemeIcon = { id: 'git-pull-request-done', color: { id: 'charts.purple' } };
 
 	test('stores and reads icons keyed by PR link', () => {
-		const cache = new PullRequestIconCache(store.add(new InMemoryStorageService()));
+		const cache = store.add(new PullRequestIconCache(store.add(new InMemoryStorageService())));
 
 		cache.set(link(1), openIcon);
 
@@ -31,14 +32,26 @@ suite('PullRequestIconCache', () => {
 
 	test('persists across instances via storage', () => {
 		const storageService = store.add(new InMemoryStorageService());
-		new PullRequestIconCache(storageService).set(link(1), openIcon);
+		store.add(new PullRequestIconCache(storageService)).set(link(1), openIcon);
 
-		const restored = new PullRequestIconCache(storageService);
+		const restored = store.add(new PullRequestIconCache(storageService));
 		assert.deepStrictEqual(restored.get(link(1)), openIcon);
 	});
 
+	test('updates another cache instance through shared storage', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const writer = store.add(new PullRequestIconCache(storageService));
+		const reader = store.add(new PullRequestIconCache(storageService));
+		const changed = Event.toPromise(reader.onDidChange);
+
+		writer.set(link(1), mergedIcon);
+		await changed;
+
+		assert.deepStrictEqual(reader.get(link(1)), mergedIcon);
+	});
+
 	test('keeps only the 50 most recently updated entries', () => {
-		const cache = new PullRequestIconCache(store.add(new InMemoryStorageService()));
+		const cache = store.add(new PullRequestIconCache(store.add(new InMemoryStorageService())));
 
 		for (let i = 0; i < 60; i++) {
 			cache.set(link(i), { id: `icon-${i}` });
@@ -56,7 +69,7 @@ suite('PullRequestIconCache', () => {
 	});
 
 	test('changing an icon refreshes its recency so it survives eviction', () => {
-		const cache = new PullRequestIconCache(store.add(new InMemoryStorageService()));
+		const cache = store.add(new PullRequestIconCache(store.add(new InMemoryStorageService())));
 
 		for (let i = 0; i < 50; i++) {
 			cache.set(link(i), { id: `icon-${i}` });

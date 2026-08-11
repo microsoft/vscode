@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h, isHTMLElement } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, DisposableResizeObserver, EventType, h, isHTMLElement } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -14,7 +14,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -23,8 +23,11 @@ import { CommandsRegistry, ICommandService } from '../../../../../../platform/co
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { asCssVariable } from '../../../../../../platform/theme/common/colorUtils.js';
 import { SessionChangesMetaActionViewItem, SessionHeaderMetaActionViewItem } from '../../../../../browser/parts/sessionHeaderMetaActionViewItem.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../services/agentHost/common/agentSessionPullRequestIcon.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../../services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { createAgentSessionChangesEditorInput, getAgentChangesSummary, getAgentSessionPullRequestUri, hasValidDiff, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
@@ -57,6 +60,7 @@ export class ChatViewTitleControl extends Disposable {
 	private readonly session = observableValue<IAgentSession | undefined>(this, undefined);
 
 	private navigationToolbar?: MenuWorkbenchToolBar;
+	private titleInner?: HTMLElement;
 	private sessionMetaToolbar?: WorkbenchToolBar;
 	private sessionMetaContainer?: HTMLElement;
 	private actionsToolbar?: MenuWorkbenchToolBar;
@@ -123,12 +127,13 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('div.chat-view-title-inner', [
+			h('div.chat-view-title-inner@titleInner', [
 				h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
 				h('div.chat-view-title-session-meta.chat-composite-bar-meta-toolbar@sessionMeta'),
 				h('div.chat-view-title-actions-toolbar@actionsToolbar'),
 			]),
 		]);
+		this.titleInner = elements.titleInner;
 
 		// Toolbar on the left
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
@@ -149,12 +154,6 @@ export class ChatViewTitleControl extends Disposable {
 		this.sessionMetaContainer = elements.sessionMeta;
 		this.sessionMetaToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, elements.sessionMeta, {
 			ariaLabel: localize('chat.sessionMetadata', "Chat Session Metadata"),
-			responsiveBehavior: {
-				enabled: true,
-				kind: 'all',
-				minItems: 0,
-				observedElement: elements.sessionMeta,
-			},
 			actionViewItemProvider: (action, options) => {
 				if (options.isMenu) {
 					return undefined;
@@ -162,7 +161,7 @@ export class ChatViewTitleControl extends Disposable {
 
 				let item: SessionHeaderMetaActionViewItem | undefined;
 				if (action.id === VIEW_AGENT_SESSION_CHANGES_ACTION_ID) {
-					item = new SessionChangesMetaActionViewItem(undefined, action, options, reader => {
+					item = this.instantiationService.createInstance(SessionChangesMetaActionViewItem, undefined, action, options, reader => {
 						const session = this.session.read(reader);
 						const summary = getAgentChangesSummary(session?.changes);
 						const branchName = session?.metadata?.branchName;
@@ -175,7 +174,7 @@ export class ChatViewTitleControl extends Disposable {
 						};
 					});
 				} else if (action.id === OPEN_AGENT_SESSION_PULL_REQUEST_ACTION_ID) {
-					item = new ChatViewTitlePullRequestActionViewItem(action, options, this.session);
+					item = this.instantiationService.createInstance(ChatViewTitlePullRequestActionViewItem, action, options, this.session);
 				}
 
 				if (item) {
@@ -184,13 +183,17 @@ export class ChatViewTitleControl extends Disposable {
 				return item;
 			},
 		}));
-		this._register(autorun(reader => {
+		const hasSessionChanges = derived(this, reader => hasValidDiff(this.session.read(reader)?.changes));
+		const hasSessionPullRequest = derived(this, reader => {
 			const session = this.session.read(reader);
+			return !!session && !!getAgentSessionPullRequestUri(session);
+		});
+		this._register(autorun(reader => {
 			const actions: IAction[] = [];
-			if (hasValidDiff(session?.changes)) {
+			if (hasSessionChanges.read(reader)) {
 				actions.push(this.viewChangesAction);
 			}
-			if (session && getAgentSessionPullRequestUri(session)) {
+			if (hasSessionPullRequest.read(reader)) {
 				actions.push(this.openPullRequestAction);
 			}
 			this.setSessionMetaActions(actions);
@@ -212,6 +215,13 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		parent.appendChild(this.titleContainer);
+
+		const compactObserver = this._register(new DisposableResizeObserver('ChatViewTitleControl.compact', entries => {
+			if (entries[0]) {
+				this.updateCompactState();
+			}
+		}));
+		this._register(compactObserver.observe(elements.titleInner));
 	}
 
 	private executeSessionMetaAction(actionId: string): Promise<unknown> | undefined {
@@ -239,6 +249,7 @@ export class ChatViewTitleControl extends Disposable {
 		this.sessionMetaContainer.classList.toggle('visible', actions.length > 0);
 		this.sessionMetaActionViewItems.clear();
 		this.sessionMetaToolbar.setActions(actions);
+		this.updateCompactState();
 
 		if (focusedActionId) {
 			const focusedItem = this.sessionMetaActionViewItems.get(focusedActionId);
@@ -263,7 +274,10 @@ export class ChatViewTitleControl extends Disposable {
 				}
 			}));
 			const session = this.agentSessionsService.model.observeSession(model.sessionResource);
-			store.add(autorun(reader => this.session.set(session.read(reader), undefined)));
+			store.add(autorun(reader => {
+				this.session.set(session.read(reader), undefined);
+				this.doUpdate();
+			}));
 		}
 
 		this.doUpdate();
@@ -271,7 +285,9 @@ export class ChatViewTitleControl extends Disposable {
 
 	private doUpdate(): void {
 		const markdownTitle = new MarkdownString(this.model?.title ?? '');
-		this.title = renderAsPlaintext(markdownTitle);
+		const modelTitle = renderAsPlaintext(markdownTitle);
+		const sessionTitle = renderAsPlaintext(new MarkdownString(this.session.get()?.label ?? ''));
+		this.title = modelTitle || sessionTitle || undefined;
 
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 
@@ -293,6 +309,7 @@ export class ChatViewTitleControl extends Disposable {
 
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
 		this.titleLabel.value?.updateTitle(title);
+		this.updateCompactState();
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
@@ -303,7 +320,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private shouldRender(): boolean {
-		return !!this.model?.title; // we need a chat showing and not being empty
+		return !!this.model && !!this.title; // we need a chat showing and not being empty
 	}
 
 	getHeight(): number {
@@ -312,6 +329,16 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		return this.titleContainer.offsetHeight;
+	}
+
+	private updateCompactState(): void {
+		if (!this.sessionMetaContainer || !this.titleInner) {
+			return;
+		}
+
+		this.sessionMetaContainer.classList.remove('compact');
+		const isOverflowing = this.titleInner.scrollWidth > this.titleInner.clientWidth;
+		this.sessionMetaContainer.classList.toggle('compact', isOverflowing || (this.titleLabel.value?.isTruncated() ?? false));
 	}
 }
 
@@ -380,15 +407,36 @@ class ChatViewTitlePullRequestActionViewItem extends SessionHeaderMetaActionView
 		action: IAction,
 		options: IActionViewItemOptions,
 		private readonly session: IObservable<IAgentSession | undefined>,
+		@IAgentSessionPullRequestIconCache private readonly pullRequestIconCache: IAgentSessionPullRequestIconCache,
 	) {
 		super(undefined, action, options);
+		const iconCacheChanged = observableSignalFromEvent(this, pullRequestIconCache.onDidChange);
 
 		this._register(autorun(reader => {
 			this.session.read(reader);
+			iconCacheChanged.read(reader);
 			this.updateLabel();
 			this.updateTooltip();
 			this.updateAriaLabel();
 		}));
+	}
+
+	override render(container: HTMLElement): void {
+		container.classList.add('session-pull-request-meta-action');
+		super.render(container);
+	}
+
+	protected override getIconElement(): HTMLElement | undefined {
+		const session = this.session.get();
+		const pullRequestUri = session ? getAgentSessionPullRequestUri(session) : undefined;
+		const icon = pullRequestUri
+			? this.pullRequestIconCache.get(pullRequestUri.toString()) ?? computePullRequestIcon(GitHubPullRequestState.Open)
+			: computePullRequestIcon(GitHubPullRequestState.Open);
+		const iconElement = $(`span.chat-composite-bar-meta-item-icon${ThemeIcon.asCSSSelector(icon)}`);
+		if (icon.color) {
+			iconElement.style.setProperty('color', asCssVariable(icon.color.id), 'important');
+		}
+		return iconElement;
 	}
 
 	protected override getLabelText(): string {
@@ -431,6 +479,10 @@ class ChatViewTitleLabel extends ActionViewItem {
 		this.title = title;
 
 		this.updateLabel();
+	}
+
+	isTruncated(): boolean {
+		return !!this.titleLabel && this.titleLabel.scrollWidth > this.titleLabel.clientWidth;
 	}
 
 	protected override updateLabel(): void {

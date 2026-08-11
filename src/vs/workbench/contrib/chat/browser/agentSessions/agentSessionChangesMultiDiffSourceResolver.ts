@@ -107,7 +107,7 @@ export class AgentSessionChangesMultiDiffSourceResolver extends Disposable imple
 		return derived(this, reader => {
 			const resolved = resolution.read(reader);
 			const connection = resolved && this.agentHostConnectionsService.connections.find(connection => connection.connection === resolved.connection);
-			const mapUri = connection && !connection.isAmbient
+			const mapUri = connection
 				? (resource: URI) => toAgentHostUri(resource, connection.authority)
 				: (resource: URI) => resource;
 			const resources: MultiDiffEditorItem[] = [];
