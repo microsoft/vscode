@@ -416,8 +416,9 @@ action that cancels an in-flight lookup, hides the widget for the lifetime of
 that composer, preserves inserted or partially typed text, and returns focus to
 the input. GitHub numbers and repository titles use the standard foreground so
 they retain contrast across themes. Standard prompts contain action-specific
-editable placeholders and the same inspect, explain, implement, and validate
-guidance as the prompt variation.
+editable placeholders followed by concise, task-specific guidance to ask the
+user questions when the intended behavior, bug context, or CI remediation is
+unclear.
 
 Successful option insertions and the close action emit
 `onboarding.promptOptionInteraction`. The event records only the interaction and
