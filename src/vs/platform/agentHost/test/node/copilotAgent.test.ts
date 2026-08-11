@@ -32,7 +32,7 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
-import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -417,6 +417,11 @@ class TestCopilotClient implements ITestCopilotClient {
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ eventName: string; data: unknown }> = [];
 	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
+	readonly experimentProperties: Record<string, string> = {};
+
+	override setExperimentProperty(name?: string, value?: string): void {
+		this.experimentProperties[name ?? ''] = value ?? '';
+	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
 		this.events.push({ eventName: eventName ?? '', data });
@@ -757,6 +762,55 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('threads the assignment context from root config into forwarded CLI telemetry, sticky across a wipe', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: unknown): void {
+				this.events.push({ eventName: eventName ?? '', data });
+			}
+		}();
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, telemetryService });
+		try {
+			await agent.listSessions();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+
+			const notification = (sessionId: string): GitHubTelemetryNotification => ({
+				sessionId,
+				restricted: false,
+				event: { kind: 'response.success', properties: {}, metrics: {} },
+			});
+			configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'experiment:1' });
+			await forward(notification('set'));
+			configurationService.updateRootConfig({}, true);
+			await forward(notification('wiped-sticky'));
+			configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: '' });
+			await forward(notification('cleared'));
+
+			const expectedData = (sessionId: string, assignmentContext?: string) => ({
+				created_at: undefined,
+				model_call_id: undefined,
+				exp_assignment_context: undefined,
+				session_id: sessionId,
+				sdk_session_id: sessionId,
+				copilot_tracking_id: undefined,
+				kind: 'response.success',
+				restricted: false,
+				...(assignmentContext ? { 'abexp.assignmentcontext': assignmentContext } : {}),
+			});
+			assert.deepStrictEqual({ events: telemetryService.events, experimentProperties: telemetryService.experimentProperties }, {
+				events: [
+					{ eventName: 'copilotSdk/response.success', data: expectedData('set', 'experiment:1') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('wiped-sticky', 'experiment:1') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('cleared') },
+				],
+				experimentProperties: {},
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('routes exact legacy targets exclusively and falls back to generic forwarding', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
@@ -819,7 +873,7 @@ suite('CopilotAgent', () => {
 				enhanced: telemetryService.enhancedEvents,
 				internal: telemetryService.internalEvents,
 			}, {
-				generic: ['copilotCli/unknown_restricted', 'copilotCli/tool_call_executed'],
+				generic: ['copilotSdk/unknown_restricted', 'copilotSdk/tool_call_executed'],
 				enhanced: ['engine.messages.length'],
 				internal: ['engine.messages.length'],
 			});

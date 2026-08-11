@@ -44,7 +44,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
 import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
-import { autorun, IReader } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
@@ -54,6 +54,7 @@ import { setupVoiceInputDecorations } from '../voiceClient/voiceInputDecorations
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { getQuickInputWidth } from '../../../../../platform/quickinput/browser/quickInputController.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
@@ -62,7 +63,6 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
-const CHAT_INPUT_WINDOW_MAX_WIDTH = 600;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
 
@@ -122,8 +122,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetOpenOperation: Promise<void> | undefined;
 	private _actionWidgetOwner: IAuxiliaryWindow | undefined;
 	private _actionWidgetWindowAnchorY = 0;
-	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
+	/** Bounds of the window that invoked omni, captured before the auxiliary window opens. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
+	private _invokingWindow = mainWindow;
 
 	get isOpen(): boolean {
 		return !!this._window;
@@ -208,9 +209,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (this._openOperation) {
 			return this._openOperation;
 		}
+		this._invokingWindow = dom.getActiveWindow();
 		this._invokingWindowBounds = this._isUsableWindowBounds(invokingWindowBounds)
 			? invokingWindowBounds
-			: this._windowBounds(dom.getActiveWindow());
+			: this._windowBounds(this._invokingWindow);
 		this._openOperation = this._doOpenWindow();
 		try {
 			await this._openOperation;
@@ -259,7 +261,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		auxiliaryWindow.container.style.overflow = 'hidden';
 		auxiliaryWindow.window.document.body.classList.add('chat-input-window-body');
 		auxiliaryWindow.window.document.body.style.setProperty('margin', '0', 'important');
-		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'visible', 'important');
+		auxiliaryWindow.window.document.body.style.setProperty('overflow', 'hidden', 'important');
 
 		this._windowDisposables.clear();
 
@@ -419,6 +421,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				autoScroll: true,
 				renderInputOnTop: true,
 				renderStyle: 'compact',
+				inputEditorMaxHeight: 250,
 				renderGettingStartedTip: false,
 				// Show only the input box — drop every response list item.
 				filter: () => false,
@@ -450,6 +453,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const inputContainer = widget.input.inputContainerElement;
 		if (inputContainer) {
 			try {
+				const inputValue = observableFromEvent(this, widget.inputEditor.onDidChangeModelContent, () => widget.getInput());
 				this._windowDisposables.add(setupVoiceInputDecorations({
 					voiceSessionController: this.voiceSessionController,
 					ttsPlaybackService: this.ttsPlaybackService,
@@ -462,6 +466,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 					inputContainer,
 					glowContainer: surface,
 					isActive: this.voiceSessionController.omniInputActive,
+					inputValue,
 					isOwner: this.voiceSessionController.omniInputActive,
 				}));
 			} catch (error) {
@@ -484,6 +489,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			getPendingReplySessionResource: () => this._activePendingSessionResource,
 			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
 			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
+			prepareForCommandExecution: () => this.hostService.focus(this._invokingWindow),
 			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),
 			onDidRejectRoute: resource => this.voiceSessionController.clearRoutedRequest(resource),
 			onDidResolveRoute: (resource, kind, _isVoiceModeInput, requestId) => {
@@ -546,7 +552,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
-			const width = Math.max(this._defaultWidth(), win.outerWidth);
+			const width = this._defaultWidth();
 			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(surface.children)
 				.filter(child => child !== this._row)
@@ -557,7 +563,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 						? height
 						: height + element.offsetHeight;
 				}, 0);
-			const contentHeight = rowHeight + extraHeight + 2;
+			const contentHeight = rowHeight + extraHeight + 4;
 			if (contentHeight === lastContentHeight) {
 				return;
 			}
@@ -588,13 +594,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				parent.style.width = `${available}px`;
 				widget.input.layout(available);
 				widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), available);
-
-				const spill = parent.scrollWidth - parent.clientWidth;
-				if (spill > 0) {
-					const compensatedWidth = Math.max(0, available - spill);
-					widget.input.layout(compensatedWidth);
-					widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), compensatedWidth);
-				}
 				fitWindowToInput();
 			} finally {
 				layingOut = false;
@@ -895,16 +894,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
 			const hasMultiple = pendingModels.length > 1;
-			const title = model.title || localize('chatInputWindow.pending.untitledSource', "Chat");
+			header.classList.toggle('hidden', !hasMultiple);
 			label.textContent = hasMultiple
-				? localize(
-					'chatInputWindow.pending.sourceAndCount',
-					"{0} — {1} of {2} waiting on you",
-					title,
-					this._pendingPromptIndex + 1,
-					pendingModels.length,
-				)
-				: localize('chatInputWindow.pending.source', "{0} waiting on you", title);
+				? localize('chatInputWindow.pending.count', "Request {0} of {1}", this._pendingPromptIndex + 1, pendingModels.length)
+				: '';
 			navigation.classList.toggle('hidden', !hasMultiple);
 			for (const button of [previous, next]) {
 				button.classList.toggle('disabled', !hasMultiple);
@@ -1187,11 +1180,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		// Match Quick Chat's width so the model-detail hover has room to sit
-		// beside the picker: golden-cut of the invoking window, capped like the
-		// quick input widget (MAX_WIDTH = 600).
-		const width = this._defaultWidth();
-		return this._positionedBounds(width, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+		return this._positionedBounds(this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
 	}
 
 	private _positionedBounds(width: number, height: number): IRectangle {
@@ -1237,10 +1226,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const invokingWindowWidth = this._invokingWindowBounds.width > 0
 			? this._invokingWindowBounds.width
 			: mainWindow.outerWidth;
-		const availableWidth = invokingWindowWidth > 0
-			? invokingWindowWidth
-			: CHAT_INPUT_WINDOW_MAX_WIDTH / 0.62;
-		return Math.round(Math.min(availableWidth * 0.62, CHAT_INPUT_WINDOW_MAX_WIDTH));
+		return Math.round(getQuickInputWidth(invokingWindowWidth));
 	}
 
 	private _windowBounds(window: Window): IRectangle {
