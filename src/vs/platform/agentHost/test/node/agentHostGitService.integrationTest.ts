@@ -664,9 +664,9 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	// Residual case of #329982: a partial `--force` removal (e.g. an undeletable
-	// file) can de-register the worktree while leaving its directory on disk. A
-	// later removal must still succeed because git no longer tracks the path.
+	// Residual case of #329982: git can de-register a worktree (drop its
+	// `.git/worktrees/<id>` admin entry) while its directory still remains on
+	// disk. A later removal must still succeed because git no longer tracks the path.
 	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
 		const dir = initRepo();
 		const suffix = `wt-orphan-${Date.now()}`;
@@ -705,7 +705,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		mkdirSync(wtPath); // exists -> deterministic `git worktree remove` branch
 		await assert.rejects(
 			svc!.removeWorktree(URI.file(tmpRoot), URI.file(wtPath), { force: true }),
-			/not a git repository/i,
+			/exited with code 128/,
 		);
 	});
 
