@@ -12,6 +12,8 @@ import * as sqlite3 from '@vscode/sqlite3';
 import { createApp, retry, parseVersion } from './utils';
 import { opts } from './options';
 
+export type JSONValue = string | number | boolean | null | JSONValue[] | { [key: string]: JSONValue };
+
 const rootPath = path.join(__dirname, '..', '..', '..');
 const logsRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'logs');
 const crashesRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp', 'crashes');
@@ -232,7 +234,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, string | number | boolean | null>; extraArgs?: string[] } = {}) {
+export async function getApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}) {
 	if (opts.web && extraArgs?.length) {
 		throw new Error('Per-run extraArgs are not supported by the web automation launcher.');
 	}
@@ -276,7 +278,7 @@ export async function getApplication({ recordVideo, workspacePath, userSettings,
 	return application;
 }
 
-async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, string | number | boolean | null> | undefined, web: boolean): Promise<void> {
+async function preseedUserData(userDataDir: string | undefined, userSettings: Record<string, JSONValue> | undefined, web: boolean): Promise<void> {
 	if (!userDataDir) {
 		throw new Error('Cannot pre-seed the MCP test profile without a user data directory.');
 	}
@@ -322,7 +324,7 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, string | number | boolean | null>; extraArgs?: string[] } = {}): Promise<Application> {
+	async getOrCreateApplication({ recordVideo, workspacePath, userSettings, extraArgs }: { recordVideo?: boolean; workspacePath?: string; userSettings?: Record<string, JSONValue>; extraArgs?: string[] } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
@@ -341,6 +343,20 @@ export class ApplicationService {
 			await this._runAllListeners();
 		}
 		return this._application;
+	}
+
+	async getApplicationIfRunning(): Promise<Application | undefined> {
+		if (this._closing) {
+			await this._closing;
+		}
+		if (!this._application) {
+			return undefined;
+		}
+		try {
+			return this._application.code.driver.currentPage.isClosed() ? undefined : this._application;
+		} catch {
+			return undefined;
+		}
 	}
 
 	async stopApplication(): Promise<void> {

@@ -8,7 +8,7 @@ import type { Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
-import { ApplicationService, getProductVersion } from './application';
+import { ApplicationService, getProductVersion, JSONValue } from './application';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 const artifactRootPath = path.join(rootPath, '.build', 'vscode-playwright-mcp');
@@ -18,6 +18,14 @@ const qualityNames = ['Dev', 'Insiders', 'Stable', 'Exploration', 'OSS'];
 
 type StepStatus = 'started' | 'passed' | 'failed' | 'skipped';
 type RunOutcome = 'passed' | 'failed' | 'aborted';
+const jsonValueSchema: z.ZodType<JSONValue> = z.lazy(() => z.union([
+	z.string(),
+	z.number(),
+	z.boolean(),
+	z.null(),
+	z.array(jsonValueSchema),
+	z.record(z.string(), jsonValueSchema)
+]));
 
 interface EvidenceCapture {
 	status: StepStatus;
@@ -70,7 +78,7 @@ export class EvidenceService {
 
 	constructor(private readonly appService: ApplicationService) { }
 
-	async start(scenarioId: string, title: string, source?: string, scenarioPath?: string, workspacePath?: string, userSettings?: Record<string, string | number | boolean | null>, extraArgs?: string[]): Promise<string> {
+	async start(scenarioId: string, title: string, source?: string, scenarioPath?: string, workspacePath?: string, userSettings?: Record<string, JSONValue>, extraArgs?: string[]): Promise<string> {
 		if (this.currentRun) {
 			throw new Error(`Evidence run '${this.currentRun.id}' is already active.`);
 		}
@@ -108,24 +116,43 @@ export class EvidenceService {
 			steps: []
 		};
 		const run = this.currentRun;
-		run.pageListener = page => {
-			const video = page.video();
-			if (video) {
-				run.videos.add(video);
+		try {
+			run.pageListener = page => {
+				const video = page.video();
+				if (video) {
+					run.videos.add(video);
+				}
+			};
+			for (const page of app.code.driver.getAllWindows()) {
+				run.pageListener(page);
 			}
-		};
-		for (const page of app.code.driver.getAllWindows()) {
-			run.pageListener(page);
+			app.code.driver.browserContext.on('page', run.pageListener);
+
+			await app.startTracing();
+			await this.showOverlay('Scenario', title, 'started');
+			await wait(500);
+			await this.capture('00-scenario-started.png');
+			this.writeManifest();
+
+			return runPath;
+		} catch (error) {
+			try {
+				if (run.pageListener) {
+					app.code?.driver.browserContext.off('page', run.pageListener);
+				}
+			} catch {
+				// Preserve the startup error.
+			}
+			try {
+				await app.stopTracing(undefined, true);
+				await this.appService.stopApplication();
+			} catch {
+				// Preserve the startup error.
+			} finally {
+				this.currentRun = undefined;
+			}
+			throw error;
 		}
-		app.code.driver.browserContext.on('page', run.pageListener);
-
-		await app.startTracing();
-		await this.showOverlay('Scenario', title, 'started');
-		await wait(500);
-		await this.capture('00-scenario-started.png');
-		this.writeManifest();
-
-		return runPath;
 	}
 
 	async step(id: string, title: string, status: StepStatus, details?: string): Promise<{ screenshot: Buffer; screenshotPath: string }> {
@@ -181,16 +208,35 @@ export class EvidenceService {
 		if (activeStep && outcome !== 'aborted') {
 			throw new Error(`Step '${activeStep.id}' is still active. Complete it before finishing the run.`);
 		}
+		const failedStep = run.steps.find(candidate => candidate.captures.at(-1)?.status === 'failed');
+		if (failedStep && outcome === 'passed') {
+			outcome = 'failed';
+			notes = [notes, `Run marked failed because step '${failedStep.id}' failed.`].filter(Boolean).join('\n');
+		}
 
 		try {
-			const app = this.appService.application;
-			if (app) {
-				await this.showOverlay('Result', run.title, outcome);
-				await wait(500);
-				await this.capture(`99-result-${outcome}.png`);
-			} else {
+			let app = await this.appService.getApplicationIfRunning();
+			const recordApplicationClosure = () => {
 				outcome = outcome === 'passed' ? 'failed' : outcome;
-				notes = [notes, 'VS Code closed before evidence capture was finalized.'].filter(Boolean).join('\n');
+				const closureNote = 'VS Code closed before evidence capture was finalized.';
+				if (!notes?.includes(closureNote)) {
+					notes = [notes, closureNote].filter(Boolean).join('\n');
+				}
+			};
+			if (app) {
+				try {
+					await this.showOverlay('Result', run.title, outcome);
+					await wait(500);
+					await this.capture(`99-result-${outcome}.png`);
+				} catch (error) {
+					if (await this.appService.getApplicationIfRunning()) {
+						throw error;
+					}
+					app = undefined;
+					recordApplicationClosure();
+				}
+			} else {
+				recordApplicationClosure();
 			}
 
 			run.completedAt = new Date().toISOString();
@@ -199,11 +245,22 @@ export class EvidenceService {
 			this.writeManifest();
 
 			if (app) {
-				for (const page of app.code.driver.getAllWindows()) {
-					run.pageListener?.(page);
+				try {
+					for (const page of app.code.driver.getAllWindows()) {
+						run.pageListener?.(page);
+					}
+					await app.stopTracing(undefined, true);
+					await this.appService.stopApplication();
+				} catch (error) {
+					if (await this.appService.getApplicationIfRunning()) {
+						throw error;
+					}
+					app = undefined;
+					recordApplicationClosure();
+					run.outcome = outcome;
+					run.notes = notes;
+					this.writeManifest();
 				}
-				await app.stopTracing(undefined, true);
-				await this.appService.stopApplication();
 			}
 
 			await this.saveVideo();
@@ -365,7 +422,7 @@ export function applyEvidenceStartTool(server: McpServer, evidenceService: Evide
 			source: z.string().url().optional().describe('Source test-plan issue URL'),
 			scenarioPath: z.string().optional().describe('Path to the Markdown scenario definition'),
 			workspacePath: z.string().optional().describe('Workspace or folder to open'),
-			userSettings: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().describe('User settings to seed before VS Code starts'),
+			userSettings: z.record(z.string(), jsonValueSchema).optional().describe('User settings to seed before VS Code starts'),
 			extraArgs: z.array(z.string()).optional().describe('Additional VS Code command-line arguments')
 		},
 		async ({ scenarioId, title, source, scenarioPath, workspacePath, userSettings, extraArgs }) => {

@@ -198,12 +198,13 @@ export class PlaywrightDriver {
 
 	private async sendCDPTargetCommand(targetId: string, method: string, params: object): Promise<unknown> {
 		const rootSession = await this.context.newCDPSession(this.page);
-		const { sessionId } = await rootSession.send('Target.attachToTarget', { targetId, flatten: false });
+		let sessionId: string | undefined;
 		const messageId = 1;
 		let listener: ((event: { sessionId: string; message: string }) => void) | undefined;
 		let detachedListener: ((event: { sessionId: string; targetId?: string }) => void) | undefined;
 		let timeout: NodeJS.Timeout | undefined;
 		try {
+			sessionId = (await rootSession.send('Target.attachToTarget', { targetId, flatten: false })).sessionId;
 			const response = new Promise<unknown>((resolve, reject) => {
 				listener = event => {
 					if (event.sessionId !== sessionId) {
@@ -243,7 +244,9 @@ export class PlaywrightDriver {
 			if (timeout) {
 				clearTimeout(timeout);
 			}
-			await rootSession.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+			if (sessionId) {
+				await rootSession.send('Target.detachFromTarget', { sessionId }).catch(() => undefined);
+			}
 			await rootSession.detach();
 		}
 	}
