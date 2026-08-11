@@ -696,6 +696,7 @@ class PlaywrightSession extends Disposable {
 			throw new Error('PlaywrightSession was disposed while starting an action');
 		}
 		this._activeNetworkActions.set(actionId, pageId);
+		let interruptedActionSettled: Promise<void> | undefined;
 		try {
 			try {
 				const result = await tab.safeRunAgainstPage(async () => callback(page));
@@ -705,6 +706,9 @@ class PlaywrightSession extends Disposable {
 				}
 				return result;
 			} catch (error) {
+				if (error instanceof DialogInterruptedError) {
+					interruptedActionSettled = error.whenActionSettled;
+				}
 				const policyError = await this.browserViewService.getNetworkPolicyError(pageId);
 				if (policyError) {
 					throw new Error(policyError);
@@ -712,6 +716,7 @@ class PlaywrightSession extends Disposable {
 				throw error;
 			}
 		} finally {
+			await interruptedActionSettled;
 			this._activeNetworkActions.delete(actionId);
 			await this.browserViewService.setAgentNetworkAction(pageId, actionId, false);
 		}

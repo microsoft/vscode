@@ -27,7 +27,7 @@ declare module 'playwright-core' {
  * handle the dialog before retrying.
  */
 export class DialogInterruptedError extends Error {
-	constructor() {
+	constructor(readonly whenActionSettled: Promise<void>) {
 		super('Action was interrupted by a dialog');
 		this.name = 'DialogInterruptedError';
 	}
@@ -199,6 +199,8 @@ export class PlaywrightTab {
 		let actionDidComplete = false;
 		let postActionBlockedError: string | undefined;
 		let result: T | void;
+		let settleAction: (() => void) | undefined;
+		const actionSettled = new Promise<void>(resolve => settleAction = resolve);
 		const dialogOpened = Event.toPromise(this._onDialogStateChanged.event);
 		const actionCompleted = createCancelablePromise(async (token) => {
 
@@ -217,13 +219,14 @@ export class PlaywrightTab {
 			} finally {
 				this.page.off('filechooser', handleFileChooser);
 				this.actionScope.activeCalls--;
+				settleAction?.();
 			}
 		});
 
 		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {
 			if (!actionDidComplete) {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
-				throw new DialogInterruptedError();
+				throw new DialogInterruptedError(actionSettled);
 			}
 			if (postActionBlockedError) {
 				throw new Error(postActionBlockedError);
