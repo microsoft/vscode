@@ -55,7 +55,7 @@ export class AgentHostPullRequestOperationContribution extends Disposable implem
 			return undefined;
 		}
 
-		const outgoingChanges = gitState?.outgoingChanges ?? 0;
+		const outgoingChanges = gitState?.baseBranchChanges ?? gitState?.outgoingChanges ?? 0;
 		const uncommittedChanges = gitState?.uncommittedChanges ?? 0;
 		const hasChanges = outgoingChanges > 0 || uncommittedChanges > 0;
 		if (!gitState?.hasGitHubRemote || !hasChanges) {

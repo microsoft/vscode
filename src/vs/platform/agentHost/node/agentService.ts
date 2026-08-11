@@ -35,7 +35,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -84,10 +84,11 @@ import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agen
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
-import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
+import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
 import { AgentHostDiscardChangesOperationContribution } from './agentHostDiscardChangesOperationProvider.js';
+import { AgentHostMergeOperationContribution } from './agentHostMergeOperationProvider.js';
 import { AgentHostPullRequestOperationContribution } from './agentHostPullRequestOperationProvider.js';
 import { AgentHostSyncOperationContribution } from './agentHostSyncOperationProvider.js';
 import { AgentHostReviewService } from './agentHostReviewService.js';
@@ -141,6 +142,16 @@ function omitHostOwnedSessionConfig<T>(config: Record<string, T>): Record<string
 		delete result[key];
 	}
 	return result;
+}
+
+function parsePersistedSourceControlState(value: string): ISessionSourceControlState {
+	const state = readSessionSourceControlState({
+		[SESSION_META_SOURCE_CONTROL_KEY]: JSON.parse(value),
+	});
+	if (!state) {
+		throw new Error('Invalid persisted source-control state');
+	}
+	return state;
 }
 
 /**
@@ -515,6 +526,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Register the changeset operation contributions.
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCommitOperationContribution)));
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostPullRequestOperationContribution)));
+		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostMergeOperationContribution)));
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
 		this._register(this._changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
 
@@ -995,6 +1007,14 @@ export class AgentService extends Disposable implements IAgentService {
 							updated = { ...updated, _meta: withSessionGitHubState(updated._meta, gitHubState) };
 						} catch (e) {
 							this._logService.warn(`[AgentService][listSessions] Failed to parse GitHub state for ${s.session}`, e);
+						}
+					}
+					if (m[META_SOURCE_CONTROL_STATE]) {
+						try {
+							const sourceControlState = parsePersistedSourceControlState(m[META_SOURCE_CONTROL_STATE]);
+							updated = { ...updated, _meta: withSessionSourceControlState(updated._meta, sourceControlState) };
+						} catch (e) {
+							this._logService.warn(`[AgentService][listSessions] Failed to parse source-control state for ${s.session}`, e);
 						}
 					}
 
@@ -3091,6 +3111,14 @@ export class AgentService extends Disposable implements IAgentService {
 								};
 							} catch (err) {
 								this._logService.warn(`[AgentService] Failed to parse GitHub state for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
+						if (gitMetadata[META_SOURCE_CONTROL_STATE]) {
+							try {
+								sessionMetadata = withSessionSourceControlState(sessionMetadata, parsePersistedSourceControlState(gitMetadata[META_SOURCE_CONTROL_STATE]));
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse source-control state for ${sessionStr}: ${toErrorMessage(err)}`);
 							}
 						}
 

@@ -7,8 +7,8 @@ import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE } from '../common/agentHostGitStateService.js';
-import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, SessionLifecycle, withInitialSessionPullRequest, withMostRecentReferencedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentReferencedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
 import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
 import { parseGitHubPullRequestReferences, toGitHubPullRequestUrl } from '../common/githubPullRequestReferences.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
@@ -303,18 +303,45 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		const currentState = readSessionGitHubState(currentMeta);
 		const nextState = { ...(currentState ?? {}), ...state } satisfies ISessionGitHubState;
+		const currentPullRequest = getSessionRelatedPullRequestUrls(currentState)[0];
+		const nextPullRequest = getSessionRelatedPullRequestUrls(nextState)[0];
+		const currentSourceControlState = readSessionSourceControlState(currentMeta);
+		const nextSourceControlState = nextPullRequest && nextPullRequest !== currentPullRequest
+			? { ...currentSourceControlState, latestOutcome: SessionSourceControlOutcome.PullRequest } satisfies ISessionSourceControlState
+			: currentSourceControlState;
+		const sourceControlStateChanged = !objectEquals(currentSourceControlState, nextSourceControlState);
 
-		if (objectEquals(currentState, nextState)) {
+		if (objectEquals(currentState, nextState) && !sourceControlStateChanged) {
 			await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 			return;
 		}
 
 		// Update session state manager
-		const nextMeta = withSessionGitHubState(currentMeta, nextState);
+		const nextMeta = withSessionSourceControlState(withSessionGitHubState(currentMeta, nextState), nextSourceControlState);
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
 
 		// Update session database
 		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
+		if (sourceControlStateChanged && nextSourceControlState) {
+			await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextSourceControlState));
+		}
+	}
+
+	async recordSessionMerge(sessionKey: string, commit: string): Promise<void> {
+		const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
+		const currentState = readSessionSourceControlState(currentMeta);
+		const nextState: ISessionSourceControlState = {
+			...currentState,
+			merge: { commit },
+			latestOutcome: SessionSourceControlOutcome.Merge,
+		};
+		if (objectEquals(currentState, nextState)) {
+			await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextState));
+			return;
+		}
+
+		this._stateManager.setSessionMeta(sessionKey, withSessionSourceControlState(currentMeta, nextState));
+		await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextState));
 	}
 
 	private async _setSessionGitState(sessionKey: string, gitState: ISessionGitState): Promise<void> {

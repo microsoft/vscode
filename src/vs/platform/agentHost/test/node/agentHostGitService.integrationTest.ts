@@ -181,6 +181,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-'));
 			const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
 			run('init', '-q', '-b', 'main');
+			run('config', 'commit.gpgSign', 'false');
 			run('commit', '-q', '--allow-empty', '-m', 'initial');
 			run('remote', 'add', 'origin', `https://github.com/owner/repo.git`);
 			// Use a separate "upload" remote pointing at the bare repo to populate
@@ -203,7 +204,12 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.baseBranchName, 'main');
 			assert.strictEqual(result.upstreamBranchName, undefined);
 			assert.strictEqual(result.outgoingChanges, 2);
+			assert.strictEqual(result.baseBranchChanges, 2);
 			assert.strictEqual(result.uncommittedChanges, 0);
+
+			run('branch', '-D', 'main');
+			const remoteOnlyResult = await svc!.getSessionGitState(URI.file(tmpRoot!));
+			assert.strictEqual(remoteOnlyResult?.baseBranchChanges, 2);
 		} finally {
 			rmDirWithRetry(remoteDir);
 		}
@@ -512,6 +518,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		run('init', '-q', '-b', 'main');
 		run('config', 'user.name', 't');
 		run('config', 'user.email', 't@t');
+		run('config', 'commit.gpgSign', 'false');
 		run('commit', '-q', '--allow-empty', '-m', 'initial');
 		return tmpRoot!;
 	}
@@ -555,6 +562,101 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			status: '',
 			lastMessage: 'commit all changes',
 			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
+	(hasGit ? test : test.skip)('mergeBranch merges into the current branch', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'session.txt'), 'session changes');
+		cp.execFileSync('git', ['add', 'session.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'session changes'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+
+		await svc!.mergeBranch(URI.file(dir), 'agents/session');
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const head = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const source = cp.execFileSync('git', ['rev-parse', 'agents/session'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		assert.deepStrictEqual({ status, headMatchesSource: head === source }, { status: '', headMatchesSource: true });
+	});
+
+	(hasGit ? test : test.skip)('mergeBranch aborts a conflicted merge', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'shared.txt'), 'base');
+		cp.execFileSync('git', ['add', 'shared.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add shared'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'session');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'session changes'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'main');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'main changes'], { cwd: dir, env, stdio: 'pipe' });
+
+		let mergeFailed = false;
+		try {
+			await svc!.mergeBranch(URI.file(dir), 'agents/session');
+		} catch {
+			mergeFailed = true;
+		}
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const contents = await fs.readFile(join(dir, 'shared.txt'), 'utf8');
+		let mergeHeadExists = true;
+		try {
+			cp.execFileSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: dir, env, stdio: 'ignore' });
+		} catch {
+			mergeHeadExists = false;
+		}
+		assert.deepStrictEqual({ mergeFailed, status, contents, mergeHeadExists }, {
+			mergeFailed: true,
+			status: '',
+			contents: 'main',
+			mergeHeadExists: false,
+		});
+	});
+
+	(hasGit ? test : test.skip)('mergeBranch preserves a pre-existing merge', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'shared.txt'), 'base');
+		cp.execFileSync('git', ['add', 'shared.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add shared'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'session');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'session changes'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'shared.txt'), 'main');
+		cp.execFileSync('git', ['commit', '-q', '-am', 'main changes'], { cwd: dir, env, stdio: 'pipe' });
+		try {
+			cp.execFileSync('git', ['merge', '--no-edit', 'agents/session'], { cwd: dir, env, stdio: 'pipe' });
+		} catch {
+			// The conflict is the pre-existing merge state under test.
+		}
+
+		let errorMessage: string | undefined;
+		try {
+			await svc!.mergeBranch(URI.file(dir), 'agents/session');
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : String(error);
+		}
+		let mergeHeadExists = true;
+		try {
+			cp.execFileSync('git', ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], { cwd: dir, env, stdio: 'ignore' });
+		} catch {
+			mergeHeadExists = false;
+		} finally {
+			cp.execFileSync('git', ['merge', '--abort'], { cwd: dir, env, stdio: 'pipe' });
+		}
+
+		assert.deepStrictEqual({
+			rejectedExistingMerge: errorMessage?.includes('another merge is already in progress') === true,
+			mergeHeadExists,
+		}, {
+			rejectedExistingMerge: true,
+			mergeHeadExists: true,
 		});
 	});
 

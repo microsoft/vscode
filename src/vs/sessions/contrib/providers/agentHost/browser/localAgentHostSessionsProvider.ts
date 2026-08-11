@@ -134,6 +134,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.branchProtection')) {
+				this._refreshSessionWorkspaces();
+			}
 			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				this._syncRootState(this._agentHostService.rootState.value);
 				// `getSessions()` filters by the same gate, so the set of visible

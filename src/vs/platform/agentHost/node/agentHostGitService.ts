@@ -341,6 +341,28 @@ export class AgentHostGitService implements IAgentHostGitService {
 		await this._runGit(workingDirectory, ['commit', '--no-verify', '-m', message], { timeout: 60_000, throwOnError: true });
 	}
 
+	async mergeBranch(workingDirectory: URI, branchName: string): Promise<string> {
+		const existingMergeHead = await this._runGit(workingDirectory, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
+		if (existingMergeHead) {
+			throw new Error(`Cannot merge '${branchName}' because another merge is already in progress.`);
+		}
+		try {
+			return (await this._runGit(workingDirectory, ['merge', '--no-edit', '--', branchName], { timeout: 60_000, throwOnError: true }))?.trim() ?? '';
+		} catch (error) {
+			const mergeHead = await this._runGit(workingDirectory, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD']);
+			if (mergeHead) {
+				try {
+					await this._runGit(workingDirectory, ['merge', '--abort'], { timeout: 60_000, throwOnError: true });
+				} catch (abortError) {
+					const mergeMessage = error instanceof Error ? error.message : String(error);
+					const abortMessage = abortError instanceof Error ? abortError.message : String(abortError);
+					throw new Error(`Merge failed and could not be aborted: ${mergeMessage}; ${abortMessage}`, { cause: error });
+				}
+			}
+			throw error;
+		}
+	}
+
 	async restore(workingDirectory: URI, paths: readonly string[], options?: { readonly staged?: boolean; readonly ref?: string }): Promise<void> {
 		const args = ['restore'];
 
@@ -921,6 +943,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
 			: parseGitHubHeadRepoFromRemoteSelection(remotesOutput, pushRemote);
 
+		let baseBranchChanges: number | undefined;
+		if (baseBranchName && status.branchName && status.branchName !== baseBranchName) {
+			const hasLocalBaseBranch = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/heads/${baseBranchName}`]) !== undefined;
+			const baseBranchRef = hasLocalBaseBranch
+				? baseBranchName
+				: await this._resolveRemoteTrackingBranch(repositoryRoot, baseBranchName) ?? baseBranchName;
+			const ahead = await this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranchRef}..HEAD`]);
+			const parsed = ahead === undefined ? NaN : Number(ahead.trim());
+			if (Number.isFinite(parsed)) {
+				baseBranchChanges = parsed;
+			}
+		}
+
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
 		// branch is typically created locally with no upstream, so the user can
@@ -929,12 +964,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// commits relative to the base branch — that matches what the user
 		// actually cares about for "is there work to PR?".
 		let outgoingChanges = status.outgoingChanges;
-		if (outgoingChanges === undefined && baseBranchName && status.branchName && status.branchName !== baseBranchName) {
-			const ahead = await this._runGit(repositoryRoot, ['rev-list', '--count', `${baseBranchName}..HEAD`]);
-			const parsed = ahead === undefined ? NaN : Number(ahead.trim());
-			if (Number.isFinite(parsed)) {
-				outgoingChanges = parsed;
-			}
+		if (outgoingChanges === undefined) {
+			outgoingChanges = baseBranchChanges;
 		}
 
 		const result: ISessionGitState = {
@@ -945,6 +976,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
+			baseBranchChanges,
 			githubOwner: githubRepo?.owner,
 			githubHeadOwner: githubHeadRepo?.owner,
 			githubRepo: githubRepo?.repo,

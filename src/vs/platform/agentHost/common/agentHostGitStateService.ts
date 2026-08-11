@@ -10,10 +10,12 @@ import { ISessionGitHubState } from './state/sessionState.js';
 
 export const META_GIT_STATE = 'agentHost.git';
 export const META_GITHUB_STATE = 'agentHost.github';
+export const META_SOURCE_CONTROL_STATE = 'agentHost.sourceControl';
 
 export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 	[META_GIT_STATE]: true,
 	[META_GITHUB_STATE]: true,
+	[META_SOURCE_CONTROL_STATE]: true,
 };
 
 export const IAgentHostGitStateService = createDecorator<IAgentHostGitStateService>('agentHostGitStateService');
@@ -39,6 +41,9 @@ export interface IAgentHostGitStateService {
 	 * @param state The GitHub state to set.
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;
+
+	/** Records a successful direct merge and its resulting target-branch HEAD. */
+	recordSessionMerge(sessionKey: string, commit: string): Promise<void>;
 
 	/**
 	 * Refresh git state, then find and save a GitHub pull request for the current branch.
