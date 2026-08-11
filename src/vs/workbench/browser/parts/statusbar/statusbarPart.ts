@@ -225,7 +225,14 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this._onDidChange.fire(undefined);
-				this.updateStyles();
+
+				// Only update styles once the part has been created into a
+				// container. This event can fire during early startup (e.g. when
+				// default configurations are registered) before `create` runs,
+				// at which point there is no container to style yet.
+				if (this.element) {
+					this.updateStyles();
+				}
 			}
 		}));
 	}
