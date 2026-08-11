@@ -475,7 +475,7 @@ export class ProtocolServerHandler extends Disposable {
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
 				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
-					if (client && this._config.allowExtensionMethods !== false) {
+					if (client) {
 						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
 						if (isManagedSettingsPermissions(permissions)) {
 							void this._agentService.setClientManagedSettingsPermissions(client.clientId, permissions);

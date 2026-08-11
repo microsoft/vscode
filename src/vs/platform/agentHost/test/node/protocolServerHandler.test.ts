@@ -526,7 +526,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('extension methods can be disabled', () => {
+	test('extension methods can be disabled without blocking managed settings contributions', () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
 		localDisposables.add(new ProtocolServerHandler(
@@ -549,13 +549,18 @@ suite('ProtocolServerHandler', () => {
 		}));
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		}));
 
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
 			shutdownCalls: agentService.shutdownCalls,
+			managedSettingsPermissions: agentService.managedSettingsPermissionsByClient.get('client-extension-disabled'),
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
+			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		});
 	});
 
