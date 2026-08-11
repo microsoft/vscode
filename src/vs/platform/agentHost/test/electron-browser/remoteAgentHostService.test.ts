@@ -15,10 +15,11 @@ import { IConfigurationService, type IConfigurationChangeEvent } from '../../../
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { AgentsWindowRemoteAgentHostService, RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
-import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { getEntryTypeConfig, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
+import type { StorageValue } from '../../../../base/parts/storage/common/storage.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 
@@ -78,6 +79,7 @@ class TestConfigurationService {
 
 	private _entries: IRawRemoteAgentHostEntry[] = [];
 	private _enabled = true;
+	updateValueCalls = 0;
 
 	getValue(key?: string): unknown {
 		if (key === RemoteAgentHostsEnabledSettingId) {
@@ -93,6 +95,7 @@ class TestConfigurationService {
 	}
 
 	async updateValue(_key: string, value: unknown): Promise<void> {
+		this.updateValueCalls++;
 		const entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
 		const changed = JSON.stringify(this._entries) !== JSON.stringify(entries);
 		this._entries = entries;
@@ -109,7 +112,10 @@ class TestConfigurationService {
 	}
 
 	setEntries(entries: IRemoteAgentHostEntry[]): void {
-		this._entries = entries.map(entryToRawEntry).filter((e): e is IRawRemoteAgentHostEntry => e !== undefined);
+		this._entries = entries.flatMap(entry => {
+			const config = getEntryTypeConfig(entry.connection.type);
+			return config.store === 'settings' ? [config.toRaw!(entry, entry.connection)] : [];
+		});
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
 		});
@@ -134,6 +140,20 @@ class TestConfigurationService {
 	}
 }
 
+class TestStorageService extends InMemoryStorageService {
+	writeCalls = 0;
+
+	override store(key: string, value: StorageValue, scope: StorageScope, target: StorageTarget, external = false): void {
+		this.writeCalls++;
+		super.store(key, value, scope, target, external);
+	}
+
+	override remove(key: string, scope: StorageScope, external = false): void {
+		this.writeCalls++;
+		super.remove(key, scope, external);
+	}
+}
+
 suite('RemoteAgentHostService', () => {
 
 	const disposables = new DisposableStore();
@@ -143,6 +163,7 @@ suite('RemoteAgentHostService', () => {
 	let registeredFormatters: ResourceLabelFormatter[];
 	let instantiationService: TestInstantiationService;
 	let service: RemoteAgentHostService;
+	let storageService: TestStorageService;
 
 	setup(() => {
 		configService = new TestConfigurationService();
@@ -155,7 +176,7 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
-		const storageService = disposables.add(new InMemoryStorageService());
+		storageService = disposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
@@ -191,6 +212,18 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(IInstantiationService, mockInstantiationService as Partial<IInstantiationService>);
 
 		service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+	});
+
+	test('round-trips persisted entry types through their configuration', () => {
+		const entries: IRemoteAgentHostEntry[] = [
+			{ name: 'WebSocket', connectionToken: 'ws-token', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } },
+			{ name: 'SSH', connectionToken: 'ssh-token', connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:1234', sshConfigHost: 'host', hostName: 'host.example', user: 'me', port: 2222 } },
+		];
+
+		assert.deepStrictEqual(entries.map(entry => {
+			const config = getEntryTypeConfig(entry.connection.type);
+			return config.fromRaw!(config.toRaw!(entry, entry.connection));
+		}), entries);
 	});
 
 	teardown(() => disposables.clear());
@@ -666,6 +699,45 @@ suite('RemoteAgentHostService', () => {
 			});
 		});
 
+		test('does not persist runtime managed connections or their removal', async () => {
+			const entries: IRemoteAgentHostEntry[] = [
+				{ name: 'Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'runtime-tunnel', clusterId: 'cluster' } },
+				{ name: 'WSL', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:runtime', distro: 'runtime' } },
+				{ name: 'Cloud Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloud:runtime', environmentId: 'env_runtime' } },
+			];
+			const addresses = ['tunnel:runtime-tunnel', 'wsl:runtime', 'cloud:runtime'];
+
+			for (let index = 0; index < entries.length; index++) {
+				const client = disposables.add(new MockProtocolClient(addresses[index]));
+				await service.addManagedConnection(entries[index], client as unknown as Parameters<typeof service.addManagedConnection>[1]);
+			}
+			for (const address of addresses) {
+				await service.removeRemoteAgentHost(address);
+			}
+
+			assert.deepStrictEqual({
+				settingsWrites: configService.updateValueCalls,
+				storageWrites: storageService.writeCalls,
+				settings: configService.entries,
+			}, {
+				settingsWrites: 0,
+				storageWrites: 0,
+				settings: [],
+			});
+		});
+
+		test('keeps a registered tunnel connected when WebSocket settings change', async () => {
+			const tunnel = disposables.add(new MockProtocolClient('tunnel:live'));
+			await service.addManagedConnection(
+				{ name: 'Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'live', clusterId: 'cluster' } },
+				tunnel as unknown as Parameters<typeof service.addManagedConnection>[1],
+			);
+
+			configService.setEntries([{ name: 'WebSocket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } }]);
+
+			assert.strictEqual(service.getConnection('tunnel:live'), tunnel);
+		});
+
 		test('migrates legacy SSH connection details from settings to storage', async () => {
 			service.dispose();
 			configService.setRawEntries([{
@@ -743,6 +815,41 @@ suite('RemoteAgentHostService', () => {
 				settings: [],
 				configured: [],
 			});
+		});
+
+		test('replacing a stored SSH entry with a WebSocket entry clears the storage row', async () => {
+			service.dispose();
+			configService.setRawEntries([{
+				address: 'host1:8080',
+				name: 'SSH Host',
+				sshConfigHost: 'legacy',
+				sshHostName: 'legacy.example',
+			}]);
+			service = disposables.add(instantiationService.createInstance(RemoteAgentHostService));
+
+			const added = service.addRemoteAgentHost({ name: 'WebSocket Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } });
+			createdClients[createdClients.length - 1].connectDeferred.complete();
+			await added;
+
+			// The stale SSH row must not survive in storage, or _getConfiguredEntries
+			// overlays it back on top of the new WebSocket entry.
+			assert.deepStrictEqual(service.configuredEntries, [{
+				name: 'WebSocket Host',
+				connectionToken: undefined,
+				connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' },
+			}]);
+		});
+
+		test('keeps runtime connection names across reconciliation', async () => {
+			const tunnel: IRemoteAgentHostEntry = { name: 'My Tunnel', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'tunnel', clusterId: 'cluster' } };
+			const client = disposables.add(new MockProtocolClient('tunnel:tunnel'));
+			await service.addManagedConnection(tunnel, client as unknown as Parameters<typeof service.addManagedConnection>[1]);
+
+			configService.setEntries([{ name: 'WebSocket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
+
+			assert.deepStrictEqual(
+				service.connections.find(connection => connection.address === 'tunnel:tunnel')?.name,
+				'My Tunnel');
 		});
 	});
 

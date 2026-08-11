@@ -224,7 +224,10 @@ before un-maximizing, so maximize restoration cannot be captured as an explicit 
 
 The per-session record is updated whenever the user toggles the panel: an
 `onDidChangePartVisibility` listener for `PANEL_PART` writes the new visibility for the active
-session (suppressed while multiple sessions are visible).
+session (suppressed while multiple sessions are visible). Panel height is global workbench state,
+not per-session layout state. When Quick Chat hides the side pane, returning restores the panel first
+and then reveals the single-pane Editor. That Editor reveal must preserve the panel's current height;
+otherwise grid redistribution shrinks the panel to its minimum.
 
 ---
 
@@ -281,6 +284,9 @@ While the editor area is hidden, the managed Changes editor and Files placeholde
 `EditorInputCapabilities.CannotClose`, so standard close actions cannot remove either tab from the
 visible detail panel. Revealing the editor area makes both tabs closeable again. Managed-tab
 reconciliation uses an explicit forced close when it removes stale inputs or tidies the Files placeholder.
+In a Details-only composition, the tab-collapse strategy re-runs after each session working-set restore
+and editor-list change. Any restored non-docked editors are closed and captured for reopening when the
+editor area is shown, so the hidden-editor tab strip contains only the docked Changes and Files inputs.
 While the detail is visible, every diff editor selects the Changes container and every file editor
 selects the Files container, regardless of whether the file is inside the active session workspace.
 Rendered Markdown preview and Markdown custom editors also select Files.
@@ -324,7 +330,10 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
   submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
   opens it.
 - **In single-pane, editor/detail visibility is shared by lifecycle type** — New Sessions and Existing
-  Sessions restore independent profiles; quick chats only suppress the pane temporarily.
+  Sessions restore independent profiles; quick chats only suppress the pane temporarily while a single
+  session is visible. With multiple visible sessions, the focused session may reveal parts from its
+  matching profile, but it never automatically hides parts it does not use. This restores an existing
+  session's open side pane without letting a quick chat hide a pane used by another session.
 - **In the classic desktop layout, the sessions sidebar is auto-managed on a small window ([D7])** — when the main container is
   1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
   again once either closes or the window widens, unless the user closed it themselves. Suspended while

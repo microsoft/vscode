@@ -85,6 +85,7 @@ import { ICustomViewService } from '../services/customView/browser/customViewSer
 import { ICustomViewGridPartService } from '../services/customView/browser/customViewGridPartService.js';
 import { ICustomViewDescriptor } from '../services/customView/browser/customView.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 
 //#region Workbench Options
 
@@ -100,6 +101,7 @@ export interface IWorkbenchOptions {
 //#region Layout Classes
 
 enum LayoutClasses {
+	MODERN_UI_TABS = 'modern-ui-tabs',
 	SIDEBAR_HIDDEN = 'nosidebar',
 	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
@@ -897,6 +899,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			'agent-sessions-workbench',
+			LayoutClasses.MODERN_UI_TABS,
 			// LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,
@@ -1877,8 +1880,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
 		// Keep in sync with the desktop grid margin in workbench.css.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : this.partVisibility.sidebar ? 14 : 20;
-		const gridGutterH = isPhone ? 0 : 10;
+		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP + (this.partVisibility.sidebar ? 4 : AGENTS_FLOATING_PANEL_GAP);
+		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH
@@ -2358,6 +2361,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 
 		const sidePaneWasClosed = !this.partVisibility.editor && !this.partVisibility.auxiliaryBar;
+		const panelSizeBeforeEditorReveal = !hidden && this.isSinglePaneLayoutEnabled && this._effectiveVisible(Parts.PANEL_PART)
+			? this.workbenchGrid.getViewSize(this.panelPartView)
+			: undefined;
 
 		// Track whether this visible state was an explicit user reveal.
 		this._editorRevealedExplicitly = !hidden && explicit;
@@ -2378,6 +2384,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			this._savePartVisibility();
 		});
+		if (panelSizeBeforeEditorReveal) {
+			this.workbenchGrid.resizeView(this.panelPartView, panelSizeBeforeEditorReveal);
+		}
 
 		if (!hidden && sidePaneWasClosed && !skipSidePaneReveal) {
 			this._onSidePaneRevealed();

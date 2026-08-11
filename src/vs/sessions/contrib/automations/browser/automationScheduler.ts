@@ -75,6 +75,7 @@ export class AutomationSchedulerCore extends Disposable {
 			const isLeader = this._leader.isLeader.read(reader);
 			if (!isLeader) {
 				this._didStartupForCurrentLeadership = false;
+				this.automationService.stopStaleRunRecovery();
 				return;
 			}
 			this.kickoffPendingRuns(() => this.tickOnce(true));
@@ -124,7 +125,7 @@ export class AutomationSchedulerCore extends Disposable {
 
 		if (!this._didStartupForCurrentLeadership) {
 			this._didStartupForCurrentLeadership = true;
-			await this.automationService.markStaleRunsFailed(CRASH_RECOVERY_REASON);
+			await this.automationService.startStaleRunRecovery(CRASH_RECOVERY_REASON);
 			await this.dispatchDue('catch_up');
 			if (isLeadershipTransition) {
 				return;
@@ -194,6 +195,7 @@ export class AutomationSchedulerCore extends Disposable {
 	}
 
 	override dispose(): void {
+		this.automationService.stopStaleRunRecovery();
 		this._runCts.cancel();
 		super.dispose();
 	}

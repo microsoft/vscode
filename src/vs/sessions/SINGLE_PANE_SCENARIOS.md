@@ -160,6 +160,14 @@ No side pane at all — the detail panel and managed tabs are not shown; the cha
 full-width. This is a temporary effective hide: the matching New/Existing profile is
 restored when returning to a workspace session.
 
+### Multiple visible sessions
+Visibility restoration is reveal-only while multiple sessions are visible. Focusing a workspace
+session reveals the parts enabled by its matching profile, while focusing a quick chat or another
+session without side-pane content does not hide parts used by another session. Collapsing back to
+one session restores that session type's complete shared profile.
+Reveal-only preservation applies only to panel synchronization: active Changes/Files editors still
+publish their docked-details capability so **Toggle Details** remains available.
+
 ---
 
 ## 7. Transition matrix (single-session, not maximized)

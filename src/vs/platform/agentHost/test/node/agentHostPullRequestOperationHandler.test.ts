@@ -147,6 +147,9 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 	async getIssueOrPullRequest(): Promise<GitHubIssueOrPullRequest> {
 		throw new Error('not used');
 	}
+	async findPullRequestByHeadSha(): Promise<CreatedPullRequest | undefined> {
+		throw new Error('not used');
+	}
 	async enablePullRequestAutoMerge(pullRequestId: string, mergeMethod: AutoMergeMethod, _token: string, _signal: AbortSignal): Promise<void> {
 		this.calls.push(`enablePullRequestAutoMerge:${pullRequestId}:${mergeMethod}`);
 		if (this.autoMergeError) {

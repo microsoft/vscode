@@ -305,6 +305,7 @@ export type IChatSessionHistoryItem = {
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
+	isHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
 } | {
@@ -333,6 +334,7 @@ export interface IChatSessionServerRequest {
 	readonly variableData?: IChatRequestVariableData;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
+	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
 }
@@ -354,7 +356,6 @@ export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
 	export const Local = 'local';
-	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
 	export const AgentHostCopilot = 'agent-host-copilotcli';

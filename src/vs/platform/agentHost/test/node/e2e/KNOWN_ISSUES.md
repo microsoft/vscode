@@ -16,33 +16,129 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
-### Copilot SDK rejects the host's interactive denial result variant
+### Deleting a worktree session can race background Git work
 
-- Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Copilot.
-- Expected: declining the create tool returns a valid rejection result to the SDK and the model continues without creating the file.
-- Observed: the host returns `denied-interactively-by-user`, while the bundled SDK accepts `reject`; the SDK reports `permission host returned malformed payload`.
-- Gate: the Copilot variant is disabled at the test declaration in `fileOperationsSuite.ts`.
+A user can configure ignored files to be copied into an isolated worktree, complete an agent turn, and then delete the session. Session deletion can fail because background changeset or Git-state work is still using the worktree while Git removes it, leaving the session's worktree behind.
+
+- Test: `worktree materialization copies configured ignored files`.
+- Scope: providers with deterministic worktree include-file coverage.
+- Expected: deleting the completed session stops all work associated with it and removes its isolated worktree.
+- Observed: teardown can fail with `git worktree exited with code 255: error: failed to delete '.git/worktrees/<name>': Directory not empty`.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    --grep "worktree materialization copies configured ignored files"
+  ```
+
+### Client plugin skill is missing from Copilot slash completions
+
+A user can add a skill through a client-pushed plugin and invoke it by name in a Copilot session. The skill works when named explicitly, but it is absent from slash completions, so users cannot discover or select it through completion UI.
+
+- Tests:
+  - `plugin skill is included in leading slash completions`
+  - `plugin skill is included in whitespace slash completions without runtime commands`
+- Scope: Copilot client-pushed plugins.
+- Expected: the AHP `completions` command returns the enabled plugin skill for both a leading slash token and a whitespace-delimited slash token.
+- Observed: the completions response contains no item for the enabled `probe-skill`, including when the plugin has the canonical space-free name `e2e-probe`. An explicit model-driven invocation of the same skill succeeds.
+- Gate: both variants require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "plugin skill is included"
+  ```
+
+### Asynchronous Copilot shell lifecycles are record-only
+
+A user can start a shell command in the background, inspect or list the running shell, and stop it. The lifecycle works live, but deterministic replay cannot preserve whether the command-completion system notification reaches the model before its next request, so the captured request history changes with process timing.
+
+- Tests:
+  - `managed shell can be read and stopped after asynchronous execution`
+  - `managed shell sessions can be listed after asynchronous execution`
+  - `custom terminal tool manages an asynchronous shell lifecycle`
+- Scope: Copilot deterministic replay.
+- Expected: the same fixture replays whether the short-lived background command completes just before or just after the model's next request.
+- Observed: focused replay can include the completion system notification while a broad shared-process run omits it, causing strict model-request mismatches.
+- Gate: the scenarios run only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
 - Reproduce:
 
   ```bash
   AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "declining a file creation tool"
+    --grep "managed shell|custom terminal tool manages"
   ```
 
-### Claude file-tool denial mutates the workspace during Linux replay
+### Copilot deferred tool search cannot be replayed
+
+A Copilot session can defer client-provided tools, search for the relevant tool on demand, and then execute the selected tool. The live workflow succeeds, but the recorded Responses fixture loses the hosted tool-search output that triggers the AHP client-tool exchange, so replay ends the turn before either tool appears.
+
+- Tests:
+  - `tool search exposes deferred client tools and executes the selected result`
+  - `tool search tolerates a malformed client result without activating a deferred tool`
+- Scope: Copilot deterministic replay with `gpt-5.6-sol`.
+- Expected: replay regenerates the hosted tool-search output and reaches the same `toolSearch` AHP lifecycle as recording.
+- Observed: recording observes `toolSearch` and the deferred tool, while the normalized fixture stores the first response as empty content; replay therefore completes without either tool call.
+- Gate: both scenarios run only when `AGENT_HOST_REPLAY_RECORD=1` through `context.runRecordOnlyTests`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "tool search"
+  ```
+
+### Copilot config slash commands are missing from completions
+
+A user can type Copilot configuration commands such as `/autopilot` to change the session mode. The commands work when sent directly, but the AHP completions response does not include their state-aware forms, so users cannot discover `/autopilot on` before entering autopilot mode or `/autopilot off` after entering it.
+
+- Test: `config slash completions reflect the current Copilot session mode`.
+- Scope: Copilot.
+- Expected: completions include `/autopilot ` and the state-changing `on` or `off` form based on the current session mode.
+- Observed: the completions response contains no `/autopilot` items before or after changing the session mode, although sending `/goal <prompt>` directly changes the mode to `plan` and forwards the prompt successfully.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "config slash completions"
+  ```
+
+### Copilot shell and plugin-skill tool rows disappear after a host restart
+
+A user can reopen a Copilot session after restarting Agent Host and expects the completed transcript to retain its tool rows. Ordinary edit tool history is restored, but completed shell and plugin-skill lifecycles disappear entirely, so reopened conversations lose important evidence of what the agent did.
+
+- Tests:
+  - `shell failure metadata is reconstructed after a host restart`
+  - `plugin skill lifecycle is reconstructed after a host restart`
+- Scope: Copilot.
+- Expected: restored turns retain the completed shell tool call and both the skill and nested MCP tool calls that were visible before restart.
+- Observed: the source turn remains, but its restored `responseParts` contain no matching tool calls. A control using an ordinary edit tool retains its tool row across the same restart flow.
+- Gate: both scenarios require `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "shell failure metadata|plugin skill lifecycle is reconstructed"
+  ```
+
+### File-tool denial mutates the workspace during Linux replay
 
 - Test: `declining a file creation tool prevents the mutation and completes the turn`.
-- Scope: Claude on Linux.
+- Scope: Claude and Copilot on Linux.
 - Expected: declining the `Write` tool prevents `denied.txt` from being created and the replayed turn completes.
-- Observed: the turn completes after the denial, but `denied.txt` exists on Linux; the same fixture passes on macOS.
-- Gate: the Claude variant is disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
+- Observed: the turn completes, but `denied.txt` exists on Linux. For Copilot, the host auto-approves the in-workspace write before the synthetic denial reaches the permission request; both providers pass on macOS.
+- Gate: the Claude and Copilot variants are disabled on Linux through `fileToolDenialReplayUnstableOnLinux`.
 - Reproduce on Linux:
 
   ```bash
   ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/claudeAgentHostE2E.integrationTest.ts \
+    src/vs/platform/agentHost/test/node/e2e/providers/{claude,copilot}AgentHostE2E.integrationTest.ts \
     --grep "declining a file creation tool"
   ```
 
@@ -127,7 +223,7 @@ The blanket `!isWindows` shell exclusion is gone: `portableShellToolReplayEnable
 The following tests remain scoped at their call sites:
 
 - `a bang command runs locally and exposes terminal output` — the successful bang command produces output but does not complete reliably. Not a portability problem.
-- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows after CI exposed two blockers unrelated to command portability, described below.
+- `worktree session uses the resolved worktree as working directory` — the whole scenario is skipped on Windows because the host terminal tool does not expose a terminal resource there, as described below.
 
 The prompt snapshots in `providers/copilotPromptsE2E.integrationTest.ts` are also POSIX-only — every model, by construction rather than because of an observed failure.
 
@@ -148,9 +244,9 @@ The E2E workspaces come from `os.tmpdir()`, and what that returns is not what a 
 | Windows CI | `C:\Users\CLOUDT~1\AppData\Local\Temp\…` (8.3 short form) | `C:\Users\cloudtest\AppData\Local\Temp\…` |
 | macOS | `/var/folders/…` (logical) | `/private/var/folders/…` (physical) |
 
-Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` already strips `/private` for the macOS case, but a test asserting directly on tool output — rather than through a snapshot — has no such help.
+Any assertion that a command's output *contains* a path built from `tmpdir()` is therefore comparing two different spellings of the same directory. `normalizeSnapshotText` strips `/private` for snapshots, while direct worktree assertions accept both the reported path and its `realpathSync` canonical form.
 
-This is why `worktree session uses the resolved worktree as working directory` fails on Windows CI: the assertion never matches, and the test times out waiting for output that will never arrive in the expected form. Reworking it means resolving both sides with `realpathSync.native` before comparing, which also removes the macOS special case.
+This path aliasing previously made `worktree session uses the resolved worktree as working directory` time out after the tool and turn had already completed on macOS, and would have failed the same way on Windows. The test now canonicalizes direct path comparisons; the separate missing Windows terminal resource remains the platform blocker.
 
 ### The host terminal tool surfaces no content on Windows
 
@@ -346,21 +442,6 @@ A capture that genuinely cannot be refreshed goes in `STALE_RECORDED_REQUEST_EXC
     --grep "server tool: create_chat defaults"
   ```
 
-### Codex does not surface feedback server-tool confirmation
-
-- Test: `server tool: viewUnreviewedComments returns selected feedback and clears pending reveal state`.
-- Scope: Codex.
-- Expected: `viewUnreviewedComments` reaches `chat/toolCallReady` with an unconfirmed tool call so the client can choose which comments to reveal.
-- Observed: the server tool executes and returns the selected comment, but no pending confirmation is emitted.
-- Gate: the Codex variant is skipped by `supportsViewUnreviewedComments` in `serverToolsSuite.ts`. Its recorded fixture remains because the harness resolves the capture before Mocha applies the provider gate.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-    --grep "server tool: viewUnreviewedComments"
-  ```
-
 ### Claude omits important tool details when reading another session's transcript
 
 The `get_session_context` tool lets an agent read the conversation history of an existing session. Its most detailed mode includes the tools used in earlier turns and the arguments passed to those tools, which helps the agent understand what work has already been performed.
@@ -501,8 +582,9 @@ Three rows remain, and they are not about command portability:
 |---|---|---|
 | `a bang command runs locally and exposes terminal output` | Windows | The successful bang command produces output but does not complete reliably. |
 | `resource watch reports changes on its subscribed channel` | Windows | The subscribed filesystem watch does not emit `resourceWatch/changed` after a protocol `resourceWrite` within the test timeout. Descriptor, missing-root, and resource mutation coverage remain enabled. |
-| `worktree session uses the resolved worktree as working directory` | Windows | `os.tmpdir()` yields an 8.3 short path while the shell reports the long path, and Copilot's completed host-terminal call publishes no terminal-content notification. |
+| `worktree session uses the resolved worktree as working directory` | Windows | Copilot's completed host-terminal call publishes no terminal-content notification, so the test cannot subscribe to the terminal and assert its working directory. |
 | ``strips redundant `cd <workingDirectory> &&` prefix from shell tool calls`` | Copilot on Windows | The turn completes, but `chat/toolCallReady` omits the `toolInput` needed to assert that the prefix was removed. |
+| `shell read helper remains a non-terminal tool` | Copilot on Windows | The scenario depends on completed ordinary-shell output, which the Copilot provider does not reliably surface on Windows; the read-helper protocol shape remains covered on POSIX. |
 
 Copilot's ordinary provider shell also omits `ToolResultTerminalContent.result.preview` on Windows, while its terminal-shaped resource is not backed by the host terminal manager and cannot be subscribed. These tests are skipped for Copilot on Windows because their direct output oracle would otherwise be empty:
 
@@ -543,21 +625,28 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
 
   Temporarily clear `shellToolReplayUnstableOnLinux`.
 
-### Codex structured file-read result text
+### Codex successful shell result text
 
 - Tests:
+  - `worktree session uses the resolved worktree as working directory`
+  - `reads an existing text file`
   - `reads a file from a nested directory`
+  - `lists workspace entries`
   - `reads a value from JSON`
   - `counts lines in a file`
+  - `handles a missing file without a session error`
+  - `runs a deterministic shell command`
+  - `inspects git status`
 - Scope: Codex.
-- Expected: successful file-read tool completions include the file contents in their result text.
+- Expected: successful shell tool completions include the command output in their result text.
 - Observed: the turn response contains the expected value, but the successful tool completion can have an empty `text` field.
-- Gate: these three tests remain enabled for other providers and are skipped for Codex.
+- Gate: these nine tests remain enabled for other providers and are skipped for Codex.
 - Tracking issue: [#329512](https://github.com/microsoft/vscode/issues/329512).
 - Failing runs:
   - [PR #329485](https://github.com/microsoft/vscode/actions/runs/31132506547/job/92724492870?pr=329485)
   - [PR #329492](https://github.com/microsoft/vscode/actions/runs/31130785836/job/92718953820?pr=329492)
   - [PR #329517](https://github.com/microsoft/vscode/actions/runs/31148098482/job/92771783938?pr=329517)
+  - [PR #329867](https://github.com/microsoft/vscode/actions/runs/31342377741/job/93319069992?pr=329867)
 
 ### Claude subagent replay on Windows
 

@@ -188,7 +188,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			if (chat) {
-				view.setChat(chat, session.sessionId);
+				view.setChat(chat, session.sessionId, session);
 			}
 
 			// Show the read-only banner in place of the composer when the group's

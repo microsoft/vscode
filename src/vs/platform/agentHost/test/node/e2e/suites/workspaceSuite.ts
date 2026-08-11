@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -60,7 +60,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 			`subscribe snapshot summary should carry the requested working directory`);
 	});
 
-	(config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
+	(context.runKnownIssueTests && config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
 		this.timeout(180_000);
 		const repository = mkdtempSync(`${tmpdir()}/ahp-wt-include-`);
 		tempDirs.push(repository, `${repository}.worktrees`);
@@ -112,20 +112,15 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	// Skipped on Windows. The command and the tool name are portable now, but the
-	// two output assertions are not, for reasons CI surfaced that are specific to
-	// this test rather than to command portability:
+	// host terminal assertion is not, for a reason CI surfaced that is specific
+	// to this test rather than to command portability:
 	//
-	//  - The expected path comes from `os.tmpdir()`, which on Windows CI returns
-	//    an 8.3 short form (`C:\Users\CLOUDT~1\...`), while the shell reports the
-	//    long form. `includes()` therefore never matches. This is the same class
-	//    of mismatch as `/var` versus `/private/var` on macOS.
 	//  - The host terminal tool surfaces no `chat/toolCallContentChanged` on
 	//    Windows, so the terminal resource this test subscribes to never appears,
 	//    even though the tool call itself completes.
 	//
-	// Re-enabling on Windows needs both output assertions reworked against
-	// real-path normalization, and the missing terminal resource understood.
-	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
+	// Re-enabling on Windows needs the missing terminal resource understood.
+	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled && !config.shellToolResultTextUnreliable ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
@@ -200,6 +195,9 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(addedWorkingDirectory.includes('.worktrees'),
 			`workingDirectory should be under the .worktrees folder, got: ${addedWorkingDirectory}`);
 		const resolvedWorkingDirectoryPath = URI.parse(addedWorkingDirectory).fsPath;
+		const canonicalWorkingDirectoryPath = realpathSync(resolvedWorkingDirectoryPath);
+		const includesWorkingDirectoryPath = (text: string): boolean =>
+			text.includes(resolvedWorkingDirectoryPath) || text.includes(canonicalWorkingDirectoryPath);
 
 		await context.client.waitForNotification(
 			n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
@@ -244,19 +242,19 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 				const pwdNotif = await context.client.waitForNotification(n => {
 					if (isActionNotification(n, 'chat/toolCallContentChanged')) {
 						const action = getActionEnvelope(n).action as { content: readonly ToolResultContent[] };
-						return textFromContent(action.content).includes(resolvedWorkingDirectoryPath);
+						return includesWorkingDirectoryPath(textFromContent(action.content));
 					}
 					if (isActionNotification(n, 'chat/toolCallComplete')) {
 						const action = getActionEnvelope(n).action as { result: { content?: readonly ToolResultContent[] } };
-						return textFromContent(action.result.content ?? []).includes(resolvedWorkingDirectoryPath);
+						return includesWorkingDirectoryPath(textFromContent(action.result.content ?? []));
 					}
 					return false;
 				}, 90_000);
 				const pwdText = isActionNotification(pwdNotif, 'chat/toolCallComplete')
 					? textFromContent((getActionEnvelope(pwdNotif).action as { result: { content?: readonly ToolResultContent[] } }).result.content ?? [])
 					: textFromContent((getActionEnvelope(pwdNotif).action as { content: readonly ToolResultContent[] }).content);
-				assert.ok(pwdText.includes(resolvedWorkingDirectoryPath),
-					`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+				assert.ok(includesWorkingDirectoryPath(pwdText),
+					`pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath} (${canonicalWorkingDirectoryPath})`);
 			} finally {
 				await approvalLoop.stop();
 			}
@@ -297,13 +295,14 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 			const terminalSubscribeResult = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const initialTerminalState = terminalSubscribeResult.snapshot!.state as TerminalState;
-			assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
+			assert.ok(initialTerminalState.cwd, 'terminal should report its working directory');
+			assert.strictEqual(realpathSync(initialTerminalState.cwd), canonicalWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
 			await context.client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
 			const terminalSnapshot = await context.client.call<SubscribeResult>('subscribe', { channel: terminalUri });
 			const terminalState = terminalSnapshot.snapshot!.state as TerminalState;
-			assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath),
-				`working directory output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
+			assert.ok(includesWorkingDirectoryPath(terminalText(terminalState)),
+				`working directory output should include the resolved worktree path ${resolvedWorkingDirectoryPath} (${canonicalWorkingDirectoryPath})`);
 		} finally {
 			await approvalLoop.stop();
 		}
