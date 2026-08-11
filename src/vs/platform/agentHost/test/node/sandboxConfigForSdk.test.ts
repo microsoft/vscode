@@ -49,6 +49,45 @@ function sandbox(
 	return cfg;
 }
 
+function expectedSandboxConfig(options?: {
+	readwritePaths?: string[];
+	readonlyPaths?: string[];
+	deniedPaths?: string[];
+	allowOutbound?: boolean;
+}) {
+	return {
+		addCurrentWorkingDirectory: true,
+		allowBypass: true,
+		allowDevToolAccess: true,
+		auth: {
+			gh: false,
+			git: false,
+		},
+		enabled: true,
+		userPolicy: {
+			experimental: {
+				seatbelt: {
+					keychainAccess: false,
+				},
+			},
+			filesystem: {
+				clearPolicyOnExit: false,
+				deniedPaths: options?.deniedPaths ?? [],
+				readonlyPaths: options?.readonlyPaths ?? [],
+				readwritePaths: options?.readwritePaths ?? [],
+			},
+			network: {
+				allowLocalNetwork: false,
+				allowOutbound: options?.allowOutbound ?? false,
+				proxy: undefined,
+			},
+			seatbelt: {
+				keychainAccess: false,
+			},
+		},
+	};
+}
+
 suite('buildSandboxConfigForSdk', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -70,19 +109,13 @@ suite('buildSandboxConfigForSdk', () => {
 
 		test('enables sandbox for `on` on supported platforms', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
-				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On)), {
-					enabled: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-				});
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On)), expectedSandboxConfig());
 			}
 		});
 
 		test('normalizes the legacy `allowNetwork` mode to enabled with outbound network', () => {
 			for (const platform of ['darwin', 'linux', 'win32'] as const) {
-				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork)), {
-					enabled: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: true } },
-				});
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork)), expectedSandboxConfig({ allowOutbound: true }));
 			}
 		});
 
@@ -91,10 +124,7 @@ suite('buildSandboxConfigForSdk', () => {
 				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
 				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg), {
-				enabled: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
+			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg), expectedSandboxConfig());
 		});
 
 		test('does not fall back to the non-Windows enable setting on Windows', () => {
@@ -113,10 +143,9 @@ suite('buildSandboxConfigForSdk', () => {
 				[AgentHostSandboxKey.MacFileSystem]: { allowWrite: ['/mac'] },
 				[AgentHostSandboxKey.WindowsFileSystem]: { allowWrite: ['C:\\windows'] },
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', cfg)?.userPolicy?.filesystem, { readwritePaths: ['/linux'] });
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', cfg)?.userPolicy?.filesystem, { readwritePaths: ['/mac'] });
-			// Windows is ignored entirely.
-			assert.strictEqual(buildSandboxConfigForSdk('win32', cfg), undefined);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/linux'] }).userPolicy.filesystem);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/mac'] }).userPolicy.filesystem);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['C:\\windows'] }).userPolicy.filesystem);
 		});
 
 		test('maps each setting to the corresponding SDK list', () => {
@@ -126,24 +155,15 @@ suite('buildSandboxConfigForSdk', () => {
 				denyWrite: ['/readonly'],
 				denyRead: ['/secret'],
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs)), {
-				enabled: true,
-				userPolicy: {
-					filesystem: {
-						readwritePaths: ['/work'],
-						readonlyPaths: ['/readonly', '/read'],
-						deniedPaths: ['/secret'],
-					},
-					network: { allowOutbound: false },
-				},
-			});
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs)), expectedSandboxConfig({
+				readwritePaths: ['/work'],
+				readonlyPaths: ['/readonly', '/read'],
+				deniedPaths: ['/secret'],
+			}));
 		});
 
-		test('omits filesystem lists that are empty', () => {
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, {})), {
-				enabled: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
+		test('uses defaults for empty filesystem lists', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, {})), expectedSandboxConfig());
 		});
 
 		test('denyRead wins over every other setting for the same path', () => {
@@ -153,9 +173,7 @@ suite('buildSandboxConfigForSdk', () => {
 				denyWrite: ['/p'],
 				denyRead: ['/p'],
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, {
-				deniedPaths: ['/p'],
-			});
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({ deniedPaths: ['/p'] }).userPolicy.filesystem);
 		});
 
 		test('denyWrite wins over allowWrite / allowRead for the same path', () => {
@@ -164,9 +182,7 @@ suite('buildSandboxConfigForSdk', () => {
 				allowWrite: ['/p'],
 				denyWrite: ['/p'],
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, {
-				readonlyPaths: ['/p'],
-			});
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({ readonlyPaths: ['/p'] }).userPolicy.filesystem);
 		});
 
 		test('allowWrite wins over allowRead for the same path', () => {
@@ -174,9 +190,7 @@ suite('buildSandboxConfigForSdk', () => {
 				allowRead: ['/p'],
 				allowWrite: ['/p'],
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, {
-				readwritePaths: ['/p'],
-			});
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/p'] }).userPolicy.filesystem);
 		});
 
 		test('keeps distinct paths in their own lists when settings overlap on some paths', () => {
@@ -184,10 +198,10 @@ suite('buildSandboxConfigForSdk', () => {
 				allowWrite: ['/work', '/shared'],
 				denyWrite: ['/shared'],
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({
 				readwritePaths: ['/work'],
 				readonlyPaths: ['/shared'],
-			});
+			}).userPolicy.filesystem);
 		});
 	});
 
@@ -195,7 +209,9 @@ suite('buildSandboxConfigForSdk', () => {
 		test('drops host lists and keeps outbound closed when sandbox is `on` (host lists disabled on all platforms)', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
+					allowLocalNetwork: false,
 					allowOutbound: false,
+					proxy: undefined,
 				}, platform);
 			}
 		});
@@ -203,14 +219,18 @@ suite('buildSandboxConfigForSdk', () => {
 		test('allows all outbound network through the separate allowNetwork policy', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.AllowNetwork, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }))?.userPolicy?.network, {
+					allowLocalNetwork: false,
 					allowOutbound: true,
+					proxy: undefined,
 				}, platform);
 			}
 		});
 
 		test('ignores empty host lists', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, undefined, { allowedHosts: [], blockedHosts: [] }))?.userPolicy?.network, {
+				allowLocalNetwork: false,
 				allowOutbound: false,
+				proxy: undefined,
 			});
 		});
 	});

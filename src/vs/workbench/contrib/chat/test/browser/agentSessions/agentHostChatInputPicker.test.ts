@@ -9,7 +9,7 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, isAgentHostSandboxToggleItem, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { isAutoApproveValuePolicyRestricted, isPermissionLevelVisible, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
@@ -53,6 +53,18 @@ suite('AgentHostChatInputPicker - list options', () => {
 				maxWidth: 340,
 				detailItemHeight: 76,
 			},
+		});
+	});
+
+	test('attaches the sandbox toggle only to Default permissions', () => {
+		assert.deepStrictEqual({
+			defaultPermissions: isAgentHostSandboxToggleItem(SessionConfigKey.AutoApprove, ChatPermissionLevel.Default),
+			assistedPermissions: isAgentHostSandboxToggleItem(SessionConfigKey.AutoApprove, ChatPermissionLevel.Assisted),
+			modeDefault: isAgentHostSandboxToggleItem(SessionConfigKey.Mode, ChatPermissionLevel.Default),
+		}, {
+			defaultPermissions: true,
+			assistedPermissions: false,
+			modeDefault: false,
 		});
 	});
 });

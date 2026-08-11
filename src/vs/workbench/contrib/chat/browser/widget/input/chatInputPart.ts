@@ -722,7 +722,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private set _currentSessionType(value: string | undefined) { this._currentSessionTypeObservable.set(value, undefined); }
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 
-	private readonly _notificationModelTargetChatSessionType = derived(this, reader =>
+	private readonly _modelTargetChatSessionType = derived(this, reader =>
 		this._pendingDelegationTargetObservable.read(reader)
 		?? this._currentSessionTypeObservable.read(reader)
 		?? this.getCurrentSessionType()
@@ -2243,7 +2243,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Auto-dismiss notifications that requested it. Scope to this input's
 		// session so a message here doesn't hide notifications for other sessions.
 		this.chatInputNotificationService.handleMessageSent({
-			sessionType: this._notificationModelTargetChatSessionType.get(),
+			sessionType: this._modelTargetChatSessionType.get(),
 			sessionResource: this._currentSessionResourceObservable.get(),
 		});
 
@@ -2747,7 +2747,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, {
-				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
+				modelTargetChatSessionType: this._modelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
 				openModelPicker: () => this.openModelPicker(),
 				switchToModel: modelIdentifier => this.switchModelByIdentifier(modelIdentifier, /* storeSelection */ true, /* isUserAction */ true),
@@ -3571,7 +3571,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							}
 							this.permissionWidget?.refresh();
 						},
-						getSandboxSessionType: () => this.getEffectiveSessionType(this.getCurrentSessionResource()),
+						getSandboxSessionType: () => this._modelTargetChatSessionType.get(),
 					};
 					const widget = this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, secondaryPickerOptions);
 					this.permissionWidget = widget;

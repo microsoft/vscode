@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession } from '@github/copilot-sdk';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
@@ -20,9 +19,90 @@ export interface IAgentSandboxFileSystemSetting {
 	denyWrite?: string[];
 }
 
-type SdkSandboxConfig = NonNullable<Parameters<CopilotSession['rpc']['options']['update']>[0]['sandboxConfig']>;
+export interface SandboxConfig {
+	/** Whether to auto-add the current working directory to readwritePaths. Default: true. */
+	addCurrentWorkingDirectory?: boolean;
+	/** Whether to auto-grant read access to common developer-tool caches, registries, and toolchains in their default home locations (cargo, go, npm, Maven, and more), plus read-write access to (and, on Unix, up-front creation of) the scratch caches builds write on every run (go-build, ccache, sccache, Gradle caches, Cargo lock/tracker files), so builds work without extra configuration; a relocated CARGO_HOME additionally gets its Cargo lock files granted read-write. Default: true (enabled by default; set to false to opt out). */
+	allowDevToolAccess?: boolean;
+	/** Credential-injection capability flags. */
+	auth?: SandboxConfigAuth;
+	/** Whether sandboxing is enabled for the session. */
+	enabled: boolean;
+	/** User-managed sandbox policy fragment merged into the auto-discovered base policy. */
+	userPolicy?: SandboxConfigUserPolicy;
+}
 
-export type CopilotSandboxConfig = SdkSandboxConfig & {
+/** User-managed sandbox policy fragment merged into the auto-discovered base policy. */
+export interface SandboxConfigUserPolicy {
+	/** Deprecated legacy location for `seatbelt`; read only when the top-level `seatbelt` is absent. */
+	experimental?: SandboxConfigUserPolicyExperimental;
+	/** Filesystem rules to merge into the base policy. */
+	filesystem?: SandboxConfigUserPolicyFilesystem;
+	/** Network rules to merge into the base policy. */
+	network?: SandboxConfigUserPolicyNetwork;
+	/** macOS seatbelt options to merge into the base policy. */
+	seatbelt?: SandboxConfigUserPolicySeatbelt;
+}
+
+/** Platform-specific experimental policy fields. */
+export interface SandboxConfigUserPolicyExperimental {
+	/** macOS seatbelt experimental options. */
+	seatbelt?: SandboxConfigUserPolicyExperimentalSeatbelt;
+}
+
+/** macOS seatbelt experimental options. */
+export interface SandboxConfigUserPolicyExperimentalSeatbelt {
+	/** Whether the macOS seatbelt profile may access the keychain. */
+	keychainAccess?: boolean;
+}
+
+/** Filesystem rules to merge into the base policy. */
+export interface SandboxConfigUserPolicyFilesystem {
+	/** Whether to clear the policy when the session exits. */
+	clearPolicyOnExit?: boolean;
+	/** Paths explicitly denied. */
+	deniedPaths?: string[];
+	/** Paths granted read-only access. */
+	readonlyPaths?: string[];
+	/** Paths granted read/write access. */
+	readwritePaths?: string[];
+}
+
+/** Network rules to merge into the base policy. */
+export interface SandboxConfigUserPolicyNetwork {
+	/** Whether traffic to local/loopback addresses is allowed. */
+	allowLocalNetwork?: boolean;
+	/** Whether outbound network traffic is allowed at all. */
+	allowOutbound?: boolean;
+	/** HTTP proxy the sandboxed process routes traffic through. Enforced on Windows and cooperative (honored by well-behaved tools, not strictly enforced) on Linux and macOS. Credentials go in the separate `username`/`password` fields. A credential-free http:// loopback proxy URL is routed through the localhost proxy automatically; an https:// or authenticated loopback URL is used as-is. */
+	proxy?: SandboxConfigUserPolicyNetworkProxy;
+}
+
+/** HTTP proxy configuration for sandboxed traffic. */
+export interface SandboxConfigUserPolicyNetworkProxy {
+	/** Optional password for proxy authentication, combined with the URL at spawn time. The persisted value may be a literal password, a `${secret:…}` reference resolved from the OS keychain, or a `${VAR}`/`$VAR` environment reference; it is resolved just before the sandboxed process routes through the proxy. The /sandbox dialog stores a real password in the OS keychain and persists only a `${secret:…}` placeholder (never plaintext in settings.json); the field is masked in the dialog and redacted by /settings show. */
+	password?: string;
+	/** Proxy URL (e.g. http://proxy.example.com:8080). The port is optional and defaults to the scheme's standard port when omitted. Credentials must not be embedded here — a `user:pass@` authority is rejected; put them in the separate `username`/`password` fields. A credential-free http:// loopback URL is routed through the localhost proxy automatically; loopback covers localhost and any *.localhost subdomain, the whole 127.0.0.0/8 range, ::1, and IPv4-mapped loopback (::ffff:127.0.0.1). An https:// URL, or one with a username/password set, is used as-is. */
+	url: string;
+	/** Optional username for proxy authentication. Combined with the URL (and `password`) into `user:pass@host` when the sandboxed process routes through the proxy. */
+	username?: string;
+}
+
+/** macOS seatbelt-specific options. */
+export interface SandboxConfigUserPolicySeatbelt {
+	/** Whether the macOS seatbelt profile may access the keychain. */
+	keychainAccess?: boolean;
+}
+
+/** Credential-injection capability flags applied while the sandbox is enabled. */
+export interface SandboxConfigAuth {
+	/** Whether to export `GH_TOKEN` so the `gh` CLI authenticates inside the sandbox without the OS keyring the sandbox blocks. Default: false (opt-in). */
+	gh?: boolean;
+	/** Whether to inject git credentials as an `http.<url>.extraheader` so authenticated HTTPS git works inside the sandbox without the shell-based credential helper the sandbox blocks. github.com is served by the Copilot token; every other forge (Azure DevOps, GitHub Enterprise Server, GitLab, ...) by a credential the host resolves from the user's own helper before the sandbox is applied. Default: false (opt-in). */
+	git?: boolean;
+}
+
+export type CopilotSandboxConfig = SandboxConfig & {
 	readonly allowBypass?: boolean;
 };
 
@@ -95,15 +175,33 @@ export function buildSandboxConfigForSdk(
 
 	const allowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork || sandbox[AgentHostSandboxKey.AllowNetwork] === true;
 	return {
+		addCurrentWorkingDirectory: true,
+		allowBypass: true,
+		allowDevToolAccess: true,
+		auth: {
+			gh: false,
+			git: false,
+		},
 		enabled: true,
 		userPolicy: {
+			experimental: {
+				seatbelt: {
+					keychainAccess: false,
+				},
+			},
 			filesystem: {
-				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-				...(denied.size ? { deniedPaths: [...denied] } : {}),
+				clearPolicyOnExit: false,
+				deniedPaths: [...denied],
+				readonlyPaths: [...readonly],
+				readwritePaths: [...readwrite],
 			},
 			network: {
+				allowLocalNetwork: false,
 				allowOutbound: allowAllNetwork,
+				proxy: undefined,
+			},
+			seatbelt: {
+				keychainAccess: false,
 			},
 		},
 	};
