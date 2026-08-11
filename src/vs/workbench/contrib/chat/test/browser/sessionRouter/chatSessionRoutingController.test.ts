@@ -9,6 +9,8 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
@@ -25,7 +27,33 @@ suite('ChatSessionRoutingController', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		let submitted = false;
-		let resolveFolderPick: (() => void) | undefined;
+		type FolderPickerItem = { readonly id: string; readonly folder: IWorkspaceFolder };
+		let pickerItems: readonly IActionListItem<FolderPickerItem>[] | undefined;
+		let pickerDelegate: IActionListDelegate<FolderPickerItem> | undefined;
+		let pickerAnchor: HTMLElement | undefined;
+		let pickerContainer: HTMLElement | undefined;
+		let pickerOptions: IActionListOptions | undefined;
+		const pickerVisibility: boolean[] = [];
+		const actionWidgetService = {
+			show: <T,>(
+				_user: string,
+				_supportsPreview: boolean,
+				items: readonly IActionListItem<T>[],
+				delegate: IActionListDelegate<T>,
+				anchor: HTMLElement,
+				actionWidgetContainer: HTMLElement | undefined,
+				_actionBarActions: undefined,
+				_accessibilityProvider: unknown,
+				listOptions: IActionListOptions,
+			) => {
+				pickerItems = items as readonly IActionListItem<FolderPickerItem>[];
+				pickerDelegate = delegate as unknown as IActionListDelegate<FolderPickerItem>;
+				pickerAnchor = anchor;
+				pickerContainer = actionWidgetContainer;
+				pickerOptions = listOptions;
+			},
+			hide: () => pickerDelegate?.onHide(),
+		} as unknown as IActionWidgetService;
 		const host = {
 			widget: {
 				inputEditor: {
@@ -42,6 +70,9 @@ suite('ChatSessionRoutingController', () => {
 			},
 			getOwnSessionResource: () => undefined,
 			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
+			onDidChangeActionWidgetVisibility: (visible: boolean) => pickerVisibility.push(visible),
+			getActionWidgetContainer: () => container,
+			getActionWidgetAnchor: (anchor: HTMLElement) => anchor,
 			placeBadge: (badge: HTMLElement) => container.appendChild(badge),
 		} as unknown as IChatSessionRoutingHost;
 		const workspaceContextService = {
@@ -59,11 +90,7 @@ suite('ChatSessionRoutingController', () => {
 			{ info: () => { }, warn: () => { } } as never,
 			workspaceContextService,
 			{ getDefaultFolder: () => undefined, setFolder: () => { } } as never,
-			{
-				pick: <T>(items: readonly T[]) => new Promise<T | undefined>(resolve => {
-					resolveFolderPick = () => resolve(items[0]);
-				})
-			} as never,
+			actionWidgetService,
 		);
 
 		await controller.handleSubmit('create a new session to update docs', undefined!);
@@ -75,28 +102,43 @@ suite('ChatSessionRoutingController', () => {
 			label: label?.textContent,
 			changeFolder: changeFolder?.textContent,
 			countdown: countdown?.textContent,
+			hasPopup: changeFolder?.getAttribute('aria-haspopup'),
 		}, {
 			submitted: false,
 			label: 'New session in docs',
-			changeFolder: 'Change Folder',
+			changeFolder: 'docs',
 			countdown: 'sending in 10s',
+			hasPopup: 'menu',
 		});
 
 		try {
 			clock.tick(3_000);
 			assert.strictEqual(countdown?.textContent, 'sending in 7s');
 			changeFolder?.click();
+			await Promise.resolve();
 			assert.strictEqual(countdown?.textContent, 'waiting for you');
+			assert.strictEqual(changeFolder?.getAttribute('aria-expanded'), 'true');
+			assert.strictEqual(pickerAnchor, changeFolder);
+			assert.strictEqual(pickerContainer, container);
+			assert.strictEqual(pickerOptions?.showFilter, true);
+			assert.strictEqual(pickerOptions?.filterPlaceholder, 'Search folders');
+			assert.strictEqual(pickerOptions?.focusFilterOnOpen, true);
+			assert.deepStrictEqual(pickerItems?.map(item => item.label), ['vscode', 'docs']);
 			clock.tick(5_000);
 			assert.strictEqual(countdown?.textContent, 'waiting for you');
-			resolveFolderPick?.();
-			await Promise.resolve();
+			pickerDelegate?.onSelect(pickerItems![0].item!);
 			assert.deepStrictEqual({
 				label: label?.textContent,
+				changeFolder: changeFolder?.textContent,
+				expanded: changeFolder?.getAttribute('aria-expanded'),
 				countdown: countdown?.textContent,
+				pickerVisibility,
 			}, {
 				label: 'New session in vscode',
+				changeFolder: 'vscode',
+				expanded: 'false',
 				countdown: 'sending in 7s',
+				pickerVisibility: [true, false],
 			});
 			clock.tick(1_000);
 			assert.strictEqual(countdown?.textContent, 'sending in 6s');

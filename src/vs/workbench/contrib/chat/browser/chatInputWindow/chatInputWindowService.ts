@@ -504,6 +504,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._dismissedPendingRequests.set(dismissed, undefined);
 				this.voiceSessionController.clearRoutedRequest(resource);
 			},
+			onDidChangeActionWidgetVisibility: visible => this._setModelPickerVisible(auxiliaryWindow, visible),
+			getActionWidgetContainer: () => this._actionWidgetWindow.value?.container,
+			getActionWidgetAnchor: anchor => this._getModelPickerAnchor(anchor),
 			placeBadge: (badge) => {
 				const row = this._row;
 				if (!surface.isConnected || !row) {
