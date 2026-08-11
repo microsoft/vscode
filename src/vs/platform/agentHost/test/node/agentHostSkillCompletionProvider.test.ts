@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { CompletionItemKind } from '../../common/state/protocol/commands.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, type DirectoryCustomization, type PluginCustomization, type PromptCustomization, type SkillCustomization } from '../../common/state/sessionState.js';
 import { AgentHostCompletions, CompletionTriggerCharacter } from '../../node/agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from '../../node/agentHostSkillCompletionProvider.js';
 import { MockAgent } from './mockAgent.js';
@@ -54,6 +54,31 @@ suite('AgentHostSkillCompletionProvider', () => {
 			...plugin(name, children),
 			id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
 			uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
+		};
+	}
+
+	/** A skill with an explicit URI, so the same logical skill can be modelled at two different locations. */
+	function skillAt(name: string, uri: string, description?: string): SkillCustomization {
+		return {
+			type: CustomizationType.Skill,
+			id: uri,
+			uri,
+			name,
+			...(description !== undefined ? { description } : {}),
+		};
+	}
+
+	function directory(name: string, uri: string, children: readonly SkillCustomization[]): DirectoryCustomization {
+		return {
+			type: CustomizationType.Directory,
+			id: uri,
+			uri,
+			name,
+			enabled: true,
+			contents: CustomizationType.Skill,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Loaded },
+			children: [...children],
 		};
 	}
 
@@ -148,6 +173,61 @@ suite('AgentHostSkillCompletionProvider', () => {
 				},
 			},
 		}]);
+	});
+
+	test('de-duplicates the same skill discovered via the synced bundle and the on-disk scan', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			syncedPlugin('VS Code Synced Data', [skillAt('flaky-smoke-tests', 'vscode-synced-customization:/plugins/bundle/skills/flaky-smoke-tests/SKILL.md', 'Diagnose flaky tests')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('flaky-smoke-tests', 'file:///ws/.github/skills/flaky-smoke-tests/SKILL.md', 'Diagnose flaky tests')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/flaky-smoke-tests ']);
+	});
+
+	test('keeps two different skills that share a short name but have different descriptions', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [skillAt('update-skills', 'file:///home/.copilot/skills/update-skills/SKILL.md', 'Personal update-skills')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('update-skills', 'file:///ws/.github/skills/update-skills/SKILL.md', 'Workspace update-skills')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/update-skills ', '/update-skills ']);
+	});
+
+	// Known limitation of the core fix: two distinct same-named skills that both omit a description
+	// produce the same identity key and collapse to one. There is no reachability loss (a bare `/X`
+	// resolves to exactly one skill at the CLI regardless); Option B disambiguates via a qualified insert.
+	test('collapses two same-named description-less skills (core-fix limitation, see Option B)', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [skillAt('update-skills', 'file:///home/.copilot/skills/update-skills/SKILL.md')]),
+			directory('.github', 'file:///ws/.github/skills', [skillAt('update-skills', 'file:///ws/.github/skills/update-skills/SKILL.md')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText), ['/update-skills ']);
+	});
+
+	test('keeps same-named skills contributed by two different plugins', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			plugin('plugin-a', [skillAt('review', 'file:///plugins/plugin-a/skills/review/SKILL.md')]),
+			plugin('plugin-b', [skillAt('review', 'file:///plugins/plugin-b/skills/review/SKILL.md')]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.insertText).sort(), ['/plugin-a:review ', '/plugin-b:review ']);
 	});
 
 	test('flattens skill children in session-effective order and ignores non-skill children', async () => {

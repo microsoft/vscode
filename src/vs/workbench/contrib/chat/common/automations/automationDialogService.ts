@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAutomation } from './automation.js';
+import { IAutomationDescriptor } from './automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automationService.js';
 
 export interface IShowAutomationDialogOptions {
-	readonly existing?: IAutomation;
+	readonly existing?: IAutomationDescriptor;
 }
 
 export type IAutomationDialogResult =

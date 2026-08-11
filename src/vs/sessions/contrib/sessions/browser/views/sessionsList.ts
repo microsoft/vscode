@@ -583,7 +583,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			const completedStateIcon = gitHubInfo?.pullRequest?.icon;
+			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -907,7 +907,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			if ((run.status !== 'completed' && run.status !== 'failed') || !run.sessionResource) {
 				return false;
 			}
-			const sessionResource = URI.parse(run.sessionResource);
+			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
 			return !!session && !session.isRead.read(reader);
 		});
