@@ -159,8 +159,9 @@ layering is a known follow-up.
 matches every model, a specific entry wins field-by-field) carry the non-prompt
 experimentation knobs the launcher applies: `family` (prompt-routing alias, so
 a preview model resolves through another family's contributor),
-`reasoningEffort` (wins over `chat.agentHost.reasoningEffortOverride`,
-re-applied on session resume and mid-session model change),
+`reasoningEffort` (wins over the model picker's thinking level; set it on the
+`'*'` entry to pin every model, re-applied on session resume and mid-session
+model change),
 `availableTools`/`excludedTools` (SDK tool filters; launch-frozen),
 and `modelCapabilities` (per-property overrides passed through to the SDK's
 `modelCapabilities` field — e.g. vision support, token limits — applied on

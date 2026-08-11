@@ -27,8 +27,10 @@ suite('copilotCliConfig', () => {
 				applyModelFamilyAlias(model, { 'other-model': { family: 'claude-opus-4.8' } }),
 				applyModelFamilyAlias(model, { 'preview-model-x': {} }),
 				applyModelFamilyAlias(model, { 'preview-model-x': { family: '' } }),
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'not a model id' } }),
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'claude-' } }),
+				applyModelFamilyAlias(model, { 'preview-model-x': { family: ' padded ' } }),
+				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'has\u0000nul' } }),
+				// the runtime owns which ids exist, so any plausible id shape passes
+				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'openai/gpt-5' } }),
 				// no model: a wildcard family becomes the session model; a specific entry cannot match
 				applyModelFamilyAlias(undefined, { '*': { family: 'gpt-5' } }),
 				applyModelFamilyAlias(undefined, { 'preview-model-x': { family: 'claude-opus-4.8' } }),
@@ -43,6 +45,7 @@ suite('copilotCliConfig', () => {
 				model,
 				model,
 				model,
+				{ id: 'openai/gpt-5', config: { thinkingLevel: 'high' } },
 				{ id: 'gpt-5' },
 				undefined,
 			]

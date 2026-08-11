@@ -10,7 +10,7 @@ import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentSession } from '../../common/agent.js';
@@ -315,32 +315,21 @@ function describeModelId(model: ModelSelection | undefined): string {
 }
 
 /**
- * The configured reasoning-effort override alone, with no picker fallback:
- * the per-model capability override (keyed by the un-aliased model id) wins over
- * the global one, an invalid value at either stage falls through to the next, and
- * `undefined` means no override is configured.
+ * The configured reasoning-effort override alone, with no picker fallback.
+ * Keyed by the un-aliased model id, falling back to the `*` entry; `undefined`
+ * means no override is configured.
  */
 export function resolveConfiguredReasoningEffortOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
 	const overrides = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-	const perModel = resolveModelCapabilityOverride(overrides, model?.id)?.reasoningEffort;
-	if (perModel !== undefined) {
-		if (isCopilotReasoningEffort(perModel)) {
-			logService.info(`[Copilot:${sessionId}] Applying per-model reasoning-effort override '${perModel}' for '${describeModelId(model)}'`);
-			return toSdkReasoningEffort(perModel);
-		}
-		logService.warn(`[Copilot:${sessionId}] Ignoring invalid per-model reasoning-effort override '${perModel}' for '${describeModelId(model)}'; expected one of [${ReasoningEfforts.join(', ')}]`);
-	}
-	const rawOverride = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ReasoningEffortOverride);
-	// '' is the schema's unset marker, so an unset override reads as `undefined`.
-	const override = rawOverride ? rawOverride : undefined;
-	if (override === undefined) {
+	const effort = resolveModelCapabilityOverride(overrides, model?.id)?.reasoningEffort;
+	if (effort === undefined) {
 		return undefined;
 	}
-	if (isCopilotReasoningEffort(override)) {
-		logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${override}'`);
-		return toSdkReasoningEffort(override);
+	if (isCopilotReasoningEffort(effort)) {
+		logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${effort}' for '${describeModelId(model)}'`);
+		return toSdkReasoningEffort(effort);
 	}
-	logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${override}'; expected one of [${ReasoningEfforts.join(', ')}]`);
+	logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${effort}' for '${describeModelId(model)}'; expected one of [${ReasoningEfforts.join(', ')}]`);
 	return undefined;
 }
 
@@ -360,10 +349,8 @@ function getModelFamilyOverride(value: unknown, modelId: string, logService: ILo
 	const family = normalizeModelFamilyAlias(value);
 	if (family === undefined) {
 		const description = typeof value === 'string' ? JSON.stringify(value.slice(0, 40)) : typeof value;
-		logService.warn(`[Copilot:${sessionId}] Ignoring invalid 'family' capability override ${description} for '${modelId}'; expected an id like 'claude-opus-4.8' (letters, digits, '.', '_', '-'; 64 characters max)`);
-		return undefined;
+		logService.warn(`[Copilot:${sessionId}] Ignoring invalid 'family' capability override ${description} for '${modelId}'; expected a model id of at most 128 characters`);
 	}
-	logService.info(`[Copilot:${sessionId}] Applying 'family' capability override '${family}' for '${modelId}'`);
 	return family;
 }
 
@@ -578,6 +565,24 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+				// Last resort before the session becomes unopenable: a resume pins
+				// the stored model id, which the runtime may no longer accept (a
+				// retired, renamed, or out-of-policy model). Dropping it is lossless
+				// — the runtime falls back to the model it journaled — so it is worth
+				// one attempt whatever the failure was, rather than matching on error
+				// prose the runtime is free to reword.
+				if (fallbackConfig.model !== undefined) {
+					fallbackConfig = { ...fallbackConfig, model: undefined };
+					this._logService.warn(`[Copilot:${plan.sessionId}] Retrying resume without the pinned model '${config.model}' before surfacing the failure`);
+					try {
+						const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
+						this._logService.info(`[Copilot:${plan.sessionId}] Resume succeeded without the pinned model; the session keeps the model the runtime journaled`);
+						await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+						return new CopilotSessionWrapper(raw);
+					} catch (retryErr) {
+						this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without a pinned model failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
+					}
+				}
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
@@ -751,7 +756,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
 		const modelCapabilities = getModelCapabilitiesOverride(capabilityOverride?.modelCapabilities, describeModelId(model), this._logService, plan.sessionId);
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
-		const effectiveModel = applyModelFamilyAlias(model, capabilityOverrides);
+		// Derived from the validated alias above rather than resolved a second
+		// time, so the id logged is always the id sent.
+		const effectiveModel = modelFamily ? { ...model, id: modelFamily } : model;
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: launching '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
@@ -786,7 +793,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Resume only, and only when configured — otherwise a resumed session
 			// keeps the effort the runtime persisted for it. `_createSession`
 			// re-resolves the full effort for a create.
-			...(plan.kind === 'resume' ? { reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId) } : {}),
+			//
+			// The tier is reset alongside an alias: the runtime restores it from the
+			// session journal, so without this an alias added to an existing session
+			// would pair the new family with the previous model's long-context pin.
+			// The effort has no such reset value in the SDK — pair `family` with
+			// `reasoningEffort` to re-pin it on an existing session.
+			...(plan.kind === 'resume'
+				? {
+					reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId),
+					...(modelFamily ? { contextTier: 'default' as const } : {}),
+				}
+				: {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

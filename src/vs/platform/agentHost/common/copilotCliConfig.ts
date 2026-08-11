@@ -27,8 +27,6 @@ export const enum CopilotCliConfigKey {
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
-	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
-	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
@@ -50,8 +48,6 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
-export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
-
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
@@ -68,7 +64,7 @@ export function normalizeToolSearchDeferThreshold(value: number | undefined): nu
 export interface ICopilotCliModelCapabilityOverride {
 	/** Family alias (e.g. `"claude-opus-4.8"`), passed to the SDK as the session model id. */
 	readonly family?: string;
-	/** Wins over the global {@link CopilotCliConfigKey.ReasoningEffortOverride}. */
+	/** Wins over the model picker's thinking level; unrecognized values are ignored. */
 	readonly reasoningEffort?: string;
 	/** SDK tool allowlist (pattern syntax, e.g. `builtin:*`, `mcp:<name>`, or bare names). */
 	readonly availableTools?: readonly string[];
@@ -146,12 +142,6 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
 		default: 1,
 	}),
-	[CopilotCliConfigKey.ReasoningEffortOverride]: schemaProperty<string>({
-		type: 'string',
-		title: localize('agentHost.config.reasoningEffortOverride.title', "Reasoning Effort Override"),
-		description: localize('agentHost.config.reasoningEffortOverride.description', "Overrides the reasoning effort for Copilot SDK sessions regardless of the per-model picker value. Set it to a level the selected model supports (e.g. `low`, `medium`, `high`, `xhigh`, `max`); a value that isn't a recognized effort level is ignored and the session falls back to the picker value. Only affects Copilot SDK sessions; intended for experimentation."),
-		default: '',
-	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',
 		title: localize('agentHost.config.modelCapabilityOverrides.title', "Model Capability Overrides"),
@@ -195,11 +185,20 @@ export const copilotCliConfigSchema = createSchema({
 	}),
 });
 
-const MODEL_FAMILY_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/;
+// Rejects only what cannot be a model id: the empty string, surrounding
+// whitespace, control characters, and absurd lengths. The alias travels as the
+// SDK's session `model` field, so the runtime is the authority on which ids
+// exist — an allow-list of id shapes here would silently reject valid ones
+// (provider-qualified `vendor/model`, say) with no UI signal.
+const MODEL_FAMILY_MAX_LENGTH = 128;
+const MODEL_FAMILY_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 
 /** Returns a usable model-family alias, or `undefined` for malformed values. */
 export function normalizeModelFamilyAlias(value: unknown): string | undefined {
-	return typeof value === 'string' && MODEL_FAMILY_PATTERN.test(value) ? value : undefined;
+	if (typeof value !== 'string' || value.length === 0 || value.length > MODEL_FAMILY_MAX_LENGTH) {
+		return undefined;
+	}
+	return value.trim() === value && !MODEL_FAMILY_CONTROL_CHARS.test(value) ? value : undefined;
 }
 
 /** Returns the configured family alias for `modelId`, or `undefined`. Malformed entries are treated as unset. */

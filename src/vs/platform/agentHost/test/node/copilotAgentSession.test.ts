@@ -7543,7 +7543,7 @@ suite('CopilotAgentSession', () => {
 				modelId: 'preview-model-x',
 				rootValues: {
 					[CopilotCliConfigKey.ToolSearchEnabled]: true,
-					[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-' } },
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: '  ' } },
 				},
 			});
 			assert.deepStrictEqual(invalidAlias.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);

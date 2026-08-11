@@ -13,7 +13,7 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -1555,12 +1555,6 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			tags: ['experimental', 'advanced'],
 		},
-		[AgentHostReasoningEffortOverrideSettingId]: {
-			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created or resumed and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
-			default: '',
-			tags: ['experimental', 'advanced'],
-		},
 		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
 			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to launch the SDK session with that family as its model id so the runtime applies the family's tuned prompt and capabilities, a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. Overrides apply whenever a session launches or resumes; reasoning effort also reapplies on a mid-session model change. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
@@ -1574,7 +1568,7 @@ configurationRegistry.registerConfiguration({
 					reasoningEffort: {
 						type: 'string',
 						enum: [...reasoningEffortLevels],
-						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model; wins over `#chat.agentHost.reasoningEffortOverride#`. Unrecognized values are ignored."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model, overriding the model picker's thinking level. Use the `*` entry to set it for every model. Unrecognized values are ignored."),
 					},
 					availableTools: {
 						type: 'array',

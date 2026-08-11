@@ -544,6 +544,49 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
+
+	test('drops the pinned model and retries before surfacing a resume failure', async () => {
+		// A resume pins the stored model id even with no capability override
+		// configured, so a model retired since the session was created would
+		// otherwise make the session permanently unopenable. The retry is keyed on
+		// having pinned a model at all, not on the runtime's error prose — an
+		// unrecognized message must still reach it.
+		const models: (string | undefined)[] = [];
+		let createSessionCalls = 0;
+		const session = { sessionId: 'session-1', on: () => () => { }, disconnect: async () => { } } as unknown as CopilotSession;
+		const client = {
+			createSession: async () => { createSessionCalls++; return session; },
+			resumeSession: async (_id: string, config: { model?: string }) => {
+				models.push(config.model);
+				if (config.model !== undefined) {
+					throw new TestSdkError('Request session.resume failed: model rejected by policy', -32603);
+				}
+				return session;
+			},
+		};
+		const launcher = createTestLauncher();
+		const plan = {
+			client,
+			sessionId: 'session-1',
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubToken: undefined,
+			kind: 'resume',
+			fallback: { model: { id: 'retired-model' } },
+		} as unknown as CopilotSessionLaunchPlan;
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, testRuntime));
+			assert.deepStrictEqual({ models, createSessionCalls }, { models: ['retired-model', undefined], createSessionCalls: 0 });
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
 });
 
 suite('CopilotSessionLauncher verbosity', () => {
@@ -577,9 +620,8 @@ suite('CopilotSessionLauncher verbosity', () => {
 
 /**
  * Covers the reasoning-effort resolution fed into `createSession` and
- * `CopilotAgent._changeModel`: the host-level override (see
- * `CopilotCliConfigKey.ReasoningEffortOverride`) wins over the model picker's
- * thinking level when valid, and degrades to the picker value otherwise.
+ * `CopilotAgent._changeModel`: a valid capability override wins over the model
+ * picker's thinking level, and degrades to the picker value otherwise.
  */
 suite('getCopilotReasoningEffort', () => {
 
@@ -630,27 +672,26 @@ suite('resolveCopilotReasoningEffort', () => {
 		return { getRootValue: (_schema, key) => values[key as keyof typeof values] as never };
 	}
 
-	test('per-model override beats global override beats picker; invalid stages fall through', () => {
+	test('a specific entry beats the wildcard beats the picker; invalid values fall through', () => {
 		const log = new NullLogService();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
 		assert.deepStrictEqual(
 			[
-				// per-model (specific id) wins over global + picker
-				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
-				// wildcard entry applies to any model; a specific entry wins over it
+				// a specific entry wins over the picker
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// the wildcard applies to any model; a specific entry wins over it
 				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' } } }), log, 's1'),
 				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' }, 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
-				// invalid per-model falls through to the global override
-				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
-				// no per-model entry, unset global ('' marker) → picker value
-				resolveCopilotReasoningEffort(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
-				// no model (server-side "Auto"): the `*` entry still matches, and
-				// beats the global override just as it does for a known model
-				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
-				// no model and no wildcard → the global override applies
-				resolveCopilotReasoningEffort(undefined, configOf({ reasoningEffortOverride: 'high', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// an invalid value falls through to the picker
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
+				// nothing configured → picker value
+				resolveCopilotReasoningEffort(model, configOf({}), log, 's1'),
+				// no model (server-side "Auto"): the `*` entry still matches, but a
+				// model-id entry cannot
+				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
+				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
 			],
-			['low', 'high', 'low', 'xhigh', 'medium', 'low', 'high']
+			['low', 'high', 'low', 'medium', 'medium', 'low', undefined]
 		);
 	});
 
@@ -659,15 +700,14 @@ suite('resolveCopilotReasoningEffort', () => {
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
 		assert.deepStrictEqual(
 			[
-				// same precedence as the full resolution...
-				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
-				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'xhigh', modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
-				// ...but no picker fallback: unconfigured means "leave it alone"
-				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: '' }), log, 's1'),
-				resolveConfiguredReasoningEffortOverride(model, configOf({ reasoningEffortOverride: 'turbo' }), log, 's1'),
+				// same resolution as above...
+				resolveConfiguredReasoningEffortOverride(model, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				resolveConfiguredReasoningEffortOverride(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' } } }), log, 's1'),
+				// ...but no picker fallback: unconfigured or invalid means "leave it alone"
+				resolveConfiguredReasoningEffortOverride(model, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
 				resolveConfiguredReasoningEffortOverride(model, configOf({}), log, 's1'),
 			],
-			['low', 'xhigh', undefined, undefined, undefined]
+			['low', 'high', undefined, undefined]
 		);
 	});
 });
@@ -757,7 +797,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */
-	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ model?: string; reasoningEffort?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> {
+	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -771,21 +811,38 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools: () => [], createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> })._buildSessionConfig(plan, runtime);
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> })._buildSessionConfig(plan, runtime);
 	}
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
 		const perModel = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), model);
-		const global = await buildResumeConfig(createLauncher(store, { reasoningEffortOverride: 'xhigh' }), model);
+		const wildcard = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { '*': { reasoningEffort: 'xhigh' } } }), model);
 		// The picker value is NOT re-sent: without an override the resumed
 		// session keeps whatever effort the runtime persisted for it.
 		const none = await buildResumeConfig(createLauncher(store, {}), model);
 
 		assert.deepStrictEqual(
-			[perModel.reasoningEffort, global.reasoningEffort, none.reasoningEffort],
+			[perModel.reasoningEffort, wildcard.reasoningEffort, none.reasoningEffort],
 			['low', 'xhigh', undefined]
+		);
+		store.dispose();
+	});
+
+	test('resets the context tier on resume only when a family alias applies', async () => {
+		const store = new DisposableStore();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		// The runtime restores the tier from the session journal, so an alias added
+		// to an existing session has to clear the previous model's long-context pin.
+		const aliased = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { family: 'claude-opus-4.8' } } }), model);
+		// Without an alias the journaled tier is left exactly as it was.
+		const invalidAlias = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { family: ' not an id ' } } }), model);
+		const none = await buildResumeConfig(createLauncher(store, {}), model);
+
+		assert.deepStrictEqual(
+			[aliased.contextTier, invalidAlias.contextTier, none.contextTier],
+			['default', undefined, undefined]
 		);
 		store.dispose();
 	});
@@ -800,7 +857,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			},
 		}), model);
 		const invalid = await buildResumeConfig(createLauncher(store, {
-			modelCapabilityOverrides: { 'preview-model': { family: 'not a model id' } },
+			modelCapabilityOverrides: { 'preview-model': { family: ' not an id ' } },
 		}), model);
 		const none = await buildResumeConfig(createLauncher(store, {}), model);
 

@@ -7449,7 +7449,7 @@ suite('CopilotAgent', () => {
 					modelCapabilityOverrides: {
 						'preview-model': { family: 'claude-opus-4.8' },
 						'pinned-model': { family: 'gpt-5', reasoningEffort: 'high' },
-						'bad-model': { family: 'not a model id' },
+						'bad-model': { family: ' not an id ' },
 					},
 				});
 				const session = AgentSession.uri('copilotcli', 'model-family');
