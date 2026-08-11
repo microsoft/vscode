@@ -21,9 +21,8 @@ export const enum AgentHostConfigKey {
 	 */
 	DefaultShell = 'defaultShell',
 	/**
-	 * Experimentation flag for conditional agent-window auth. When true, a
-	 * session type that is usable without GitHub (e.g. Claude in native mode with
-	 * an existing local setup) lets the agent window open for a signed-out user
+	 * Experimentation flag for conditional Agent Host auth. When true, session
+	 * types that are usable without GitHub remain available to signed-out users
 	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
 	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
 	 * feature is dark (today's always-proxy behavior).
@@ -93,8 +92,8 @@ export const agentHostCustomizationConfigSchema = createSchema({
 	}),
 	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Window"),
-		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, the agent window opens without forcing GitHub sign-in as long as at least one agent is usable without GitHub (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
+		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Claude in native mode with your own Anthropic API key). When disabled (the default), GitHub sign-in is required."),
 		default: false,
 	}),
 	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
