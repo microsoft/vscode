@@ -30,7 +30,6 @@ const MetaModulesToLookFor = [
 	'@azure/identity',
 	'@azure/keyvault',
 	'@azure/monitor',
-	'@azure/openai',
 	'@azure/provisioning',
 	'@azure/search',
 	'@azure/storage'
