@@ -421,18 +421,26 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		}
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork inherits provider history through the selected source turn', async function () {
+	test('session fork inherits provider history through the selected source turn', async function () {
 		this.timeout(240_000);
-		const { sessionUri } = await createWorkspaceSession('session-fork-history');
+		const { sessionUri, workspace } = await createWorkspaceSession('session-fork-history');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-alpha', 'Remember FORK_ALPHA. Reply exactly "ready".', 1);
 		await assertSessionListed(sessionUri);
 		const forkUri = await createFork(sessionUri, 'turn-fork-alpha');
 
-		const result = await driveTurnToCompletion(context.client, forkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
+		await context.restartServer();
+		await initialize('session-fork-history-restored-client', workspace);
+		await context.client.call<SubscribeResult>('subscribe', { channel: forkUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(forkUri) });
+		const restored = await fetchSessionWithChat(context.client, forkUri);
+		assert.deepStrictEqual(restored.turns.map(turn => turn.message.text), ['Remember FORK_ALPHA. Reply exactly "ready".']);
+
+		const reforkUri = await createFork(forkUri, restored.turns[0].id);
+		const result = await driveTurnToCompletion(context.client, reforkUri, 'turn-fork-followup', 'Reply with only the code word you were asked to remember.', 10);
 		assert.ok(result.responseText.includes('FORK_ALPHA'));
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('session fork excludes provider history after the selected source turn', async function () {
+	test('session fork excludes provider history after the selected source turn', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('session-fork-bounded');
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-fork-first', 'Remember FORK_FIRST. Reply exactly "ready".', 1);
@@ -661,7 +669,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
-	(context.runKnownIssueTests ? test : test.skip)('commit changeset operation generates a message and commits mixed changes', async function () {
+	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);
@@ -670,12 +678,12 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		writeFileSync(join(workspace, 'deleted.txt'), 'delete me\n');
 		writeFileSync(join(workspace, 'renamed-before.txt'), 'rename me\n');
 		execSync('git add . && git commit -q -m "seed"', { cwd: workspace });
-		const sessionUri = await createRealSession(context.client, config, 'changeset-commit-client', createdSessions, URI.file(workspace));
-		const authControl = await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-commit-auth-control', 'Reply exactly "AUTHENTICATED".', 1);
-		assert.strictEqual(authControl.responseText.trim(), 'AUTHENTICATED');
 		writeFileSync(join(workspace, 'edited.txt'), 'after\n');
 		writeFileSync(join(workspace, 'created.txt'), 'created\n');
 		execSync('git rm -q deleted.txt && git mv renamed-before.txt renamed-after.txt', { cwd: workspace });
+		const sessionUri = await createRealSession(context.client, config, 'changeset-commit-client', createdSessions, URI.file(workspace));
+		const authControl = await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-commit-auth-control', 'Reply exactly "AUTHENTICATED".', 1);
+		assert.strictEqual(authControl.responseText.trim(), 'AUTHENTICATED');
 		const changesetUri = buildUncommittedChangesetUri(sessionUri);
 		await retry(async () => {
 			const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changesetUri });

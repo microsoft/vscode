@@ -36,7 +36,7 @@ import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -48,7 +48,7 @@ import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../c
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -1169,6 +1169,40 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	test('queries managed settings with pre-resolved token authentication', async () => {
+		let receivedInput: { authInfo?: { type: 'token'; host: string; token: string }; token?: string; signal?: AbortSignal } | undefined;
+		const runtimeSdk = {
+			getManagedSettings: async (input?: typeof receivedInput) => {
+				receivedInput = input;
+				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
+			},
+		};
+		const signal = new AbortController().signal;
+
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal);
+
+		assert.deepStrictEqual({
+			authInfo: receivedInput?.authInfo,
+			token: receivedInput?.token,
+			signalForwarded: receivedInput?.signal === signal,
+		}, {
+			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
+			token: 'token',
+			signalForwarded: true,
+		});
+	});
+
+	test('identifies a stalled managed settings query', async () => {
+		const runtimeSdk = {
+			getManagedSettings: () => new Promise<never>(() => { }),
+		};
+
+		await assert.rejects(
+			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
+			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
+		);
 	});
 
 	test('returns empty models and lists sessions before authentication', async () => {
@@ -3065,7 +3099,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3121,7 +3155,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3170,7 +3204,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3404,6 +3438,133 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	suite('createSession fork', () => {
+		test('rejects a fork targeting its source session', async () => {
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			const session = AgentSession.uri('copilotcli', 'same-session');
+
+			try {
+				await assert.rejects(() => agent.createSession({
+					session,
+					fork: { session, turnIndex: 0, turnId: 'turn-1' },
+				}), /Cannot fork Copilot session same-session onto itself/);
+				assert.strictEqual(client.startCallCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes provider history under the client-chosen session ID', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'source-session');
+			const target = AgentSession.uri('copilotcli', 'target-session');
+			const sourceWorkingDirectory = URI.file('/source-workspace');
+			const sourceEventId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: 'source-turn',
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [{ ...sourceTurn, id: sourceEventId }],
+				getTurnEventId: async (turnId: string) => turnId === sourceTurn.id ? sourceEventId : undefined,
+				workingDirectory: sourceWorkingDirectory,
+				dispose: () => { },
+			});
+
+			let imported: { config: IAgentCreateSessionConfig; sessionId: string; workingDirectory: URI } | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async (config, sessionId, directory) => {
+				imported = { config, sessionId, workingDirectory: directory };
+				return { session: target, resolvedWorkingDirectory: directory };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				const result = await agent.createSession({
+					session: target,
+					workingDirectories: [URI.file('/ignored-client-workspace')],
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurn.id,
+						turnIdMapping: new Map([[sourceTurn.id, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual({
+					resultSession: result.session.toString(),
+					importSessionId: imported?.sessionId,
+					importWorkingDirectory: imported?.workingDirectory.toString(),
+					importWorkingDirectories: imported?.config.workingDirectories?.map(directory => directory.toString()),
+					importFork: imported?.config.fork,
+					importedTurnIds: imported?.config.importConversation?.turns.map(turn => turn.id),
+				}, {
+					resultSession: target.toString(),
+					importSessionId: AgentSession.id(target),
+					importWorkingDirectory: sourceWorkingDirectory.toString(),
+					importWorkingDirectories: [sourceWorkingDirectory.toString()],
+					importFork: undefined,
+					importedTurnIds: [forkedTurnId],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes restored provider history without a persisted turn event mapping', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'restored-source-session');
+			const target = AgentSession.uri('copilotcli', 'restored-target-session');
+			const sourceTurnId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: sourceTurnId,
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [sourceTurn],
+				getTurnEventId: async () => undefined,
+				workingDirectory: URI.file('/source-workspace'),
+				dispose: () => { },
+			});
+
+			let importedTurnIds: readonly string[] | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async config => {
+				importedTurnIds = config.importConversation?.turns.map(turn => turn.id);
+				return { session: target, resolvedWorkingDirectory: URI.file('/source-workspace') };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				await agent.createSession({
+					session: target,
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurnId,
+						turnIdMapping: new Map([[sourceTurnId, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual(importedTurnIds, [forkedTurnId]);
+			} finally {
 				await disposeAgent(agent);
 			}
 		});

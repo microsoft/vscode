@@ -98,7 +98,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	const sessionKey = sessionUri.toString();
 	const defaultChatUri = buildDefaultChatUri(sessionUri);
 
-	function setupSession(ready = true): void {
+	function setupSession(ready = true, workingDirectories?: string[]): void {
 		stateManager.createSession({
 			resource: sessionKey,
 			provider: 'mock',
@@ -106,6 +106,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			...(workingDirectories ? { workingDirectories } : {}),
 		});
 		if (ready) {
 			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
@@ -220,6 +221,21 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.permissionLevel, 'autopilot');
 		assert.strictEqual(typeof data.totalTime, 'number');
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
+		assert.strictEqual(data.isMultiRoot, false);
+		assert.strictEqual(data.folderCount, 0);
+	});
+
+	test('emits turnCompleted with the multi-root working-directory shape', () => {
+		setupSession(true, ['file:///work/app', 'file:///work/api']);
+		startTurn('turn-mr', 'hello');
+
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-mr', duration: 1000 });
+
+		const events = completedEvents();
+		assert.strictEqual(events.length, 1);
+		const data = events[0].data as Record<string, unknown>;
+		assert.strictEqual(data.isMultiRoot, true);
+		assert.strictEqual(data.folderCount, 2);
 	});
 
 	test('uses generic model values for BYOK and unknown selections', () => {

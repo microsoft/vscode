@@ -90,6 +90,31 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')]);
 	});
 
+	test('applies authentication received while the connection is starting to the proxy', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_queueModelRefresh'] = async () => { };
+		agent['_refreshProviderConfiguration'] = async () => { };
+
+		const appliedTokens: string[] = [];
+		const ready = {
+			client: { dispose() { } },
+			proxyHandle: {
+				setToken: (token: string) => appliedTokens.push(token),
+				dispose() { },
+			},
+			child: { kill: () => true },
+		};
+		let resolveStart!: (value: typeof ready) => void;
+		agent['_startConnection'] = () => new Promise<typeof ready>(resolve => resolveStart = resolve) as never;
+
+		const connection = agent['_ensureConnection']();
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token-arriving-during-start');
+		resolveStart(ready);
+		await connection;
+
+		assert.deepStrictEqual(appliedTokens, ['token-arriving-during-start']);
+	});
+
 	test('surfaces current ChatGPT subscription models under the ChatGPT provider', async () => {
 		const agent = createAgent(disposables, async () => []);
 		agent['_connection'] = {
