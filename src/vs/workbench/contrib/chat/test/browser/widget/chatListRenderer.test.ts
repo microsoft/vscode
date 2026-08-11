@@ -264,6 +264,7 @@ suite('ChatListRenderer', () => {
 					input: '{"prompt":"Draw a fox"}',
 					output: [
 						{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+						{ type: 'embed', value: 'aW1hZ2Uy', mimeType: 'image/jpeg' },
 						{ type: 'embed', value: 'details', mimeType: 'text/plain', isText: true },
 					],
 				}, sessionResource, 'image-call');
@@ -278,6 +279,11 @@ suite('ChatListRenderer', () => {
 					base64Value: 'aW1hZ2U=',
 					mimeType: 'image/png',
 					path: '/tool/image-call/0/generated-image.png',
+				}, {
+					kind: 'data',
+					base64Value: 'aW1hZ2Uy',
+					mimeType: 'image/jpeg',
+					path: '/tool/image-call/1/generated-image.jpe',
 				}]);
 			});
 		});
@@ -1042,6 +1048,87 @@ suite('ChatListRenderer', () => {
 		}, {
 			mountedWhileStreaming: true,
 			mountedAfterCompletion: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('generated image completion does not leave a compact duplicate inside thinking', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'generate an image';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		const imageTool = new ChatToolInvocation({
+			invocationMessage: 'Generating image',
+			pastTenseMessage: 'Generated image',
+		}, {
+			id: 'image_gen.imagegen',
+			displayName: 'Generate image',
+			modelDescription: 'Generate image',
+			source: ToolDataSource.Internal,
+		}, 'image-call', undefined, {}, {}, request.id);
+		model.acceptResponseProgress(request, imageTool);
+		renderer.renderElement(node, 0, template);
+
+		await imageTool.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: '{"prompt":"Draw a fox"}',
+				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+			},
+		});
+		renderer.renderElement(node, 0, template);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is the image.') });
+		renderer.renderElement(node, 0, template);
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+
+		assert.deepStrictEqual({
+			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
+			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
+		}, {
+			resourceGroups: 1,
+			largeOutcomes: 1,
 		});
 
 		disposables.dispose();
