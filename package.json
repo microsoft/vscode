@@ -198,7 +198,7 @@
     "@types/ws": "^8.18.1",
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
-    "@typescript-eslint/utils": "^8.66.0",
+    "@typescript-eslint/utils": "8.66.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vscode/component-explorer": "^0.2.1-94",
     "@vscode/component-explorer-cli": "^0.2.1-95",
@@ -270,7 +270,7 @@
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.66.0",
+    "typescript-eslint": "8.66.0",
     "util": "^0.12.4",
     "xml2js": "^0.5.0",
     "yaserver": "^0.4.0"
