@@ -28,6 +28,7 @@ import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile,
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
@@ -67,7 +68,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession } from './copilotAgentSession.js';
-import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
+import { createCopilotCliEnvironment, ICopilotCliClientInfo } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
@@ -658,6 +659,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
@@ -1499,6 +1501,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- client lifecycle ---------------------------------------------------
 
+	/**
+	 * Identity stamped on the GitHub telemetry the spawned CLI emits.
+	 *
+	 * Without this the CLI describes itself: `common_extname` falls back to
+	 * `copilot-cli` and the version fields report the CLI's own build, so
+	 * sessions VS Code drove are indistinguishable from someone running the CLI
+	 * in a terminal. `vscode` is the editor name the usage-metrics pipeline
+	 * already understands, and `vscode-agent-host` is the name this surface
+	 * already reports as its SDK client, so the pair keeps the editor rollup
+	 * intact while still separating the agent host from other VS Code Copilot
+	 * traffic. The agent host ships with VS Code rather than as an extension, so
+	 * the product version is its version.
+	 */
+	private _copilotCliClientInfo(): ICopilotCliClientInfo {
+		return {
+			editorName: 'vscode',
+			editorVersion: this._productService.version,
+			extensionName: 'vscode-agent-host',
+			extensionVersion: this._productService.version,
+		};
+	}
+
 	private async _ensureClient(): Promise<CopilotClient> {
 		if (this._shutdownPromise) {
 			throw new CancellationError();
@@ -1528,7 +1552,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
-			const env = createCopilotCliEnvironment();
+			const env = createCopilotCliEnvironment(process.env, this._copilotCliClientInfo());
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into

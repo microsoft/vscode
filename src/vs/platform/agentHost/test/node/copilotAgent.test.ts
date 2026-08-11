@@ -29,6 +29,7 @@ import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.j
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
@@ -542,8 +543,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IProductService productService: IProductService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, productService);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -574,8 +576,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
+		@IProductService productService: IProductService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, productService);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -660,6 +663,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
+	services.set(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
