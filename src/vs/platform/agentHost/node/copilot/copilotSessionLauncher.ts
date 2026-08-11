@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
-import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
+import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentSession } from '../../common/agent.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -121,7 +121,16 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	if (!availableTools && !excludedTools) {
 		return names;
 	}
-	const matches = (patterns: readonly string[], name: string) => patterns.some(pattern => pattern === name || pattern === `custom:${name}` || pattern === 'custom:*');
+	const matches = (patterns: readonly string[], name: string) => {
+		const sdkName = name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+		return patterns.some(pattern =>
+			pattern === name ||
+			pattern === sdkName ||
+			pattern === `custom:${name}` ||
+			pattern === `custom:${sdkName}` ||
+			pattern === 'custom:*'
+		);
+	};
 	const result = new Set<string>();
 	for (const name of names) {
 		const allowed = !availableTools || matches(availableTools, name);
@@ -130,6 +139,22 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 		}
 	}
 	return result;
+}
+
+/** Maps Agent Host reference names to the names registered with the SDK. */
+export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined): string[] | undefined {
+	if (!patterns) {
+		return undefined;
+	}
+	return [...new Set(patterns.map(pattern => {
+		if (pattern === CLIENT_TOOL_SEARCH_REFERENCE_NAME) {
+			return RUNTIME_TOOL_SEARCH_TOOL_NAME;
+		}
+		if (pattern === `custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`) {
+			return `custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`;
+		}
+		return pattern;
+	}))];
 }
 
 export interface ICopilotSessionRuntime {
@@ -750,6 +775,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// are frozen at launch — a mid-session model change cannot re-apply them.
 		const availableTools = getToolFilterOverride(capabilityOverride?.availableTools, 'availableTools', describeModelId(model), this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(capabilityOverride?.excludedTools, 'excludedTools', describeModelId(model), this._logService, plan.sessionId);
+		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
+		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
 		// A model-capability override has no picker equivalent to fall back to,
 		// so it is simply omitted from the returned config when unset; unlike
 		// `availableTools`/`excludedTools` it applies on every (re)launch,
@@ -825,8 +852,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			managedSettings: {
 				permissions: managedSettingsPermissions,
 			},
-			availableTools,
-			excludedTools,
+			availableTools: sdkAvailableTools,
+			excludedTools: sdkExcludedTools,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],

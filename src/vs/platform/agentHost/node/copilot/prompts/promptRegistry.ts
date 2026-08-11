@@ -212,7 +212,7 @@ export class AgentHostPromptRegistry {
 	 */
 	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
 		if (config.mode === 'replace') {
-			return { ...config, content: appendUniversalToolInstructions(config.content, name => context.hasClientTool(name)) };
+			return { ...config, content: appendUniversalToolInstructions(config.content, name => context.hasClientTool(name), toolSearchInstructionLines(context.toolSearchActive)) };
 		}
 		if (config.mode !== 'customize') {
 			return config;

@@ -78,6 +78,22 @@ suite('AgentHostPromptRegistry', () => {
 		);
 	});
 
+	test('a replacement prompt retains active tool-search guidance', () => {
+		const registry = new AgentHostPromptRegistry();
+		registry.registerPrompt(class {
+			static readonly familyPrefixes = ['gpt-5'];
+			resolveFullSystemPrompt(): string {
+				return 'FULL PROMPT';
+			}
+		});
+		const resolved = registry.resolveSystemMessageConfig(
+			{ id: 'gpt-5-mini' },
+			context({}, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], false, true)
+		);
+		assert.strictEqual(resolved.mode, 'replace');
+		assert.ok(resolved.content.includes('Most tools are deferred and hidden until you search for them.'));
+	});
+
 	test('a contributor can override individual sections (customize mode, default identity composed underneath)', () => {
 		const registry = new AgentHostPromptRegistry();
 		registry.registerPrompt(class {

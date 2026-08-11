@@ -23,11 +23,12 @@ import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -712,6 +713,24 @@ suite('filterClientToolNames', () => {
 			]
 		);
 	});
+
+	test('keeps Agent Host and SDK tool-search names consistent', () => {
+		const names = new Set([CLIENT_TOOL_SEARCH_REFERENCE_NAME]);
+		assert.deepStrictEqual(
+			[
+				[...filterClientToolNames(names, [CLIENT_TOOL_SEARCH_REFERENCE_NAME], undefined)],
+				[...filterClientToolNames(names, [RUNTIME_TOOL_SEARCH_TOOL_NAME], undefined)],
+				[...filterClientToolNames(names, undefined, [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`])],
+				toSdkToolFilterPatterns([CLIENT_TOOL_SEARCH_REFERENCE_NAME, `custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`, 'builtin:*']),
+			],
+			[
+				[CLIENT_TOOL_SEARCH_REFERENCE_NAME],
+				[CLIENT_TOOL_SEARCH_REFERENCE_NAME],
+				[],
+				[RUNTIME_TOOL_SEARCH_TOOL_NAME, `custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, 'builtin:*'],
+			]
+		);
+	});
 });
 
 /**
@@ -741,7 +760,7 @@ suite('CopilotSessionLauncher resume config', () => {
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */
-	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ model?: string; reasoningEffort?: string; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> {
+	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ model?: string; reasoningEffort?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -755,7 +774,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools: () => [], createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> })._buildSessionConfig(plan, runtime);
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> })._buildSessionConfig(plan, runtime);
 	}
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
@@ -820,6 +839,25 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual(
 			[valid.modelCapabilities, invalid.modelCapabilities, none.modelCapabilities],
 			[{ supports: { vision: false } }, undefined, undefined]
+		);
+		store.dispose();
+	});
+
+	test('maps tool-search reference names to the SDK runtime name', async () => {
+		const store = new DisposableStore();
+		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
+		const config = await buildResumeConfig(createLauncher(store, {
+			modelCapabilityOverrides: {
+				'gpt-5': {
+					availableTools: [CLIENT_TOOL_SEARCH_REFERENCE_NAME],
+					excludedTools: [`custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`],
+				},
+			},
+		}), model);
+
+		assert.deepStrictEqual(
+			[config.availableTools, config.excludedTools],
+			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});

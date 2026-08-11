@@ -6,6 +6,7 @@
 import { isObject } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
+import { reasoningEffortLevels } from './reasoningEffort.js';
 import type { ModelSelection } from './state/protocol/state.js';
 
 /**
@@ -176,7 +177,7 @@ export const copilotCliConfigSchema = createSchema({
 				},
 				reasoningEffort: {
 					type: 'string',
-					enum: ['low', 'medium', 'high', 'xhigh'],
+					enum: [...reasoningEffortLevels],
 					title: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.title', "Reasoning Effort"),
 					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; wins over the global reasoning-effort override. Unrecognized values are ignored."),
 				},
@@ -184,13 +185,13 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'array',
 					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.availableTools.item.title', "Tool Name or Pattern") },
 					title: localize('agentHost.config.modelCapabilityOverrides.availableTools.title', "Available Tools"),
-					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names. Applied when the session launches."),
+					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names. Applied when the session launches or resumes."),
 				},
 				excludedTools: {
 					type: 'array',
 					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.excludedTools.item.title', "Tool Name or Pattern") },
 					title: localize('agentHost.config.modelCapabilityOverrides.excludedTools.title', "Excluded Tools"),
-					description: localize('agentHost.config.modelCapabilityOverrides.excludedTools.description', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it. Applied when the session launches."),
+					description: localize('agentHost.config.modelCapabilityOverrides.excludedTools.description', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it. Applied when the session launches or resumes."),
 				},
 				modelCapabilities: {
 					type: 'object',
