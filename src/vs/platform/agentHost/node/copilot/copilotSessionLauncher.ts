@@ -70,7 +70,12 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 }
 
 const ContextTiers = ['default', 'long_context'] as const;
-const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+/**
+ * Name this surface reports to Copilot, both as the SDK client name and as the
+ * telemetry surface the spawned CLI attributes its events to. Shared so the two
+ * labels cannot drift apart.
+ */
+export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];

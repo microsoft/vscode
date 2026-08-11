@@ -30,6 +30,7 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import type { IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { CopilotClientInfoEnvVar } from '../../node/copilot/copilotCliEnvironment.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
@@ -756,6 +757,26 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.listSessions();
 			assert.strictEqual(typeof getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry, 'function');
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('declares the agent host identity in the CLI environment', async () => {
+		// The env builder is unit tested separately, so this pins the wiring:
+		// without it the CLI falls back to describing itself and the surface
+		// becomes indistinguishable from a plain terminal session.
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client }) as TestableCopilotAgent;
+		try {
+			await agent.listSessions();
+			const env = getCreatedClientOptions(agent).at(-1)?.env;
+			assert.deepStrictEqual(JSON.parse(env?.[CopilotClientInfoEnvVar] ?? '{}'), {
+				editorName: 'vscode',
+				editorVersion: '1.0.0-test',
+				extensionName: 'vscode-agent-host',
+				extensionVersion: '1.0.0-test',
+			});
 		} finally {
 			await disposeAgent(agent);
 		}

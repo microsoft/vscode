@@ -72,7 +72,7 @@ import { createCopilotCliEnvironment, ICopilotCliClientInfo } from './copilotCli
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
-import { CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotSessionLauncher, ContextSizeConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, isCopilotReasoningEffort, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -1508,17 +1508,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `copilot-cli` and the version fields report the CLI's own build, so
 	 * sessions VS Code drove are indistinguishable from someone running the CLI
 	 * in a terminal. `vscode` is the editor name the usage-metrics pipeline
-	 * already understands, and `vscode-agent-host` is the name this surface
-	 * already reports as its SDK client, so the pair keeps the editor rollup
-	 * intact while still separating the agent host from other VS Code Copilot
-	 * traffic. The agent host ships with VS Code rather than as an extension, so
-	 * the product version is its version.
+	 * already understands, and the surface reuses the same name we report as our
+	 * SDK client, so the pair keeps the editor rollup intact while still
+	 * separating the agent host from other VS Code Copilot traffic. The agent
+	 * host ships with VS Code rather than as an extension, so the product
+	 * version is its version.
 	 */
 	private _copilotCliClientInfo(): ICopilotCliClientInfo {
 		return {
 			editorName: 'vscode',
 			editorVersion: this._productService.version,
-			extensionName: 'vscode-agent-host',
+			extensionName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			extensionVersion: this._productService.version,
 		};
 	}
