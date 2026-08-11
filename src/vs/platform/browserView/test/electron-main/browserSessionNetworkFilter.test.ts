@@ -141,6 +141,7 @@ suite('BrowserSession network filter', () => {
 		const unsharedRequestDuringAction = invokeRequest(filter, { url: 'https://denied.example/data', resourceType: 'xhr', webContentsId: 2, referrer: 'https://unshared.example/page' });
 		const popupNavigation = invokeRequest(filter, { url: 'https://denied.example/popup', resourceType: 'mainFrame', webContentsId: 3 });
 		const allowedReturnNavigation = invokeRequest(filter, { url: 'https://allowed.example/page', resourceType: 'mainFrame', webContentsId: 1 });
+		const navigationOnlyActionError = filter.getPolicyError(1, true);
 		const retainedActionError = filter.getPolicyError(1);
 		filter.setAgentAction(1, 'action', false);
 
@@ -151,6 +152,7 @@ suite('BrowserSession network filter', () => {
 			unsharedRequestDuringAction,
 			popupNavigation,
 			allowedReturnNavigation,
+			navigationOnlyActionError,
 			retainedActionError,
 			errorAfterAction: filter.getPolicyError(1),
 		}, {
@@ -160,6 +162,7 @@ suite('BrowserSession network filter', () => {
 			unsharedRequestDuringAction: { cancel: false },
 			popupNavigation: { cancel: true },
 			allowedReturnNavigation: { cancel: false },
+			navigationOnlyActionError: undefined,
 			retainedActionError: 'Access to denied.example is blocked by network domain policy.',
 			errorAfterAction: undefined,
 		});

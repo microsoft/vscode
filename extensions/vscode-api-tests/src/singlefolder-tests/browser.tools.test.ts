@@ -469,6 +469,39 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		});
 	});
 
+	test('browser tools network policy returns a deferred ID while keeping dialog-interrupted work filtered', async function () {
+		this.timeout(60000);
+		await setNetworkPolicy(true);
+
+		const openOutput = await invokeTool('open_browser_page', {
+			url: `http://localhost:${allowedPort}/allowed`,
+			forceNew: true,
+		});
+		const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+		assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+		const interruptedOutput = await invokeTool('run_playwright_code', {
+			pageId,
+			code: `await page.evaluate(() => alert('continue'));
+				await page.evaluate(url => window.open(url), 'http://localhost:${allowedPort}/delayed-popup');
+				return 'resumed';`,
+		});
+		const deferredResultId = interruptedOutput.match(/\[deferredResultId=([^\]]+)\]/)?.[1];
+		assert.ok(deferredResultId, `Expected a deferred result ID while the dialog was open, got: ${interruptedOutput}`);
+
+		await invokeTool('handle_dialog', { pageId, acceptModal: true });
+		const resumedOutput = await invokeTool('run_playwright_code', { pageId, deferredResultId, timeoutMs: 5000 });
+		await new Promise(resolve => setTimeout(resolve, 700));
+
+		assert.deepStrictEqual({
+			deniedRequestCount,
+			resumed: resumedOutput.includes('Result: "resumed"'),
+		}, {
+			deniedRequestCount: 0,
+			resumed: true,
+		});
+	});
+
 	test('browser tools network policy blocks screenshot_page after redirect to denied host', async function () {
 		this.timeout(60000);
 		await setNetworkPolicy(true);

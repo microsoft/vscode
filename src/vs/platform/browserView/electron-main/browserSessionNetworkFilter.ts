@@ -11,6 +11,70 @@ import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFi
 type RetainedPolicyErrors = { malformedRequest: boolean; deniedUris: Map<string, URI> };
 type AgentAction = { webContentsId: number; webContentsIds: Set<number>; policyErrors: RetainedPolicyErrors };
 
+type RequestClassification = {
+	readonly isMainFrame: boolean;
+	readonly matchingAgentActions: readonly AgentAction[];
+	readonly policyErrorTargets: readonly number[];
+	readonly shouldFilter: boolean;
+};
+
+type RequestClassificationContext = {
+	readonly webContentsId: number | undefined;
+	readonly webContentsWasKnown: boolean;
+	readonly webContentsIsFiltered: boolean;
+	readonly referrerOwners: ReadonlySet<number> | undefined;
+	readonly filteredReferrerOwners: readonly number[];
+	readonly isMainFrame: boolean;
+	readonly agentActions: readonly AgentAction[];
+	readonly hasFilteredWebContents: boolean;
+};
+
+function classifyRequest(context: RequestClassificationContext): RequestClassification {
+	const { webContentsId, webContentsWasKnown, webContentsIsFiltered, referrerOwners, filteredReferrerOwners, isMainFrame, agentActions, hasFilteredWebContents } = context;
+	const shouldUseReferrerOwnership = webContentsId === undefined || !webContentsWasKnown;
+	const attributableFilteredReferrerOwners = shouldUseReferrerOwnership ? filteredReferrerOwners : [];
+	let matchingAgentActions: readonly AgentAction[] = agentActions.filter(action =>
+		(webContentsId !== undefined && action.webContentsIds.has(webContentsId))
+		|| (shouldUseReferrerOwnership && referrerOwners !== undefined && [...referrerOwners].some(id => action.webContentsIds.has(id)))
+	);
+	if (
+		matchingAgentActions.length === 0
+		&& agentActions.length > 0
+		&& referrerOwners === undefined
+		&& (webContentsId === undefined || (isMainFrame && !webContentsWasKnown))
+	) {
+		matchingAgentActions = agentActions;
+	}
+
+	const isAgentRequest = matchingAgentActions.length > 0;
+	const shouldFilterMainFrame = isMainFrame && (
+		isAgentRequest
+		|| webContentsIsFiltered
+		|| attributableFilteredReferrerOwners.length > 0
+		|| (!webContentsWasKnown && referrerOwners === undefined && hasFilteredWebContents)
+	);
+	const policyErrorTargets = isAgentRequest ? []
+		: isMainFrame
+			? [...new Set([
+				...(webContentsId !== undefined && (webContentsIsFiltered || !webContentsWasKnown) ? [webContentsId] : []),
+				...attributableFilteredReferrerOwners,
+			])]
+			: webContentsId === undefined
+				? referrerOwners ? filteredReferrerOwners : []
+				: webContentsIsFiltered ? [webContentsId] : [];
+
+	return {
+		isMainFrame,
+		matchingAgentActions,
+		policyErrorTargets,
+		// Unknown ownerless requests fail closed whenever tracked content exists.
+		shouldFilter: shouldFilterMainFrame
+			|| isAgentRequest
+			|| policyErrorTargets.length > 0
+			|| (webContentsId === undefined && referrerOwners === undefined && hasFilteredWebContents),
+	};
+}
+
 export class BrowserSessionNetworkFilter {
 	private readonly filteredWebContents = new Set<number>();
 	private readonly policyErrors = new Map<number, RetainedPolicyErrors>();
@@ -52,7 +116,7 @@ export class BrowserSessionNetworkFilter {
 			}
 		}
 		const navigationPolicyError = this.getPolicyErrorFromMap(this.navigationPolicyErrors, webContentsId);
-		if (navigationPolicyError) {
+		if (navigationPolicyError || navigationOnly) {
 			return navigationPolicyError;
 		}
 		for (const action of this.agentActions.values()) {
@@ -98,56 +162,34 @@ export class BrowserSessionNetworkFilter {
 			}
 		}
 		const filteredReferrerOwners = referrerOwners ? [...referrerOwners].filter(id => this.isWebContentsFiltered(id)) : [];
-		const shouldUseReferrerOwnership = webContentsId === undefined || !webContentsWasKnown;
-		const attributableFilteredReferrerOwners = shouldUseReferrerOwnership ? filteredReferrerOwners : [];
-		const isMainFrame = details.resourceType === 'mainFrame';
-		let matchingAgentActions = [...this.agentActions.values()].filter(action =>
-			(webContentsId !== undefined && action.webContentsIds.has(webContentsId))
-			|| (shouldUseReferrerOwnership && referrerOwners !== undefined && [...referrerOwners].some(id => action.webContentsIds.has(id)))
-		);
-		if (
-			matchingAgentActions.length === 0
-			&& this.agentActions.size > 0
-			&& referrerOwners === undefined
-			&& (webContentsId === undefined || (isMainFrame && !webContentsWasKnown))
-		) {
-			matchingAgentActions = [...this.agentActions.values()];
-		}
-		if (isMainFrame && webContentsId !== undefined) {
-			for (const action of matchingAgentActions) {
+		const classification = classifyRequest({
+			webContentsId,
+			webContentsWasKnown,
+			webContentsIsFiltered: webContentsId !== undefined && this.isWebContentsFiltered(webContentsId),
+			referrerOwners,
+			filteredReferrerOwners,
+			isMainFrame: details.resourceType === 'mainFrame',
+			agentActions: [...this.agentActions.values()],
+			hasFilteredWebContents: this.filteredWebContents.size > 0,
+		});
+		if (classification.isMainFrame && webContentsId !== undefined) {
+			for (const action of classification.matchingAgentActions) {
 				action.webContentsIds.add(webContentsId);
 				this.addDerivedWebContents(action.webContentsId, webContentsId);
 			}
 		}
-		const isAgentRequest = matchingAgentActions.length > 0;
-		const shouldFilterMainFrame = isMainFrame && (
-			isAgentRequest
-			|| (webContentsId !== undefined && this.isWebContentsFiltered(webContentsId))
-			|| attributableFilteredReferrerOwners.length > 0
-			|| (!webContentsWasKnown && referrerOwners === undefined && this.filteredWebContents.size > 0)
-		);
-		if (details.resourceType === 'mainFrame') {
+		if (classification.isMainFrame) {
 			if (webContentsId !== undefined) {
 				this.policyErrors.delete(webContentsId);
 				this.navigationPolicyErrors.delete(webContentsId);
 			}
-			if (!shouldFilterMainFrame) {
+			if (!classification.shouldFilter) {
 				callback({ cancel: false });
 				return;
 			}
 		}
 
-		const policyErrorTargets = isAgentRequest ? []
-			: isMainFrame
-				? [...new Set([
-					...(webContentsId !== undefined && (this.isWebContentsFiltered(webContentsId) || !webContentsWasKnown) ? [webContentsId] : []),
-					...attributableFilteredReferrerOwners,
-				])]
-				: webContentsId === undefined
-					? referrerOwners ? filteredReferrerOwners : []
-					: this.isWebContentsFiltered(webContentsId) ? [webContentsId] : [];
-		const shouldFilter = shouldFilterMainFrame || isAgentRequest || policyErrorTargets.length > 0 || (webContentsId === undefined && referrerOwners === undefined && this.filteredWebContents.size > 0);
-		if (!shouldFilter) {
+		if (!classification.shouldFilter) {
 			callback({ cancel: false });
 			return;
 		}
@@ -156,14 +198,14 @@ export class BrowserSessionNetworkFilter {
 		try {
 			uri = URI.parse(details.url, true);
 		} catch {
-			this.addPolicyErrors(policyErrorTargets, matchingAgentActions, undefined, isMainFrame);
+			this.addPolicyErrors(classification.policyErrorTargets, classification.matchingAgentActions, undefined, classification.isMainFrame);
 			callback({ cancel: true });
 			return;
 		}
 
 		const allowed = this.agentNetworkFilterService.isUriAllowed(uri);
 		if (!allowed) {
-			this.addPolicyErrors(policyErrorTargets, matchingAgentActions, uri, isMainFrame);
+			this.addPolicyErrors(classification.policyErrorTargets, classification.matchingAgentActions, uri, classification.isMainFrame);
 		}
 		callback({ cancel: !allowed });
 	}
