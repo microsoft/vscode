@@ -53,8 +53,108 @@ describe('resolveWorkspaceOTelMetadata', () => {
 			remotes: ['origin'],
 		});
 		const result = resolveWorkspaceOTelMetadata(gitService);
-		expect(result.remoteUrl).toBeDefined();
-		expect(result.remoteUrl).toContain('github.com');
+		expect(result.remoteUrl).toBe('https://github.com/microsoft/vscode.git');
+	});
+
+	it('resolves remote URL for self-hosted GitHub Enterprise Server on a custom domain', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: ['https://git.mycompany.com/owner/repo.git'],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://git.mycompany.com/owner/repo.git');
+	});
+
+	it('normalizes an scp-style remote on a custom domain', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: ['git@git.mycompany.com:owner/repo.git'],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://git.mycompany.com/owner/repo.git');
+	});
+
+	it('resolves remote URL for GitLab', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: ['https://gitlab.com/org/repo.git'],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://gitlab.com/org/repo.git');
+	});
+
+	it('resolves remote URL for Bitbucket Server, stripping the /scm/ prefix', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: ['https://bitbucket.mycorp.com/scm/proj/repo.git'],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://bitbucket.mycorp.com/proj/repo.git');
+	});
+
+	it('resolves remote URL for Azure DevOps', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: ['https://dev.azure.com/org/project/_git/repo'],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://dev.azure.com/org/project/_git/repo');
+	});
+
+	it('ignores local remotes so filesystem paths never reach telemetry', () => {
+		for (const localRemote of ['file:///Users/someone/dev/repo', '/Users/someone/dev/repo', '../sibling-repo']) {
+			const gitService = createMockGitService({
+				remoteFetchUrls: [localRemote],
+				remotes: ['origin'],
+			});
+			expect(resolveWorkspaceOTelMetadata(gitService).remoteUrl).toBeUndefined();
+		}
+	});
+
+	it('handles a remote with no fetch URL', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: [undefined],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBeUndefined();
+	});
+
+	it('prefers a resolvable GitHub remote over a higher-priority unrecognized one', () => {
+		const gitService = createMockGitService({
+			remotes: ['origin', 'github'],
+			remoteFetchUrls: ['https://git.mycompany.com/mirror/repo.git', 'https://github.com/microsoft/vscode.git'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://github.com/microsoft/vscode.git');
+	});
+
+	it('prefers a resolvable Azure DevOps remote over a higher-priority unrecognized one', () => {
+		const gitService = createMockGitService({
+			remotes: ['origin', 'ado'],
+			remoteFetchUrls: ['https://git.mycompany.com/mirror/repo.git', 'https://dev.azure.com/org/project/_git/repo'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://dev.azure.com/org/project/_git/repo');
+	});
+
+	it('falls back to an unrecognized remote only when no remote resolves', () => {
+		const gitService = createMockGitService({
+			remotes: ['origin', 'mirror'],
+			remoteFetchUrls: ['https://git.mycompany.com/owner/repo.git', 'https://gitlab.com/org/repo.git'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://git.mycompany.com/owner/repo.git');
+	});
+
+	it('prefers the upstream remote over origin for unrecognized hosts', () => {
+		const gitService = createMockGitService({
+			remotes: ['origin', 'upstream'],
+			remoteFetchUrls: ['https://git.mycompany.com/fork/repo.git', 'https://git.mycompany.com/upstream/repo.git'],
+			upstreamRemote: 'upstream',
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://git.mycompany.com/upstream/repo.git');
 	});
 
 	it('computes relative file path from repo root', () => {
@@ -128,6 +228,40 @@ describe('workspaceMetadataToOTelAttributes', () => {
 			remoteUrl: 'https://gitlab.com/org/repo.git',
 		});
 		expect(attrs[GitHubCopilotAttr.GIT_REPOSITORY]).toBe('https://gitlab.com/org/repo.git');
+		expect(attrs[GitHubCopilotAttr.GITHUB_ORG]).toBeUndefined();
+	});
+
+	it('derives github.org for GitHub Enterprise Cloud remotes', () => {
+		const attrs = workspaceMetadataToOTelAttributes({
+			remoteUrl: 'https://myco.ghe.com/acme/repo.git',
+		});
+		expect(attrs[GitHubCopilotAttr.GIT_REPOSITORY]).toBe('https://myco.ghe.com/acme/repo.git');
+		expect(attrs[GitHubCopilotAttr.GITHUB_ORG]).toBe('acme');
+	});
+
+	it('derives github.org through an ssh host alias', () => {
+		const attrs = workspaceMetadataToOTelAttributes({
+			remoteUrl: 'https://alias-github.com/microsoft/vscode.git',
+		});
+		expect(attrs[GitHubCopilotAttr.GITHUB_ORG]).toBe('microsoft');
+	});
+
+	it('emits the repository URL but no github.org for custom-domain GitHub Enterprise Server', () => {
+		const attrs = workspaceMetadataToOTelAttributes({
+			remoteUrl: 'https://git.mycompany.com/owner/repo.git',
+		});
+		expect(attrs[GitHubCopilotAttr.GIT_REPOSITORY]).toBe('https://git.mycompany.com/owner/repo.git');
+		expect(attrs[CopilotChatAttr.REPO_REMOTE_URL]).toBe('https://git.mycompany.com/owner/repo.git');
+		// Distinguishing a custom GHES domain from an arbitrary git host needs the configured
+		// `github-enterprise.uri`, which this module cannot read.
+		expect(attrs[GitHubCopilotAttr.GITHUB_ORG]).toBeUndefined();
+	});
+
+	it('emits the repository URL but no github.org for Bitbucket Server', () => {
+		const attrs = workspaceMetadataToOTelAttributes({
+			remoteUrl: 'https://bitbucket.mycorp.com/proj/repo.git',
+		});
+		expect(attrs[GitHubCopilotAttr.GIT_REPOSITORY]).toBe('https://bitbucket.mycorp.com/proj/repo.git');
 		expect(attrs[GitHubCopilotAttr.GITHUB_ORG]).toBeUndefined();
 	});
 });

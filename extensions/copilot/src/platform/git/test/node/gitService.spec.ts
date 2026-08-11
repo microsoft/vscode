@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'vitest';
-import { AdoRepoId, getAdoRepoIdFromFetchUrl, getGithubRepoIdFromFetchUrl, GithubRepoId, normalizeFetchUrl, parseRemoteUrl, toGithubWebUrl } from '../../common/gitService';
+import { AdoRepoId, getAdoRepoIdFromFetchUrl, getGithubRepoIdFromFetchUrl, GithubRepoId, getOrderedRemoteUrlsFromContext, getOrderedRepoInfosFromContext, normalizeFetchUrl, parseRemoteUrl, type RepoContext, toGithubWebUrl } from '../../common/gitService';
 
 function assertGitIdEquals(a: GithubRepoId | undefined, b: { org: string; repo: string; host?: string } | undefined, message?: string) {
 	assert.strictEqual(a?.org, b?.org, message);
@@ -14,6 +14,49 @@ function assertGitIdEquals(a: GithubRepoId | undefined, b: { org: string; repo: 
 		assert.strictEqual(a?.host, b.host, message);
 	}
 }
+
+function createRepoContext(remotes: string[], remoteFetchUrls: Array<string | undefined>, upstreamRemote?: string): RepoContext {
+	return { remotes, remoteFetchUrls, upstreamRemote } as RepoContext;
+}
+
+suite('getOrderedRemoteUrlsFromContext', () => {
+	test('Should skip a lone remote that has no fetch URL', () => {
+		assert.deepStrictEqual(
+			Array.from(getOrderedRemoteUrlsFromContext(createRepoContext(['origin'], [undefined]))),
+			[]);
+	});
+
+	test('Should return a lone remote with a fetch URL', () => {
+		assert.deepStrictEqual(
+			Array.from(getOrderedRemoteUrlsFromContext(createRepoContext(['origin'], ['https://github.com/microsoft/vscode.git']))),
+			['https://github.com/microsoft/vscode.git']);
+	});
+
+	test('Should order upstream before origin', () => {
+		assert.deepStrictEqual(
+			Array.from(getOrderedRemoteUrlsFromContext(createRepoContext(
+				['origin', 'upstream'],
+				['https://github.com/fork/vscode.git', 'https://github.com/microsoft/vscode.git'],
+				'upstream'))),
+			['https://github.com/microsoft/vscode.git', 'https://github.com/fork/vscode.git']);
+	});
+});
+
+suite('getOrderedRepoInfosFromContext', () => {
+	test('Should not throw for a lone remote that has no fetch URL', () => {
+		assert.deepStrictEqual(
+			Array.from(getOrderedRepoInfosFromContext(createRepoContext(['origin'], [undefined]))),
+			[]);
+	});
+
+	test('Should skip remotes on unrecognized hosts', () => {
+		const infos = Array.from(getOrderedRepoInfosFromContext(createRepoContext(
+			['origin', 'github'],
+			['https://git.mycompany.com/owner/repo.git', 'https://github.com/microsoft/vscode.git'])));
+		assert.strictEqual(infos.length, 1);
+		assert.strictEqual(infos[0].fetchUrl, 'https://github.com/microsoft/vscode.git');
+	});
+});
 
 suite('parseRemoteUrl', () => {
 	test('Should handle basic https', () => {

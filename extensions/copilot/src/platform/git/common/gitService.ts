@@ -129,7 +129,12 @@ export function getOrderedRemoteUrlsFromContext(repoContext: RepoContext): Itera
 
 	// Strategy 1: If there's only one remote, use that
 	if (repoContext.remoteFetchUrls?.length === 1) {
-		out.add(repoContext.remoteFetchUrls[0]!);
+		// A remote can be push-only and carry no fetch URL, so this entry may be undefined
+		// even though the declared return type is `Iterable<string>`.
+		const fetchUrl = repoContext.remoteFetchUrls[0];
+		if (fetchUrl) {
+			out.add(fetchUrl);
+		}
 		return out;
 	}
 

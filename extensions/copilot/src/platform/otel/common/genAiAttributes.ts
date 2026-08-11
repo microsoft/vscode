@@ -203,13 +203,16 @@ export const GitHubCopilotAttr = {
 	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
 	AGENT_TYPE: 'github.copilot.agent.type',
 
-	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
+	/** Git remote URL (normalized, any host). Dual of `copilot_chat.repo.remote_url`. */
 	GIT_REPOSITORY: 'github.copilot.git.repository',
 	/** Git HEAD branch. Dual of `copilot_chat.repo.head_branch_name`. */
 	GIT_BRANCH: 'github.copilot.git.branch',
 	/** Git HEAD commit. Dual of `copilot_chat.repo.head_commit_hash`. */
 	GIT_COMMIT_SHA: 'github.copilot.git.commit_sha',
-	/** GitHub `owner` segment derived from the remote URL (gated like the URL itself). */
+	/**
+	 * GitHub `owner` segment derived from the remote URL. Only emitted for hosts recognized as
+	 * GitHub (github.com, `*.ghe.com`); absent for custom-domain GitHub Enterprise Server.
+	 */
 	GITHUB_ORG: 'github.copilot.github.org',
 
 	/** Hook decision result (`block` | `approve` | `non_blocking_error` | `pass`). */
