@@ -2421,14 +2421,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _cancelPendingSessionRelease(resource: URI): void {
-		this._pendingSessionRelease.deleteAndDispose(resource);
+		this._pendingSessionRelease.deleteAndDispose(this._sessionReleaseResource(resource));
 	}
 
 	private _scheduleSessionRelease(resource: URI): void {
-		this._pendingSessionRelease.set(resource, disposableTimeout(() => {
-			this._pendingSessionRelease.deleteAndDispose(resource);
-			this._maybeEvictIdleSession(resource);
+		const session = this._sessionReleaseResource(resource);
+		this._pendingSessionRelease.set(session, disposableTimeout(() => {
+			this._pendingSessionRelease.deleteAndDispose(session);
+			this._maybeEvictIdleSession(session);
 		}, SESSION_RELEASE_GRACE_MS));
+	}
+
+	private _sessionReleaseResource(resource: URI): URI {
+		return URI.parse(this._sessionReleaseKey(resource));
 	}
 
 	/**
@@ -2554,6 +2559,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._scheduleSessionRelease(evictionTarget);
 			return;
 		}
+		if (this._releaseSessionInFlight.has(evictionTargetKey)) {
+			return;
+		}
 		const provider = this._findProviderForSession(evictionTarget);
 		if (!provider?.releaseSession) {
 			this._evictSessionState(evictionTarget, evictionTargetKey, key);
@@ -2594,11 +2602,9 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _hasSessionSubscribers(session: URI): boolean {
-		if (this._resourceSubscribers.has(session)) {
-			return true;
-		}
+		const sessionKey = this._sessionReleaseKey(session);
 		for (const subscribedUri of this._resourceSubscribers.keys()) {
-			if (this._isSubagentDescendantOf(subscribedUri, session)) {
+			if (this._sessionReleaseKey(subscribedUri) === sessionKey) {
 				return true;
 			}
 		}
