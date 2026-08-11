@@ -166,7 +166,6 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 			const title = dom.append(button.element, dom.$('.new-session-prompt-option-title'));
 			dom.append(title, dom.$('.new-session-prompt-option-title-label')).textContent = option.title;
 			if (option.titleDetail) {
-				button.element.classList.add('has-title-detail');
 				dom.append(title, dom.$('.new-session-prompt-option-title-detail')).textContent = option.titleDetail;
 			}
 			dom.append(button.element, dom.$('.new-session-prompt-option-description')).textContent = option.description;

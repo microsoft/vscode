@@ -140,11 +140,6 @@
 	grid-row: 2;
 }
 
-.new-session-prompt-option.has-title-detail .new-session-prompt-option-title-detail,
-.new-session-prompt-option.has-title-detail .new-session-prompt-option-description {
-	color: var(--vscode-foreground);
-}
-
 .new-session-prompt-option.no-icon .new-session-prompt-option-title {
 	grid-column: 1 / -1;
 }
