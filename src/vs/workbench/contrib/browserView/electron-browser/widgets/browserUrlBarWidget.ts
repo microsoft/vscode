@@ -115,7 +115,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			getDefaultHoverDelegate('mouse'),
 			this._urlDisplay,
 			() => this._host.isReadonly
-				? localize('browser.addressLockedTooltip', "The address is readonly because the browser is locked to a file resource.")
+				? localize('browser.addressLockedTooltip', "The address is read-only because the browser is locked to a file resource.")
 				: undefined
 		));
 

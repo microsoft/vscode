@@ -116,7 +116,7 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
-	test('preserves a pinned file resource through reopen and serialization', () => {
+	test('preserves a associated file resource through reopen and serialization', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
 			id: 'file-browser',
@@ -175,7 +175,7 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
-	test('uses the pinned file resource to find available editor types', () => {
+	test('uses the associated file resource to find available editor types', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
 			id: 'file-browser',
@@ -194,7 +194,7 @@ suite('BrowserEditorInput', () => {
 		assert.strictEqual(contextKey.get()?.split(',').includes('test.browserEditor'), true);
 	});
 
-	test('follows pinned file renames', async () => {
+	test('follows associated file renames', async () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const target = URI.file('/workspace/renamed.html');
 		const input = createInput({
@@ -212,6 +212,33 @@ suite('BrowserEditorInput', () => {
 					override: BrowserEditorInput.EDITOR_ID,
 					viewState: {
 						url: target.toString(),
+						title: undefined,
+						favicon: undefined
+					}
+				}
+			}
+		});
+	});
+
+	test('preserves query and fragment when following associated file renames', async () => {
+		const associatedResource = URI.file('/workspace/index.html');
+		const target = URI.file('/workspace/renamed.html');
+		const currentResource = associatedResource.with({ query: 'view=preview', fragment: 'content' });
+		const input = createInput({
+			id: 'file-browser',
+			associatedResource,
+			url: currentResource.toString()
+		});
+
+		const result = await input.rename(1, target);
+
+		assert.deepStrictEqual(result, {
+			editor: {
+				resource: target,
+				options: {
+					override: BrowserEditorInput.EDITOR_ID,
+					viewState: {
+						url: target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString(),
 						title: undefined,
 						favicon: undefined
 					}

@@ -24,6 +24,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -367,13 +368,19 @@ export class BrowserEditorInput extends EditorInput {
 			return undefined;
 		}
 
+		const currentUrl = this.url;
+		let renamedUrl = currentUrl;
+		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl)) {
+			const currentResource = URI.parse(currentUrl);
+			renamedUrl = target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
+		}
 		return {
 			editor: {
 				resource: target,
 				options: {
 					override: BrowserEditorInput.EDITOR_ID,
 					viewState: {
-						url: this.url === this._associatedResource.toString() ? target.toString() : this.url,
+						url: renamedUrl,
 						title: this.title,
 						favicon: this.favicon
 					}
