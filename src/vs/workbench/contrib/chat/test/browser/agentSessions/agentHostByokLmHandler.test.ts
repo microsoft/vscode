@@ -393,6 +393,36 @@ suite('AgentHostByokLmHandler', () => {
 		}]);
 	});
 
+	test('preserves streamed reasoning summary part boundaries', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('customendpoint', 'reasoning')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'fir', id: 'rs_1' },
+				{ type: 'thinking', value: 'st', id: 'rs_1' },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { vscode_reasoning_summary_part_done: true } },
+				{ type: 'thinking', value: 'sec', id: 'rs_1' },
+				{ type: 'thinking', value: 'ond', id: 'rs_1' },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { vscode_reasoning_summary_part_done: true } },
+				{ type: 'thinking', value: '', id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+			]),
+		);
+		const handler = createHandler(service);
+
+		const result = await handler.chat({
+			vendor: 'customendpoint',
+			modelId: 'reasoning',
+			input: [],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(result.output, [{
+			type: 'reasoning',
+			id: 'rs_1',
+			summary: ['first', 'second'],
+			encryptedContent: 'opaque',
+			metadata: { encrypted_content: 'opaque' },
+		}]);
+	});
+
 	test('maps ordered Responses input and options to LM API chat messages', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),
