@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -662,6 +662,51 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/leak-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
+	});
+
+	// Residual case of #329982: a partial `--force` removal (e.g. an undeletable
+	// file) can de-register the worktree while leaving its directory on disk. A
+	// later removal must still succeed because git no longer tracks the path.
+	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+		const dir = initRepo();
+		const suffix = `wt-orphan-${Date.now()}`;
+		const wtPath = join(dir, '..', suffix);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/orphan-worktree', 'main');
+			// De-register the worktree (delete git's admin entries) while leaving the working-tree directory in place.
+			const adminRoot = join(dir, '.git', 'worktrees');
+			for (const entry of readdirSync(adminRoot)) {
+				rmSync(join(adminRoot, entry), { recursive: true, force: true });
+			}
+			// Pin the precondition so the test cannot silently rot into the prune/verify path.
+			const listed = cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: dir, env, encoding: 'utf8' });
+			assert.deepStrictEqual({
+				dirPresent: existsSync(wtPath),
+				stillRegistered: listed.includes(suffix),
+			}, {
+				dirPresent: true,
+				stillRegistered: false,
+			});
+
+			// Removal must treat an already-de-registered worktree as success.
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+		} finally {
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	// Fail-closed guard: when git cannot confirm the worktree is unregistered (e.g.
+	// the repository is gone), a failed removal must propagate rather than be
+	// silently reported as success.
+	(hasGit ? test : test.skip)('removeWorktree rethrows when git cannot confirm removal', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-nonrepo-'));
+		const wtPath = join(tmpRoot, 'wt');
+		mkdirSync(wtPath); // exists -> deterministic `git worktree remove` branch
+		await assert.rejects(
+			svc!.removeWorktree(URI.file(tmpRoot), URI.file(wtPath), { force: true }),
+			/not a git repository/i,
+		);
 	});
 
 	(hasGit ? test : test.skip)('addWorktree prefers origin start point when local branch is stale', async () => {
