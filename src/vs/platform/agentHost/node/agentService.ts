@@ -1699,6 +1699,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (options?.fork) {
 			const { sourceChatKey, sourceSessionKey, sourceState } = await this._resolveSessionSourceChat(options.fork.source);
+			if (this._stateManager.getChatOrigin(sourceChatKey)?.kind === ChatOriginKind.Tool) {
+				throw new Error(`[AgentService] createChat: cannot fork provider-spawned chat ${sourceChatKey}`);
+			}
 			const sourceTurns = sourceState?.turns ?? [];
 			const forkIndex = sourceTurns.findIndex(t => t.id === options.fork!.turnId);
 			if (forkIndex < 0) {
@@ -1735,7 +1738,15 @@ export class AgentService extends Disposable implements IAgentService {
 				// agent to the preceding concrete turn (the local turns are still
 				// seeded into the new chat's protocol state above).
 				const concreteForkTurnId = this._localTurns.resolveConcreteTurnId(sourceChatKey, options.fork.turnId);
-				createOptions = { ...options, fork: { ...options.fork, turnIdMapping, ...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}) } };
+				createOptions = {
+					...options,
+					fork: {
+						...options.fork,
+						source: URI.parse(sourceChatKey),
+						turnIdMapping,
+						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
+					},
+				};
 			}
 		}
 
@@ -2233,7 +2244,6 @@ export class AgentService extends Disposable implements IAgentService {
 			...(config.fork ? {
 				fork: {
 					source: config.fork.chat,
-					session: config.fork.session,
 					turnIndex: config.fork.turnIndex,
 					turnId: config.fork.turnId,
 					turnIdMapping: config.fork.turnIdMapping,

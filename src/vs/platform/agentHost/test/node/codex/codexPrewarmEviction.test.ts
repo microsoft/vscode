@@ -221,18 +221,15 @@ function defaultChatOf(session: URI): URI {
 /**
  * Provision a session by creating its first chat through the single
  * {@link IAgentChats.createChat} seam, already addressed by the exact chat URI
- * Agent Host minted. Such a call stands the session's runtime up, so it reports
- * the owning session back.
+ * Agent Host minted. The provider result never echoes a session identity back,
+ * so the `session` field returned here is this helper's own synthesized value.
  */
 async function createSession(agent: CodexAgent, options: IAgentCreateChatOptions & { readonly session?: URI } = {}): Promise<IAgentCreateChatResult & { readonly session: URI }> {
 	const { session: requestedSession, ...chatOptions } = options;
 	const session = requestedSession ?? AgentSession.uri(agent.id, generateUuid());
 	const chat = defaultChatOf(session);
-	const result = await agent.chats.createChat(chat, { session, resource: chat }, { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
-	if (!result?.session) {
-		throw new Error('Expected the creation to report the session runtime it stood up');
-	}
-	return { ...result, session: result.session };
+	const result = await agent.chats.createChat(chat, { configurationResource: session, resource: chat }, { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
+	return { ...result, session };
 }
 
 async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'add'>, completePrewarmBeforeSend: boolean): Promise<void> {
@@ -345,7 +342,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = URI.parse('agent-chat://peer/workspace-less');
-		const creating = agent.chats.createChat(chat, { session: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-peer' } } });
 		const created = await creating;
@@ -463,7 +460,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const parent = AgentSession.uri('codex', 'parent');
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-history' }));
 
-		const reading = agent.chats.getMessages(chat, { session: parent, resource: chat });
+		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
 		const resume = await readNextRequest(peer.outbound);
 		peer.push({ id: resume.id, result: { thread: { id: 'restored-history', turns: [] }, runtimeWorkspaceRoots: [] } });
 		const read = await readNextRequest(peer.outbound);
@@ -528,7 +525,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = URI.parse('agent-chat://peer/release-dispose');
-		const creating = agent.chats.createChat(chat, { session: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'released-peer' } } });
 		const created = await creating;
@@ -1215,7 +1212,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 			const forkPromise = createSession(agent, {
 				workingDirectories: [requestedA, requestedB],
-				fork: { session: source.session, source: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
+				fork: { source: defaultChatOf(source.session), turnId: 'turn-1', turnIndex: 0 },
 			});
 
 			const read = await readNextRequest(peer.outbound);
@@ -1301,7 +1298,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const forkChat = defaultChatOf(forkSession);
 		const forking = createSession(agent, {
 			session: forkSession,
-			fork: { session: source.session, source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
+			fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 		});
 		const read = await readNextRequest(peer.outbound);
 		peer.push({
@@ -1333,7 +1330,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// session-data service backs every session with one shared database, so
 		// finalizing the source here would read the fork's overlay and delete
 		// the fork's directory.
-		const disposingSource = agent.chats.disposeChat(sourceChat, { session: source.session, resource: sourceChat });
+		const disposingSource = agent.chats.disposeChat(sourceChat, { configurationResource: source.session, resource: sourceChat });
 		const sourceUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: sourceUnsubscribe.id, result: {} });
 		await disposingSource;
@@ -1352,7 +1349,7 @@ suite('CodexAgent prewarm eviction', () => {
 			copiedMarker: 'fork me',
 		});
 
-		const disposingFork = agent.chats.disposeChat(forkChat, { session: forked.session, resource: forkChat });
+		const disposingFork = agent.chats.disposeChat(forkChat, { configurationResource: forked.session, resource: forkChat });
 		const forkUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: forkUnsubscribe.id, result: {} });
 		await disposingFork;
@@ -1420,7 +1417,7 @@ suite('CodexAgent prewarm eviction', () => {
 			// session-addressed seam: Agent Host addresses it by its exact chat
 			// URI plus the transient owning-session context.
 			const restoredChat = defaultChatOf(created.session);
-			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { session: created.session, resource: restoredChat });
+			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { configurationResource: created.session, resource: restoredChat });
 			const resume = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: resume.id,

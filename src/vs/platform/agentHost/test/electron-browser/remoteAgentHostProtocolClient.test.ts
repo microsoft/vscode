@@ -503,7 +503,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		test('forwards a fork source tagged with kind "fork"', async () => {
 			const { client, transport } = createClient();
 
-			const resultPromise = client.createChat(sessionUri, chatUri, { fork: { source: sourceUri, session: sessionUri, turnId: 'turn-1' } });
+			const resultPromise = client.createChat(sessionUri, chatUri, { fork: { source: sourceUri, turnId: 'turn-1' } });
 
 			assert.deepStrictEqual(transport.sentMessages[0], {
 				jsonrpc: '2.0',

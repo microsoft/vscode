@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
-import { type ActiveTurn, type ModelSelection, type Turn } from '../common/state/protocol/state.js';
+import { type ActiveTurn, type AgentSelection, type ModelSelection, type Turn } from '../common/state/protocol/state.js';
 
 const SIDE_CHAT_CONTEXT_START = '<side-chat-context>';
 const SIDE_CHAT_CONTEXT_END = '</side-chat-context>';
@@ -153,13 +153,14 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 /**
  * Provider-owned backing for an exact chat. Records the SDK chat id so it can
  * be resumed after a process restart,
- * along with any model override chosen at creation time. This is also the shape
+ * along with any model or custom-agent selection. This is also the shape
  * serialized into the opaque, agent-owned `providerData` blob the orchestrator
  * persists in its chat catalog and hands back on restore.
  */
 export interface IPersistedChat {
 	readonly sdkSessionId: string;
 	readonly model?: ModelSelection;
+	readonly agent?: AgentSelection;
 	readonly sideChat?: IPersistedSideChat;
 }
 

@@ -10,7 +10,7 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatContext, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentChatContext, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -144,10 +144,10 @@ export class MockAgent implements IAgent {
 	lastCreateSessionConfig: IAgentCreateSessionConfig | undefined;
 
 	/** Backing helper for an initializing {@link chats}.createChat call. */
-	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateSessionResult {
+	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateChatResult {
 		this.lastCreateSessionConfig = config;
 		this._sessions.set(AgentSession.id(session), session);
-		return { session, project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
+		return { project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -247,7 +247,7 @@ export class MockAgent implements IAgent {
 	 */
 	private _resolveChatTarget(chat: URI, context?: URI | IAgentChatContext): { session: URI; chat: URI } {
 		if (context) {
-			return { session: resolveAgentChatContext(context, chat).session, chat };
+			return { session: resolveAgentChatContext(context, chat).configurationResource, chat };
 		}
 		const parsed = parseChatUri(chat);
 		if (!parsed) {
@@ -264,7 +264,7 @@ export class MockAgent implements IAgent {
 	readonly chats: IAgentChats = {
 		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			this._recordContext('createChat', chatUri, context);
-			const session = resolveAgentChatContext(context, chatUri).session;
+			const session = resolveAgentChatContext(context, chatUri).configurationResource;
 			if (!this._sessions.has(AgentSession.id(session)) || this._initialChats.has(chatUri.toString())) {
 				this._initialChats.add(chatUri.toString());
 				return Promise.resolve(this._createSessionRecord(session, {
@@ -495,9 +495,9 @@ export class ScriptedMockAgent implements IAgent {
 		};
 	}
 
-	private _createSessionRecord(session: URI): IAgentCreateSessionResult {
+	private _createSessionRecord(session: URI): IAgentCreateChatResult {
 		this._sessions.set(AgentSession.id(session), session);
-		return { session, project: mockProject(this.id) };
+		return { project: mockProject(this.id) };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -961,7 +961,7 @@ export class ScriptedMockAgent implements IAgent {
 	 */
 	private _resolveChatTarget(chat: URI, context?: URI | IAgentChatContext): { session: URI; chat: URI } {
 		if (context) {
-			return { session: resolveAgentChatContext(context, chat).session, chat };
+			return { session: resolveAgentChatContext(context, chat).configurationResource, chat };
 		}
 		const parsed = parseChatUri(chat);
 		if (!parsed) {
@@ -972,7 +972,7 @@ export class ScriptedMockAgent implements IAgent {
 
 	readonly chats: IAgentChats = {
 		createChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void> => {
-			const session = resolveAgentChatContext(context, chatUri).session;
+			const session = resolveAgentChatContext(context, chatUri).configurationResource;
 			if (!this._sessions.has(AgentSession.id(session))) {
 				return Promise.resolve(this._createSessionRecord(session));
 			}
@@ -1002,7 +1002,7 @@ export class ScriptedMockAgent implements IAgent {
 			return Promise.resolve();
 		},
 		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
-			return this.getSessionMessages(context ? resolveAgentChatContext(context, chat).session : chat);
+			return this.getSessionMessages(context ? resolveAgentChatContext(context, chat).configurationResource : chat);
 		},
 	};
 

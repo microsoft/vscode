@@ -82,13 +82,13 @@ suite('Agent Host provider seams', () => {
 			manager.createSession(summary());
 			const context = createAgentChatContext(manager, session, defaultChat);
 			assert.deepStrictEqual({
-				session: context.session.toString(),
+				configurationResource: context.configurationResource.toString(),
 				resource: context.resource.toString(),
 				origin: context.origin,
 				parent: resolveSubagentChatParent(context),
 				customizations: context.customizations,
 			}, {
-				session: sessionKey,
+				configurationResource: sessionKey,
 				// The default chat's provider-owned storage scope is its session.
 				resource: sessionKey,
 				origin: { kind: ChatOriginKind.User },
@@ -160,13 +160,13 @@ suite('Agent Host provider seams', () => {
 
 		test('resolveSubagentChatParent only reports tool spawn edges', () => {
 			const fork: IAgentChatContext = {
-				session,
 				resource: peerChat,
+				configurationResource: session,
 				origin: { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri(sessionKey), turnId: 'turn-1' },
 			};
 			const tool: IAgentChatContext = {
-				session,
 				resource: subagentChat,
+				configurationResource: session,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-9' },
 			};
 			assert.deepStrictEqual({

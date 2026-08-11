@@ -1033,9 +1033,9 @@ export interface IAgentCreateSessionConfig {
 /**
  * Host-owned transient context for an addressed chat operation.
  *
- * `session` is the chat's owning session. `resource` is the provider-owned
- * persistence/configuration scope the host chose for that chat (for example the
- * owning session URI or the concrete chat URI). Providers must not derive
+ * `resource` is the provider-owned persistence scope for this exact chat.
+ * `configurationResource` is the opaque scope for configuration and other
+ * resources shared by the host across related chats. Providers must not derive
  * either value from `chat` themselves.
  *
  * Agent Host populates {@link origin} and {@link customizations} on every
@@ -1043,8 +1043,8 @@ export interface IAgentCreateSessionConfig {
  * addressed chat operation).
  */
 export interface IAgentChatContext {
-	readonly session: URI;
 	readonly resource: URI;
+	readonly configurationResource: URI;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -1075,12 +1075,12 @@ export interface IAgentChatContext {
  * Normalize a legacy session-only chat context into the explicit
  * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
  */
-export function resolveAgentChatContext(sessionOrContext: URI | IAgentChatContext, resource: URI): IAgentChatContext {
-	const context = URI.isUri(sessionOrContext)
-		? { session: sessionOrContext, resource }
-		: sessionOrContext;
-	if (!isEqual(context.resource, context.session) && !isEqual(context.resource, resource)) {
-		throw new Error(`Chat context resource must be the owning session or addressed chat: ${context.resource.toString()}`);
+export function resolveAgentChatContext(configurationResourceOrContext: URI | IAgentChatContext, resource: URI): IAgentChatContext {
+	const context = URI.isUri(configurationResourceOrContext)
+		? { configurationResource: configurationResourceOrContext, resource }
+		: configurationResourceOrContext;
+	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
+		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);
 	}
 	return context;
 }
@@ -1124,7 +1124,7 @@ export function resolveAgentHostCustomizations(context?: URI | IAgentChatContext
 	return context && !URI.isUri(context) ? context.customizations : undefined;
 }
 
-/** Options for creating an additional chat within a session. */
+/** Fully resolved options for creating one chat. */
 export interface IAgentCreateChatOptions {
 	/** Optional display title for the new chat. */
 	readonly title?: string;
@@ -1159,12 +1159,10 @@ export interface IAgentCreateChatOptions {
 	readonly sideChat?: IAgentCreateChatSideChatSource;
 }
 
-/** Identifies a source chat and turn to fork a new chat from. */
+/** Identifies the exact source chat and turn to fork from. */
 export interface IAgentCreateChatForkSource {
 	/** URI of the existing chat to fork from. */
 	readonly source: URI;
-	/** Owning session of {@link source}, supplied explicitly by Agent Host. */
-	readonly session: URI;
 	/** Turn ID in the source chat; content up to and including this turn is copied. */
 	readonly turnId: string;
 	/** Zero-based source turn index, when the provider needs it for import/fork mapping. */
@@ -1203,8 +1201,6 @@ export interface IAgentCreateChatSideChatSource {
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
 export interface IAgentCreateChatResult {
-	/** Owning session when this call initialized its provider runtime. */
-	readonly session?: URI;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly resolvedWorkingDirectory?: URI;
 	readonly provisional?: boolean;
@@ -1224,10 +1220,6 @@ export interface IAgentCreateChatResult {
 	 * separately-enumerable backing session.
 	 */
 	readonly backingSession?: URI;
-}
-
-export function isAgentCreateSessionResult(result: IAgentCreateChatResult): result is IAgentCreateSessionResult {
-	return result.session !== undefined;
 }
 
 /** Payload of {@link IAgent.onDidChangeChatData}. */
@@ -1356,9 +1348,9 @@ export interface IAgentChats {
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
 	 * {@link IAgentCreateChatOptions}. `chat` is the client-chosen channel URI.
-	 * The orchestrator
-	 * supplies the owning session plus the provider-owned persistence scope via
-	 * `context`, so the agent never has to recover either by parsing `chat`.
+	 * The orchestrator supplies provider-owned persistence and configuration
+	 * scopes via `context`, so the agent never has to recover either by parsing
+	 * `chat`.
 	 * Agent Host supplies the complete resolved creation options. The agent
 	 * creates one independently-backed chat without classifying its role.
 	 */

@@ -41,8 +41,8 @@ suite('CodexAgent', () => {
 		const session = AgentSession.uri('codex', 'session-1');
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
-			session,
 			resource: URI.parse('untitled:conversation'),
+			configurationResource: session,
 		});
 
 		assert.strictEqual(result?.toString(), session.toString());
@@ -72,7 +72,7 @@ suite('CodexAgent', () => {
 			// Nor is a chat URI recognized by shape — an unbound default chat
 			// only resolves once the host supplies its owning session.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { session, resource: defaultChat })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,

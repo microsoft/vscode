@@ -326,14 +326,14 @@ suite('AgentSideEffects', () => {
 				const context = entry.context as IAgentChatContext;
 				return {
 					chat: entry.chat.toString(),
-					session: context.session.toString(),
+					configurationResource: context.configurationResource.toString(),
 					resource: context.resource.toString(),
 					origin: context.origin,
 					customizations: context.customizations?.map(c => c.id),
 				};
 			}), [{
 				chat: peerChatUri,
-				session: sessionUri.toString(),
+				configurationResource: sessionUri.toString(),
 				resource: peerChatUri,
 				origin: { kind: ChatOriginKind.Fork, chat: defaultChatUri, turnId: 'turn-0' },
 				customizations: [hostCustomization.id],

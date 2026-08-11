@@ -983,7 +983,7 @@ suite('ProtocolServerHandler', () => {
 					session: sessionUri,
 					chat: peerChat,
 					options: {
-						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), session: URI.parse(sessionUri), turnId: 'turn-1' },
+						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
 					},
 				}],
 			});

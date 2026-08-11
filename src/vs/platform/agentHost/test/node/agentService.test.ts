@@ -24,7 +24,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, SubagentChatSignal, isAgentCreateSessionResult, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IConnectionTrackerService, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
@@ -78,7 +78,8 @@ function getChatSurface(agent: IAgent): IAgentChats {
 async function createAgentSession(agent: IAgent, config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 	const session = config?.session ?? AgentSession.uri(agent.id, generateUuid());
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	return expectInitializedChat(agent.chats.createChat(defaultChat, session, sessionConfigToChatOptions({ ...config, session })));
+	const chat = await expectCreatedChat(agent.chats.createChat(defaultChat, session, sessionConfigToChatOptions({ ...config, session })));
+	return { session, ...chat, chat };
 }
 
 function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCreateChatOptions {
@@ -93,7 +94,6 @@ function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCr
 		...(config.fork ? {
 			fork: {
 				source: config.fork.chat,
-				session: config.fork.session,
 				turnIndex: config.fork.turnIndex,
 				turnId: config.fork.turnId,
 				turnIdMapping: config.fork.turnIdMapping,
@@ -102,20 +102,17 @@ function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCr
 	};
 }
 
-async function expectInitializedChat(result: Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void>): Promise<IAgentCreateSessionResult> {
+async function expectCreatedChat(result: Promise<IAgentCreateChatResult | void>): Promise<IAgentCreateChatResult> {
 	const created = await result;
-	if (!created || !isAgentCreateSessionResult(created)) {
-		throw new Error('Expected initialized chat metadata');
+	if (!created) {
+		throw new Error('Expected chat metadata');
 	}
 	return created;
 }
 
-async function createProvisionalChat(base: IAgentChats, chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateSessionResult | IAgentCreateChatResult | void> {
+async function createProvisionalChat(base: IAgentChats, chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> {
 	const result = await base.createChat(chat, context, options);
-	if (!result || !isAgentCreateSessionResult(result)) {
-		return result;
-	}
-	return { ...result, provisional: true };
+	return result ? { ...result, provisional: true } : result;
 }
 
 /**
@@ -251,19 +248,19 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('resolveAgentChatContext', () => {
 
-		test('accepts session- and chat-scoped resources and rejects unrelated resources', () => {
+		test('accepts configuration- and chat-scoped resources and rejects unrelated resources', () => {
 			const session = AgentSession.uri('copilot', 'owner');
 			const chat = URI.parse(buildChatUri(session, 'peer'));
 
 			assert.throws(
-				() => resolveAgentChatContext({ session, resource: URI.parse('copilot:/other') }, chat),
-				/Chat context resource must be the owning session or addressed chat/,
+				() => resolveAgentChatContext({ configurationResource: session, resource: URI.parse('copilot:/other') }, chat),
+				/Chat context resource must be the configuration resource or addressed chat/,
 			);
 			assert.deepStrictEqual({
-				sessionScoped: resolveAgentChatContext({ session, resource: session }, chat).resource.toString(),
-				chatScoped: resolveAgentChatContext({ session, resource: chat }, chat).resource.toString(),
+				configurationScoped: resolveAgentChatContext({ configurationResource: session, resource: session }, chat).resource.toString(),
+				chatScoped: resolveAgentChatContext({ configurationResource: session, resource: chat }, chat).resource.toString(),
 			}, {
-				sessionScoped: session.toString(),
+				configurationScoped: session.toString(),
 				chatScoped: chat.toString(),
 			});
 		});
@@ -594,13 +591,13 @@ suite('AgentService (node dispatcher)', () => {
 		class PrewarmingAgent extends MockAgent {
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat, context, options) => {
-					const { session } = resolveAgentChatContext(context, chat);
-					pendingDuringCreate.push(localService.configurationService.isWorkingDirectoryPending(session.toString()));
+					const { configurationResource } = resolveAgentChatContext(context, chat);
+					pendingDuringCreate.push(localService.configurationService.isWorkingDirectoryPending(configurationResource.toString()));
 					providerCreateConfigs.push(options?.config);
 					if (failCreate) {
 						throw new Error('create failed');
 					}
-					return { ...await expectInitializedChat(base.createChat(chat, context, options)), provisional: true };
+					return { ...await expectCreatedChat(base.createChat(chat, context, options)), provisional: true };
 				},
 			}));
 		}
@@ -1748,7 +1745,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: (chat, context, options) => {
-						const session = resolveAgentChatContext(context, chat).session;
+						const session = resolveAgentChatContext(context, chat).configurationResource;
 						this.lastConfig = { session, model: options?.model, agent: options?.agent, workingDirectories: options?.workingDirectories, config: options?.config };
 						return base.createChat(chat, context, options);
 					},
@@ -4353,7 +4350,7 @@ suite('AgentService (node dispatcher)', () => {
 					return {
 						boundary: entry.boundary,
 						chat: entry.chat.toString(),
-						session: context.session.toString(),
+						configurationResource: context.configurationResource.toString(),
 						resource: context.resource.toString(),
 					};
 				});
@@ -4362,14 +4359,14 @@ suite('AgentService (node dispatcher)', () => {
 				{
 					boundary: 'createChat',
 					chat: defaultChat,
-					session: session.toString(),
+					configurationResource: session.toString(),
 					// The session-backed chat's provider storage scope is the session.
 					resource: session.toString(),
 				},
 				{
 					boundary: 'createChat',
 					chat: peerChat,
-					session: session.toString(),
+					configurationResource: session.toString(),
 					resource: peerChat,
 				},
 			]);
@@ -4503,7 +4500,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.stateManager.updateChatTitle(session.toString(), buildDefaultChatUri(session.toString()), 'My Session');
 
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await service.createChat(session, chatUri, { fork: { source: session, session, turnId: 't1' } });
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 't1' } });
 
 			const newChatState = service.stateManager.getChatState(chatUri.toString());
 			const newTurnIds = newChatState?.turns.map(t => t.id) ?? [];
@@ -4516,7 +4513,7 @@ suite('AgentService (node dispatcher)', () => {
 				newTurnIsRemapped: newTurnIds[0] !== undefined && newTurnIds[0] !== 't1',
 				title: newChatState?.title,
 			}, {
-				forkSource: session.toString(),
+				forkSource: buildDefaultChatUri(session),
 				forkTurnId: 't1',
 				mappingSize: 1,
 				mappedFromT1: newTurnIds[0],
@@ -4538,7 +4535,7 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 
 			const chatUri = URI.parse(buildChatUri(session, 'peer-fork-origin'));
-			await service.createChat(session, chatUri, { fork: { source: session, session, turnId: 't1' } });
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 't1' } });
 
 			assert.deepStrictEqual(service.stateManager.getChatState(chatUri.toString())?.origin, {
 				kind: ChatOriginKind.Fork,
@@ -4564,7 +4561,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.stateManager.seedDefaultChatTurns(session.toString(), sourceTurns);
 
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await service.createChat(session, chatUri, { fork: { source: session, session, turnId: 'missing' } });
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 'missing' } });
 
 			const newChatState = service.stateManager.getChatState(chatUri.toString());
 			assert.deepStrictEqual({
@@ -4607,7 +4604,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Fork the default chat AT the local turn into a new peer chat.
 			const peerUri = URI.parse(buildChatUri(sessionResource, 'peer-1'));
-			await localService.createChat(sessionResource, peerUri, { fork: { source: URI.parse(defaultChatUri), session: sessionResource, turnId: 'local-1' } });
+			await localService.createChat(sessionResource, peerUri, { fork: { source: URI.parse(defaultChatUri), turnId: 'local-1' } });
 
 			const peerTurns = localService.stateManager.getChatState(peerUri.toString())?.turns ?? [];
 			const forkedLocals = (await db.getLocalTurns()).filter(r => r.chatUri === peerUri.toString());
@@ -5054,19 +5051,19 @@ suite('AgentService (node dispatcher)', () => {
 
 			override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 				createChat: async (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions) => {
-					const { session } = resolveAgentChatContext(context, chat);
+					const { configurationResource } = resolveAgentChatContext(context, chat);
 					if (options?.fork) {
-						this.chatCalls.push({ op: 'fork', args: [session.toString(), chat.toString(), options.fork.source.toString(), options.fork.turnId] });
+						this.chatCalls.push({ op: 'fork', args: [configurationResource.toString(), chat.toString(), options.fork.source.toString(), options.fork.turnId] });
 						return { providerData: 'pd-fork' };
 					}
-					if (this.sessionCreateCalls.some(created => created.toString() === session.toString())) {
-						this.chatCalls.push({ op: 'createChat', args: [session.toString(), chat.toString(), options?.title ?? '', options?.model?.id ?? ''] });
+					if (this.sessionCreateCalls.some(created => created.toString() === configurationResource.toString())) {
+						this.chatCalls.push({ op: 'createChat', args: [configurationResource.toString(), chat.toString(), options?.title ?? '', options?.model?.id ?? ''] });
 						return { providerData: 'pd' };
 					}
 					const baseResult = await base.createChat(chat, context, options);
-					if (baseResult && isAgentCreateSessionResult(baseResult)) {
-						this.chatCalls.push({ op: 'createChat', args: [session.toString(), chat.toString()] });
-						this.sessionCreateCalls.push(baseResult.session);
+					if (baseResult) {
+						this.chatCalls.push({ op: 'createChat', args: [configurationResource.toString(), chat.toString()] });
+						this.sessionCreateCalls.push(configurationResource);
 						return baseResult;
 					}
 					return baseResult;
@@ -5130,11 +5127,9 @@ suite('AgentService (node dispatcher)', () => {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
-						if (!result || !isAgentCreateSessionResult(result)) {
+						if (!result) {
 							return undefined;
 						}
-						const { session } = resolveAgentChatContext(context, chat);
-						assert.strictEqual(result.session.toString(), session.toString());
 						return {
 							...result,
 							providerData: 'default-backing',
@@ -5353,9 +5348,7 @@ suite('AgentService (node dispatcher)', () => {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
-						return result && isAgentCreateSessionResult(result)
-							? { ...result, providerData: 'pd-default' }
-							: result;
+						return result ? { ...result, providerData: 'pd-default' } : result;
 					},
 				}));
 			}
@@ -5391,10 +5384,28 @@ suite('AgentService (node dispatcher)', () => {
 			service.stateManager.seedDefaultChatTurns(session.toString(), sourceTurns);
 
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await service.createChat(session, chatUri, { fork: { source: session, session, turnId: 't1' } });
+			await service.createChat(session, chatUri, { fork: { source: session, turnId: 't1' } });
 
 			const forkCall = agent.chatCalls.find(c => c.op === 'fork');
-			assert.deepStrictEqual(forkCall?.args, [session.toString(), chatUri.toString(), session.toString(), 't1']);
+			assert.deepStrictEqual(forkCall?.args, [session.toString(), chatUri.toString(), buildDefaultChatUri(session), 't1']);
+		});
+
+		test('fork rejects a provider-spawned source before calling the provider', async () => {
+			const agent = disposables.add(new ChatSurfaceAgent('copilot'));
+			service.registerProvider(agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const source = buildSubagentChatUri(session.toString(), 'tool-1');
+			service.stateManager.addChat(session.toString(), source, {
+				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
+				turns: [{ id: 't1', state: TurnState.Complete, message: { text: 'work', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
+			});
+
+			const target = URI.parse(buildChatUri(session, 'peer-1'));
+			await assert.rejects(
+				service.createChat(session, target, { fork: { source: URI.parse(source), turnId: 't1' } }),
+				/cannot fork provider-spawned chat/,
+			);
+			assert.strictEqual(agent.chatCalls.some(call => call.op === 'fork'), false);
 		});
 
 		test('restore reads the default chat via chats.getMessages on the default chat URI', async () => {
@@ -6007,8 +6018,8 @@ suite('AgentService (node dispatcher)', () => {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
-						if (result && isAgentCreateSessionResult(result)) {
-							this.createSessionConfigs.push({ session: result.session, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
+						if (result) {
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
 						}
 						return result;
 					},
@@ -6098,8 +6109,8 @@ suite('AgentService (node dispatcher)', () => {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: async (chat, context, options) => {
 						const result = await base.createChat(chat, context, options);
-						if (result && isAgentCreateSessionResult(result)) {
-							this.createSessionConfigs.push({ session: result.session, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
+						if (result) {
+							this.createSessionConfigs.push({ session: resolveAgentChatContext(context, chat).configurationResource, model: options?.model, workingDirectories: options?.workingDirectories, config: options?.config });
 						}
 						return result;
 					},
@@ -6181,7 +6192,7 @@ suite('AgentService (node dispatcher)', () => {
 				resolvedChats.push(chat);
 				return resolveChatState(chat);
 			};
-			await localService.createChat(session, target, { fork: { source, session, turnId: 'source-turn' } });
+			await localService.createChat(session, target, { fork: { source, turnId: 'source-turn' } });
 
 			assert.deepStrictEqual({
 				materializeCalls,

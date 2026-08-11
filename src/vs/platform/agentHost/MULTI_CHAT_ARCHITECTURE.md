@@ -60,15 +60,12 @@ seam you are on. To avoid confusion, follow this convention:
 |-------|----------------------|-------|
 | AHP wire protocol (`common/state/protocol/`) and the orchestrator (`AgentService`, `AgentHostStateManager`) | The **AH session** — the protocol-visible grouping of a default chat plus its peer chats. | This is the vocabulary the generated protocol types pin (`SessionState`, `SessionSummary`, `sessionAdded`, ...); it is immutable and authoritative. |
 | Inside an agent harness (`node/claude`, `node/copilot`, `node/codex`) | The agent's **own SDK / provider session** — the provider's native concept (Codex calls it a *thread*). The agent has no notion of the AH grouping; it only ever deals in chats and its own SDK sessions. | Prefer the provider's native term where one exists (Codex "thread"); otherwise spell it out as "SDK session" / "provider session" in comments and local names wherever the two could be confused. |
-| The `IAgent` seam (`chats.createChat` / `chats.disposeChat` / `chats.releaseChat` / `finalizeSession`, `session: URI`) | An **AH-owned identity** (`AgentSession.uri`) passed to the provider. Every provider provisions and restores chats through explicit provider backing; identity reuse is never assumed. | Chat-addressed operations receive a concrete chat URI plus transient owning-session context; `finalizeSession` is the only remaining session-addressed lifecycle hook. |
+| The `IAgent` seam (`chats.createChat` / `chats.disposeChat` / `chats.releaseChat` / `finalizeSession`) | Chat operations receive an exact chat plus opaque persistence/configuration scopes. | Providers never receive AH ownership or chat-role fields; `finalizeSession` is the only remaining session-addressed lifecycle hook. |
 
 **Why we do not rename the agents' "SDK session" symbols:** the generated
 protocol fixes "Session" = AH session across hundreds of references we cannot
-change, and the `IAgent` seam genuinely passes AH session URIs. Renaming the
-provider-internal concept to `providerSession` would create a new inconsistency
-against the protocol rather than removing one. The durable fix is this
-convention plus the chat-addressed rename of the operational surface, not a
-symbol-level rename of "session".
+change. Provider-internal SDK sessions remain native runtime concepts, while the
+chat seam exposes no AH session ownership.
 
 ---
 
@@ -122,7 +119,7 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 - Owns `AgentSessionRegistry`, the durable source of truth for which sessions exist. `listSessions` enumerates the registry, hydrates each entry through `IAgent.getSessionMetadata`, and applies the existing DB/state overlays.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes every catalog chat in stable order (peers first, default last) and then runs the mandatory `finalizeSession` hook; releases every catalog chat (and only that) on idle eviction, which must stay non-destructive.
-- Derives the exhaustive per-operation `IAgentChatContext` (owning session, persistence resource, catalog origin, host customizations) via the single `createAgentChatContext` helper.
+- Derives the exhaustive per-operation `IAgentChatContext` (persistence scope, opaque configuration scope, catalog origin, host customizations) via the single `createAgentChatContext` helper.
 - Supplies complete resolved `IAgentCreateChatOptions` (`workingDirectories`, `project`, provider config, model/agent, active client, and fork/import/side-chat source) on every creation.
 - Records side-chat provenance in the catalog but leaves hidden context injection and visible-history filtering to the provider. The source is a stable turn id; active-turn partial response and selected text are immutable creation-time snapshots.
 - Passes the full ordered `workingDirectories` set and the initiating `AgentHostClientType` on each send while still supplying transient chat context. Providers launch in index 0, retain additional roots, and attribute usage/telemetry to the correct client surface.
@@ -580,8 +577,8 @@ model/agent change, history read, client tool completion) carries:
 
 | Field | Meaning | Replaces |
 |---|---|---|
-| `session` | The chat's owning session. | Parsing the chat URI. |
-| `resource` | The provider-owned persistence/config scope (session for the default chat, the chat otherwise). | `resolveChatUri` in the provider. |
+| `resource` | The provider-owned persistence scope for this exact chat. | `resolveChatUri` in the provider. |
+| `configurationResource` | An opaque scope for configuration and other provider resources shared across related chats. | Passing AH ownership into the provider. |
 | `origin` | The catalog's `ChatOrigin`, exhaustive across every way a chat comes into existence: `User` for a plain user-created chat and the default chat, `Fork`/`SideChat` with the exact source chat and turn, `Tool` with the spawning chat and tool call for a subagent. | `stateManager.getChatState(chat)?.origin` and `sessionState.chats.find(...)`. |
 | `customizations` | The owning session's **last host-published** customization snapshot, including user enablement toggles. Absent (not empty) when the host has published none yet. | `stateManager.getSessionState(session)?.customizations`. |
 
@@ -600,6 +597,11 @@ Providers read the facts they need through `resolveAgentChatOrigin`,
 `resolveSubagentChatParent`, and `resolveAgentHostCustomizations`
 (`common/agentService.ts`). A subagent is identified by its `Tool` spawn edge,
 not by a provider-side role enum or URI shape.
+
+Fork remains a provider operation because only the provider can clone its
+opaque SDK transcript, checkpoints, and event identifiers. Its contract names
+only the exact source chat and turn; Agent Host owns source-session lookup and
+never passes that membership to the provider.
 
 ### 8b. Session customizations at the update boundary
 

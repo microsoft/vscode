@@ -25,7 +25,8 @@ function toUri(resource: URI | ProtocolURI): URI {
  * release, model/agent change, history read) carries the same, exhaustive
  * facts:
  *
- * - `resource` — the provider-owned persistence/configuration scope;
+ * - `resource` — the provider-owned persistence scope for the exact chat;
+ * - `configurationResource` — the opaque scope for shared configuration;
  * - `origin` — the catalog's record of how the chat came into existence, read
  *   from the chat's authoritative `ChatSummary`. Restored chats register their
  *   summary before any state is resolved, and provider-spawned subagent chats
@@ -45,8 +46,8 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
 	return {
-		session: sessionUri,
 		resource: isDefaultChatUri(chatKey) ? sessionUri : toUri(chat),
+		configurationResource: sessionUri,
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 	};

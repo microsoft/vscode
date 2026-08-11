@@ -78,7 +78,7 @@ function defaultChatUri(session: URI): URI {
 }
 
 function exactChatContext(session: URI, chat: URI, resource: URI = chat): IAgentChatContext {
-	return { session, resource };
+	return { resource, configurationResource: session };
 }
 
 /**
@@ -99,17 +99,15 @@ async function provisionSession(agent: CopilotAgent, config: IAgentCreateSession
 		...(config.fork ? {
 			fork: {
 				source: config.fork.chat,
-				session: config.fork.session,
 				turnIndex: config.fork.turnIndex,
 				turnId: config.fork.turnId,
 				turnIdMapping: config.fork.turnIdMapping,
 			},
 		} : {}),
 	});
-	if (!result?.session) {
-		throw new Error('Expected the creation to report the session it stood up');
-	}
-	return result as IAgentCreateChatResult & { readonly session: URI };
+	// The provider contract no longer echoes `session` back; the test already
+	// knows it from `config`, so augment locally for test ergonomics only.
+	return { ...result, session: config.session };
 }
 
 /**
@@ -122,12 +120,23 @@ async function disposeProvisionedSession(agent: CopilotAgent, session: URI, cont
 	await agent.finalizeSession(session, context);
 }
 
+async function materializeLegacyDefaultChat(agent: CopilotAgent, session: URI): Promise<void> {
+	const chat = defaultChatUri(session);
+	const context = exactChatContext(session, chat, session);
+	const recovered = await agent.recoverLegacyChat(chat, context);
+	await agent.materializeChat(chat, context, recovered.providerData);
+}
+
 function chatEntriesBySdkId(agent: CopilotAgent): Map<string, { chatSession: CopilotAgentSession; dispose(): void }> {
 	return (agent as unknown as { _chatEntriesBySdkId: Map<string, { chatSession: CopilotAgentSession; dispose(): void }> })._chatEntriesBySdkId;
 }
 
 function chatBackings(agent: CopilotAgent): Map<string, { sdkSessionId: string; model?: ModelSelection }> {
 	return (agent as unknown as { _chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }> })._chatBackings;
+}
+
+function chatScopes(agent: CopilotAgent): Map<string, URI> {
+	return (agent as unknown as { _chatScopes: Map<string, URI> })._chatScopes;
 }
 
 function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknown, chatUri?: URI): void {
@@ -160,6 +169,9 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 	typed.bindChatChannel ??= (uri: URI) => { typed.chatChannelUri = uri; };
 	typed.destroySession ??= async () => { };
 	setLiveChatStub(agent, sessionId, typed, typed.chatChannelUri);
+	// Stubs bypass real creation/materialization, so seed the scope a fork
+	// would otherwise have recorded then.
+	chatScopes(agent).set(typed.chatChannelUri.toString(), sessionUri);
 }
 
 function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSessionId?: string): void {
@@ -182,6 +194,9 @@ function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSe
 	typed.destroySession ??= async () => { };
 	setLiveChatStub(agent, resolvedSdkSessionId, typed, chatUri);
 	chatBackings(agent).set(chatUri.toString(), { sdkSessionId: resolvedSdkSessionId });
+	// Stubs bypass real creation/materialization, so seed the scope a fork
+	// would otherwise have recorded then.
+	chatScopes(agent).set(chatUri.toString(), ownerSession);
 }
 
 function getPeerChatStub(agent: CopilotAgent, chatUri: URI): CopilotAgentSession | undefined {
@@ -1087,7 +1102,7 @@ suite('CopilotAgent', () => {
 
 			try {
 				const turns = await agent.chats.getMessages(childChat, {
-					session,
+					configurationResource: session,
 					resource: childChat,
 					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
 				});
@@ -1122,11 +1137,11 @@ suite('CopilotAgent', () => {
 
 			try {
 				assert.deepStrictEqual({
-					withoutOrigin: await agent.chats.getMessages(childChat, { session, resource: childChat }),
+					withoutOrigin: await agent.chats.getMessages(childChat, { configurationResource: session, resource: childChat }),
 					withoutContext: await agent.chats.getMessages(childChat),
 					subagentCalls,
 					withOrigin: await agent.chats.getMessages(childChat, {
-						session,
+						configurationResource: session,
 						resource: childChat,
 						origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-1' },
 					}),
@@ -1164,7 +1179,7 @@ suite('CopilotAgent', () => {
 
 			try {
 				const turns = await agent.chats.getMessages(legacyChild, {
-					session,
+					configurationResource: session,
 					resource: legacyChild,
 					origin: { kind: ChatOriginKind.Tool, chat: parentChat.toString(), toolCallId: 'tool-7' },
 				});
@@ -3815,7 +3830,7 @@ suite('CopilotAgent', () => {
 				});
 				await agent.chats.createChat(peerChat, exactChatContext(target, peerChat), {
 					workingDirectories: [URI.file('/target-workspace')],
-					fork: { source: defaultChatUri(target), session: target, turnId: sourceTurn.id },
+					fork: { source: defaultChatUri(target), turnId: sourceTurn.id },
 				});
 
 				assert.deepStrictEqual(seams.forks.map(fork => fork.targetDbDir), [
@@ -4561,7 +4576,7 @@ suite('CopilotAgent', () => {
 			};
 			internals._importConversation = async (_config, _sessionId, directory, chatArg) => {
 				importedChat = chatArg;
-				return { session, resolvedWorkingDirectory: directory };
+				return { resolvedWorkingDirectory: directory };
 			};
 
 			try {
@@ -4737,6 +4752,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'persisted-session-1');
+				await materializeLegacyDefaultChat(agent, session);
 				await disposeProvisionedSession(agent, session);
 
 				assert.deepStrictEqual(client.deletedSessionIds, ['persisted-session-1']);
@@ -4783,6 +4799,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				const session = AgentSession.uri('copilotcli', 'persisted-session-2');
+				await materializeLegacyDefaultChat(agent, session);
 				await assert.rejects(() => disposeProvisionedSession(agent, session), /boom/);
 				await disposeProvisionedSession(agent, session);
 				assert.strictEqual(deleteAttempts, 2);
@@ -5181,7 +5198,7 @@ suite('CopilotAgent', () => {
 				agent.getOrCreateActiveClient(session, { clientId: 'client-1' }, [chat], undefined);
 				const afterUndefined = internals._retainedHostCustomizations(session).map(c => c.id);
 				// An addressed chat operation's context refreshes it.
-				await agent.chats.getMessages(chat, { session, resource: session, customizations: [{ ...plugin, enabled: true }] });
+				await agent.chats.getMessages(chat, { configurationResource: session, resource: session, customizations: [{ ...plugin, enabled: true }] });
 				const afterChatContext = internals._retainedHostCustomizations(session).map(c => c.enabled);
 
 				assert.deepStrictEqual({
@@ -5342,7 +5359,7 @@ suite('CopilotAgent', () => {
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'subagent done' };
 				agent.onClientToolCallComplete(sessionUri, subagentChat, 'tc-subagent', result, {
-					session: sessionUri,
+					configurationResource: sessionUri,
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-1' },
 				});
@@ -5360,12 +5377,12 @@ suite('CopilotAgent', () => {
 				const { calls } = installStubSession(agent, AgentSession.id(sessionUri));
 				// Addressed to a subagent chat whose spawning chat has no live
 				// backing: routing lands on the owning session's session-backed
-				// chat, resolved from `context.session`.
+				// chat, resolved from `context.configurationResource`.
 				const subagentChat = URI.parse(buildSubagentChatUri(buildChatUri(sessionUri, 'gone'), 'tool-9'));
 
 				const result: ToolCallResult = { success: true, pastTenseMessage: 'fallback done' };
 				agent.onClientToolCallComplete(sessionUri, subagentChat, 'tc-fallback', result, {
-					session: sessionUri,
+					configurationResource: sessionUri,
 					resource: subagentChat,
 					origin: { kind: ChatOriginKind.Tool, chat: buildChatUri(sessionUri, 'gone'), toolCallId: 'tool-9' },
 				});
@@ -6079,21 +6096,6 @@ suite('CopilotAgent', () => {
 					backings: 1,
 					providerData: JSON.parse(created.providerData!),
 				});
-
-				test('rejects explicit context whose owner contradicts a live chat', async () => {
-					const agent = createTestAgent(disposables);
-					try {
-						const owner = AgentSession.uri('copilotcli', 'owner');
-						const other = AgentSession.uri('copilotcli', 'other');
-						const chat = URI.parse(buildChatUri(owner, 'peer'));
-						setPeerChatStub(agent, chat, {});
-
-						const internals = agent as unknown as ChatInternals;
-						assert.throws(() => internals._resolveChatContext(chat, { session: other, resource: chat }), /is bound to session copilotcli:\/owner, not copilotcli:\/other/);
-					} finally {
-						await disposeAgent(agent);
-					}
-				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -6129,7 +6131,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const result = await agent.chats.createChat(chatUri, session, { fork: { source: URI.parse(buildDefaultChatUri(session)), session, turnId: 't1' }, workingDirectories: [URI.file('/workspace')] });
+				const result = await agent.chats.createChat(chatUri, session, { fork: { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' }, workingDirectories: [URI.file('/workspace')] });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
@@ -6680,28 +6682,30 @@ suite('CopilotAgent', () => {
 				const backings = chatBackings(agent);
 				assert.deepStrictEqual({
 					deferred: {
-						session: standsUpSession?.session?.toString(),
+						// The provider contract carries no `session`; results are keyed
+						// only by the exact chat, never by the session that owns it.
+						hasSessionField: standsUpSession ? Object.hasOwn(standsUpSession, 'session') : false,
 						resolvedWorkingDirectory: standsUpSession?.resolvedWorkingDirectory?.toString(),
 						provisional: standsUpSession?.provisional,
 						recordedBacking: JSON.parse(standsUpSession!.providerData!).sdkSessionId === backings.get(sessionChat.toString())?.sdkSessionId,
 						backingIsSeparatelyEnumerable: standsUpSession?.backingSession !== undefined,
 					},
 					eager: {
-						session: independent?.session,
+						hasSessionField: independent ? Object.hasOwn(independent, 'session') : false,
 						provisional: independent?.provisional,
 						recordedBacking: JSON.parse(independent!.providerData!).sdkSessionId === backings.get(peerChat.toString())?.sdkSessionId,
 						backingIsSeparatelyEnumerable: independent?.backingSession !== undefined,
 					},
 				}, {
 					deferred: {
-						session: session.toString(),
+						hasSessionField: false,
 						resolvedWorkingDirectory: URI.file('/workspace').toString(),
 						provisional: true,
 						recordedBacking: true,
 						backingIsSeparatelyEnumerable: true,
 					},
 					eager: {
-						session: undefined,
+						hasSessionField: false,
 						provisional: undefined,
 						recordedBacking: true,
 						backingIsSeparatelyEnumerable: true,
@@ -6830,7 +6834,7 @@ suite('CopilotAgent', () => {
 				stubBackingSession(agent);
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const source: IAgentCreateChatForkSource = { source: URI.parse(buildDefaultChatUri(session)), session, turnId: 't1' };
+				const source: IAgentCreateChatForkSource = { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' };
 				const result = await agent.chats.createChat(chatUri, session, { fork: source, workingDirectories: [URI.file('/workspace')] });
 
 				assert.deepStrictEqual({
