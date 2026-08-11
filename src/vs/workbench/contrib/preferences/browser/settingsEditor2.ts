@@ -1588,6 +1588,13 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
+		// The editor may have been disposed while awaiting the async work above
+		// (e.g. extension manifest fetches). Bail out before touching services
+		// like the InstantiationService, which throws once disposed.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups));
 
 		if (toggleData && setAdditionalGroups) {
