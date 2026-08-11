@@ -22,9 +22,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { localize } from '../../../../nls.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISession, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
+import { ISession, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
+import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -160,6 +161,20 @@ export class NewChatWidget extends Disposable {
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get(),
+			getWorkspaceGroupAction: group => {
+				if (group === SESSION_WORKSPACE_GROUP_GITHUB && shouldShowGitHubWorkspaceGroupSignIn(
+					this.defaultAccountService.currentDefaultAccount !== null,
+					isAllowSignedOutWhenUsableEnabled(this.configurationService),
+				)) {
+					return {
+						label: localize('workspacePicker.signInGitHub', "Sign in to GitHub"),
+						icon: Codicon.signIn,
+						commandId: AGENTIC_SIGN_IN_COMMAND_ID,
+						hideWorkspaceItems: true,
+					};
+				}
+				return undefined;
+			},
 		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
