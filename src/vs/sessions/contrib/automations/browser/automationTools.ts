@@ -237,7 +237,7 @@ export class RunAutomationTool implements IToolImpl {
 			run: {
 				id: dispatch.run.id,
 				status: dispatch.run.status,
-				sessionResource: dispatch.sessionResource,
+				sessionResource: dispatch.sessionResource.toString(),
 			},
 		}, undefined, 2));
 		result.toolResultMessage = localize('automation.tool.run.started', "Started automation {0}", automation.name);
@@ -942,7 +942,7 @@ function automationAlreadyRunning(automation: IAutomationDescriptor, run: IAutom
 		run: {
 			id: run.id,
 			status: run.status,
-			sessionResource: run.sessionResource ?? null,
+			sessionResource: run.sessionResource?.toString() ?? null,
 		},
 	}, undefined, 2));
 	result.toolResultMessage = localize('automation.tool.run.alreadyRunningResult', "Automation {0} is already running", automation.name);

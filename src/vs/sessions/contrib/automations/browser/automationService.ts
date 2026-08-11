@@ -86,14 +86,14 @@ interface ISerializedLedger {
 	// Optimistic-concurrency counter. 0 for legacy blobs without this field.
 	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
-	readonly runs: readonly IAutomationRun[];
+	readonly runs: readonly (Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string })[];
 }
 
 interface ILegacySerializedLedger {
 	readonly schemaVersion: 1 | 2;
 	readonly revision?: number;
 	readonly automations: readonly ILegacySerializedAutomation[];
-	readonly runs: readonly IAutomationRun[];
+	readonly runs: readonly (Omit<IAutomationRun, 'sessionResource'> & { readonly sessionResource?: string })[];
 }
 
 interface ILedger {
@@ -476,7 +476,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 				schemaVersion: CURRENT_SCHEMA_VERSION,
 				revision,
 				automations: ledger.automations.map(serializeAutomation),
-				runs: [...ledger.runs],
+				runs: ledger.runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() })),
 			};
 			const newValue = JSON.stringify(serialized);
 			mutationGuard?.();
@@ -564,7 +564,7 @@ export class AutomationStore extends Disposable implements IAutomationStore {
 			const serializedRuns = Array.isArray(parsed.runs) ? parsed.runs : [];
 			const runs = serializedRuns
 				.filter(r => !!r && typeof r === 'object' && validIds.has(r.automationId))
-				.map(r => Object.freeze({ ...r }));
+				.map(r => Object.freeze({ ...r, sessionResource: r.sessionResource ? URI.parse(r.sessionResource) : undefined }));
 			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
 			return { kind: 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
 		} catch (err) {
@@ -615,8 +615,9 @@ function serializeAutomation(a: IAutomationDescriptor): ISerializedAutomation {
 }
 
 function areAutomationSnapshotsEqual(first: IAutomation, second: IAutomation): boolean {
+	const normalizeRuns = (runs: readonly IAutomationRun[]) => runs.map(run => ({ ...run, sessionResource: run.sessionResource?.toString() }));
 	return JSON.stringify(serializeAutomation(first.automation)) === JSON.stringify(serializeAutomation(second.automation))
-		&& JSON.stringify(first.runs) === JSON.stringify(second.runs);
+		&& JSON.stringify(normalizeRuns(first.runs)) === JSON.stringify(normalizeRuns(second.runs));
 }
 
 function deserializeAutomation(s: ISerializedAutomation): IAutomationDescriptor | undefined {

@@ -104,8 +104,8 @@ export interface IAutomationRun {
 	readonly status: AutomationRunStatus;
 	readonly trigger: AutomationRunTrigger;
 
-	/** Session resource URI (stringified), recorded as soon as the committed session is available. */
-	readonly sessionResource?: string;
+	/** Session resource URI, recorded as soon as the committed session is available. */
+	readonly sessionResource?: URI;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;

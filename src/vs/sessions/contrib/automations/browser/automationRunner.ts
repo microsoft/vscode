@@ -140,7 +140,7 @@ export class AutomationRunner implements IAutomationRunner {
 			}
 
 			if (session) {
-				const sessionResource = session.resource.toString();
+				const sessionResource = session.resource;
 				const dispatchedRun = await this.automationService.updateRun(runId, { sessionResource }) ?? run;
 				await dispatched.complete({ kind: 'started', run: dispatchedRun, sessionResource });
 			} else {

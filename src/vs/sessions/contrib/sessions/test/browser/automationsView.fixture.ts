@@ -86,8 +86,8 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 			if (!run.sessionResource) {
 				continue;
 			}
-			const resource = URI.parse(run.sessionResource);
-			this.sessions.set(run.sessionResource, upcastPartial<ISession>({
+			const resource = run.sessionResource;
+			this.sessions.set(run.sessionResource.toString(), upcastPartial<ISession>({
 				resource,
 				sessionId: `fixture-session-${index + 1}`,
 				isRead: constObservable(index !== 0),
@@ -241,7 +241,7 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		automationId,
 		status,
 		trigger: 'schedule',
-		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`).toString() : undefined,
+		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`) : undefined,
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,

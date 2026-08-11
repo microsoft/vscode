@@ -163,7 +163,7 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 			if (this.notStarted) {
 				return this.notStarted;
 			}
-			const sessionResource = SESSION_RESOURCE.toString();
+			const sessionResource = SESSION_RESOURCE;
 			const run: IAutomationRun = {
 				id: 'run-1',
 				automationId: automation.id,
@@ -480,7 +480,7 @@ suite('AutomationTools', () => {
 			automationId: automation.id,
 			status: 'running',
 			trigger: 'manual',
-			sessionResource: SESSION_RESOURCE.toString(),
+			sessionResource: SESSION_RESOURCE,
 			startedAt: NOW,
 			leaderWindowId: 0,
 		});

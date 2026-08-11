@@ -252,9 +252,9 @@ suite('AutomationService', () => {
 		const run = await claimRun(service, a.id, 'schedule', 42);
 		assert.strictEqual(run.status, 'pending');
 		assert.strictEqual(run.leaderWindowId, 42);
-		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: 'vscode-chat-session://copilot/sess-1', completedAt: new Date().toISOString() });
+		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: URI.parse('vscode-chat-session://copilot/sess-1'), completedAt: new Date().toISOString() });
 		assert.strictEqual(updated?.status, 'completed');
-		assert.strictEqual(updated?.sessionResource, 'vscode-chat-session://copilot/sess-1');
+		assert.strictEqual(updated?.sessionResource?.toString(), 'vscode-chat-session://copilot/sess-1');
 	});
 
 	test('deleteRun removes only the matching history entry', async () => {

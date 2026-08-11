@@ -35,7 +35,6 @@ import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { URI } from '../../../../../base/common/uri.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -101,7 +100,7 @@ export class AutomationsCardsWidget extends Disposable {
 				if (!run.sessionResource) {
 					continue;
 				}
-				const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+				const session = this.sessionsManagementService.getSession(run.sessionResource);
 				if (session) {
 					sessions.set(run.id, {
 						session,
@@ -597,7 +596,7 @@ class AutomationHistorySection extends Disposable {
 		if (!run.sessionResource) {
 			return;
 		}
-		const resource = URI.parse(run.sessionResource);
+		const resource = run.sessionResource;
 		if (!this.sessionsManagementService.getSession(resource)) {
 			return;
 		}
@@ -714,7 +713,7 @@ class AutomationHistorySection extends Disposable {
 		try {
 			for (const run of runs) {
 				if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
-					const session = this.sessionsManagementService.getSession(URI.parse(run.sessionResource));
+					const session = this.sessionsManagementService.getSession(run.sessionResource);
 					if (session && !session.isRead.get()) {
 						sessions.set(session.resource.toString(), session);
 					}

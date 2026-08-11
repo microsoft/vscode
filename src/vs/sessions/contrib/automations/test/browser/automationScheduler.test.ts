@@ -22,7 +22,7 @@ import { createAutomationService, TestAutomationStorageService } from './automat
 
 const FOLDER = URI.parse('file:///workspace');
 const TARGET: AutomationTarget = { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
-const SESSION_RESOURCE = 'vscode-chat-session://copilot/sess-1';
+const SESSION_RESOURCE = URI.parse('vscode-chat-session://copilot/sess-1');
 
 class FakeLeaderElection implements IAutomationLeaderElection {
 	private readonly _isLeader: ISettableObservable<boolean>;

@@ -72,7 +72,7 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
 		leaderWindowId: 0,
-		sessionResource: SESSION_RESOURCE.toString(),
+		sessionResource: SESSION_RESOURCE,
 		...overrides,
 	};
 }
@@ -588,7 +588,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
@@ -756,7 +756,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 		dialogService.confirmResult = { confirmed: true };
 
