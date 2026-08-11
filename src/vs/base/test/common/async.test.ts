@@ -14,6 +14,7 @@ import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { DisposableStore } from '../../common/lifecycle.js';
 import { Iterable } from '../../common/iterator.js';
+import { isWeb } from '../../common/platform.js';
 
 suite('Async', () => {
 
@@ -169,7 +170,12 @@ suite('Async', () => {
 			let pendingPromiseCancellations = 0;
 			const unhandledRejections: unknown[] = [];
 			const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason);
-			process.on('unhandledRejection', onUnhandledRejection);
+			const onBrowserUnhandledRejection = (event: PromiseRejectionEvent) => onUnhandledRejection(event.reason);
+			if (isWeb) {
+				globalThis.addEventListener('unhandledrejection', onBrowserUnhandledRejection);
+			} else {
+				process.on('unhandledRejection', onUnhandledRejection);
+			}
 			const rejectingPromise = Object.assign(Promise.reject(expectedError), { cancel: () => rejectingPromiseCancellations++ });
 			const pendingPromise = Object.assign(new Promise<void>(() => { }), { cancel: () => pendingPromiseCancellations++ });
 
@@ -193,7 +199,11 @@ suite('Async', () => {
 					unhandledRejections: []
 				});
 			} finally {
-				process.off('unhandledRejection', onUnhandledRejection);
+				if (isWeb) {
+					globalThis.removeEventListener('unhandledrejection', onBrowserUnhandledRejection);
+				} else {
+					process.off('unhandledRejection', onUnhandledRejection);
+				}
 			}
 		});
 
