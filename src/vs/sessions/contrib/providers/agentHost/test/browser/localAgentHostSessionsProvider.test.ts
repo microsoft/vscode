@@ -743,7 +743,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
-	test('recomputes branch protection when configuration changes', async () => {
+	test('recomputes protection for a selected non-default base branch when configuration changes', async () => {
 		const configService = new TestConfigurationService();
 		await configService.setUserConfiguration('git.branchProtection', []);
 		agentHost.addSession(createSession('branch-protection', {
@@ -764,12 +764,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: withSessionGitState(undefined, { branchName: 'agents/session', baseBranchName: 'main' }),
+			_meta: withSessionGitState(undefined, { branchName: 'agents/session', baseBranchName: 'release' }),
 		});
 		const repository = session.workspace.get()?.folders[0]?.gitRepository;
 		const before = repository?.baseBranchProtected;
 
-		await configService.setUserConfiguration('git.branchProtection', ['main']);
+		await configService.setUserConfiguration('git.branchProtection', ['release']);
 		fireConfigChange(configService, 'git.branchProtection');
 
 		assert.deepStrictEqual({

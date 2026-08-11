@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -11,7 +12,7 @@ import { IAgentHostGitStateService, META_GIT_STATE, META_GITHUB_STATE, META_SOUR
 import { getSessionRelatedPullRequestUrls, ISessionGitHubState, ISessionWithDefaultChat, readSessionGitHubState, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentReferencedSessionPullRequest, withMostRecentSessionPullRequest, withSessionGitHubState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState } from '../common/state/sessionState.js';
 import { MAX_SESSION_ISSUE_REFERENCES, parseGitHubIssueReferences, toGitHubIssueUrl } from '../common/githubIssueReferences.js';
 import { parseGitHubPullRequestReferences, toGitHubPullRequestUrl } from '../common/githubPullRequestReferences.js';
-import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH, parseUpstreamBranchName, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
@@ -30,6 +31,9 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<string>());
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
+
+	private readonly _onDidChangeSessionGitHubState = this._register(new Emitter<string>());
+	readonly onDidChangeSessionGitHubState = this._onDidChangeSessionGitHubState.event;
 
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
 	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
@@ -252,7 +256,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			try {
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
-				const gitState = await this._gitService.getSessionGitState(workingDirectory);
+				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
+				const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
 				if (gitState) {
 					const currentMeta = this._stateManager.getSessionState(sessionKey)?._meta;
 					const previousGitState = readSessionGitState(currentMeta);
@@ -319,11 +324,47 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		// Update session state manager
 		const nextMeta = withSessionSourceControlState(withSessionGitHubState(currentMeta, nextState), nextSourceControlState);
 		this._stateManager.setSessionMeta(sessionKey, nextMeta);
+		this._onDidChangeSessionGitHubState.fire(sessionKey);
 
 		// Update session database
 		await this._saveSessionState(sessionKey, META_GITHUB_STATE, JSON.stringify(nextState));
 		if (sourceControlStateChanged && nextSourceControlState) {
 			await this._saveSessionState(sessionKey, META_SOURCE_CONTROL_STATE, JSON.stringify(nextSourceControlState));
+		}
+	}
+
+	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
+		const state = this._stateManager.getSessionState(sessionKey);
+		const configuredBranch = state?.config?.values[SessionConfigKey.Isolation] === 'worktree'
+			? state.config.values[SessionConfigKey.Branch]
+			: undefined;
+		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
+			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);
+		}
+
+		const gitStateBaseBranch = readSessionGitState(state?._meta)?.baseBranchName;
+		const workingDirectory = state?.workingDirectories?.[0];
+		const project = state?.project?.uri;
+		if (!workingDirectory || !project || isEqual(URI.parse(workingDirectory), URI.parse(project))) {
+			return gitStateBaseBranch;
+		}
+		let databaseRef;
+		try {
+			databaseRef = await this._sessionDataService.tryOpenDatabase(URI.parse(sessionKey));
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService] Failed to open session database while resolving the base branch for ${sessionKey}`, error);
+			return gitStateBaseBranch;
+		}
+		if (!databaseRef) {
+			return gitStateBaseBranch;
+		}
+		try {
+			return resolveDiffBaseBranchName(await databaseRef.object.getMetadata(META_DIFF_BASE_BRANCH), gitStateBaseBranch);
+		} catch (error) {
+			this._logService.warn(`[AgentHostGitStateService] Failed to read the persisted base branch for ${sessionKey}`, error);
+			return gitStateBaseBranch;
+		} finally {
+			databaseRef.dispose();
 		}
 	}
 

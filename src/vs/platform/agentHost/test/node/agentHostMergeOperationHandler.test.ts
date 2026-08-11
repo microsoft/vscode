@@ -10,13 +10,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { buildBranchChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostMergeOperationHandler } from '../../node/agentHostMergeOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 const session = URI.parse('agent:/session');
 const worktreeRoot = URI.file('/repo.worktrees/session');
@@ -26,6 +25,7 @@ class TestGitService extends mock<IAgentHostGitService>() {
 	declare readonly _serviceBrand: undefined;
 
 	readonly calls: string[] = [];
+	readonly requestedBaseBranches: Array<string | undefined> = [];
 	sourceBranch = 'agents/session';
 	targetBranch: string | undefined = 'main';
 	sourceDirty = false;
@@ -41,7 +41,8 @@ class TestGitService extends mock<IAgentHostGitService>() {
 		return [repositoryRoot, worktreeRoot];
 	}
 
-	override async getSessionGitState(): Promise<ISessionGitState> {
+	override async getSessionGitState(_workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState> {
+		this.requestedBaseBranches.push(baseBranchName);
 		return {
 			branchName: this.sourceBranch,
 			baseBranchName: 'main',
@@ -93,6 +94,7 @@ interface ISetupOptions {
 	readonly targetDirty?: boolean;
 	readonly mergeError?: Error;
 	readonly missingMergeCommit?: boolean;
+	readonly hasPullRequest?: boolean;
 }
 
 async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupOptions = {}) {
@@ -114,17 +116,20 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 			...(options.configuredBranch ? { [SessionConfigKey.Branch]: options.configuredBranch } : {}),
 		}
 	});
-	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
+	let sessionMeta = withSessionGitState(undefined, {
 		branchName: 'agents/session',
 		baseBranchName: 'main',
 		uncommittedChanges: options.sourceDirty ? 1 : 0,
 		outgoingChanges: 1,
-	}));
-
-	const database = new TestSessionDatabase();
-	if (options.persistedBaseBranch) {
-		await database.setMetadata(META_DIFF_BASE_BRANCH, options.persistedBaseBranch);
+	});
+	if (options.hasPullRequest) {
+		sessionMeta = withSessionGitHubState(sessionMeta, {
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'],
+			pullRequestBranchName: 'agents/session',
+		});
 	}
+	stateManager.setSessionMeta(session.toString(), sessionMeta);
+
 	const gitService = new TestGitService();
 	gitService.sourceDirty = options.sourceDirty ?? false;
 	gitService.targetBranch = options.targetBranch ?? 'main';
@@ -135,10 +140,10 @@ async function setup(disposables: Pick<DisposableStore, 'add'>, options: ISetupO
 	const merged: Array<{ sessionKey: string; commit: string | undefined }> = [];
 	const handler = new AgentHostMergeOperationHandler(
 		sessionKey => stateManager.getSessionState(sessionKey),
+		async () => options.configuredBranch ?? options.persistedBaseBranch?.replace(/^origin\//, '') ?? 'main',
 		async sessionKey => { refreshed.push(sessionKey); },
 		async (sessionKey, commit) => { merged.push({ sessionKey, commit }); },
 		gitService,
-		createSessionDataService(database),
 		new NullLogService(),
 	);
 	return { gitService, handler, merged, refreshed };
@@ -148,7 +153,7 @@ suite('AgentHostMergeOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('commits worktree changes, merges into the checked-out base branch, and refreshes', async () => {
-		const { gitService, handler, merged, refreshed } = await setup(disposables, { configuredBranch: 'main', sourceDirty: true });
+		const { gitService, handler, merged, refreshed } = await setup(disposables, { configuredBranch: 'release', sourceDirty: true, targetBranch: 'release' });
 
 		const result = await handler.invoke({
 			channel: buildBranchChangesetUri(session.toString()),
@@ -157,6 +162,7 @@ suite('AgentHostMergeOperationHandler', () => {
 
 		assert.deepStrictEqual({
 			calls: gitService.calls,
+			requestedBaseBranches: gitService.requestedBaseBranches,
 			merged,
 			refreshed,
 			message: typeof result.message === 'string' ? result.message : result.message?.markdown,
@@ -167,9 +173,10 @@ suite('AgentHostMergeOperationHandler', () => {
 				`commitAll:${worktreeRoot.toString()}:Agent Host changes for agents/session`,
 				`mergeBranch:${repositoryRoot.toString()}:agents/session`,
 			],
+			requestedBaseBranches: ['release'],
 			merged: [{ sessionKey: session.toString(), commit: 'merge-sha' }],
 			refreshed: [session.toString()],
-			message: 'Merged changes from \'agents/session\' into \'main\'.',
+			message: 'Merged changes from \'agents/session\' into \'release\'.',
 		});
 	});
 
@@ -235,7 +242,40 @@ suite('AgentHostMergeOperationHandler', () => {
 		});
 	});
 
-	test('normalizes the persisted remote baseline when the configured branch is unavailable', async () => {
+	test('rejects a stale merge operation when a pull request now exists', async () => {
+		const { gitService, handler, merged, refreshed } = await setup(disposables, {
+			configuredBranch: 'main',
+			hasPullRequest: true,
+			sourceDirty: true,
+		});
+
+		let errorMessage: string | undefined;
+		try {
+			await handler.invoke({
+				channel: buildBranchChangesetUri(session.toString()),
+				operationId: AgentHostMergeOperationHandler.OPERATION_MERGE,
+			}, CancellationToken.None);
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : String(error);
+		}
+
+		assert.deepStrictEqual({
+			calls: gitService.calls,
+			merged,
+			refreshed,
+			errorMessage,
+		}, {
+			calls: [
+				`hasUncommittedChanges:${repositoryRoot.toString()}`,
+				`hasUncommittedChanges:${worktreeRoot.toString()}`,
+			],
+			merged: [],
+			refreshed: [],
+			errorMessage: 'Merge Changes is no longer available because a pull request exists for branch \'agents/session\'.',
+		});
+	});
+
+	test('uses the resolved persisted baseline when the configured branch is unavailable', async () => {
 		const { gitService, handler, refreshed } = await setup(disposables, {
 			persistedBaseBranch: 'origin/main',
 			targetBranch: 'other',

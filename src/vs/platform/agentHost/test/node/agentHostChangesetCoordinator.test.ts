@@ -117,6 +117,17 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual(environment.updateOperationsCalls.slice(afterAdd), [session], 'removing a root refreshes the session operations');
 	});
 
+	test('refreshes changeset operations when GitHub state changes', () => {
+		const session = AgentSession.uri('mock', 'session-github').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo');
+		const baseline = environment.updateOperationsCalls.length;
+
+		environment.gitStateService.fireGitHubStateChanged(session);
+
+		assert.deepStrictEqual(environment.updateOperationsCalls.slice(baseline), [session]);
+	});
+
 	test('a parent working-directory change also refreshes inheriting subagent sessions', () => {
 		const parentSession = AgentSession.uri('mock', 'session-parent').toString();
 		const subagentSession = buildSubagentSessionUri(parentSession, 'tool-1');
@@ -829,6 +840,8 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 
 	private readonly _onDidRefreshSessionGitState = this._register(new Emitter<string>());
 	readonly onDidRefreshSessionGitState = this._onDidRefreshSessionGitState.event;
+	private readonly _onDidChangeSessionGitHubState = this._register(new Emitter<string>());
+	readonly onDidChangeSessionGitHubState = this._onDidChangeSessionGitHubState.event;
 
 	readonly refreshed: string[] = [];
 	readonly refreshedWith: Array<{ readonly sessionKey: string; readonly workingDirectory: string | undefined }> = [];
@@ -841,10 +854,15 @@ class TestGitStateService extends Disposable implements IAgentHostGitStateServic
 		this.refreshedWith.push({ sessionKey, workingDirectory: workingDirectory?.toString() });
 		this._onDidRefreshSessionGitState.fire(sessionKey);
 	}
+	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit?: string): Promise<void> { }
 	async attachSessionGitHubPullRequest(_sessionKey: string): Promise<void> { }
 	async attachSessionGitHubReferences(_sessionKey: string, _text: string): Promise<void> { }
+
+	fireGitHubStateChanged(sessionKey: string): void {
+		this._onDidChangeSessionGitHubState.fire(sessionKey);
+	}
 }
 
 class TestFileMonitorService extends Disposable implements IAgentHostFileMonitorService {
