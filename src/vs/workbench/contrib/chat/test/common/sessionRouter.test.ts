@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { buildCommandIntentMessages, buildRouterMessages, heuristicScore, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteRequest, parseCommandIntentResponse, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
+import { buildCommandIntentMessages, buildRouterMessages, detectExactCommandTitleIntent, heuristicScore, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteRequest, parseCommandIntentResponse, parseRouterResponse, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 
 suite('SessionRouter helpers', () => {
 
@@ -29,27 +29,30 @@ suite('SessionRouter helpers', () => {
 		assert.deepStrictEqual({
 			roles: messages.map(message => message.role),
 			hasRequest: messages[1].content.includes('turn on zen mode'),
-			hasCommands: commands.every(command => messages[1].content.includes(command.commandId)),
+			hasCommandTitles: commands.every(command => messages[1].content.includes(command.label)),
+			hasCommandIds: commands.some(command => messages[1].content.includes(command.commandId)),
+			classifiesUiDirectivesAsCommands: messages[0].content.includes('"toggle terminal" is command'),
 			fallsBackToChat: messages[0].content.includes('When uncertain, choose chat'),
 		}, {
 			roles: ['system', 'user'],
 			hasRequest: true,
-			hasCommands: true,
+			hasCommandTitles: true,
+			hasCommandIds: false,
+			classifiesUiDirectivesAsCommands: true,
 			fallsBackToChat: true,
 		});
 	});
 
 	test('parseCommandIntentResponse accepts only known commands', () => {
-		const known = new Set(commands.map(command => command.commandId));
 		assert.deepStrictEqual(
-			parseCommandIntentResponse('{"intent":"command","commandId":"workbench.action.toggleZenMode","confidence":1.4,"reason":"exact"}', known),
+			parseCommandIntentResponse('{"intent":"command","candidate":"c1","confidence":1.4,"reason":"exact"}', commands),
 			{ kind: 'command', commandId: 'workbench.action.toggleZenMode', confidence: 1, reason: 'exact' },
 		);
 		assert.strictEqual(
-			parseCommandIntentResponse('{"intent":"command","commandId":"unknown.command","confidence":0.99}', known),
+			parseCommandIntentResponse('{"intent":"command","candidate":"c99","confidence":0.99}', commands),
 			undefined,
 		);
-		assert.deepStrictEqual(parseCommandIntentResponse('{"intent":"chat"}', known), { kind: 'chat' });
+		assert.deepStrictEqual(parseCommandIntentResponse('{"intent":"chat"}', commands), { kind: 'chat' });
 	});
 
 	test('high-confidence command intent must exceed 80 percent', () => {
@@ -71,6 +74,14 @@ suite('SessionRouter helpers', () => {
 			],
 		);
 		assert.deepStrictEqual(selectCommandIntentCandidates('explain polymorphism', commands), []);
+		assert.deepStrictEqual(
+			selectCommandIntentCandidates('toggle terminal', [
+				...commands,
+				{ commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' },
+				{ commandId: 'workbench.action.terminal.focus', label: 'Terminal: Focus Terminal' },
+			], 1),
+			[{ commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' }],
+		);
 	});
 
 	test('selectCommandIntentCandidates supports non-Latin scripts', () => {
@@ -81,6 +92,21 @@ suite('SessionRouter helpers', () => {
 			], 1),
 			[{ commandId: 'workbench.action.toggleZenMode', label: '视图: 切换禅模式' }],
 		);
+	});
+
+	test('detectExactCommandTitleIntent resolves only an unambiguous title match', () => {
+		const terminalCommand = { commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' };
+		assert.deepStrictEqual([
+			detectExactCommandTitleIntent('toggle terminal', [terminalCommand]),
+			detectExactCommandTitleIntent('please toggle terminal', [terminalCommand]),
+			detectExactCommandTitleIntent('fix terminal toggling', [terminalCommand]),
+			detectExactCommandTitleIntent('toggle terminal', [terminalCommand, { commandId: 'duplicate', label: 'Terminal: Toggle Terminal' }]),
+		], [
+			{ kind: 'command', commandId: terminalCommand.commandId, confidence: 1, reason: 'Exact command title match' },
+			{ kind: 'command', commandId: terminalCommand.commandId, confidence: 1, reason: 'Exact command title match' },
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('buildRouterMessages embeds utterance and every session id', () => {

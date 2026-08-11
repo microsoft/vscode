@@ -29,7 +29,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
+import { detectExactCommandTitleIntent, heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -139,6 +139,8 @@ export interface IChatSessionRoutingHost {
 	placeBadge(badge: HTMLElement): void;
 	/** Notify the host that a new request will be independently routed. */
 	onWillRoute?(): void;
+	/** Prepare the window and context that should receive a detected command. */
+	prepareForCommandExecution?(): Promise<void>;
 	/** Notify the host immediately before sending so stale destination state can be invalidated. */
 	onWillDispatchRoute?(resource: URI): void;
 	/** Roll back pre-dispatch state when the send is rejected or fails. */
@@ -250,7 +252,8 @@ export class ChatSessionRoutingController extends Disposable {
 			return true;
 		}
 		const commandCandidates = selectCommandIntentCandidates(utterance, this._collectCommandCandidates());
-		const intent = await this._detectIntent(commandCandidates, utterance, token);
+		const intent = detectExactCommandTitleIntent(utterance, commandCandidates)
+			?? await this._detectIntent(commandCandidates, utterance, token);
 		if (token.isCancellationRequested) {
 			return true;
 		}
@@ -633,6 +636,12 @@ export class ChatSessionRoutingController extends Disposable {
 			label.textContent = localize('chatSessionRouting.runningCommand', "Running command {0}…", command.label);
 			countdown.textContent = '';
 			try {
+				if (this.host.prepareForCommandExecution) {
+					await this.host.prepareForCommandExecution();
+				}
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
 				if (!this._collectCommandCandidates().some(candidate => candidate.commandId === command.commandId)) {
 					throw new Error(`Command is no longer available: ${command.commandId}`);
 				}

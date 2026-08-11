@@ -63,7 +63,7 @@ export function selectCommandIntentCandidates(
 	}
 	return commands
 		.map(command => {
-			const commandTerms = new Set(tokenizeCommandIntent(`${command.label} ${command.commandId}`));
+			const commandTerms = new Set(tokenizeCommandIntent(command.label));
 			let matches = 0;
 			for (const term of commandTerms) {
 				if (utteranceTerms.has(term)) {
@@ -80,6 +80,28 @@ export function selectCommandIntentCandidates(
 			|| a.command.commandId.localeCompare(b.command.commandId))
 		.slice(0, limit)
 		.map(candidate => candidate.command);
+}
+
+export function detectExactCommandTitleIntent(utterance: string, commands: readonly ICommandIntentCandidate[]): ICommandIntentCommandResult | undefined {
+	const utteranceTerms = tokenizeCommandIntent(utterance);
+	if (!utteranceTerms.length) {
+		return undefined;
+	}
+	const matches = commands.filter(command => {
+		const titleSeparator = command.label.indexOf(':');
+		const title = titleSeparator >= 0 ? command.label.slice(titleSeparator + 1) : command.label;
+		const titleTerms = tokenizeCommandIntent(title);
+		return titleTerms.length === utteranceTerms.length && titleTerms.every((term, index) => term === utteranceTerms[index]);
+	});
+	if (matches.length !== 1) {
+		return undefined;
+	}
+	return {
+		kind: 'command',
+		commandId: matches[0].commandId,
+		confidence: 1,
+		reason: 'Exact command title match',
+	};
 }
 
 /**
@@ -160,15 +182,18 @@ export interface ISessionRouterMessage {
 export function buildCommandIntentMessages(request: ICommandIntentRequest): ISessionRouterMessage[] {
 	const commandLines = request.commands
 		.slice(0, COMMAND_INTENT_MAX_CANDIDATES)
-		.map(command => `- id=${command.commandId} label=${JSON.stringify(clip(command.label, COMMAND_INTENT_LABEL_CLIP_LENGTH))}`)
+		.map((command, index) => `- candidate=c${index} title=${JSON.stringify(clip(command.label, COMMAND_INTENT_LABEL_CLIP_LENGTH))}`)
 		.join('\n');
 	const system = [
 		'Determine whether the user wants to run one available VS Code command or continue to a coding chat.',
 		'Choose command only for a clear application or editor action that exactly matches one listed command and needs no arguments.',
+		'An imperative directive that controls the VS Code user interface is command intent when a matching command is listed. This includes opening, closing, showing, hiding, toggling, focusing, or navigating VS Code views, panels, editors, and settings UI.',
+		'For a direct match such as "toggle terminal" with a listed Toggle Terminal command, choose command with high confidence.',
+		'Distinguish UI directives from coding tasks: "toggle terminal" is command, while "fix terminal toggling" is chat.',
 		'Questions, explanations, coding tasks, repository work, file edits, debugging, and requests that need command arguments are chat.',
 		'When uncertain, choose chat.',
 		'Respond with ONLY one JSON object and no prose:',
-		'{"intent":"command","commandId":string,"confidence":number,"reason":string}',
+		'{"intent":"command","candidate":string,"confidence":number,"reason":string}',
 		'or {"intent":"chat"}.',
 	].join('\n');
 	return [
@@ -196,7 +221,7 @@ const COMMAND_INTENT_STOP_WORDS = new Set([
 	'action', 'and', 'can', 'command', 'could', 'execute', 'for', 'in', 'my', 'of', 'on', 'please', 'run', 'the', 'to', 'vscode', 'want', 'workbench', 'would',
 ]);
 
-export function parseCommandIntentResponse(text: string, validCommandIds: ReadonlySet<string>): ICommandIntentResult | undefined {
+export function parseCommandIntentResponse(text: string, commands: readonly ICommandIntentCandidate[]): ICommandIntentResult | undefined {
 	const start = text.indexOf('{');
 	const end = text.lastIndexOf('}');
 	if (start < 0 || end <= start) {
@@ -217,15 +242,20 @@ export function parseCommandIntentResponse(text: string, validCommandIds: Readon
 		return { kind: 'chat' };
 	}
 	if (record.intent !== 'command'
-		|| typeof record.commandId !== 'string'
-		|| !validCommandIds.has(record.commandId)
+		|| typeof record.candidate !== 'string'
 		|| typeof record.confidence !== 'number'
 		|| !isFinite(record.confidence)) {
 		return undefined;
 	}
+	const candidateMatch = /^c(?<index>\d+)$/.exec(record.candidate);
+	const candidateIndex = candidateMatch?.groups?.index ? Number(candidateMatch.groups.index) : NaN;
+	const command = commands[candidateIndex];
+	if (!command) {
+		return undefined;
+	}
 	return {
 		kind: 'command',
-		commandId: record.commandId,
+		commandId: command.commandId,
 		confidence: Math.max(0, Math.min(1, record.confidence)),
 		reason: typeof record.reason === 'string' ? record.reason : undefined,
 	};

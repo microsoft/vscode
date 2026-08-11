@@ -33,7 +33,7 @@ export class SessionRouterService implements ISessionRouter {
 		const result = await this.requestModel(
 			buildCommandIntentMessages(request),
 			token,
-			text => parseCommandIntentResponse(text, new Set(request.commands.map(command => command.commandId))),
+			text => parseCommandIntentResponse(text, request.commands),
 		);
 		return result ?? { kind: 'chat' };
 	}

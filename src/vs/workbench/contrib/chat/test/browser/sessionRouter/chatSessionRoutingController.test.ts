@@ -19,6 +19,58 @@ suite('ChatSessionRoutingController', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
+	test('uses an exact command title without model intent detection', async () => {
+		const command = { commandId: 'workbench.action.terminal.toggleTerminal', label: 'View: Toggle Terminal' };
+		let detectIntentCallCount = 0;
+		let pendingCommand: typeof command | undefined;
+		const host = {
+			widget: {
+				input: { setSubmitPending: () => { } },
+				inputEditor: {
+					onDidChangeModelContent: Event.None,
+					getValue: () => 'toggle terminal',
+				},
+				attachmentModel: {
+					onDidChange: Event.None,
+					attachments: [],
+				},
+				getSelectedModelRequestOptions: () => ({}),
+				getModeRequestOptions: () => ({}),
+			},
+		} as unknown as IChatSessionRoutingHost;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			undefined!,
+			undefined!,
+			undefined!,
+			{
+				detectIntent: async () => {
+					detectIntentCallCount++;
+					return { kind: 'chat' };
+				},
+			} as never,
+			undefined!,
+			{ warn: () => { } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		Reflect.set(controller, '_collectCommandCandidates', () => [command]);
+		Reflect.set(controller, '_beginPendingCommand', (candidate: typeof command) => {
+			pendingCommand = candidate;
+		});
+
+		await controller.handleSubmit('toggle terminal', ChatModeKind.Agent);
+
+		assert.deepStrictEqual({ detectIntentCallCount, pendingCommand }, { detectIntentCallCount: 0, pendingCommand: command });
+		controller.dispose();
+	});
+
 	test('detects command intent before collecting chat sessions', async () => {
 		const phases: Array<[boolean, boolean]> = [];
 		const host = {
@@ -89,9 +141,12 @@ suite('ChatSessionRoutingController', () => {
 		const clock = sinon.useFakeTimers();
 		const command = { commandId: 'workbench.action.toggleZenMode', label: 'View: Toggle Zen Mode' };
 		const phases: Array<[boolean, boolean]> = [];
+		const executionOrder: string[] = [];
 		const container = document.createElement('div');
 		document.body.appendChild(container);
-		const executeCommand = sinon.stub().resolves();
+		const executeCommand = sinon.stub().callsFake(async () => {
+			executionOrder.push('execute');
+		});
 		try {
 			const host = {
 				widget: {
@@ -110,6 +165,9 @@ suite('ChatSessionRoutingController', () => {
 					getModeRequestOptions: () => ({}),
 				},
 				getOwnSessionResource: () => undefined,
+				prepareForCommandExecution: async () => {
+					executionOrder.push('focus');
+				},
 				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
 			} as unknown as IChatSessionRoutingHost;
 			const controller = new ChatSessionRoutingController(
@@ -136,8 +194,15 @@ suite('ChatSessionRoutingController', () => {
 			await controller.handleSubmit('turn on zen mode', ChatModeKind.Agent);
 			await clock.tickAsync(10000);
 
-			assert.strictEqual(executeCommand.callCount, 1);
-			assert.deepStrictEqual(phases, [[true, true], [true, false], [true, true], [false, false]]);
+			assert.deepStrictEqual({
+				executeCommandCallCount: executeCommand.callCount,
+				executionOrder,
+				phases,
+			}, {
+				executeCommandCallCount: 1,
+				executionOrder: ['focus', 'execute'],
+				phases: [[true, true], [true, false], [true, true], [false, false]],
+			});
 			controller.dispose();
 		} finally {
 			clock.restore();
