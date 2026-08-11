@@ -62,7 +62,7 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 
 const CHAT_INPUT_WINDOW_MODEL_PICKER_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
-const CHAT_INPUT_WINDOW_MAX_WIDTH = 600;
+const CHAT_INPUT_WINDOW_WIDTH = 600;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
 
@@ -546,7 +546,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (!win || win !== auxiliaryWindow.window) {
 				return;
 			}
-			const width = Math.max(this._defaultWidth(), win.outerWidth);
+			const width = CHAT_INPUT_WINDOW_WIDTH;
 			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
 			const extraHeight = Array.from(surface.children)
 				.filter(child => child !== this._row)
@@ -1187,11 +1187,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		// Match Quick Chat's width so the model-detail hover has room to sit
-		// beside the picker: golden-cut of the invoking window, capped like the
-		// quick input widget (MAX_WIDTH = 600).
-		const width = this._defaultWidth();
-		return this._positionedBounds(width, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+		return this._positionedBounds(CHAT_INPUT_WINDOW_WIDTH, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
 	}
 
 	private _positionedBounds(width: number, height: number): IRectangle {
@@ -1231,16 +1227,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			StorageScope.WORKSPACE,
 			StorageTarget.MACHINE,
 		);
-	}
-
-	private _defaultWidth(): number {
-		const invokingWindowWidth = this._invokingWindowBounds.width > 0
-			? this._invokingWindowBounds.width
-			: mainWindow.outerWidth;
-		const availableWidth = invokingWindowWidth > 0
-			? invokingWindowWidth
-			: CHAT_INPUT_WINDOW_MAX_WIDTH / 0.62;
-		return Math.round(Math.min(availableWidth * 0.62, CHAT_INPUT_WINDOW_MAX_WIDTH));
 	}
 
 	private _windowBounds(window: Window): IRectangle {
