@@ -1388,6 +1388,31 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return true;
 	}
 
+	/**
+	 * The session's project. Read at persist time so a value assigned after the snapshot was taken
+	 * is not lost on the next save.
+	 */
+	get project(): IAgentSessionMetadata['project'] { return this._project; }
+
+	/**
+	 * Assign a project to a session that was materialized without one, recomputing the workspace.
+	 * Refuses when the session already has a project.
+	 *
+	 * Narrower than {@link update}, which also assigns `_workingDirectories` and would clear real
+	 * working directories, revert a renamed title, and roll back the modified time.
+	 */
+	backfillProject(project: IAgentSessionMetadata['project']): boolean {
+		if (!project || this._project) {
+			return false;
+		}
+		this._project = project;
+		let didChange = false;
+		transaction(tx => {
+			didChange = this._setWorkspace(this._computeWorkspace(), tx);
+		});
+		return didChange;
+	}
+
 	private _setWorkspace(workspace: ISessionWorkspace | undefined, tx: ITransaction): boolean {
 		if (agentHostSessionWorkspaceKey(workspace) === agentHostSessionWorkspaceKey(this.workspace.get())) {
 			return false;
@@ -4669,6 +4694,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...base,
 				summary: adapter.title.get() || base.summary,
 				modifiedTime: adapter.updatedAt.get().getTime(),
+				// A project assigned by `backfillProject` lives only on the adapter.
+				project: adapter.project ?? base.project,
 				status: withSessionStatusFlag(
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,

@@ -201,6 +201,12 @@ export interface ISessionWorkspace {
 	 * Whether this workspace is a virtual
 	 */
 	readonly isVirtualWorkspace: boolean;
+	/**
+	 * Overrides the type icon that would otherwise be inferred from the workspace's shape, for
+	 * providers whose workspaces are not structurally distinguishable. Unlike {@link icon}, which
+	 * identifies the workspace in pickers, this is drawn inline in dense rows.
+	 */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
