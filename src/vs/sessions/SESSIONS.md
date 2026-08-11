@@ -397,9 +397,10 @@ workspace cancels the active lookup, removes only untouched/generated option
 text, and hides the widget so stale results cannot reappear.
 
 Repository-backed cards lead with the issue or pull-request title beside its
-state icon. A quiet secondary row combines the option label and repository
-number (for example, **Tackle issue #123**) so the generic action cannot be
-mistaken for the repository content title. The full action and content title
+state icon. A quiet secondary row starts at the same content edge as that title
+and combines the option label, repository number, and a trailing directional
+affordance (for example, **Tackle issue #123 →**) so the generic action cannot
+be mistaken for the repository content title. The full action and content title
 remain available through the card's ARIA label and managed hover when either
 visible line is truncated.
 

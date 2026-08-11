@@ -181,6 +181,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 			description: button?.querySelector('.new-session-prompt-option-description')?.textContent,
 			title: button?.querySelector('.new-session-prompt-option-title-label')?.textContent,
 			detail: button?.querySelector('.new-session-prompt-option-title-detail')?.textContent,
+			actionIconAriaHidden: button?.querySelector('.new-session-prompt-option-action-icon')?.getAttribute('aria-hidden'),
 			ariaLabel: button?.getAttribute('aria-label'),
 			hover: hoverService.contents,
 		}, {
@@ -188,6 +189,7 @@ suite('NewSessionPromptOptionsWidget', () => {
 			description: 'A complete issue title',
 			title: 'Tackle issue',
 			detail: '#123',
+			actionIconAriaHidden: 'true',
 			ariaLabel: 'Tackle issue #123: A complete issue title',
 			hover: ['**Tackle issue \\#123**\n\nA complete issue title'],
 		});

@@ -34,7 +34,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 
 - **Prompt-option headings and cards are one visual surface**: group them with one enclosing border on the session surface; filling the entire group with the chat-input background makes it compete with the input, so reserve that fill for the cards. Keep the icon with the card's primary content, give secondary copy its own row, and balance top/bottom padding so short copy does not leave a hollow corner.
 
-- **GitHub prompt-option action labels must not masquerade as repository titles**: leading with an equal-weight "Tackle issue #123" row makes the generic action look like the issue name. Lead with the issue/PR title beside its state icon, then render the action and number as quiet secondary metadata.
+- **GitHub prompt-option action labels must not masquerade as repository titles**: leading with an equal-weight "Tackle issue #123" row makes the generic action look like the issue name. Lead with the issue/PR title beside its state icon, then align quiet action/number metadata with that title and append a directional arrow; do not right-align the row or start it beneath the icon.
 
 - **Prompt-option selection has two generated input forms**: the selected option stays switchable while the input is empty, exactly matches its full prompt, or exactly matches that prompt after its editable placeholder was activated and removed; every other edit disables the cards. Animate only the first insertion, replace later selections immediately, focus the input on activation, and use the card foreground for selected borders rather than conflating selection with the blue focus color.
 

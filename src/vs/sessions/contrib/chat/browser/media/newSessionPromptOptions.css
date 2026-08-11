@@ -120,8 +120,13 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground, var(--vscode-descriptionForeground));
 	font-size: var(--vscode-agents-fontSize-label1);
 	font-weight: var(--vscode-agents-fontWeight-regular);
-	grid-column: 1 / -1;
+	grid-column: 2;
 	grid-row: 2;
+}
+
+.new-session-prompt-option-action-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .new-session-prompt-option.has-title-detail .new-session-prompt-option-description {
