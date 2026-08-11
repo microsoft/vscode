@@ -2630,9 +2630,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
+		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -2663,13 +2664,14 @@ export class AgentService extends Disposable implements IAgentService {
 			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext);
 		}).catch(err => {
 			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
-		});
-
-		this._clientDispatchQueues.set(clientId, next.finally(() => {
+			this._stateManager.rejectClientAction(channel, action, { clientId, clientSeq }, toErrorMessage(err));
+		}).finally(() => {
 			if (this._clientDispatchQueues.get(clientId) === next) {
 				this._clientDispatchQueues.delete(clientId);
 			}
-		}));
+		});
+
+		this._clientDispatchQueues.set(clientId, next);
 	}
 
 	/**

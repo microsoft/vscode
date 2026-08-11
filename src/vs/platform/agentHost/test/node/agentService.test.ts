@@ -42,7 +42,7 @@ import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -991,6 +991,53 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				envelope: { type: ActionType.SessionWorkingDirectorySet, directory: added.toString() },
 				confirmed: [primary.toString(), secondary.toString(), added.toString()],
+			});
+			listener.dispose();
+		});
+
+		test('rejects a failed review update and clears the client dispatch queue', async () => {
+			const db = new TestSessionDatabase();
+			db.getMetadata = async () => { throw new Error('metadata unavailable'); };
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/workspace')] });
+			const changeset = buildBranchChangesetUri(session.toString());
+			svc.stateManager.registerChangeset(changeset);
+			const rejectionPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(changeset, {
+				type: ActionType.ChangesetFilesReviewChanged,
+				files: [URI.file('/workspace/file.txt').toString()],
+				reviewed: true,
+			}, 'test-client', 1);
+			const rejection = await rejectionPromise;
+			await timeout(0);
+
+			let nextAction: ActionEnvelope | undefined;
+			const listener = svc.onDidAction(envelope => {
+				if (envelope.origin?.clientSeq === 2) {
+					nextAction = envelope;
+				}
+			});
+			svc.dispatchAction(session.toString(), {
+				type: ActionType.SessionTitleChanged,
+				title: 'Updated title',
+			}, 'test-client', 2);
+
+			assert.deepStrictEqual({
+				rejectionReason: rejection.rejectionReason,
+				rejectedAction: rejection.action,
+				nextAction: nextAction?.action,
+			}, {
+				rejectionReason: 'metadata unavailable',
+				rejectedAction: {
+					type: ActionType.ChangesetFilesReviewChanged,
+					files: [URI.file('/workspace/file.txt').toString()],
+					reviewed: true,
+				},
+				nextAction: { type: ActionType.SessionTitleChanged, title: 'Updated title' },
 			});
 			listener.dispose();
 		});

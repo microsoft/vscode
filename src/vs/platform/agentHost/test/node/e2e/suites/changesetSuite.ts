@@ -714,6 +714,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		);
 		const files = await waitForChangesetFiles(changeset, ['first.txt', 'second.txt']);
 
+		context.client.clearReceived();
 		context.client.dispatch({
 			channel: changeset,
 			clientSeq: nextClientSeq(),
@@ -721,6 +722,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'changeset/filesReviewChanged') && getActionEnvelope(n).channel === changeset,
+		);
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/statusChanged')
+			&& getActionEnvelope(n).channel === changeset
+			&& (getActionEnvelope(n).action as { readonly status: string }).status === 'ready',
 		);
 		const state = await changesetState(changeset);
 
