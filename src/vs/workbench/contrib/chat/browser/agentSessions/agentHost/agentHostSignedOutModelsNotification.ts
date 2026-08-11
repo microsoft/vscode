@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -73,14 +74,12 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 				this._update();
 			}
 		});
-		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._update()));
-		this._register(this._languageModelsService.onDidChangeModelVisibility(() => this._update()));
-		this._register(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(() => this._update()));
-		this._register(contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS)) {
-				this._update();
-			}
-		}));
+		this._register(Event.any(
+			this._languageModelsService.onDidChangeLanguageModels,
+			this._languageModelsService.onDidChangeModelVisibility,
+			this._languageModelsConfigurationService.onDidChangeLanguageModelGroups,
+			Event.filter(contextKeyService.onDidChangeContext, event => event.affectsSome(CLIENT_BYOK_CONTEXT_KEYS)),
+		)(() => this._update()));
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(AgentHostAllowSignedOutWhenUsableSettingId)) {
 				this._update();
