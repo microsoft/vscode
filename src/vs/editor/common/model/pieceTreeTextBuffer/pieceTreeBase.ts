@@ -717,12 +717,7 @@ export class PieceTreeBase {
 					return resultLen;
 				}
 				if (offsetInBuffer(m.index) + m[0].length > end) {
-					// The match starts within this piece's valid text but runs past
-					// its logical end. Deletions only move `end` backward without
-					// erasing the underlying buffer, so text past `end` is stale
-					// data that no longer exists in the document, and since matches
-					// are found in increasing order, nothing later in this piece can
-					// be fully in bounds either.
+					// Deletions only move `end` backward without erasing the buffer, so text past `end` is stale and no longer part of the document.
 					return resultLen;
 				}
 				this.positionInBuffer(node, offsetInBuffer(m.index) - startOffsetInBuffer, ret);
