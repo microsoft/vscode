@@ -76,6 +76,7 @@ export interface IAutomationSessionExecutor {
 	createSession(definition: AutomationDefinition, automation: string, run: string): Promise<{ session: string; chat: string }>;
 	startSession(session: string, chat: string, definition: AutomationDefinition, turnId: string): Promise<void>;
 	cancelSession(session: string, turnId: string): Promise<void>;
+	disposeSession(session: string): Promise<void>;
 }
 
 export class AgentAutomationService extends Disposable {
@@ -305,9 +306,16 @@ export class AgentAutomationService extends Disposable {
 		this._stateManager.restoreAutomationRun(run);
 		this._setRunSummary(automation.resource, run);
 		await this._persist();
+		if (this._isRunTerminal(runResource)) {
+			return runResource;
+		}
 
 		try {
 			const created = await this._executor.createSession(automation.definition, automation.resource, runResource);
+			if (this._isRunTerminal(runResource)) {
+				await this._disposeSessionAfterCancellation(created.session, runResource);
+				return runResource;
+			}
 			this._stateManager.dispatchServerAction(runResource, { type: ActionType.AutomationRunSessionSet, session: created.session });
 			this._stateManager.dispatchServerAction(runResource, { type: ActionType.AutomationRunPrimarySessionChanged, primarySession: created.session });
 			await this._setRunLifecycle(runResource, {
@@ -316,8 +324,15 @@ export class AgentAutomationService extends Disposable {
 				startedAt: new Date().toISOString(),
 			}, [AutomationRunOperation.Cancel]);
 			await this._persist();
+			if (this._isRunTerminal(runResource)) {
+				await this._disposeSessionAfterCancellation(created.session, runResource);
+				return runResource;
+			}
 			await this._executor.startSession(created.session, created.chat, automation.definition, turnId);
 		} catch (error) {
+			if (this._isRunTerminal(runResource)) {
+				return runResource;
+			}
 			await this._setRunLifecycle(runResource, {
 				status: AutomationRunStatus.Failed,
 				createdAt,
@@ -330,6 +345,39 @@ export class AgentAutomationService extends Disposable {
 			}, []);
 		}
 		return runResource;
+	}
+
+	private _isRunTerminal(runResource: string): boolean {
+		const run = this._stateManager.getAutomationRunState(runResource);
+		return !run || isTerminal(run.lifecycle);
+	}
+
+	private async _disposeSessionAfterCancellation(session: string, runResource: string): Promise<void> {
+		try {
+			await this._executor.disposeSession(session);
+		} catch (error) {
+			this._logService.error(`[AgentAutomationService] Failed to dispose session created after run cancellation: ${runResource}`, error);
+			return;
+		}
+		try {
+			const run = this._stateManager.getAutomationRunState(runResource);
+			if (!run) {
+				return;
+			}
+			if (run.primarySession === session) {
+				this._stateManager.dispatchServerAction(runResource, { type: ActionType.AutomationRunPrimarySessionChanged, primarySession: undefined });
+			}
+			if (run.sessions.includes(session)) {
+				this._stateManager.dispatchServerAction(runResource, { type: ActionType.AutomationRunSessionRemoved, session });
+			}
+			const updated = this._stateManager.getAutomationRunState(runResource);
+			if (updated) {
+				this._setRunSummary(updated.automation, updated);
+				await this._persist();
+			}
+		} catch (error) {
+			this._logService.error(`[AgentAutomationService] Failed to remove a disposed session from automation run: ${runResource}`, error);
+		}
 	}
 
 	private async _setRunLifecycle(runResource: string, lifecycle: AutomationRunLifecycle, operations: AutomationRunOperation[]): Promise<void> {

@@ -65,13 +65,15 @@ function automation(overrides: Partial<IAutomation> = {}): IAutomation {
 }
 
 function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
+	const status = overrides.status ?? 'completed';
 	return {
 		id: RUN_ID,
 		automationId: AUTOMATION_ID,
-		status: 'completed',
+		status,
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
 		sessionResource: SESSION_RESOURCE.toString(),
+		canCancel: overrides.canCancel ?? (status === 'pending' || status === 'running' || status === 'blocked'),
 		...overrides,
 	};
 }
@@ -89,6 +91,8 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this.runValue;
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
+	cancelRunCalls = 0;
+	cancelError: Error | undefined;
 	deleteRunCalls = 0;
 
 	setAutomations(value: readonly IAutomation[]): void {
@@ -160,7 +164,12 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return { claimed: true, run: run() };
 	}
 
-	override async cancelRun(): Promise<void> { }
+	override async cancelRun(): Promise<void> {
+		this.cancelRunCalls++;
+		if (this.cancelError) {
+			throw this.cancelError;
+		}
+	}
 
 	override async deleteRun(runId: string): Promise<void> {
 		this.deleteRunCalls++;
@@ -388,6 +397,34 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			sameCard: true,
 			focusPreserved: true,
+		});
+	});
+
+	test('renders migration conflicts as read-only', () => {
+		const { automationService, widget } = setup();
+		const conflicted = automation({
+			host: {
+				authority: 'local',
+				resource: 'ahp-automation:/vscode-conflict',
+				revision: 0,
+				connected: false,
+				hasUnsupportedTriggers: false,
+				migrationPending: true,
+				migrationConflict: true,
+			},
+		});
+		automationService.setAutomations([conflicted]);
+
+		assert.deepStrictEqual({
+			badge: widget.element.querySelector('.automations-card-disabled-badge')?.textContent,
+			editDisabled: widget.element.querySelector<HTMLButtonElement>('.automations-card-main')?.disabled,
+			actionStates: [...widget.element.querySelectorAll<HTMLButtonElement>('.automations-card-action-button')].map(button => button.getAttribute('aria-disabled')),
+			accessible: buildAutomationsAccessibleContent([conflicted], []),
+		}, {
+			badge: 'Migration conflict',
+			editDisabled: true,
+			actionStates: ['true', 'true'],
+			accessible: 'Automations\n\nDaily review, migration conflict, read-only\nSchedule: Hourly\nPrompt: Review the workspace\n\nRun history\nNo runs.',
 		});
 	});
 
@@ -684,22 +721,46 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.deepStrictEqual({
 			ariaLabel: stopButton.getAttribute('aria-label'),
+			cancelRunCalls: automationService.cancelRunCalls,
 			cancelCurrentRequestCalls: sessionsManagementService.cancelCurrentRequestCalls,
 			openCalls: sessionsService.openCalls,
 			deleteButtonVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
 		}, {
-			ariaLabel: 'Stop session for Daily review',
-			cancelCurrentRequestCalls: 1,
+			ariaLabel: 'Stop automation run for Daily review',
+			cancelRunCalls: 1,
+			cancelCurrentRequestCalls: 0,
 			openCalls: 0,
 			deleteButtonVisible: false,
 		});
 	});
 
+	test('offers host cancellation before a session exists and while input is needed', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([
+			run({ id: 'pending', status: 'pending', sessionResource: undefined }),
+			run({ id: 'blocked', status: 'blocked' }),
+		]);
+
+		assert.deepStrictEqual(
+			[...widget.element.querySelectorAll<HTMLButtonElement>('.automations-run-card-stop-button')].map(button => button.getAttribute('aria-label')),
+			['Stop automation run for Daily review', 'Stop automation run for Daily review'],
+		);
+	});
+
+	test('does not offer Stop when the authority omits cancellation', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running', canCancel: false })]);
+
+		assert.strictEqual(widget.element.querySelector('.automations-run-card-stop-button'), null);
+	});
+
 	test('re-enables Stop when cancellation fails', async () => {
-		const { automationService, dialogService, sessionsManagementService, widget } = setup();
+		const { automationService, dialogService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
-		sessionsManagementService.cancelError = new Error('stop failed');
+		automationService.cancelError = new Error('stop failed');
 
 		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
 		assert.ok(stopButton);
@@ -713,7 +774,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			ariaDisabled: 'false',
 			disabledClass: false,
-			error: [{ message: 'Failed to stop the automation run session.', detail: 'stop failed' }],
+			error: [{ message: 'Failed to stop the automation run.', detail: 'stop failed' }],
 		});
 	});
 

@@ -5,6 +5,7 @@
 
 import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/objects.js';
 import { derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue, autorun, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -17,7 +18,7 @@ import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/proto
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { AutomationDefinitionPatch } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationDefinition, AutomationMisfirePolicy, AutomationScheduleKind, AutomationState, AutomationTrigger, AutomationTriggerKind, AutomationWeekday } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
-import { AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunState, AutomationRunStatus, AutomationRunSummary } from '../../../../platform/agentHost/common/state/protocol/channels-automation-run/state.js';
+import { AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary } from '../../../../platform/agentHost/common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -27,20 +28,24 @@ import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IA
 import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { isAgentHostProviderId, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../common/agentHostSessionsProvider.js';
-import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
+import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationStorageService, LEGACY_AUTOMATION_STORAGE_KEYS } from '../common/legacyAutomationMigrationStorage.js';
 import { ILegacyAutomationMigrationSnapshot, LegacyAutomationMigration } from './legacyAutomationMigration.js';
 
 const MIGRATION_JOURNAL_KEY = 'chat.automations.ahpMigration.v1';
 const MIGRATION_BACKUP_KEY = 'chat.automations.ahpMigration.backup.v1';
 
-type MigrationPhase = 'previewed' | 'imported' | 'localDisabled' | 'localRemoved' | 'hostEnabled' | 'completed';
-const migrationPhases: readonly MigrationPhase[] = ['previewed', 'imported', 'localDisabled', 'localRemoved', 'hostEnabled', 'completed'];
+type MigrationPhase = 'previewed' | 'imported' | 'localDisabled' | 'localRemoved' | 'hostEnabled' | 'completed' | 'aborted';
+const migrationPhases: readonly MigrationPhase[] = ['previewed', 'imported', 'localDisabled', 'localRemoved', 'hostEnabled', 'completed', 'aborted'];
 
 interface IMigrationItem {
 	readonly automationId: string;
+	/** Absent on journals written before provider-local legacy storage existed. */
+	readonly sourceKey?: string;
 	readonly authority: string;
 	readonly resource: string;
 	readonly enabled: boolean;
+	/** Absent on journals written before canonical definitions were persisted. */
+	readonly definition?: AutomationDefinition;
 	phase: MigrationPhase;
 }
 
@@ -51,6 +56,12 @@ interface IMigrationJournal {
 }
 
 interface IMigrationBackup {
+	readonly automation: IAutomation;
+	readonly runs: readonly IAutomationRun[];
+}
+
+interface ILegacyAutomationEntry {
+	readonly sourceKey: string;
 	readonly automation: IAutomation;
 	readonly runs: readonly IAutomationRun[];
 }
@@ -80,11 +91,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _legacyMigration: LegacyAutomationMigration;
-	private _legacySnapshot: ILegacyAutomationMigrationSnapshot;
+	private readonly _legacyMigrations = new Map<string, LegacyAutomationMigration>();
+	private readonly _legacySnapshots = new Map<string, ILegacyAutomationMigrationSnapshot>();
 	private _migrationJournal: IMigrationJournal | undefined;
-	private readonly _pendingMigrationAutomations = new Map<string, IAutomation>();
-	private readonly _pendingMigrationRuns = new Map<string, readonly IAutomationRun[]>();
+	private readonly _pendingMigrationEntries = new Map<string, ILegacyAutomationEntry>();
+	private readonly _migrationConflicts = new Set<string>();
 	private readonly _automations: ISettableObservable<readonly IAutomation[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
 	private readonly _runsForCache = new Map<string, IObservable<readonly IAutomationRun[]>>();
@@ -104,13 +115,21 @@ export class AutomationService extends Disposable implements IAutomationService 
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._legacyMigration = new LegacyAutomationMigration(legacyMigrationStorageService, logService);
-		this._legacySnapshot = this._legacyMigration.readCached(storageService.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION));
-		this._migrationJournal = readMigrationJournalValue(storageService.get(MIGRATION_JOURNAL_KEY, StorageScope.APPLICATION));
-		for (const automation of this._legacySnapshot.automations) {
-			this._pendingMigrationAutomations.set(automation.id, automation);
-			this._pendingMigrationRuns.set(automation.id, this._legacySnapshot.runs.filter(run => run.automationId === automation.id));
+		for (const storageKey of LEGACY_AUTOMATION_STORAGE_KEYS) {
+			const migration = new LegacyAutomationMigration(legacyMigrationStorageService, logService, storageKey);
+			const snapshot = migration.readCached(storageService.get(storageKey, StorageScope.APPLICATION));
+			this._legacyMigrations.set(storageKey, migration);
+			this._legacySnapshots.set(storageKey, snapshot);
+			for (const automation of snapshot.automations) {
+				const identity = migrationIdentity(storageKey, automation.id);
+				this._pendingMigrationEntries.set(identity, {
+					sourceKey: storageKey,
+					automation,
+					runs: snapshot.runs.filter(run => run.automationId === automation.id),
+				});
+			}
 		}
+		this._migrationJournal = readMigrationJournalValue(storageService.get(MIGRATION_JOURNAL_KEY, StorageScope.APPLICATION));
 		this._automations = observableValue<readonly IAutomation[]>(this, []);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, []);
 		this.automations = this._automations;
@@ -128,7 +147,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 				};
 			});
 			void this._syncSequencer.queue(async () => {
-				await this._reloadLegacySnapshot();
+				await this._reloadLegacySnapshots();
 				await this._syncSources(connections);
 				await this._migrateAvailableAutomations();
 				await this._normalizeHostAutomationModels();
@@ -143,11 +162,13 @@ export class AutomationService extends Disposable implements IAutomationService 
 		}));
 		const synchronizeMigration = () => {
 			void this._syncSequencer.queue(async () => {
-				await this._reloadLegacySnapshot();
+				await this._reloadLegacySnapshots();
 				await this._migrateAvailableAutomations();
 			}).catch(error => this.logService.error('[AutomationService] Failed to synchronize legacy automation migration.', error));
 		};
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, AUTOMATION_STORAGE_KEY, this._store)(synchronizeMigration));
+		for (const storageKey of LEGACY_AUTOMATION_STORAGE_KEYS) {
+			this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, storageKey, this._store)(synchronizeMigration));
+		}
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, MIGRATION_JOURNAL_KEY, this._store)(synchronizeMigration));
 	}
 
@@ -401,25 +422,53 @@ export class AutomationService extends Disposable implements IAutomationService 
 		} while (cursor);
 	}
 
-	private async _reloadLegacySnapshot(): Promise<void> {
-		this._legacySnapshot = await this._legacyMigration.read();
+	private async _reloadLegacySnapshots(): Promise<void> {
+		for (const [storageKey, migration] of this._legacyMigrations) {
+			this._legacySnapshots.set(storageKey, await migration.read());
+		}
 		const journal = await this._readMigrationJournal();
-		const completedIds = new Set(journal?.items.filter(item => item.phase === 'completed').map(item => item.automationId));
-		const pendingIds = new Set(journal?.items.filter(item => item.phase !== 'completed').map(item => item.automationId));
-		const ledgerIds = new Set(this._legacySnapshot.automations.map(automation => automation.id));
-		for (const automationId of this._pendingMigrationAutomations.keys()) {
-			if (completedIds.has(automationId) || (!ledgerIds.has(automationId) && !pendingIds.has(automationId))) {
-				this._pendingMigrationAutomations.delete(automationId);
-				this._pendingMigrationRuns.delete(automationId);
+		const completed = new Set(journal?.items
+			.filter(item => isTerminalMigrationPhase(item.phase))
+			.map(item => migrationItemIdentity(item)));
+		const pending = new Set(journal?.items
+			.filter(item => !isTerminalMigrationPhase(item.phase))
+			.map(item => migrationItemIdentity(item)));
+		const entries = this._legacyEntries();
+		const ledgerEntries = new Set(entries.map(entry => migrationIdentity(entry.sourceKey, entry.automation.id)));
+		for (const identity of this._pendingMigrationEntries.keys()) {
+			if (completed.has(identity) || (!ledgerEntries.has(identity) && !pending.has(identity))) {
+				this._pendingMigrationEntries.delete(identity);
 			}
 		}
-		for (const automation of this._legacySnapshot.automations) {
-			if (!completedIds.has(automation.id)) {
-				this._pendingMigrationAutomations.set(automation.id, automation);
-				this._pendingMigrationRuns.set(automation.id, this._legacySnapshot.runs.filter(run => run.automationId === automation.id));
+		for (const entry of entries) {
+			const identity = migrationIdentity(entry.sourceKey, entry.automation.id);
+			if (!completed.has(identity)) {
+				this._pendingMigrationEntries.set(identity, entry);
 			}
 		}
 		this._refreshProjection();
+	}
+
+	private _legacyEntries(): ILegacyAutomationEntry[] {
+		const entries: ILegacyAutomationEntry[] = [];
+		for (const [sourceKey, snapshot] of this._legacySnapshots) {
+			for (const automation of snapshot.automations) {
+				entries.push({
+					sourceKey,
+					automation,
+					runs: snapshot.runs.filter(run => run.automationId === automation.id),
+				});
+			}
+		}
+		return entries;
+	}
+
+	private _legacyMigrationFor(sourceKey: string): LegacyAutomationMigration {
+		const migration = this._legacyMigrations.get(sourceKey);
+		if (!migration) {
+			throw new Error(`Unknown legacy automation storage source: ${sourceKey}`);
+		}
+		return migration;
 	}
 
 	private async _migrateAvailableAutomations(): Promise<void> {
@@ -436,79 +485,128 @@ export class AutomationService extends Disposable implements IAutomationService 
 			return;
 		}
 		const journal = await this._readMigrationJournal();
-		for (const item of journal?.items.filter(candidate => candidate.authority === source.authority && candidate.phase !== 'completed') ?? []) {
-			const backup = await this._readMigrationBackup(item.automationId);
-			const automation = this._legacySnapshot.automations.find(candidate => candidate.id === item.automationId) ?? backup?.automation;
-			if (!automation) {
-				throw new Error(`Missing rollback data for automation migration: ${item.automationId}`);
-			}
-			this._pendingMigrationAutomations.set(automation.id, automation);
-			if (backup) {
-				this._pendingMigrationRuns.set(automation.id, backup.runs);
-			}
-			if (!this._isTargetAvailable(source, automation.target)) {
+		const journalEntries = new Set(journal?.items.map(item => migrationItemIdentity(item)));
+		for (const item of journal?.items.filter(candidate => candidate.authority === source.authority && !isTerminalMigrationPhase(candidate.phase)) ?? []) {
+			const sourceKey = migrationItemSourceKey(item);
+			const backup = await this._readMigrationBackup(sourceKey, item.automationId);
+			const entry = backup ? {
+				sourceKey,
+				automation: backup.automation,
+				runs: backup.runs,
+			} : undefined;
+			if (!entry) {
+				this.logService.error(`[AutomationService] Missing rollback data for automation migration '${item.automationId}' from '${sourceKey}'.`);
 				continue;
 			}
-			await this._resumeMigrationItem(source, item, automation);
+			this._pendingMigrationEntries.set(migrationIdentity(sourceKey, item.automationId), entry);
+			if (!this._isTargetAvailable(source, entry.automation.target)) {
+				continue;
+			}
+			try {
+				await this._resumeMigrationItem(source, item, entry);
+			} catch (error) {
+				this.logService.error(`[AutomationService] Failed to migrate automation '${item.automationId}' from '${sourceKey}'.`, error);
+			}
 		}
 
-		const candidates = this._legacySnapshot.automations.filter(automation =>
-			this._authorityForTarget(automation.target) === source.authority
-			&& this._isTargetAvailable(source, automation.target)
+		const candidates = this._legacyEntries().filter(entry =>
+			this._authorityForTarget(entry.automation.target) === source.authority
+			&& this._isTargetAvailable(source, entry.automation.target)
+			&& !journalEntries.has(migrationIdentity(entry.sourceKey, entry.automation.id))
 		);
-		for (const automation of candidates) {
-			const item = await this._ensureMigrationItem(automation, source.authority);
-			await this._resumeMigrationItem(source, item, automation);
+		for (const entry of candidates) {
+			try {
+				const item = await this._ensureMigrationItem(entry, source);
+				await this._resumeMigrationItem(source, item, entry);
+			} catch (error) {
+				this.logService.error(`[AutomationService] Failed to migrate automation '${entry.automation.id}' from '${entry.sourceKey}'.`, error);
+			}
 		}
 	}
 
-	private async _resumeMigrationItem(source: IHostSource, item: IMigrationItem, automation: IAutomation): Promise<void> {
+	private async _resumeMigrationItem(source: IHostSource, item: IMigrationItem, entry: ILegacyAutomationEntry): Promise<void> {
 		const connection = source.connection;
-		if (!connection || item.phase === 'completed') {
+		if (!connection || isTerminalMigrationPhase(item.phase)) {
 			return;
 		}
+		const { automation, sourceKey } = entry;
+		const identity = migrationIdentity(sourceKey, item.automationId);
+		const migrationDefinition = await this._resolveMigrationDefinition(source, item, entry);
+		item = migrationDefinition.item;
+		const disabledDefinition = migrationDefinition.definition;
+		const enabledDefinition = { ...disabledDefinition, enabled: item.enabled };
+		const importedAutomation = () => this._hostAutomations.get(hostKey(source.authority, item.resource));
+		const markConflict = () => {
+			this._migrationConflicts.add(identity);
+			this._refreshProjection();
+		};
 		if (item.phase === 'previewed') {
-			const batchId = (await this._readMigrationJournal())?.batchId;
-			if (!batchId) {
-				throw new Error(`Missing migration batch for automation: ${item.automationId}`);
-			}
-			try {
-				await connection.createAutomation({
-					channel: item.resource,
-					definition: definitionFromOptions({ ...automation, enabled: false }, (modelId, provider) => this._normalizeModelId(source, provider, modelId)),
-					import: {
-						source: 'vscode-legacy-automations',
-						batchId,
-						itemId: automation.id,
-					},
-				});
-			} catch (error) {
-				if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.AlreadyExists) {
-					throw error;
+			await this._ensureImportedAutomation(source, item, disabledDefinition, true);
+			const current = (await this._readMigrationJournal())?.items.find(candidate =>
+				candidate.authority === item.authority
+				&& candidate.automationId === item.automationId
+				&& migrationItemSourceKey(candidate) === sourceKey
+			);
+			if (current && current.phase !== 'previewed') {
+				item = current;
+			} else {
+				const imported = importedAutomation();
+				if (!imported || !equals(imported.state.definition, disabledDefinition)) {
+					markConflict();
+					return;
 				}
+				this._migrationConflicts.delete(identity);
+				item = await this._advanceMigrationItem(item, 'imported');
 			}
-			await this._attachAutomation(source, item.resource);
-			item = await this._advanceMigrationItem(item, 'imported');
 		}
 		if (item.phase === 'imported') {
-			const current = this._legacySnapshot.automations.find(candidate => candidate.id === automation.id);
-			if (current?.enabled) {
-				await this._legacyMigration.disable(automation.id);
-				await this._reloadLegacySnapshot();
+			const imported = importedAutomation() ?? await this._ensureImportedAutomation(source, item, disabledDefinition);
+			if (!equals(imported?.state.definition, disabledDefinition)) {
+				markConflict();
+				return;
 			}
-			item = await this._advanceMigrationItem(item, 'localDisabled');
+			const result = await this._legacyMigrationFor(sourceKey).disable(automation);
+			if (result === 'missing') {
+				item = await this._abortMigrationItem(item, 'imported');
+				if (isTerminalMigrationPhase(item.phase)) {
+					return;
+				}
+			} else {
+				await this._reloadLegacySnapshots();
+				if (!equals(importedAutomation()?.state.definition, disabledDefinition)) {
+					markConflict();
+					return;
+				}
+				item = await this._advanceMigrationItem(item, 'localDisabled');
+			}
 		}
 		if (item.phase === 'localDisabled') {
-			await this._legacyMigration.remove(automation.id);
-			await this._reloadLegacySnapshot();
+			const currentRuns = await this._refreshMigrationBackupRuns(sourceKey, automation.id);
+			const imported = importedAutomation() ?? await this._ensureImportedAutomation(source, item, disabledDefinition);
+			if (!equals(imported?.state.definition, disabledDefinition)) {
+				markConflict();
+				return;
+			}
+			const result = await this._legacyMigrationFor(sourceKey).remove(automation, currentRuns);
+			if (result !== 'missing') {
+				await this._reloadLegacySnapshots();
+			}
+			if (!equals(importedAutomation()?.state.definition, disabledDefinition)) {
+				markConflict();
+				return;
+			}
 			item = await this._advanceMigrationItem(item, 'localRemoved');
 		}
 		if (item.phase === 'localRemoved') {
-			const imported = this._hostAutomations.get(hostKey(source.authority, item.resource));
+			const imported = importedAutomation();
 			if (!imported) {
-				throw new Error(`Imported automation is unavailable: ${item.resource}`);
-			}
-			if (imported.state.definition.enabled !== item.enabled) {
+				item = await this._abortMigrationItem(item, 'localRemoved');
+			} else if (equals(imported.state.definition, enabledDefinition)) {
+				item = await this._advanceMigrationItem(item, 'hostEnabled');
+			} else if (!equals(imported.state.definition, disabledDefinition)) {
+				markConflict();
+				return;
+			} else {
 				try {
 					await connection.updateAutomation({
 						channel: item.resource,
@@ -517,18 +615,187 @@ export class AutomationService extends Disposable implements IAutomationService 
 					});
 				} catch (error) {
 					const current = this._hostAutomations.get(hostKey(source.authority, item.resource));
-					if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.Conflict || current?.state.definition.enabled !== item.enabled) {
+					if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.Conflict || !equals(current?.state.definition, enabledDefinition)) {
 						throw error;
 					}
 				}
+				item = await this._advanceMigrationItem(item, 'hostEnabled');
 			}
-			item = await this._advanceMigrationItem(item, 'hostEnabled');
 		}
 		if (item.phase === 'hostEnabled') {
+			const imported = importedAutomation();
+			if (!imported) {
+				await this._abortMigrationItem(item, 'hostEnabled');
+				return;
+			}
+			if (!equals(imported.state.definition, enabledDefinition)) {
+				markConflict();
+				return;
+			}
 			await this._advanceMigrationItem(item, 'completed');
-			this._pendingMigrationAutomations.delete(item.automationId);
-			this._pendingMigrationRuns.delete(item.automationId);
+			this._pendingMigrationEntries.delete(identity);
+			this._migrationConflicts.delete(identity);
 			this._refreshProjection();
+		}
+	}
+
+	private async _ensureImportedAutomation(source: IHostSource, item: IMigrationItem, definition: AutomationDefinition, forceCreate = false): Promise<IHostAutomation | undefined> {
+		const existing = this._hostAutomations.get(hostKey(source.authority, item.resource));
+		if (existing && !forceCreate) {
+			return existing;
+		}
+		const connection = source.connection;
+		const journal = await this._readMigrationJournal();
+		if (!connection || !journal?.batchId) {
+			return undefined;
+		}
+		try {
+			await connection.createAutomation({
+				channel: item.resource,
+				definition,
+				import: {
+					source: 'vscode-legacy-automations',
+					batchId: journal.batchId,
+					itemId: migrationItemIdentity(item),
+				},
+			});
+		} catch (error) {
+			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.AlreadyExists) {
+				throw error;
+			}
+		}
+		await this._attachAutomation(source, item.resource);
+		return this._hostAutomations.get(hostKey(source.authority, item.resource));
+	}
+
+	private async _resolveMigrationDefinition(source: IHostSource, item: IMigrationItem, entry: ILegacyAutomationEntry): Promise<{ item: IMigrationItem; definition: AutomationDefinition }> {
+		if (item.definition) {
+			return { item, definition: item.definition };
+		}
+		const imported = this._hostAutomations.get(hostKey(source.authority, item.resource));
+		const definition = imported
+			? { ...imported.state.definition, enabled: false }
+			: definitionFromOptions({ ...entry.automation, enabled: false }, (modelId, provider) => this._normalizeModelId(source, provider, modelId));
+		while (true) {
+			const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
+			if (!raw) {
+				throw new Error(`Missing migration journal for automation: ${item.automationId}`);
+			}
+			const journal = JSON.parse(raw) as IMigrationJournal;
+			const current = journal.items.find(candidate =>
+				candidate.automationId === item.automationId
+				&& candidate.authority === item.authority
+				&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+			);
+			if (!current) {
+				throw new Error(`Missing migration journal item for automation: ${item.automationId}`);
+			}
+			if (current.definition) {
+				this._migrationJournal = journal;
+				return { item: current, definition: current.definition };
+			}
+			const updated: IMigrationItem = { ...current, definition };
+			const items = journal.items.map(candidate =>
+				candidate.automationId === item.automationId
+					&& candidate.authority === item.authority
+					&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+					? updated
+					: candidate
+			);
+			const result = await this.legacyMigrationStorageService.compareAndSwap(
+				MIGRATION_JOURNAL_KEY,
+				raw,
+				JSON.stringify({ ...journal, items }),
+			);
+			if (result.swapped) {
+				this._migrationJournal = { ...journal, items };
+				return { item: updated, definition };
+			}
+		}
+	}
+
+	private async _abortMigrationItem(item: IMigrationItem, expectedPhase: MigrationPhase): Promise<IMigrationItem> {
+		while (true) {
+			const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
+			if (!raw) {
+				throw new Error(`Missing migration journal for automation: ${item.automationId}`);
+			}
+			const journal = JSON.parse(raw) as IMigrationJournal;
+			const current = journal.items.find(candidate =>
+				candidate.automationId === item.automationId
+				&& candidate.authority === item.authority
+				&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+			);
+			if (!current) {
+				throw new Error(`Missing migration journal item for automation: ${item.automationId}`);
+			}
+			if (current.phase !== expectedPhase) {
+				this._migrationJournal = journal;
+				return current;
+			}
+			const updated: IMigrationItem = { ...current, phase: 'aborted' };
+			const result = await this.legacyMigrationStorageService.compareAndSwap(
+				MIGRATION_JOURNAL_KEY,
+				raw,
+				JSON.stringify({
+					...journal,
+					items: journal.items.map(candidate =>
+						candidate.automationId === item.automationId
+							&& candidate.authority === item.authority
+							&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+							? updated
+							: candidate
+					),
+				}),
+			);
+			if (result.swapped) {
+				this._migrationJournal = {
+					...journal,
+					items: journal.items.map(candidate =>
+						candidate.automationId === item.automationId
+							&& candidate.authority === item.authority
+							&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+							? updated
+							: candidate
+					),
+				};
+				const identity = migrationItemIdentity(updated);
+				this._pendingMigrationEntries.delete(identity);
+				this._migrationConflicts.delete(identity);
+				this._refreshProjection();
+				return updated;
+			}
+		}
+	}
+
+	private async _refreshMigrationBackupRuns(sourceKey: string, automationId: string): Promise<readonly IAutomationRun[]> {
+		while (true) {
+			const raw = await this.legacyMigrationStorageService.read(MIGRATION_BACKUP_KEY);
+			if (!raw) {
+				throw new Error(`Missing migration backup for automation: ${automationId}`);
+			}
+			const backups = JSON.parse(raw) as Record<string, IMigrationBackup>;
+			const backupKey = migrationIdentity(sourceKey, automationId);
+			const backup = backups[backupKey];
+			if (!backup) {
+				throw new Error(`Missing migration backup for automation: ${automationId}`);
+			}
+			const snapshot = await this._legacyMigrationFor(sourceKey).read();
+			if (!snapshot.automations.some(automation => automation.id === automationId)) {
+				return backup.runs;
+			}
+			const runs = snapshot.runs.filter(run => run.automationId === automationId);
+			if (equals(backup.runs, runs)) {
+				return runs;
+			}
+			const result = await this.legacyMigrationStorageService.compareAndSwap(
+				MIGRATION_BACKUP_KEY,
+				raw,
+				JSON.stringify({ ...backups, [backupKey]: { ...backup, runs } }),
+			);
+			if (result.swapped) {
+				return runs;
+			}
 		}
 	}
 
@@ -543,21 +810,30 @@ export class AutomationService extends Disposable implements IAutomationService 
 		return value;
 	}
 
-	private async _ensureMigrationItem(automation: IAutomation, authority: string): Promise<IMigrationItem> {
-		await this._writeMigrationBackup(automation);
+	private async _ensureMigrationItem(entry: ILegacyAutomationEntry, source: IHostSource): Promise<IMigrationItem> {
+		const { automation, sourceKey } = entry;
+		const authority = source.authority;
+		const definition = definitionFromOptions({ ...automation, enabled: false }, (modelId, provider) => this._normalizeModelId(source, provider, modelId));
+		await this._writeMigrationBackup(entry);
 		while (true) {
 			const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
 			const journal: IMigrationJournal = raw ? JSON.parse(raw) as IMigrationJournal : { version: 1, batchId: generateUuid(), items: [] };
-			const existing = journal.items.find(item => item.automationId === automation.id && item.authority === authority);
+			const existing = journal.items.find(item =>
+				item.automationId === automation.id
+				&& item.authority === authority
+				&& migrationItemSourceKey(item) === sourceKey
+			);
 			if (existing) {
 				this._migrationJournal = journal;
 				return existing;
 			}
 			const item: IMigrationItem = {
 				automationId: automation.id,
+				sourceKey,
 				authority,
-				resource: migrationResource(automation.id),
+				resource: migrationResource(sourceKey, automation.id),
 				enabled: automation.enabled,
+				definition,
 				phase: 'previewed',
 			};
 			const result = await this.legacyMigrationStorageService.compareAndSwap(
@@ -579,7 +855,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 				throw new Error(`Missing migration journal for automation: ${item.automationId}`);
 			}
 			const journal = JSON.parse(raw) as IMigrationJournal;
-			const current = journal.items.find(candidate => candidate.automationId === item.automationId && candidate.authority === item.authority);
+			const current = journal.items.find(candidate =>
+				candidate.automationId === item.automationId
+				&& candidate.authority === item.authority
+				&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+			);
 			if (!current) {
 				throw new Error(`Missing migration journal item for automation: ${item.automationId}`);
 			}
@@ -594,7 +874,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 				JSON.stringify({
 					...journal,
 					items: journal.items.map(candidate =>
-						candidate.automationId === item.automationId && candidate.authority === item.authority ? updated : candidate
+						candidate.automationId === item.automationId
+							&& candidate.authority === item.authority
+							&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+							? updated
+							: candidate
 					),
 				}),
 			);
@@ -602,7 +886,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 				this._migrationJournal = {
 					...journal,
 					items: journal.items.map(candidate =>
-						candidate.automationId === item.automationId && candidate.authority === item.authority ? updated : candidate
+						candidate.automationId === item.automationId
+							&& candidate.authority === item.authority
+							&& migrationItemSourceKey(candidate) === migrationItemSourceKey(item)
+							? updated
+							: candidate
 					),
 				};
 				return updated;
@@ -610,21 +898,22 @@ export class AutomationService extends Disposable implements IAutomationService 
 		}
 	}
 
-	private async _writeMigrationBackup(automation: IAutomation): Promise<void> {
+	private async _writeMigrationBackup(entry: ILegacyAutomationEntry): Promise<void> {
+		const backupKey = migrationIdentity(entry.sourceKey, entry.automation.id);
 		while (true) {
 			const raw = await this.legacyMigrationStorageService.read(MIGRATION_BACKUP_KEY);
 			const backups = raw ? JSON.parse(raw) as Record<string, IMigrationBackup> : {};
-			if (backups[automation.id]) {
+			if (backups[backupKey]) {
 				return;
 			}
 			const updated = {
-				automation,
-				runs: this._legacySnapshot.runs.filter(run => run.automationId === automation.id),
+				automation: entry.automation,
+				runs: entry.runs,
 			};
 			const result = await this.legacyMigrationStorageService.compareAndSwap(
 				MIGRATION_BACKUP_KEY,
 				raw,
-				JSON.stringify({ ...backups, [automation.id]: updated }),
+				JSON.stringify({ ...backups, [backupKey]: updated }),
 			);
 			if (result.swapped) {
 				return;
@@ -632,13 +921,13 @@ export class AutomationService extends Disposable implements IAutomationService 
 		}
 	}
 
-	private async _readMigrationBackup(automationId: string): Promise<IMigrationBackup | undefined> {
+	private async _readMigrationBackup(sourceKey: string, automationId: string): Promise<IMigrationBackup | undefined> {
 		const raw = await this.legacyMigrationStorageService.read(MIGRATION_BACKUP_KEY);
 		if (!raw) {
 			return undefined;
 		}
 		const backups = JSON.parse(raw) as Record<string, IMigrationBackup>;
-		const backup = backups[automationId];
+		const backup = backups[migrationIdentity(sourceKey, automationId)];
 		if (!backup) {
 			return undefined;
 		}
@@ -684,6 +973,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			});
 			this._refreshProjection();
 			this._queueHostAutomationModelNormalization(hostKey(source.authority, resource));
+			this._queueMigrationRetry(source);
 		};
 		source.store.add(reference.object.onDidChange(update));
 		update();
@@ -787,6 +1077,12 @@ export class AutomationService extends Disposable implements IAutomationService 
 			: modelId;
 	}
 
+	private _queueMigrationRetry(source: IHostSource): void {
+		void this._syncSequencer.queue(() => this._migrateLegacyAutomations(source)).catch(error => {
+			this.logService.error(`[AutomationService] Failed to retry migrations for host '${source.authority}'.`, error);
+		});
+	}
+
 	private _removeHostAutomation(source: IHostSource, resource: string): void {
 		source.automationReferences.get(resource)?.dispose();
 		source.automationReferences.delete(resource);
@@ -799,6 +1095,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			}
 		}
 		this._refreshProjection();
+		this._queueMigrationRetry(source);
 	}
 
 	private _authorityForTarget(target: AutomationTarget): string {
@@ -824,14 +1121,18 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	private _pendingMigrationAutomation(id: string): IAutomation | undefined {
-		return [...this._pendingMigrationAutomations.values()]
-			.map(automation => toPendingMigrationAutomation(automation, this._authorityForTarget(automation.target)))
+		return [...this._pendingMigrationEntries.values()]
+			.map(entry => toPendingMigrationAutomation(
+				entry,
+				this._authorityForTarget(entry.automation.target),
+				this._migrationConflicts.has(migrationIdentity(entry.sourceKey, entry.automation.id)),
+			))
 			.find(automation => automation.id === id);
 	}
 
 	private _refreshProjection(): void {
 		const pendingResources = new Set(this._migrationJournal?.items
-			.filter(item => item.phase !== 'completed')
+			.filter(item => !isTerminalMigrationPhase(item.phase) && !this._migrationConflicts.has(migrationItemIdentity(item)))
 			.map(item => hostKey(item.authority, item.resource)));
 		const hostAutomations = [...this._hostAutomations.values()]
 			.filter(automation => !pendingResources.has(hostKey(automation.authority, automation.resource)))
@@ -845,21 +1146,22 @@ export class AutomationService extends Disposable implements IAutomationService 
 				}
 			}
 		}
-		const pendingAutomations = [...this._pendingMigrationAutomations.values()].map(automation =>
-			toPendingMigrationAutomation(automation, this._authorityForTarget(automation.target))
+		const pendingAutomations = [...this._pendingMigrationEntries.values()].map(entry =>
+			toPendingMigrationAutomation(
+				entry,
+				this._authorityForTarget(entry.automation.target),
+				this._migrationConflicts.has(migrationIdentity(entry.sourceKey, entry.automation.id)),
+			)
 		);
-		const pendingRuns = [...this._pendingMigrationRuns.values()].flat().map(run => {
-			const automation = this._pendingMigrationAutomations.get(run.automationId);
-			if (!automation) {
-				return undefined;
-			}
-			const authority = this._authorityForTarget(automation.target);
-			return {
+		const pendingRuns = [...this._pendingMigrationEntries.values()].flatMap(entry => {
+			const authority = this._authorityForTarget(entry.automation.target);
+			const migrationConflict = this._migrationConflicts.has(migrationIdentity(entry.sourceKey, entry.automation.id));
+			return entry.runs.map(run => ({
 				...run,
-				id: hostKey(authority, `legacy-run:${run.id}`),
-				automationId: hostKey(authority, migrationResource(automation.id)),
-			};
-		}).filter((run): run is IAutomationRun => !!run);
+				id: hostKey(authority, `legacy-run:${migrationSourceDiscriminator(entry.sourceKey)}:${run.id}`),
+				automationId: pendingMigrationId(entry, authority, migrationConflict),
+			}));
+		});
 		transaction(tx => {
 			this._automations.set([...hostAutomations, ...pendingAutomations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), tx);
 			this._runs.set([...hostRuns, ...pendingRuns].sort((a, b) => b.startedAt.localeCompare(a.startedAt)), tx);
@@ -882,6 +1184,26 @@ function migrationPhaseIndex(phase: MigrationPhase): number {
 	return migrationPhases.indexOf(phase);
 }
 
+function isTerminalMigrationPhase(phase: MigrationPhase): boolean {
+	return phase === 'completed' || phase === 'aborted';
+}
+
+function migrationItemSourceKey(item: IMigrationItem): string {
+	return item.sourceKey ?? AUTOMATION_STORAGE_KEY;
+}
+
+function migrationIdentity(sourceKey: string, automationId: string): string {
+	return sourceKey === AUTOMATION_STORAGE_KEY ? automationId : `${sourceKey}:${automationId}`;
+}
+
+function migrationItemIdentity(item: IMigrationItem): string {
+	return migrationIdentity(migrationItemSourceKey(item), item.automationId);
+}
+
+function migrationSourceDiscriminator(sourceKey: string): string {
+	return sourceKey === AUTOMATION_STORAGE_KEY ? 'global' : 'local-agent-host';
+}
+
 function readMigrationJournalValue(raw: string | undefined): IMigrationJournal | undefined {
 	if (!raw) {
 		return undefined;
@@ -893,8 +1215,10 @@ function readMigrationJournalValue(raw: string | undefined): IMigrationJournal |
 	return value;
 }
 
-function migrationResource(automationId: string): string {
-	return `ahp-automation:/vscode-${automationId}`;
+function migrationResource(sourceKey: string, automationId: string): string {
+	return sourceKey === AUTOMATION_STORAGE_KEY
+		? `ahp-automation:/vscode-${automationId}`
+		: `ahp-automation:/vscode-${migrationSourceDiscriminator(sourceKey)}-${automationId}`;
 }
 
 function definitionFromOptions(options: ICreateAutomationOptions, normalizeModelId: (modelId: string, provider: string | undefined) => string): AutomationDefinition {
@@ -1037,19 +1361,29 @@ function toAutomation(host: IHostAutomation): IAutomation {
 	});
 }
 
-function toPendingMigrationAutomation(automation: IAutomation, authority: string): IAutomation {
+function toPendingMigrationAutomation(entry: ILegacyAutomationEntry, authority: string, migrationConflict = false): IAutomation {
+	const { automation, sourceKey } = entry;
+	const resource = migrationResource(sourceKey, automation.id);
 	return Object.freeze({
 		...automation,
-		id: hostKey(authority, migrationResource(automation.id)),
+		id: pendingMigrationId(entry, authority, migrationConflict),
 		host: {
 			authority,
-			resource: migrationResource(automation.id),
+			resource,
 			revision: 0,
 			connected: false,
 			hasUnsupportedTriggers: false,
 			migrationPending: true,
+			migrationConflict,
 		},
 	});
+}
+
+function pendingMigrationId(entry: ILegacyAutomationEntry, authority: string, migrationConflict: boolean): string {
+	const resource = migrationConflict
+		? `legacy-migration-conflict:${migrationIdentity(entry.sourceKey, entry.automation.id)}`
+		: migrationResource(entry.sourceKey, entry.automation.id);
+	return hostKey(authority, resource);
 }
 
 function targetFromDefinition(definition: AutomationDefinition, authority = AMBIENT_AGENT_HOST_AUTHORITY): AutomationTarget {
@@ -1104,6 +1438,7 @@ function toRun(run: AutomationRunState | AutomationRunSummary, automationId: str
 		sessionResources: sessions,
 		artifactCount: fullRun ? run.artifacts.length : run.artifactCount,
 		blocker: lifecycle.status === AutomationRunStatus.Blocked ? lifecycle.blocker.kind : undefined,
+		canCancel: run.operations.includes(AutomationRunOperation.Cancel),
 		startedAt: lifecycleStartedAt(lifecycle),
 		completedAt: lifecycleCompletedAt(lifecycle),
 		errorMessage: lifecycle.status === AutomationRunStatus.Failed ? lifecycle.error.message : undefined,

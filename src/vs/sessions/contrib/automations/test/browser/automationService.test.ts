@@ -13,17 +13,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationDefinition, AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CreateAutomationParams, ListAutomationsResult, RunAutomationParams, RunAutomationResult, UpdateAutomationParams } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/common/errors.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { AutomationService } from '../../browser/automationService.js';
 import { LegacyAutomationMigration } from '../../browser/legacyAutomationMigration.js';
-import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationCompareAndSwapResult, ILegacyAutomationMigrationStorageService } from '../../common/legacyAutomationMigrationStorage.js';
+import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationCompareAndSwapResult, ILegacyAutomationMigrationStorageService, LEGACY_AUTOMATION_STORAGE_KEYS, LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY } from '../../common/legacyAutomationMigrationStorage.js';
 
 suite('AutomationService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -147,6 +150,392 @@ suite('AutomationService', () => {
 				modelId: 'auto',
 				migrationPending: undefined,
 			}],
+			legacyAutomations: [],
+		});
+	});
+
+	test('migrates definitions already moved to the local provider ledger', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('provider', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage, operations),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true);
+
+		assert.deepStrictEqual({
+			operations,
+			automations: automations.map(automation => ({
+				name: automation.name,
+				resource: automation.host?.resource,
+			})),
+			providerLedger: JSON.parse(storage.get(LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations,
+		}, {
+			operations: ['host:create-disabled', 'legacy:disable', 'legacy:remove', 'host:enable'],
+			automations: [{
+				name: 'provider',
+				resource: 'ahp-automation:/vscode-local-agent-host-provider',
+			}],
+			providerLedger: [],
+		});
+	});
+
+	test('keeps same-ID definitions from different legacy ledgers distinct', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('same', 'copilotcli')]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storage.store(LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY, serializeLegacyLedger([{
+			...serializedAutomation('same', 'copilotcli'),
+			prompt: 'Provider-owned prompt',
+		}]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items => items.length === 2 && items.every(automation => automation.host?.migrationPending !== true));
+
+		assert.deepStrictEqual(automations
+			.map(automation => ({ prompt: automation.prompt, resource: automation.host?.resource }))
+			.sort((a, b) => a.prompt.localeCompare(b.prompt)), [{
+				prompt: 'Provider-owned prompt',
+				resource: 'ahp-automation:/vscode-local-agent-host-same',
+			}, {
+				prompt: 'Run tests',
+				resource: 'ahp-automation:/vscode-same',
+			}]);
+	});
+
+	test('does not disable a legacy definition changed after preview', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+		const originalRaw = serializeLegacyLedger([serializedAutomation('changed', 'copilotcli')]);
+		storage.store(AUTOMATION_STORAGE_KEY, originalRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const expected = (await migration.read()).automations[0];
+		const changedRaw = serializeLegacyLedger([{
+			...serializedAutomation('changed', 'copilotcli'),
+			prompt: 'Changed concurrently',
+		}]);
+		storage.store(AUTOMATION_STORAGE_KEY, changedRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
+
+		assert.strictEqual(migrationStorage.value, changedRaw);
+	});
+
+	test('does not mistake a concurrent user disable for its own migration write', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('disabled', 'copilotcli')]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const expected = (await migration.read()).automations[0];
+		const changedRaw = serializeLegacyLedger([{
+			...serializedAutomation('disabled', 'copilotcli'),
+			enabled: false,
+			updatedAt: '2026-01-02T00:00:00.000Z',
+		}]);
+		storage.store(AUTOMATION_STORAGE_KEY, changedRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
+
+		assert.strictEqual(migrationStorage.value, changedRaw);
+	});
+
+	test('does not enable an imported definition when the source is concurrently deleted', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('deleted', 'copilotcli')]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		connection.afterCreateAutomation = () => {
+			storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		};
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage, operations),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1
+			&& items[0].name === 'deleted'
+			&& items[0].host?.migrationPending !== true
+		);
+		const journal = JSON.parse(storage.get('chat.automations.ahpMigration.v1', StorageScope.APPLICATION)!) as { items: { phase: string }[] };
+		assert.deepStrictEqual({
+			automations: automations.map(automation => ({
+				name: automation.name,
+				enabled: automation.enabled,
+				migrationPending: automation.host?.migrationPending,
+			})),
+			operations,
+			journalPhase: journal.items[0].phase,
+		}, {
+			automations: [{ name: 'deleted', enabled: false, migrationPending: undefined }],
+			operations: ['host:create-disabled'],
+			journalPhase: 'aborted',
+		});
+	});
+
+	test('does not remove the source when the imported host definition is replaced', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('replaced', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		const migrationStorage = new RecordingMigrationStorage(storage, operations);
+		migrationStorage.beforeLegacyCompareAndSwap = () => {
+			connection.setAutomationDefinition('ahp-automation:/vscode-replaced', {
+				...connection.lastCreateDefinition!,
+				title: 'Replaced on host',
+			});
+		};
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+		const ledger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as { automations: { name: string; enabled: boolean }[] };
+		const journal = JSON.parse(storage.get('chat.automations.ahpMigration.v1', StorageScope.APPLICATION)!) as { items: { phase: string }[] };
+		assert.deepStrictEqual({
+			names: automations.map(automation => automation.name).sort(),
+			legacyAutomations: ledger.automations.map(automation => ({ name: automation.name, enabled: automation.enabled })),
+			journalPhase: journal.items[0].phase,
+			operations,
+		}, {
+			names: ['Replaced on host', 'replaced'],
+			legacyAutomations: [{ name: 'replaced', enabled: false }],
+			journalPhase: 'imported',
+			operations: ['host:create-disabled', 'legacy:disable'],
+		});
+	});
+
+	test('captures concurrent run updates before removing the legacy source', async () => {
+		const initialRun: IAutomationRun = {
+			id: 'initial-run',
+			automationId: 'runs',
+			status: 'completed',
+			trigger: 'manual',
+			startedAt: '2026-01-01T00:00:00.000Z',
+			completedAt: '2026-01-01T00:01:00.000Z',
+		};
+		const concurrentRun: IAutomationRun = {
+			id: 'concurrent-run',
+			automationId: 'runs',
+			status: 'completed',
+			trigger: 'manual',
+			startedAt: '2026-01-02T00:00:00.000Z',
+			completedAt: '2026-01-02T00:01:00.000Z',
+		};
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('runs', 'copilotcli')], [initialRun]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		migrationStorage.beforeLegacyRemoveCompareAndSwap = () => {
+			const current = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as {
+				schemaVersion: number;
+				revision: number;
+				automations: ReturnType<typeof serializedAutomation>[];
+				runs: IAutomationRun[];
+			};
+			storage.store(AUTOMATION_STORAGE_KEY, JSON.stringify({
+				...current,
+				revision: current.revision + 1,
+				runs: [...current.runs, concurrentRun],
+			}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		};
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true && items[0].enabled);
+		const backups = JSON.parse(storage.get('chat.automations.ahpMigration.backup.v1', StorageScope.APPLICATION)!) as Record<string, { runs: IAutomationRun[] }>;
+		const ledger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as { automations: unknown[] };
+		assert.deepStrictEqual({
+			backupRunIds: backups.runs.runs.map(run => run.id).sort(),
+			legacyAutomations: ledger.automations,
+		}, {
+			backupRunIds: ['concurrent-run', 'initial-run'],
+			legacyAutomations: [],
+		});
+	});
+
+	test('does not remove local data when the deterministic host resource conflicts', async () => {
+		const legacyRun: IAutomationRun = {
+			id: 'legacy-run',
+			automationId: 'conflict',
+			status: 'completed',
+			trigger: 'manual',
+			startedAt: '2026-01-01T00:00:00.000Z',
+			completedAt: '2026-01-01T00:01:00.000Z',
+		};
+		const raw = serializeLegacyLedger([serializedAutomation('conflict', 'copilotcli')], [legacyRun]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/vscode-conflict', false, 'Different host definition');
+		const didConflict = Event.toPromise(connection.onDidCreateAutomationConflict);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		await didConflict;
+		const automations = await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+
+		assert.deepStrictEqual({
+			automations: automations
+				.map(automation => ({
+					name: automation.name,
+					migrationPending: automation.host?.migrationPending,
+					migrationConflict: automation.host?.migrationConflict,
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+			uniqueIds: new Set(automations.map(automation => automation.id)).size,
+			runMatchesConflict: service.runs.get()[0].automationId === automations.find(automation => automation.host?.migrationConflict)?.id,
+			legacyLedger: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			automations: [{
+				name: 'conflict',
+				migrationPending: true,
+				migrationConflict: true,
+			}, {
+				name: 'Different host definition',
+				migrationPending: undefined,
+				migrationConflict: undefined,
+			}],
+			uniqueIds: 2,
+			runMatchesConflict: true,
+			legacyLedger: raw,
+		});
+	});
+
+	test('one migration conflict does not block unrelated definitions', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([
+			serializedAutomation('conflict-first', 'copilotcli'),
+			serializedAutomation('migrates-second', 'copilotcli'),
+		]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/vscode-conflict-first', false, 'Different host definition');
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items =>
+			items.some(automation => automation.host?.migrationConflict === true)
+			&& items.some(automation => automation.name === 'migrates-second' && automation.host?.migrationPending !== true)
+		);
+
+		assert.deepStrictEqual({
+			names: automations.map(automation => automation.name).sort(),
+			remainingLegacyNames: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { name: string }) => automation.name),
+		}, {
+			names: ['Different host definition', 'conflict-first', 'migrates-second'],
+			remainingLegacyNames: ['conflict-first'],
+		});
+	});
+
+	test('resumes migration after a conflicting host definition is corrected', async () => {
+		const modelIdentifier = 'agent-host-copilotcliauto';
+		const raw = serializeLegacyLedger([serializedAutomation('retry-conflict', 'copilotcli', modelIdentifier)]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const resource = 'ahp-automation:/vscode-retry-conflict';
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation(resource, false, 'Different host definition');
+		const models = new Map([[modelIdentifier, 'auto']]);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(models),
+		));
+		await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+
+		const migrated = Event.toPromise(connection.onDidEnableImportedAutomation);
+		models.set(modelIdentifier, 'different-model');
+		connection.setAutomationDefinition(resource, connection.lastCreateDefinition!);
+		connection.setAutomationDefinition(resource, connection.lastCreateDefinition!);
+		await migrated;
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1
+			&& items[0].name === 'retry-conflict'
+			&& items[0].host?.migrationPending !== true
+			&& items[0].enabled
+		);
+		assert.deepStrictEqual({
+			automations: automations.map(automation => ({
+				name: automation.name,
+				modelId: automation.modelId,
+				migrationPending: automation.host?.migrationPending,
+			})),
+			legacyAutomations: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations,
+		}, {
+			automations: [{ name: 'retry-conflict', modelId: 'auto', migrationPending: undefined }],
+			legacyAutomations: [],
+		});
+	});
+
+	test('recreates a deleted conflicting host definition before source removal', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('delete-conflict', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const resource = 'ahp-automation:/vscode-delete-conflict';
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation(resource, false, 'Different host definition');
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+
+		connection.removeAutomation(resource);
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1
+			&& items[0].name === 'delete-conflict'
+			&& items[0].host?.migrationPending !== true
+			&& items[0].enabled
+		);
+		const ledger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as { automations: unknown[] };
+		assert.deepStrictEqual({
+			automations: automations.map(automation => automation.name),
+			legacyAutomations: ledger.automations,
+		}, {
+			automations: ['delete-conflict'],
 			legacyAutomations: [],
 		});
 	});
@@ -436,9 +825,13 @@ class TestConnection extends NullAgentHostService {
 	readonly onDidListAutomations = this._onDidListAutomations.event;
 	private readonly _onDidEnableImportedAutomation = new Emitter<void>();
 	readonly onDidEnableImportedAutomation = this._onDidEnableImportedAutomation.event;
+	private readonly _onDidCreateAutomationConflict = new Emitter<void>();
+	readonly onDidCreateAutomationConflict = this._onDidCreateAutomationConflict.event;
 	private readonly automations = new Map<string, TestSubscription<AutomationState>>();
 	private readonly runs = new Map<string, TestSubscription<AutomationRunState>>();
 	private readonly modelIds: readonly string[];
+	lastCreateDefinition: AutomationDefinition | undefined;
+	afterCreateAutomation: (() => void) | undefined;
 
 	constructor(providers: readonly string[], operations: string[] = [], modelIds: readonly string[] = ['auto', 'openrouter/group/model']) {
 		super();
@@ -479,6 +872,11 @@ class TestConnection extends NullAgentHostService {
 	}
 
 	override async createAutomation(params: CreateAutomationParams): Promise<void> {
+		this.lastCreateDefinition = params.definition;
+		if (this.automations.has(params.channel)) {
+			queueMicrotask(() => this._onDidCreateAutomationConflict.fire());
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Automation already exists: ${params.channel}`);
+		}
 		this.operations.push(params.definition.enabled ? 'host:create-enabled' : 'host:create-disabled');
 		const now = new Date().toISOString();
 		const state: AutomationState = {
@@ -491,6 +889,18 @@ class TestConnection extends NullAgentHostService {
 			modifiedAt: now,
 		};
 		this.automations.set(params.channel, new TestSubscription(state));
+		this.afterCreateAutomation?.();
+	}
+
+	setAutomationDefinition(resource: string, definition: AutomationDefinition): void {
+		const subscription = this.automations.get(resource)!;
+		const current = subscription.value as AutomationState;
+		subscription.set({
+			...current,
+			definition,
+			revision: current.revision + 1,
+			modifiedAt: new Date().toISOString(),
+		});
 	}
 
 	seedAutomation(resource: string, enabled: boolean, title = 'resume', modelId?: string): void {
@@ -514,6 +924,15 @@ class TestConnection extends NullAgentHostService {
 			type: 'root/automationAdded',
 			channel: 'ahp-root://',
 			summary: toSummary(state),
+		});
+	}
+
+	removeAutomation(resource: string): void {
+		this.automations.delete(resource);
+		this._onDidNotificationEmitter.fire({
+			type: 'root/automationRemoved',
+			channel: 'ahp-root://',
+			automation: resource,
 		});
 	}
 
@@ -630,6 +1049,8 @@ class TestConnectionsService implements IAgentHostConnectionsService {
 class RecordingMigrationStorage implements ILegacyAutomationMigrationStorageService {
 	declare readonly _serviceBrand: undefined;
 	injectBackupConflict = false;
+	beforeLegacyCompareAndSwap: (() => void) | undefined;
+	beforeLegacyRemoveCompareAndSwap: (() => void) | undefined;
 
 	constructor(
 		private readonly storage: InMemoryStorageService,
@@ -645,6 +1066,20 @@ class RecordingMigrationStorage implements ILegacyAutomationMigrationStorageServ
 	}
 
 	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<ILegacyAutomationMigrationCompareAndSwapResult> {
+		if (LEGACY_AUTOMATION_STORAGE_KEYS.includes(key as typeof LEGACY_AUTOMATION_STORAGE_KEYS[number]) && this.beforeLegacyCompareAndSwap) {
+			const callback = this.beforeLegacyCompareAndSwap;
+			this.beforeLegacyCompareAndSwap = undefined;
+			callback();
+		}
+		if (LEGACY_AUTOMATION_STORAGE_KEYS.includes(key as typeof LEGACY_AUTOMATION_STORAGE_KEYS[number]) && this.beforeLegacyRemoveCompareAndSwap && expectedValue) {
+			const previous = JSON.parse(expectedValue) as { automations: unknown[] };
+			const next = JSON.parse(newValue) as { automations: unknown[] };
+			if (next.automations.length < previous.automations.length) {
+				const callback = this.beforeLegacyRemoveCompareAndSwap;
+				this.beforeLegacyRemoveCompareAndSwap = undefined;
+				callback();
+			}
+		}
 		const currentValue = this.storage.get(key, StorageScope.APPLICATION);
 		if (currentValue !== expectedValue) {
 			return { swapped: false, currentValue };
@@ -660,7 +1095,7 @@ class RecordingMigrationStorage implements ILegacyAutomationMigrationStorageServ
 			this.storage.store(key, concurrentValue, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			return { swapped: false, currentValue: concurrentValue };
 		}
-		if (key === AUTOMATION_STORAGE_KEY) {
+		if (LEGACY_AUTOMATION_STORAGE_KEYS.includes(key as typeof LEGACY_AUTOMATION_STORAGE_KEYS[number])) {
 			const previous = expectedValue ? JSON.parse(expectedValue) as { automations: { enabled: boolean }[] } : undefined;
 			const next = JSON.parse(newValue) as { automations: { enabled: boolean }[] };
 			if (previous?.automations.length && next.automations.length === previous.automations.length) {
@@ -698,8 +1133,8 @@ function testLanguageModelsService(models: ReadonlyMap<string, string> = new Map
 	});
 }
 
-function serializeLegacyLedger(automations: readonly ReturnType<typeof serializedAutomation>[]): string {
-	return JSON.stringify({ schemaVersion: 3, revision: 1, automations, runs: [] });
+function serializeLegacyLedger(automations: readonly ReturnType<typeof serializedAutomation>[], runs: readonly IAutomationRun[] = []): string {
+	return JSON.stringify({ schemaVersion: 3, revision: 1, automations, runs });
 }
 
 function toSummary(state: AutomationState): AutomationSummary {

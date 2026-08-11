@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AutomationTarget, AutomationWorkspaceIsolation, IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
 
 const CURRENT_LEGACY_SCHEMA_VERSION = 3;
+type LegacyAutomationMutationResult = 'updated' | 'unchanged' | 'missing';
 
 interface ISerializedAutomationBase {
 	readonly id: string;
@@ -77,6 +80,7 @@ export class LegacyAutomationMigration {
 	constructor(
 		private readonly storageService: ILegacyAutomationMigrationStorageService,
 		private readonly logService: ILogService,
+		readonly storageKey = AUTOMATION_STORAGE_KEY,
 	) { }
 
 	readCached(raw: string | undefined): ILegacyAutomationMigrationSnapshot {
@@ -115,46 +119,78 @@ export class LegacyAutomationMigration {
 	}
 
 	async read(): Promise<ILegacyAutomationMigrationSnapshot> {
-		return this.readCached(await this.storageService.read());
+		return this.readCached(await this.storageService.read(this.storageKey));
 	}
 
-	async disable(automationId: string): Promise<void> {
-		await this._mutate(automationId, ledger => ({
-			...ledger,
-			automations: ledger.automations.map(automation => automation.id === automationId ? { ...automation, enabled: false } : automation),
-		}));
+	async disable(expected: IAutomation): Promise<LegacyAutomationMutationResult> {
+		return this._mutate(expected, (ledger, current) => {
+			const disabledExpected = { ...expected, enabled: false };
+			if (serializeLegacyAutomationState(current) === serializeLegacyAutomationState(disabledExpected)) {
+				return undefined;
+			}
+			this._throwIfChanged(current, expected);
+			return {
+				...ledger,
+				automations: ledger.automations.map(automation => automation.id === expected.id ? { ...automation, enabled: false } : automation),
+			};
+		});
 	}
 
-	async remove(automationId: string): Promise<void> {
-		await this._mutate(automationId, ledger => ({
-			...ledger,
-			automations: ledger.automations.filter(automation => automation.id !== automationId),
-			runs: ledger.runs.filter(run => run.automationId !== automationId),
-		}));
+	async remove(expected: IAutomation, expectedRuns: readonly IAutomationRun[]): Promise<LegacyAutomationMutationResult> {
+		return this._mutate(expected, (ledger, current, currentRuns) => {
+			this._throwIfChanged(current, { ...expected, enabled: false });
+			if (!equals(currentRuns, expectedRuns)) {
+				throw new Error(`Automation '${expected.name}' run history changed while it was being migrated.`);
+			}
+			return {
+				...ledger,
+				automations: ledger.automations.filter(automation => automation.id !== expected.id),
+				runs: ledger.runs.filter(run => run.automationId !== expected.id),
+			};
+		});
 	}
 
-	private async _mutate(automationId: string, mutate: (ledger: ISerializedLedger) => ISerializedLedger): Promise<void> {
-		let raw = await this.storageService.read();
-		while (raw) {
+	private async _mutate(expected: IAutomation, mutate: (ledger: ISerializedLedger, current: IAutomation, currentRuns: readonly IAutomationRun[]) => ISerializedLedger | undefined): Promise<LegacyAutomationMutationResult> {
+		let raw = await this.storageService.read(this.storageKey);
+		while (true) {
+			if (!raw) {
+				return 'missing';
+			}
 			const ledger = this._parseLedger(raw);
 			if (ledger.schemaVersion > CURRENT_LEGACY_SCHEMA_VERSION) {
 				throw new Error(`Cannot migrate automation ledger schema v${ledger.schemaVersion}.`);
 			}
-			if (!ledger.automations.some(automation => automation.id === automationId)) {
-				return;
+			const serialized = ledger.automations.find(automation => automation.id === expected.id);
+			if (!serialized) {
+				return 'missing';
+			}
+			const current = ledger.schemaVersion === CURRENT_LEGACY_SCHEMA_VERSION
+				? deserializeAutomation(serialized as ISerializedAutomation)
+				: deserializeLegacyAutomation(serialized as ILegacySerializedAutomation);
+			if (!current) {
+				throw new Error(`Cannot migrate malformed automation '${expected.id}'.`);
 			}
 			const next = mutate({
 				...ledger,
 				revision: (ledger.revision ?? 0) + 1,
-			});
-			const result = await this.storageService.compareAndSwap(AUTOMATION_STORAGE_KEY, raw, JSON.stringify(next));
+			}, current, ledger.runs.filter(run => run.automationId === expected.id));
+			if (!next) {
+				return 'unchanged';
+			}
+			const result = await this.storageService.compareAndSwap(this.storageKey, raw, JSON.stringify(next));
 			if (result.swapped) {
-				return;
+				return 'updated';
 			}
 			if (result.currentValue === raw) {
 				throw new Error('Legacy automation storage rejected an unchanged compare-and-swap value.');
 			}
 			raw = result.currentValue;
+		}
+	}
+
+	private _throwIfChanged(current: IAutomation, expected: IAutomation): void {
+		if (serializeLegacyAutomationState(current) !== serializeLegacyAutomationState(expected)) {
+			throw new Error(`Automation '${expected.name}' changed while it was being migrated.`);
 		}
 	}
 
@@ -220,6 +256,17 @@ function createAutomationFromSerialized(serialized: ISerializedAutomationBase, t
 		updatedAt: serialized.updatedAt,
 		lastRunAt: serialized.lastRunAt,
 		nextRunAt: serialized.nextRunAt,
+	});
+}
+
+function serializeLegacyAutomationState(automation: IAutomation): string {
+	return JSON.stringify({
+		id: automation.id,
+		editable: serializeAutomationEditableState(automation),
+		createdAt: automation.createdAt,
+		updatedAt: automation.updatedAt,
+		lastRunAt: automation.lastRunAt ?? null,
+		nextRunAt: automation.nextRunAt ?? null,
 	});
 }
 

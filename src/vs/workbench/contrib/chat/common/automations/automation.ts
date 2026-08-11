@@ -59,6 +59,7 @@ export interface IAutomationHost {
 	readonly connected: boolean;
 	readonly hasUnsupportedTriggers: boolean;
 	readonly migrationPending?: boolean;
+	readonly migrationConflict?: boolean;
 }
 
 /**
@@ -118,6 +119,7 @@ export interface IAutomationRun {
 	readonly sessionResources?: readonly URI[];
 	readonly artifactCount?: number;
 	readonly blocker?: string;
+	readonly canCancel?: boolean;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;
