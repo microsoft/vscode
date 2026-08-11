@@ -198,7 +198,7 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 					languageId: data.props.$$languageId,
 					mode: data.props.$$mode,
 					uniqueEditId,
-					provider: undefined,
+					harness: undefined,
 					agentSessionId: undefined,
 					isSubagentSession: undefined,
 

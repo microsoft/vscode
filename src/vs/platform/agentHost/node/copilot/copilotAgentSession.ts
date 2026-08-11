@@ -53,6 +53,7 @@ import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiv
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
+import { toAgentHostTelemetryHarness } from '../../common/agentHostTelemetry.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
@@ -5070,7 +5071,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 
 				type AgentHostInstructionsCollectedEvent = {
-					provider: string;
+					harness: string;
 					agentSessionId: string;
 					isSubagentSession: boolean;
 					totalInstructionsCount: number;
@@ -5080,7 +5081,7 @@ export class CopilotAgentSession extends Disposable {
 					claudeMdCount: number;
 				};
 				type AgentHostInstructionsCollectedClassification = {
-					provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that emitted this event (e.g. copilotcli). Absent on local rows; use presence to distinguish AH from local.' };
+					harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host harness that emitted this event. Absent on local rows; use presence to distinguish AH from local.' };
 					agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier. Absent on local rows.' };
 					isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the emission was from a subagent session.' };
 					totalInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of instruction sources loaded by the Agent Host session.' };
@@ -5092,7 +5093,7 @@ export class CopilotAgentSession extends Disposable {
 					comment: 'Agent Host emission of agentHost.instructionsCollected. Carries the subset of the local shape that can be honestly (or close-analogously) computed from the SDK\'s InstructionSource list; other fields are intentionally omitted (see source comment).';
 				};
 				this._telemetryService.publicLog2<AgentHostInstructionsCollectedEvent, AgentHostInstructionsCollectedClassification>('agentHost.instructionsCollected', {
-					provider: this.sessionUri.scheme,
+					harness: toAgentHostTelemetryHarness(this.sessionUri.scheme),
 					agentSessionId: AgentSession.id(this.sessionUri),
 					isSubagentSession: isSubagentSession(this.sessionUri),
 					totalInstructionsCount: sources.length,

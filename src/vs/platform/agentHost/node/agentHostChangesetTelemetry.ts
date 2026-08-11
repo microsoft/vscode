@@ -6,6 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
+import { toAgentHostTelemetryHarness } from '../common/agentHostTelemetry.js';
 
 /** The static changeset slot a compute was for. */
 export type StaticChangesetTelemetryKind = 'branch' | 'session' | 'uncommitted';
@@ -113,7 +114,7 @@ export type ChangesetComputedKind = StaticChangesetTelemetryKind | 'turn';
 export type ChangesetComputedOutcome = StaticChangesetOutcome | TurnChangesetOutcome;
 
 type ChangesetComputedEvent = {
-	provider: string;
+	harness: string;
 	agentSessionId: string;
 	turnId?: string;
 	kind: ChangesetComputedKind;
@@ -130,7 +131,7 @@ type ChangesetComputedEvent = {
 };
 
 type ChangesetComputedClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The harness handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For a turn changeset, the turn whose changeset was computed; for a static changeset, the turn that drove the recompute when one did (absent for truncation/refresh recomputes).' };
 	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The changeset computed: a static slot (branch, session, or uncommitted) or a per-turn diff (turn).' };
@@ -149,12 +150,12 @@ type ChangesetComputedClassification = {
 };
 
 /**
- * Shared emitter for `agentHost.changesetComputed`. Correlation (`provider`,
+ * Shared emitter for `agentHost.changesetComputed`. Correlation (`harness`,
  * `agentSessionId`) is derived from `session`; `turnId` is included when set.
  */
-function reportChangesetComputed(telemetryService: ITelemetryService, session: string, turnId: string | undefined, fields: Omit<ChangesetComputedEvent, 'provider' | 'agentSessionId' | 'turnId'>): void {
+function reportChangesetComputed(telemetryService: ITelemetryService, session: string, turnId: string | undefined, fields: Omit<ChangesetComputedEvent, 'harness' | 'agentSessionId' | 'turnId'>): void {
 	telemetryService.publicLog2<ChangesetComputedEvent, ChangesetComputedClassification>('agentHost.changesetComputed', {
-		provider: URI.parse(session).scheme,
+		harness: toAgentHostTelemetryHarness(URI.parse(session).scheme),
 		agentSessionId: AgentSession.id(session),
 		...(turnId !== undefined ? { turnId } : {}),
 		...fields,

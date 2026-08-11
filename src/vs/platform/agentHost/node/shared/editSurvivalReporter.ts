@@ -12,6 +12,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
+import { toAgentHostTelemetryHarness } from '../../common/agentHostTelemetry.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
@@ -82,7 +83,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 }
 
 interface IEditSurvivalTelemetryEvent {
-	provider: string;
+	harness: string;
 	modelId: string;
 	toolName: string;
 	agentSessionId: string;
@@ -103,7 +104,7 @@ interface IEditSurvivalTelemetryEvent {
 }
 
 type IEditSurvivalTelemetryClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The harness handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
@@ -194,13 +195,13 @@ class SessionEditSurvivalReporter extends Disposable {
 
 			// Sub-channel URIs (e.g. `ahp-chat:` for the default chat or
 			// subagent chats) encode the parent session URI; resolve them
-			// back so provider/id reflect the underlying harness rather than
+			// back so harness/id reflect the underlying session rather than
 			// the chat scheme. See telemetry gap #6 in #8209.
 			const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
 			this._telemetryService.publicLog2<IEditSurvivalTelemetryEvent, IEditSurvivalTelemetryClassification>(
 				'agentHost.trackEditSurvival',
 				{
-					provider: AgentSession.provider(sessionUri) ?? 'unknown',
+					harness: toAgentHostTelemetryHarness(AgentSession.provider(sessionUri) ?? 'unknown'),
 					modelId: this._params.modelId ?? '',
 					toolName: this._params.toolName ?? '',
 					agentSessionId: AgentSession.id(sessionUri),

@@ -241,7 +241,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'agentHost',
 				toolCallId: 'tc-1',
-				provider: 'mock',
+				harness: 'mock',
 				invocationTimeMs: true,
 				resultSizeInCharacters: 41,
 				turnId: 'turn-1',
@@ -267,7 +267,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
 				toolCallId: 'tc-mcp',
-				provider: 'mock',
+				harness: 'mock',
 				invocationTimeMs: undefined,
 				resultSizeInCharacters: 90,
 				turnId: 'turn-1',
@@ -300,7 +300,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'client',
 				toolCallId: 'tc-client',
-				provider: 'mock',
+				harness: 'mock',
 				invocationTimeMs: true,
 				resultSizeInCharacters: 47,
 				turnId: 'turn-1',
@@ -329,7 +329,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			toolSourceKind: 'agentHost',
 			toolCallId: 'tc-model',
 			invocationTimeMs: undefined,
-			provider: 'mock',
+			harness: 'mock',
 			resultSizeInCharacters: 47,
 			turnId: 'turn-1',
 			model: { trusted: true, value: 'gpt-5.5' },
@@ -518,7 +518,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		assert.deepStrictEqual(stalledEvents(), [{
 			eventName: 'agentHost.toolCallStalled',
 			data: {
-				provider: 'mock',
+				harness: 'mock',
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolConfirmation,
@@ -609,7 +609,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		assert.deepStrictEqual(stalledCompletionEvents(), [{
 			eventName: 'agentHost.stalledToolCallCompleted',
 			data: {
-				provider: 'mock',
+				harness: 'mock',
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,

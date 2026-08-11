@@ -41,7 +41,7 @@ type EditSourcesDetailsTelemetryClassification = {
 	conversationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat conversation identifier when the edit source comes from chat. Sourced from the chat edit session id.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
 	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The process or subsystem that observed the edit source.' };
-	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that produced the edit.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host harness that produced the edit.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
 	modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session that are still in the text document at the end of the session.'; isMeasurement: true };
 	deltaModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session.'; isMeasurement: true };

@@ -6,6 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
+import { toAgentHostTelemetryHarness } from '../../common/agentHostTelemetry.js';
 import { isSubagentSession } from '../../common/state/sessionState.js';
 
 type TodoStoreOperation = 'read' | 'write' | 'mixed';
@@ -15,7 +16,7 @@ type TodoStoreOperationEvent = {
 	operation: TodoStoreOperation;
 	target: TodoStoreTarget;
 	toolCallId: string;
-	provider: string;
+	harness: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
 };
@@ -24,7 +25,7 @@ type TodoStoreOperationClassification = {
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the SQL operation read from, wrote to, or both read from and wrote to todo storage.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the SQL operation referenced todo items, todo dependencies, or both.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the SQL tool call, used to correlate with generic tool telemetry.' };
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The harness handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the todo storage operation belongs to a subagent session.' };
 	owner: 'amunger';
@@ -50,7 +51,7 @@ export function reportCopilotTodoStoreOperation(telemetryService: ITelemetryServ
 	telemetryService.publicLog2<TodoStoreOperationEvent, TodoStoreOperationClassification>('todoStoreOperation', {
 		...operation,
 		toolCallId,
-		provider: session.scheme,
+		harness: toAgentHostTelemetryHarness(session.scheme),
 		agentSessionId: AgentSession.id(session),
 		isSubagentSession: isSubagentSession(session),
 	});

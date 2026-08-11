@@ -16,7 +16,7 @@ export interface IEditArcTelemetryEvent {
 	languageId: string | undefined;
 	mode: string | undefined;
 	uniqueEditId: string | undefined;
-	provider: string | undefined;
+	harness: string | undefined;
 	agentSessionId: string | undefined;
 	isSubagentSession: string | undefined;
 
@@ -44,7 +44,7 @@ export type IEditArcTelemetryClassification = {
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode chat was in.' };
 	uniqueEditId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The unique identifier for the edit.' };
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that produced the edit.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host harness that produced the edit.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the edit was produced in an Agent Host subagent session.' };
 

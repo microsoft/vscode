@@ -13,6 +13,10 @@ export const enum AgentHostLaunchKind {
 
 export const AgentHostLaunchKindEnvVar = 'VSCODE_AGENT_HOST_LAUNCH_KIND';
 
+export function toAgentHostTelemetryHarness(provider: string): string {
+	return provider === 'copilotcli' ? 'copilot' : provider;
+}
+
 export const enum AgentHostClientConnectionKind {
 	Local = 'local',
 	DirectWebSocket = 'direct_websocket',

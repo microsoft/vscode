@@ -1910,7 +1910,7 @@ suite('ChatService', () => {
 	});
 
 	test('sendRequest redacts remote session type in provider invoked telemetry', async () => {
-		const sessionType = 'remote-test-copilot';
+		const sessionType = 'remote-test-copilotcli';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const providerInvokedEvents: Record<string, unknown>[] = [];
 		instantiationService.stub(ITelemetryService, {
@@ -1953,8 +1953,9 @@ suite('ChatService', () => {
 
 		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
 			sessionType: event.sessionType,
+			harness: event.harness,
 			hasRequestId: typeof event.requestId === 'string',
-		})), [{ sessionType: 'remote-agent-host', hasRequestId: true }]);
+		})), [{ sessionType: 'remote-agent-host', harness: 'copilot', hasRequestId: true }]);
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {

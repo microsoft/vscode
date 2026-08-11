@@ -68,7 +68,7 @@ suite('agentHost editSurvivalReporter', () => {
 		const first = telemetry.events[0];
 		assert.strictEqual(first.name, 'agentHost.trackEditSurvival');
 		const data = first.data as Record<string, unknown>;
-		assert.strictEqual(data.provider, 'claude');
+		assert.strictEqual(data.harness, 'claude');
 		assert.strictEqual(data.modelId, 'claude-sonnet-4.5');
 		assert.strictEqual(data.toolName, 'Edit');
 		assert.strictEqual(data.agentSessionId, 'session-1');
@@ -102,7 +102,7 @@ suite('agentHost editSurvivalReporter', () => {
 		await timeout(50);
 
 		const data = telemetry.events[0].data as Record<string, unknown>;
-		assert.strictEqual(data.provider, 'claude');
+		assert.strictEqual(data.harness, 'claude');
 		assert.strictEqual(data.agentSessionId, 'session-9');
 	});
 
@@ -124,7 +124,7 @@ suite('agentHost editSurvivalReporter', () => {
 		const data = telemetry.events[0].data as Record<string, unknown>;
 		assert.strictEqual(data.didFileGetDeleted, 1);
 		assert.strictEqual(data.isCreate, 1);
-		assert.strictEqual(data.provider, 'codex');
+		assert.strictEqual(data.harness, 'codex');
 	});
 
 	test('skips the sample on transient read errors (no event, reporter keeps running)', async () => {

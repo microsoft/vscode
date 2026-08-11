@@ -109,7 +109,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 				languageId: undefined,
 				mode: undefined,
 				uniqueEditId: '<uuid>',
-				provider: 'copilotcli',
+				harness: 'copilot',
 				agentSessionId: 'session-1',
 				isSubagentSession: 'false',
 				didBranchChange: 0,

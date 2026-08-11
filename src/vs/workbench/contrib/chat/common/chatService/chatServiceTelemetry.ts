@@ -15,6 +15,7 @@ import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constan
 import { ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
 import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { toAgentHostTelemetryHarness } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -181,7 +182,7 @@ export type ChatProviderInvokedClassification = {
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected in the permission picker (default, assisted, autoApprove, or autopilot). Undefined when the picker is not applicable (e.g. ask mode or API-driven requests).' };
 	chatMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request. Built-in modes (ask, agent, edit), extension-contributed names (e.g. Plan), or a hashed identifier for user-created custom agents.' };
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
-	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness/provider (e.g. copilotcli, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For remote agent host sessions, the underlying harness (e.g. copilot, claude, codex) so remote activity can be split by harness. Undefined for non-remote sessions.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -384,5 +385,6 @@ function getChatSessionTypeForTelemetry(sessionResource: URI): string {
  * telemetry gap #2 in #8209. Undefined for non-remote sessions.
  */
 function getHarnessForTelemetry(sessionResource: URI): string | undefined {
-	return parseRemoteAgentHostHarness(getChatSessionType(sessionResource));
+	const harness = parseRemoteAgentHostHarness(getChatSessionType(sessionResource));
+	return harness === undefined ? undefined : toAgentHostTelemetryHarness(harness);
 }

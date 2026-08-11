@@ -73,6 +73,25 @@ suite('AgentHostTelemetryReporter', () => {
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 
+	test('normalizes the telemetry harness without changing the session id', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.executionModeChanged('copilotcli', 'copilotcli:/session-1', 'interactive', 'plan', 2);
+
+		assert.deepStrictEqual(service.standardEvents, [{
+			eventName: 'agentHost.executionModeChanged',
+			data: {
+				harness: 'copilot',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				previousMode: 'interactive',
+				newMode: 'plan',
+				turnCount: 2,
+			},
+		}]);
+	});
+
 	test('assistantMessageReceived emits request.options.tools keyed on the client request id, and no-ops without one or without tools', async () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -162,7 +181,7 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.standardEvents, [{
 			eventName: 'toolCallDetails',
 			data: {
-				provider: 'copilot',
+				harness: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				conversationId: AgentSession.id(session),
@@ -182,7 +201,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}, {
 			eventName: 'toolCallDetails',
 			data: {
-				provider: 'copilot',
+				harness: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				conversationId: AgentSession.id(session),
@@ -260,7 +279,7 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.deepStrictEqual(service.standardEvents, [{
 			eventName: 'chat.toolApproval',
 			data: {
-				provider: 'copilot',
+				harness: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				chatSessionId: AgentSession.id(session),
@@ -279,7 +298,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}, {
 			eventName: 'chat.toolApproval',
 			data: {
-				provider: 'copilot',
+				harness: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				chatSessionId: AgentSession.id(session),
@@ -298,7 +317,7 @@ suite('AgentHostTelemetryReporter', () => {
 		}, {
 			eventName: 'chat.toolApproval',
 			data: {
-				provider: 'copilot',
+				harness: 'copilot',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				chatSessionId: AgentSession.id(session),

@@ -217,7 +217,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		const data = events[0].data as Record<string, unknown>;
-		assert.strictEqual(data.provider, 'mock');
+		assert.strictEqual(data.harness, 'mock');
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.chatSessionId, getTelemetryChatSessionId(defaultChatUri));
 		assert.strictEqual(data.turnId, 'turn-1');

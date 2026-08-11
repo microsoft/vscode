@@ -18,6 +18,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession } from '../../common/agentService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { toAgentHostTelemetryHarness } from '../../common/agentHostTelemetry.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -311,6 +312,7 @@ class EditArcReporter extends Disposable {
 	async emit(timeDelayMs: number): Promise<void> {
 		const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
 		const provider = AgentSession.provider(sessionUri) ?? 'unknown';
+		const harness = toAgentHostTelemetryHarness(provider);
 		const originalLineCounts = new EditArcTracker(this._params.beforeText, this._params.initialEdit).getLineCountInfo();
 		const currentLineCounts = this._tracker.getLineCountInfo();
 		const event: IEditArcTelemetryEvent = {
@@ -324,7 +326,7 @@ class EditArcReporter extends Disposable {
 			languageId: undefined,
 			mode: this._params.mode,
 			uniqueEditId: this._uniqueEditId,
-			provider,
+			harness,
 			agentSessionId: AgentSession.id(sessionUri),
 			isSubagentSession: isSubagentChatUri(this._params.sessionUri) || isSubagentSession(sessionUri) ? 'true' : 'false',
 			didBranchChange: await this._initialBranch === await this._getCurrentBranchName() ? 0 : 1,

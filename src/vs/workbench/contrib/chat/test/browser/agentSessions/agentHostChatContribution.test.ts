@@ -8630,7 +8630,7 @@ suite('AgentHostChatContribution', () => {
 				eventName: 'agentHost.invocationFailed',
 				data: {
 					requestId: 'request-correlation-id',
-					provider: 'copilot',
+					harness: 'copilot',
 					failureStage: 'createSession',
 					isFirstRequest: false,
 					hasUserSelectedModel: true,

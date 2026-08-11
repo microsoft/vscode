@@ -210,7 +210,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		assert.deepStrictEqual(hangEvents(), [{
 			eventName: 'agentHost.turnHung',
 			data: {
-				provider: 'mock',
+				harness: 'mock',
 				agentSessionId: 'session-1',
 				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
 				isSubagentSession: false,
@@ -369,7 +369,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		assert.deepStrictEqual(hangRecoveryEvents(), [{
 			eventName: 'agentHost.hungTurnCompleted',
 			data: {
-				provider: 'mock',
+				harness: 'mock',
 				agentSessionId: 'session-1',
 				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
 				isSubagentSession: false,

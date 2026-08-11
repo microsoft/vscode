@@ -1963,7 +1963,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', d => d.kind === 'turn');
 
 			assert.deepStrictEqual({
-				provider: data.provider,
+				harness: data.harness,
 				agentSessionId: data.agentSessionId,
 				turnId: data.turnId,
 				kind: data.kind,
@@ -1973,7 +1973,7 @@ suite('AgentHostChangesetService - multi-root turn changeset', () => {
 				hasFileCount: data.fileCount !== undefined,
 				hasMultiRootFields: data.uniqueGitFolderCount !== undefined || data.trackedEditFallbackFolderCount !== undefined,
 			}, {
-				provider: URI.parse(sessionStr).scheme,
+				harness: URI.parse(sessionStr).scheme,
 				agentSessionId: AgentSession.id(sessionStr),
 				turnId: 'turn-1',
 				kind: 'turn',

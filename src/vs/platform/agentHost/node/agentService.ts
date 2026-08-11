@@ -71,7 +71,7 @@ import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, toAgentHostTelemetryHarness, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostChangesetOperationService } from './agentHostChangesetOperationService.js';
 import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -103,7 +103,7 @@ import { AgentHostCheckpointService } from './agentHostCheckpointService.js';
 const SESSION_GC_GRACE_MS = 30_000;
 
 type AgentHostLegacyMigrationEvent = {
-	provider: string;
+	harness: string;
 	outcome: 'migrated' | 'skipped' | 'failed';
 	success: boolean;
 	turnCount: number;
@@ -115,7 +115,7 @@ type AgentHostLegacyMigrationEvent = {
 };
 
 type AgentHostLegacyMigrationClassification = {
-	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider id whose legacy session was migrated (e.g. copilotcli).' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent harness whose legacy session was migrated.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated (adoption + restore completed), skipped (eligible legacy session not adopted this pass, e.g. migrate flag not yet applied), or failed (adoption or restore threw).' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migration completed with at least one restored turn.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns restored from the migrated session.' };
@@ -2941,7 +2941,7 @@ export class AgentService extends Disposable implements IAgentService {
 		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string },
 	): void {
 		this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', {
-			provider,
+			harness: toAgentHostTelemetryHarness(provider),
 			outcome,
 			success: outcome === 'migrated' && (extra.turnCount ?? 0) > 0,
 			turnCount: extra.turnCount ?? 0,

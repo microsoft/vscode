@@ -4688,7 +4688,7 @@ suite('CopilotAgentSession', () => {
 					operation: 'write',
 					target: 'todos',
 					toolCallId: 'tc-sql',
-					provider: 'copilotcli',
+					harness: 'copilot',
 					agentSessionId: 'test-session-1',
 					isSubagentSession: false,
 				},
@@ -5525,7 +5525,7 @@ suite('CopilotAgentSession', () => {
 				const data = event.data as Record<string, unknown>;
 				return {
 					eventName: event.eventName,
-					provider: data.provider,
+					harness: data.harness,
 					requestId: data.requestId,
 					responseType: data.responseType,
 					toolCounts: data.toolCounts,
@@ -5540,7 +5540,7 @@ suite('CopilotAgentSession', () => {
 				};
 			}), [{
 				eventName: 'toolCallDetails',
-				provider: 'copilot',
+				harness: 'copilot',
 				requestId: 'turn-tool-details',
 				responseType: 'cancelled',
 				toolCounts: JSON.stringify({ grep: 1, edit: 1 }),
@@ -9501,7 +9501,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(emitted, [{
 				eventName: 'agentHost.instructionsCollected',
 				data: {
-					provider: 'copilot',
+					harness: 'copilot',
 					agentSessionId: 'test-session-1',
 					isSubagentSession: false,
 					totalInstructionsCount: 7,
