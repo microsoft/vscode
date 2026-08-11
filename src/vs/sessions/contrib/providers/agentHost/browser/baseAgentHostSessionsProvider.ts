@@ -1406,11 +1406,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return false;
 		}
 		this._project = project;
-		let didChange = false;
 		transaction(tx => {
-			didChange = this._setWorkspace(this._computeWorkspace(), tx);
+			this._setWorkspace(this._computeWorkspace(), tx);
 		});
-		return didChange;
+		// Reports the metadata mutation, not whether the workspace happened to change: the caller
+		// announces this to mark the session cache dirty, and a project assigned but never
+		// persisted would be lost on reload.
+		return true;
 	}
 
 	private _setWorkspace(workspace: ISessionWorkspace | undefined, tx: ITransaction): boolean {

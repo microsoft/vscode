@@ -911,8 +911,8 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.description !== b.description
 		|| a.group !== b.group
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
-		|| a.typeIcon?.id !== b.typeIcon?.id
-		|| a.typeIcon?.color?.id !== b.typeIcon?.color?.id
+		|| !!a.typeIcon !== !!b.typeIcon
+		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
 		|| a.folders.length !== b.folders.length) {

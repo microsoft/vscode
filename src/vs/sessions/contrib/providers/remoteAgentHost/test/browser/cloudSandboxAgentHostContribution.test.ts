@@ -42,7 +42,11 @@ class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		this.id = `agenthost-${config.address}`;
 	}
 
-	/** Mirrors the real provider, which leaves already-known sessions untouched. */
+	/**
+	 * Records seeds, de-duplicating by session id. Unlike the real provider this does not model
+	 * the project backfill on an already-seeded session — that path is covered against the real
+	 * provider in `remoteAgentHostSessionsProvider.test.ts`.
+	 */
 	override seedSessions(metas: readonly IAgentSessionMetadata[]): void {
 		for (const meta of metas) {
 			if (!this.seeded.some(seen => seen.session.toString() === meta.session.toString())) {
