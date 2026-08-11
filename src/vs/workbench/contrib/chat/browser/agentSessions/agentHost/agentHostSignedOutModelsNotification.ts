@@ -175,7 +175,15 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			this._gracePeriodElapsed = false;
 			return;
 		}
-		if (state === SignedOutModelsNotificationState.Waiting && !this._gracePeriod.value) {
+		if (state === SignedOutModelsNotificationState.Visible) {
+			// Readiness may have settled before the timer fired. Drop it so a later
+			// wait starts a full budget instead of inheriting the remainder, but keep
+			// an already elapsed flag: clearing it here would flip straight back to
+			// waiting and hide the notification that flag just made visible.
+			this._gracePeriod.clear();
+			return;
+		}
+		if (!this._gracePeriod.value) {
 			this._gracePeriod.value = disposableTimeout(() => {
 				this._gracePeriodElapsed = true;
 				this._update();

@@ -83,10 +83,47 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		fixture.clock.restore();
 	});
 
+	test('gives a later wait its own grace period instead of the remainder of an earlier one', async () => {
+		const fixture = await createFixture({ configuredVendors: ['anthropic'], resolvedVendors: [] });
+		assert.strictEqual(fixture.notifications.isShown(), false);
+
+		// Readiness settles a second in, so the notification shows without the first wait ever elapsing.
+		await fixture.clock.tickAsync(1_000);
+		fixture.resolveVendor('anthropic');
+		assert.strictEqual(fixture.notifications.isShown(), true);
+
+		// A newly configured vendor is unresolved again, so the notification waits afresh.
+		fixture.addConfiguredVendor('openai');
+		assert.strictEqual(fixture.notifications.isShown(), false);
+
+		// The first wait would have elapsed here; only the second one should govern.
+		await fixture.clock.tickAsync(GRACE_PERIOD_MS - 1_000);
+		assert.strictEqual(fixture.notifications.isShown(), false);
+		await fixture.clock.tickAsync(1_000);
+		assert.strictEqual(fixture.notifications.isShown(), true);
+		fixture.clock.restore();
+	});
+
+	test('still waits for a vendor configured long after readiness settled', async () => {
+		const fixture = await createFixture({ configuredVendors: ['anthropic'], resolvedVendors: [] });
+
+		await fixture.clock.tickAsync(1_000);
+		fixture.resolveVendor('anthropic');
+		// Idle well past the original budget, so a leaked timer would have marked it elapsed.
+		await fixture.clock.tickAsync(GRACE_PERIOD_MS * 2);
+		assert.strictEqual(fixture.notifications.isShown(), true);
+
+		fixture.addConfiguredVendor('openai');
+
+		assert.strictEqual(fixture.notifications.isShown(), false);
+		fixture.clock.restore();
+	});
+
 	async function createFixture(options: { configuredVendors?: string[]; resolvedVendors?: string[] } = {}) {
 		const clock = sinon.useFakeTimers({ shouldAdvanceTime: false });
 		const notifications = new TestChatInputNotificationService();
 		const languageModels = new TestLanguageModelsService(options.resolvedVendors ?? ['anthropic']);
+		const languageModelsConfiguration = new TestLanguageModelsConfigurationService(options.configuredVendors ?? []);
 		const account = new TestDefaultAccountService();
 		const configuration = new TestConfigurationService();
 		configuration.setUserConfiguration(AgentHostAllowSignedOutWhenUsableSettingId, true);
@@ -95,11 +132,7 @@ suite('AgentHostSignedOutModelsNotification', () => {
 		instantiationService.stub(IChatInputNotificationService, notifications);
 		instantiationService.stub(IDefaultAccountService, account);
 		instantiationService.stub(ILanguageModelsService, languageModels);
-		instantiationService.stub(ILanguageModelsConfigurationService, {
-			onDidChangeLanguageModelGroups: Event.None,
-			whenReady: Promise.resolve(),
-			getLanguageModelsProviderGroups: () => (options.configuredVendors ?? []).map(vendor => ({ name: vendor, vendor } satisfies ILanguageModelsProviderGroup)),
-		});
+		instantiationService.stub(ILanguageModelsConfigurationService, languageModelsConfiguration);
 		instantiationService.stub(IAgentHostService, {
 			onAgentHostStart: Event.None,
 			rootState: new TestRootStateSubscription({ agents: [{ provider: 'copilotcli' }] } as RootState),
@@ -117,6 +150,8 @@ suite('AgentHostSignedOutModelsNotification', () => {
 			clock,
 			notifications,
 			addAgentHostByokModel: () => languageModels.addAgentHostByokModel(),
+			resolveVendor: (vendor: string) => languageModels.resolveVendor(vendor),
+			addConfiguredVendor: (vendor: string) => languageModelsConfiguration.addVendor(vendor),
 			signIn: () => account.setSignedIn(),
 		};
 	}
@@ -146,11 +181,18 @@ class TestLanguageModelsService implements Partial<ILanguageModelsService> {
 	private readonly _onDidChangeModelVisibility = new Emitter<never>();
 	readonly onDidChangeModelVisibility = this._onDidChangeModelVisibility.event as ILanguageModelsService['onDidChangeModelVisibility'];
 	private readonly _models = new Map<string, ILanguageModelChatMetadata>();
+	private readonly _resolvedVendors: Set<string>;
 
-	constructor(private readonly _resolvedVendors: readonly string[]) { }
+	constructor(resolvedVendors: readonly string[]) {
+		this._resolvedVendors = new Set(resolvedVendors);
+	}
 
 	hasResolvedVendor(vendor: string): boolean {
-		return this._resolvedVendors.includes(vendor);
+		return this._resolvedVendors.has(vendor);
+	}
+	resolveVendor(vendor: string): void {
+		this._resolvedVendors.add(vendor);
+		this._onDidChangeLanguageModels.fire(undefined as never);
 	}
 	getLanguageModelIds(): string[] {
 		return [...this._models.keys()];
@@ -165,6 +207,26 @@ class TestLanguageModelsService implements Partial<ILanguageModelsService> {
 		this._models.set('byok-source', { id: 'byok-source', isBYOK: true } as ILanguageModelChatMetadata);
 		this._models.set('byok-target', { id: 'byok-target', byokModelIdentifier: 'byok-source', targetChatSessionType: SessionType.AgentHostCopilot } as ILanguageModelChatMetadata);
 		this._onDidChangeLanguageModels.fire(undefined as never);
+	}
+}
+
+class TestLanguageModelsConfigurationService implements Partial<ILanguageModelsConfigurationService> {
+	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
+	readonly onDidChangeLanguageModelGroups = this._onDidChangeLanguageModelGroups.event;
+	readonly whenReady = Promise.resolve();
+	private readonly _vendors: string[];
+
+	constructor(vendors: readonly string[]) {
+		this._vendors = [...vendors];
+	}
+
+	getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[] {
+		return this._vendors.map(vendor => ({ name: vendor, vendor } satisfies ILanguageModelsProviderGroup));
+	}
+	addVendor(vendor: string): void {
+		this._vendors.push(vendor);
+		this._onDidChangeLanguageModelGroups.fire(this.getLanguageModelsProviderGroups());
 	}
 }
 
