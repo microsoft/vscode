@@ -6,6 +6,7 @@
 import { InlineEditsUnification, type ModelConfiguration } from './dataTypes/xtabPromptOptions';
 import { ConfigKey, type ExperimentBasedConfig, type IConfigurationService } from '../../configuration/common/configurationService';
 import type { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
+import { assertNever } from '../../../util/vs/base/common/assert';
 
 /**
  * Configuration options used for Unified Completions + NES models.
@@ -45,9 +46,18 @@ export function resolveInlineEditsUnificationConfiguration(
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
 ): InlineEditsUnificationConfiguration {
-	const defaults = modelConfiguration.unification === InlineEditsUnification.CompletionsNes
-		? COMPLETIONS_NES_CONFIGURATION
-		: DEFAULT_CONFIGURATION;
+	let defaults: InlineEditsUnificationConfiguration;
+	if (modelConfiguration.unification === undefined) {
+		defaults = DEFAULT_CONFIGURATION;
+	} else {
+		switch (modelConfiguration.unification) {
+			case InlineEditsUnification.CompletionsNes:
+				defaults = COMPLETIONS_NES_CONFIGURATION;
+				break;
+			default:
+				assertNever(modelConfiguration.unification);
+		}
+	}
 
 	return {
 		nLinesBelow: getConfigWithDefault(configurationService, ConfigKey.TeamInternal.InlineEditsXtabProviderNLinesBelow, experimentationService, defaults.nLinesBelow),
