@@ -5,12 +5,16 @@
 
 import './media/newSessionPromptOptions.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -33,6 +37,12 @@ interface IPromptOptionButton {
 	readonly button: Button;
 }
 
+interface INewSessionPromptOptionsWidgetOptions {
+	readonly selectOption: (option: INewSessionPromptOption, expectedInput: string, animate: boolean) => Promise<boolean>;
+	readonly onDidSelectOption: (option: INewSessionPromptOption) => void;
+	readonly onDidClose: () => void;
+}
+
 export class NewSessionPromptOptionsWidget extends Disposable {
 	readonly element: HTMLElement;
 
@@ -45,7 +55,7 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		private readonly _selectOption: (option: INewSessionPromptOption, expectedInput: string, animate: boolean) => Promise<boolean>,
+		private readonly _options: INewSessionPromptOptionsWidgetOptions,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
@@ -54,7 +64,18 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		this.element = dom.append(container, dom.$('.new-session-prompt-options'));
 		this.element.role = 'group';
 		this.element.ariaLabel = title;
-		dom.append(this.element, dom.$('h2.new-session-prompt-options-title')).textContent = title;
+		const header = dom.append(this.element, dom.$('.new-session-prompt-options-header'));
+		dom.append(header, dom.$('h2.new-session-prompt-options-title')).textContent = title;
+		const actionBar = this._register(new ActionBar(header));
+		actionBar.getContainer().classList.add('new-session-prompt-options-actions');
+		const closeAction = this._register(new Action(
+			'newSessionPromptOptions.close',
+			localize('newSessionPromptOptions.close', "Close"),
+			ThemeIcon.asClassName(Codicon.close),
+			true,
+			() => this._options.onDidClose(),
+		));
+		actionBar.push(closeAction, { icon: true, label: false });
 		this._optionsContainer = dom.append(this.element, dom.$('.new-session-prompt-options-list'));
 		dom.setVisibility(false, this.element);
 	}
@@ -85,6 +106,9 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 
 	setInputValue(value: string): void {
 		this._inputValue = value;
+		if (value.length === 0) {
+			this._selectedOptionId = undefined;
+		}
 		this._updateButtons();
 	}
 
@@ -128,6 +152,7 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 			}));
 			button.element.classList.add('new-session-prompt-option');
 			button.checked = false;
+			button.element.classList.toggle('has-title-detail', !!option.titleDetail);
 			if (option.icon) {
 				const icon = dom.append(button.element, renderIcon(option.icon));
 				icon.classList.add('new-session-prompt-option-icon');
@@ -167,8 +192,10 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 		this._selecting = true;
 		this._updateButtons();
 		try {
-			if (!await this._selectOption(option, expectedInput, animate)) {
+			if (!await this._options.selectOption(option, expectedInput, animate)) {
 				this._selectedOptionId = previousSelectedOptionId;
+			} else {
+				this._options.onDidSelectOption(option);
 			}
 		} finally {
 			this._selecting = false;
