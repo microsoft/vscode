@@ -251,6 +251,14 @@ export class ChatInputOnboarding extends Disposable {
 			return;
 		}
 
+		// The factory can take the card down while building it - by dismissing
+		// straight away, or because the input it is docked to went away. Only
+		// commit if this request is still the one meant to be on screen.
+		if (this.activeHost !== host || this.wanted !== createOnboarding || !this.leading) {
+			onboardingStore.dispose();
+			return;
+		}
+
 		this.currentOnboarding.value = onboardingStore;
 		this.activeBanner = banner;
 		setVisibility(true, host.container);

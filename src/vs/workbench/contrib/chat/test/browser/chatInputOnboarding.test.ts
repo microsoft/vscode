@@ -368,6 +368,44 @@ suite('Chat input onboarding', () => {
 			{ reported: ['card exploded'], isVisible: false, laneClaimed: false, hostClass: false });
 	});
 
+	test('a card that is taken down while building is not installed anyway', () => {
+		// The factory can synchronously take the card down - by dismissing straight
+		// away, or because the input it is docked to goes away mid-construction.
+		// Committing it regardless would show a card in an unregistered host and
+		// spend its one showing.
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const storageService = instantiationService.get(IStorageService);
+		const onboarding = store.add(instantiationService.createInstance(ChatInputOnboarding, {
+			storageKey: 'test.chatInputOnboarding.cancelledWhileBuilding',
+			hostClass: 'has-chat-input-onboarding',
+		}));
+		const host = createHost(store);
+		const noticeHost = createNoticeHost(store);
+		const registration = store.add(onboarding.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			noticeSlot: createSlot(noticeHost),
+		}));
+
+		onboarding.showIfNeeded(context => {
+			const card = createCard(context);
+			registration.dispose();
+			return card;
+		});
+
+		assert.deepStrictEqual(
+			{
+				isVisible: onboarding.isVisible,
+				cards: host.container.querySelectorAll('.chat-input-onboarding-card').length,
+				hostClass: host.container.classList.contains('has-chat-input-onboarding'),
+				laneClaimed: noticeHost.isSuppressed(ChatInputNoticeLane.Tip, undefined),
+				announceCalls,
+				seen: storageService.getBoolean('test.chatInputOnboarding.cancelledWhileBuilding', StorageScope.APPLICATION, false),
+			},
+			{ isVisible: false, cards: 0, hostClass: false, laneClaimed: false, announceCalls: 0, seen: false });
+	});
+
 	test('announces once on show', () => {
 		const onboarding = createOnboarding(disposables, 'test.chatInputOnboarding.announces');
 		const host = createHost(disposables);
