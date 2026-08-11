@@ -7,6 +7,7 @@ import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -61,8 +62,7 @@ import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
-const CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT = 260;
-const CHAT_INPUT_WINDOW_ACTION_WIDGET_SURFACE_HEIGHT = 280;
+const CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT = 420;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
@@ -118,11 +118,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _desiredOpen = false;
 	private readonly _ownershipId = mainWindow.crypto.randomUUID();
 	private _ownershipClaim: { readonly timestamp: number; readonly id: string } | undefined;
+	private readonly _actionWidgetWindow = this._register(new MutableDisposable<IAuxiliaryWindow>());
+	private _actionWidgetLayoutGeneration = 0;
 	private _actionWidgetVisibilityCount = 0;
+	private _actionWidgetOpenOperation: Promise<void> | undefined;
 	private _actionWidgetOwner: IAuxiliaryWindow | undefined;
-	private _actionWidgetRestoreBounds: IRectangle | undefined;
-	private _actionWidgetSurface: HTMLElement | undefined;
-	private _actionWidgetSurfaceHeight = 0;
+	private _actionWidgetWindowAnchorY = 0;
 	/** Immutable bounds of the window that invoked omni, captured before service resolution. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 
@@ -434,9 +435,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				// route it to the best-matching existing session (or a new one),
 				// forwarding any explicit attachments on the input.
 				submitHandler: (query, mode, attachedContext, isVoiceModeInput) => this._routingController?.handleSubmit(query, mode, attachedContext, isVoiceModeInput) ?? Promise.resolve(false),
-				onDidChangeModelPickerVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, surface, visible),
+				onDidChangeModelPickerVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible),
 				inputPickerPosition: AnchorPosition.BELOW,
-				inputPickerContainer: () => auxiliaryWindow.container,
+				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
+				inputPickerAnchor: anchor => this._getActionWidgetAnchor(anchor),
 				inputPickerOpenOnMouseUp: true,
 				renderInputNotifications: false,
 				editorOverflowWidgetsDomNode,
@@ -505,10 +507,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				this._dismissedPendingRequests.set(dismissed, undefined);
 				this.voiceSessionController.clearRoutedRequest(resource);
 			},
-			onDidChangeActionWidgetVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, surface, visible),
-			getActionWidgetContainer: () => auxiliaryWindow.container,
-			getActionWidgetAnchor: anchor => anchor,
-			getActionWidgetAnchorPosition: () => AnchorPosition.BELOW,
+			onDidChangeActionWidgetVisibility: visible => this._setActionWidgetVisible(auxiliaryWindow, visible),
+			getActionWidgetContainer: () => this._actionWidgetWindow.value?.container,
+			getActionWidgetAnchor: anchor => this._getActionWidgetAnchor(anchor),
 			pickFolder: async defaultUri => (await this.fileDialogService.showOpenDialog({
 				title: localize('chatInputWindow.selectSessionFolder', "Select Folder for New Session"),
 				openLabel: localize('chatInputWindow.selectFolder', "Select Folder"),
@@ -569,9 +570,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		fitWindowToInput = () => {
 			const win = this._window?.window;
 			if (!win || win !== auxiliaryWindow.window) {
-				return;
-			}
-			if (this._actionWidgetOwner === auxiliaryWindow && this._actionWidgetVisibilityCount > 0) {
 				return;
 			}
 			const width = this._defaultWidth();
@@ -1107,73 +1105,98 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		return undefined;
 	}
 
-	private _setActionWidgetVisible(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, visible: boolean): Promise<void> {
+	private _setActionWidgetVisible(auxiliaryWindow: IAuxiliaryWindow, visible: boolean): Promise<void> {
 		if (!visible) {
 			if (this._actionWidgetOwner !== auxiliaryWindow) {
 				return Promise.resolve();
 			}
 			this._actionWidgetVisibilityCount = Math.max(0, this._actionWidgetVisibilityCount - 1);
-			if (this._actionWidgetVisibilityCount > 0) {
-				return Promise.resolve();
+			if (this._actionWidgetVisibilityCount === 0) {
+				this._actionWidgetLayoutGeneration++;
+				this._actionWidgetOwner = undefined;
+				this._actionWidgetWindow.clear();
 			}
-			const restoreBounds = this._actionWidgetRestoreBounds;
-			this._actionWidgetOwner = undefined;
-			this._actionWidgetRestoreBounds = undefined;
-			if (!restoreBounds || this._window !== auxiliaryWindow) {
-				this._resetActionWidgetSurface();
-				return Promise.resolve();
-			}
-			return auxiliaryWindow.setBounds(restoreBounds).then(() => {
-				this._resetActionWidgetSurface();
-				this._fitWindowToContent();
-			});
+			return Promise.resolve();
 		}
 
 		if (this._actionWidgetOwner !== auxiliaryWindow) {
+			this._actionWidgetLayoutGeneration++;
 			this._actionWidgetVisibilityCount = 0;
 			this._actionWidgetOwner = auxiliaryWindow;
-			this._actionWidgetRestoreBounds = undefined;
-			this._actionWidgetSurface = surface;
-			this._actionWidgetSurfaceHeight = surface.getBoundingClientRect().height;
+			this._actionWidgetWindow.clear();
+			this._actionWidgetOpenOperation = undefined;
 		}
 		this._actionWidgetVisibilityCount++;
-		if (this._actionWidgetVisibilityCount > 1) {
+		if (this._actionWidgetWindow.value) {
 			return Promise.resolve();
 		}
-		const sourceWindow = auxiliaryWindow.window;
-		const restoreBounds = {
-			x: sourceWindow.screenX,
-			y: sourceWindow.screenY,
-			width: sourceWindow.outerWidth,
-			height: sourceWindow.outerHeight,
-		};
-		this._actionWidgetRestoreBounds = restoreBounds;
-		const screen = sourceWindow.screen;
-		return this.hostService.getCursorScreenPoint().then(point => {
-			if (this._actionWidgetOwner !== auxiliaryWindow || this._actionWidgetVisibilityCount === 0 || this._window !== auxiliaryWindow) {
-				return;
+		if (this._actionWidgetOpenOperation) {
+			return this._actionWidgetOpenOperation;
+		}
+
+		const generation = ++this._actionWidgetLayoutGeneration;
+		const operation = this._openActionWidgetWindow(auxiliaryWindow, generation);
+		this._actionWidgetOpenOperation = operation;
+		return operation.finally(() => {
+			if (this._actionWidgetOpenOperation === operation) {
+				this._actionWidgetOpenOperation = undefined;
 			}
-			const display = point?.display ?? {
-				x: sourceWindow.screenX,
-				y: sourceWindow.screenY,
-				width: screen.availWidth,
-				height: screen.availHeight,
-			};
-			const displayBottom = display.y + display.height;
-			const height = Math.min(restoreBounds.height + CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT, display.height);
-			const y = Math.max(display.y, Math.min(restoreBounds.y, displayBottom - height));
-			const surfaceHeight = Math.min(height, Math.max(this._actionWidgetSurfaceHeight, CHAT_INPUT_WINDOW_ACTION_WIDGET_SURFACE_HEIGHT));
-			surface.style.setProperty('height', `${surfaceHeight}px`, 'important');
-			surface.style.transform = `translateY(${restoreBounds.y - y}px)`;
-			return auxiliaryWindow.setBounds({ ...restoreBounds, y, height });
 		});
 	}
 
-	private _resetActionWidgetSurface(): void {
-		this._actionWidgetSurface?.style.removeProperty('height');
-		this._actionWidgetSurface?.style.removeProperty('transform');
-		this._actionWidgetSurface = undefined;
-		this._actionWidgetSurfaceHeight = 0;
+	private async _openActionWidgetWindow(auxiliaryWindow: IAuxiliaryWindow, generation: number): Promise<void> {
+		const sourceWindow = auxiliaryWindow.window;
+		const screen = sourceWindow.screen;
+		const display = (await this.hostService.getCursorScreenPoint())?.display ?? {
+			x: sourceWindow.screenX,
+			y: sourceWindow.screenY,
+			width: screen.availWidth,
+			height: screen.availHeight,
+		};
+		const height = Math.min(CHAT_INPUT_WINDOW_ACTION_WIDGET_HEIGHT, display.height);
+		const sourceBottom = sourceWindow.screenY + sourceWindow.outerHeight;
+		const displayBottom = display.y + display.height;
+		const displayRight = display.x + display.width;
+		const placeBelow = sourceBottom + height <= displayBottom;
+		const preferredY = placeBelow
+			? sourceBottom
+			: sourceWindow.screenY - height;
+		const y = Math.min(Math.max(display.y, preferredY), displayBottom - height);
+		const width = Math.min(sourceWindow.outerWidth, display.width);
+		const x = Math.min(Math.max(display.x, sourceWindow.screenX), displayRight - width);
+		const actionWidgetWindow = await this.auxiliaryWindowService.open({
+			bounds: { x, y, width, height },
+			alwaysOnTop: true,
+			frameless: true,
+			transparent: true,
+			notResizable: true,
+			disableFullscreen: true,
+			nativeTitlebar: false,
+			noBackgroundThrottling: true,
+			backgroundColor: '#00000000',
+		});
+		await actionWidgetWindow.whenStylesHaveLoaded;
+		if (generation !== this._actionWidgetLayoutGeneration || this._window !== auxiliaryWindow) {
+			actionWidgetWindow.dispose();
+			return;
+		}
+
+		actionWidgetWindow.window.document.body.style.setProperty('background-color', 'transparent', 'important');
+		actionWidgetWindow.window.document.body.style.setProperty('margin', '0', 'important');
+		actionWidgetWindow.container.style.backgroundColor = 'transparent';
+		actionWidgetWindow.container.style.overflow = 'hidden';
+		this._actionWidgetWindowAnchorY = placeBelow ? 0 : height;
+		this._actionWidgetWindow.value = actionWidgetWindow;
+	}
+
+	private _getActionWidgetAnchor(anchor: HTMLElement): IAnchor {
+		const bounds = anchor.getBoundingClientRect();
+		return {
+			x: bounds.left,
+			y: this._actionWidgetWindowAnchorY,
+			width: bounds.width,
+			height: 1,
+		};
 	}
 
 	private _disposeWidget(): void {
@@ -1188,8 +1211,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._activePendingSessionResource = undefined;
 		this._actionWidgetVisibilityCount = 0;
 		this._actionWidgetOwner = undefined;
-		this._actionWidgetRestoreBounds = undefined;
-		this._resetActionWidgetSurface();
+		this._actionWidgetOpenOperation = undefined;
+		this._actionWidgetWindow.clear();
+		this._actionWidgetLayoutGeneration++;
 		this._modelRef?.dispose();
 		this._modelRef = undefined;
 	}
@@ -1222,9 +1246,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _storeWindowPosition(auxiliaryWindow: IAuxiliaryWindow): void {
-		const bounds = this._actionWidgetOwner === auxiliaryWindow
-			? this._actionWidgetRestoreBounds
-			: auxiliaryWindow.createState().bounds;
+		const bounds = auxiliaryWindow.createState().bounds;
 		if (bounds?.x === undefined || bounds.y === undefined) {
 			return;
 		}
