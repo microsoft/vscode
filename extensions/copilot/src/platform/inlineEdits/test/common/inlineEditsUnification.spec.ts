@@ -8,8 +8,8 @@ import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
-import { ModelConfiguration } from '../../common/dataTypes/xtabPromptOptions';
-import { InlineEditsUnification, resolveInlineEditsUnificationConfiguration } from '../../common/inlineEditsUnification';
+import { InlineEditsUnification, ModelConfiguration } from '../../common/dataTypes/xtabPromptOptions';
+import { resolveInlineEditsUnificationConfiguration } from '../../common/inlineEditsUnification';
 
 describe('inline edits unification', () => {
 	const defaultModelConfiguration: ModelConfiguration = {

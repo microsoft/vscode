@@ -670,11 +670,15 @@ export const LANGUAGE_CONTEXT_ENABLED_LANGUAGES: LanguageContextLanguages = {
 	'chatagent': true,
 };
 
+export enum InlineEditsUnification {
+	CompletionsNes = 'completionsNes',
+}
+
 export interface ModelConfiguration {
 	modelName: string;
 	promptingStrategy: PromptingStrategy | undefined /* default */;
 	includeTagsInCurrentFile: boolean;
-	unification?: 'completionsNes';
+	unification?: InlineEditsUnification;
 	includePostScript?: boolean;
 	currentFile?: Partial<CurrentFileOptions>;
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
@@ -744,7 +748,7 @@ export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vOb
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
-	'unification': vUnion(vEnum('completionsNes'), vUndefined()),
+	'unification': vUnion(vEnum(InlineEditsUnification.CompletionsNes), vUndefined()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),
 	'recentlyViewedDocuments': vUnion(RecentlyViewedDocumentsOptions.VALIDATOR, vUndefined()),

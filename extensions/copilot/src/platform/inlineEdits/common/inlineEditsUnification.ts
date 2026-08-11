@@ -3,13 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ModelConfiguration } from './dataTypes/xtabPromptOptions';
+import { InlineEditsUnification, type ModelConfiguration } from './dataTypes/xtabPromptOptions';
 import { ConfigKey, type ExperimentBasedConfig, type IConfigurationService } from '../../configuration/common/configurationService';
 import type { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-
-export enum InlineEditsUnification {
-	CompletionsNes = 'completionsNes',
-}
 
 /**
  * Configuration options used for Unified Completions + NES models.
