@@ -111,6 +111,78 @@ describe('resolveWorkspaceOTelMetadata', () => {
 		}
 	});
 
+	it('ignores loopback remotes that smuggle a filesystem path through scp syntax', () => {
+		const loopbackRemotes = [
+			'git@localhost:/Users/alice/dev/repo.git',
+			'ssh://git@localhost/Users/alice/dev/repo.git',
+			'git@127.0.0.1:/Users/alice/dev/repo.git',
+			'git@dev.localhost:/Users/alice/dev/repo.git',
+			'https://localhost:8443/Users/alice/dev/repo.git',
+			'ssh://git@[::1]/Users/alice/dev/repo.git',
+		];
+		for (const loopbackRemote of loopbackRemotes) {
+			const gitService = createMockGitService({
+				remoteFetchUrls: [loopbackRemote],
+				remotes: ['origin'],
+			});
+			expect(resolveWorkspaceOTelMetadata(gitService).remoteUrl, loopbackRemote).toBeUndefined();
+		}
+	});
+
+	it('still reports a non-loopback host that serves repositories from an absolute path', () => {
+		const gitService = createMockGitService({
+			remoteFetchUrls: ['git@git.mycompany.com:/srv/git/repo.git'],
+			remotes: ['origin'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		// An absolute path on a routable host is the server's layout, not the user's, so it is
+		// reported. The doubled slash is existing `normalizeFetchUrl` behaviour for scp-style
+		// remotes whose path is absolute.
+		expect(result.remoteUrl).toBe('https://git.mycompany.com//srv/git/repo.git');
+	});
+
+	it('skips a loopback remote but still reports a later routable one', () => {
+		const gitService = createMockGitService({
+			remotes: ['origin', 'mirror'],
+			remoteFetchUrls: ['git@localhost:/Users/alice/dev/repo.git', 'https://git.mycompany.com/owner/repo.git'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.remoteUrl).toBe('https://git.mycompany.com/owner/repo.git');
+	});
+
+	it('exposes recognizedRemoteUrl only for remotes that resolve to a repo id', () => {
+		const recognized = resolveWorkspaceOTelMetadata(createMockGitService({
+			remoteFetchUrls: ['https://github.com/microsoft/vscode.git'],
+			remotes: ['origin'],
+		}));
+		expect(recognized.recognizedRemoteUrl).toBe('https://github.com/microsoft/vscode.git');
+		expect(recognized.remoteUrl).toBe('https://github.com/microsoft/vscode.git');
+
+		const ado = resolveWorkspaceOTelMetadata(createMockGitService({
+			remoteFetchUrls: ['https://dev.azure.com/org/project/_git/repo'],
+			remotes: ['origin'],
+		}));
+		expect(ado.recognizedRemoteUrl).toBe('https://dev.azure.com/org/project/_git/repo');
+
+		// The whole point of the split: non-OTel telemetry channels must not widen.
+		const unrecognized = resolveWorkspaceOTelMetadata(createMockGitService({
+			remoteFetchUrls: ['https://git.mycompany.com/owner/repo.git'],
+			remotes: ['origin'],
+		}));
+		expect(unrecognized.remoteUrl).toBe('https://git.mycompany.com/owner/repo.git');
+		expect(unrecognized.recognizedRemoteUrl).toBeUndefined();
+	});
+
+	it('keeps recognizedRemoteUrl on the resolvable remote in a mixed-remote repository', () => {
+		const gitService = createMockGitService({
+			remotes: ['origin', 'github'],
+			remoteFetchUrls: ['https://git.mycompany.com/mirror/repo.git', 'https://github.com/microsoft/vscode.git'],
+		});
+		const result = resolveWorkspaceOTelMetadata(gitService);
+		expect(result.recognizedRemoteUrl).toBe('https://github.com/microsoft/vscode.git');
+		expect(result.remoteUrl).toBe('https://github.com/microsoft/vscode.git');
+	});
+
 	it('handles a remote with no fetch URL', () => {
 		const gitService = createMockGitService({
 			remoteFetchUrls: [undefined],

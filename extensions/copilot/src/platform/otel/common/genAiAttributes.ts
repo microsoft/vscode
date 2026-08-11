@@ -211,7 +211,9 @@ export const GitHubCopilotAttr = {
 	GIT_COMMIT_SHA: 'github.copilot.git.commit_sha',
 	/**
 	 * GitHub `owner` segment derived from the remote URL. Only emitted for hosts recognized as
-	 * GitHub (github.com, `*.ghe.com`); absent for custom-domain GitHub Enterprise Server.
+	 * GitHub: github.com, `*.ghe.com`, and ssh host aliases that normalize to either (for
+	 * example `alias-github.com` or `github.com-alias`). Absent for custom-domain GitHub
+	 * Enterprise Server, which is indistinguishable from an arbitrary git host here.
 	 */
 	GITHUB_ORG: 'github.copilot.github.org',
 
