@@ -113,7 +113,7 @@ suite('Sessions - SessionsList', () => {
 					automationId: 'automation',
 					status,
 					trigger: 'schedule',
-					sessionResource: runResource.toString(),
+					sessionResource: runResource,
 					startedAt: '2026-08-10T00:00:00.000Z',
 					leaderWindowId: 1,
 				}], undefined);
