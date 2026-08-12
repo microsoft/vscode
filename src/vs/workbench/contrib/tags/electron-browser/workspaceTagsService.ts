@@ -20,6 +20,7 @@ const MetaModulesToLookFor = [
 	// Azure packages
 	'@azure',
 	'@azure/',
+	'@azure-rest/',
 	'@azure/ai',
 	'@azure/arm',
 	'@azure/cognitiveservices',
@@ -678,6 +679,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.aws-amplify-sdk" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure-rest/" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/arm" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
