@@ -3300,7 +3300,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const eventsPath = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', newSessionId, 'events.jsonl');
 		const jsonl = buildSessionEventLogFromTurns(sourceTurns.slice(0, inheritedTurnCount), {
 			sessionId: newSessionId,
-			workingDirectory: sourceEntry.workingDirectory.fsPath,
+			workingDirectory: sourceEntry.workingDirectory?.fsPath,
 		});
 		await fs.mkdir(dirname(eventsPath), { recursive: true });
 		await fs.writeFile(eventsPath, jsonl, 'utf8');
