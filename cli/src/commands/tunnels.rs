@@ -645,6 +645,8 @@ async fn serve_with_csa(
 					log: log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
+					machine_status_enabled: gateway_args.machine_status,
+					has_editor_link: !gateway_args.agent_host_only,
 				})
 				.await;
 				if should_exit {
@@ -666,7 +668,7 @@ async fn serve_with_csa(
 	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
-	let auth = Auth::new(&paths, log.clone());
+	let auth = Auth::new(&paths, log.clone()).with_machine_status(gateway_args.machine_status);
 	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&log, auth, &paths);
 	loop {
 		let tunnel = if let Some(t) =
@@ -674,8 +676,13 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
+			let ports = if gateway_args.agent_host_only {
+				vec![AGENT_HOST_PORT]
+			} else {
+				vec![CONTROL_PORT, AGENT_HOST_PORT]
+			};
 			tokio::select! {
-				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT, AGENT_HOST_PORT]) => t,
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &ports) => t,
 				_ = shutdown.wait() => return Ok(1),
 			}
 		}?;
@@ -688,6 +695,10 @@ async fn serve_with_csa(
 			paths: &paths,
 			code_server_args: &csa,
 			platform,
+			user_data_dir: gateway_args.user_data_dir.clone(),
+			agent_host_only: gateway_args.agent_host_only,
+			delegate_to_editor: gateway_args.delegate_to_editor,
+			machine_status_enabled: gateway_args.machine_status,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,

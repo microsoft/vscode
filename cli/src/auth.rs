@@ -190,6 +190,7 @@ pub struct Auth {
 	/// When set, restricts authentication to only this provider.
 	/// The user will not be prompted to choose a provider.
 	forced_provider: Option<AuthProvider>,
+	machine_status: bool,
 }
 
 trait StorageImplementation: Send + Sync {
@@ -427,7 +428,13 @@ impl Auth {
 			storage: Arc::new(std::sync::Mutex::new(None)),
 			keyring_prefix,
 			forced_provider: None,
+			machine_status: false,
 		}
+	}
+
+	pub fn with_machine_status(mut self, machine_status: bool) -> Self {
+		self.machine_status = machine_status;
+		self
 	}
 
 	/// Restricts this `Auth` instance to only allow the given provider.
@@ -579,6 +586,9 @@ impl Auth {
 					Ok(None) => old_creds,
 					Err(e) => {
 						info!(self.log, "error refreshing token: {}", e);
+						if self.machine_status {
+							crate::tunnels::machine_status::emit_token_error(e.to_string());
+						}
 						let new_creds = self
 							.do_device_code_flow_with_provider(old_creds.provider)
 							.await?;
@@ -881,6 +891,9 @@ impl Auth {
 				}
 				Err(e) => {
 					warning!(this.log, "error refreshing token: {:?}", e);
+					if this.machine_status {
+						crate::tunnels::machine_status::emit_token_error(e.to_string());
+					}
 					last_did_error = true;
 					continue;
 				}

@@ -22,7 +22,7 @@ use crate::{
 	log,
 	rpc::RpcCaller,
 	singleton::connect_as_client,
-	tunnels::{code_server::print_listening, protocol::EmptyObject},
+	tunnels::{code_server::print_listening, machine_status, protocol::EmptyObject},
 	util::{errors::CodeError, sync::Barrier},
 };
 
@@ -35,6 +35,8 @@ pub struct SingletonClientArgs {
 	pub log: log::Logger,
 	pub stream: AsyncPipe,
 	pub shutdown: Barrier<ShutdownSignal>,
+	pub machine_status_enabled: bool,
+	pub has_editor_link: bool,
 }
 
 struct SingletonServerContext {
@@ -94,6 +96,8 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 	}
 
 	let caller = rpc.get_caller(msg_tx);
+	let machine_status_enabled = args.machine_status_enabled;
+	let has_editor_link = args.has_editor_link;
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: args.log.clone(),
 		exit_entirely: exit_entirely.clone(),
@@ -107,7 +111,7 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 
 	rpc.register_async(
 		protocol::singleton::METHOD_LOG_REPLY_DONE,
-		|_: EmptyObject, c| async move {
+		move |_: EmptyObject, c| async move {
 			c.log.result(if *IS_INTERACTIVE_CLI {
 				CONTROL_INSTRUCTIONS_INTERACTIVE
 			} else {
@@ -126,7 +130,10 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 			// connected though, it will be soon, and that'll be in the log replays.
 			if let Ok(Ok(s)) = res.await {
 				if let Some(name) = s.name {
-					print_listening(&c.log, &name);
+					print_listening(&c.log, &name, has_editor_link);
+					if machine_status_enabled {
+						machine_status::emit_connected(&name, true, has_editor_link);
+					}
 				}
 			}
 

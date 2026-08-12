@@ -44,6 +44,10 @@ pub struct SingletonServerArgs<'a> {
 	pub paths: &'a LauncherPaths,
 	pub code_server_args: &'a CodeServerArgs,
 	pub platform: Platform,
+	pub user_data_dir: Option<String>,
+	pub agent_host_only: bool,
+	pub delegate_to_editor: bool,
+	pub machine_status_enabled: bool,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub log_broadcast: &'a BroadcastLogSink,
 }
@@ -151,7 +155,7 @@ pub async fn start_singleton_server(
 	]);
 
 	{
-		print_listening(&args.log, &args.tunnel.name);
+		print_listening(&args.log, &args.tunnel.name, !args.agent_host_only);
 		let mut status = args.server.current_status.lock().unwrap();
 		*status = Some(StatusInfo {
 			name: args.tunnel.name.clone(),
@@ -165,6 +169,10 @@ pub async fn start_singleton_server(
 		args.paths,
 		args.code_server_args,
 		args.platform,
+		args.user_data_dir,
+		args.agent_host_only,
+		args.delegate_to_editor,
+		args.machine_status_enabled,
 		shutdown_rx,
 	);
 
