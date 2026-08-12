@@ -27,6 +27,8 @@ export const enum CopilotCliConfigKey {
 	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
+	/** Enable concise reasoning summaries for supported models. Off by default. */
+	ReasoningSummary = 'reasoningSummary',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
@@ -49,6 +51,8 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
+
+export const AgentHostReasoningSummaryEnabledSettingId = 'chat.agentHost.copilot.reasoningSummary.enabled';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 
@@ -118,6 +122,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.reasoningEffortOverride.title', "Reasoning Effort Override"),
 		description: localize('agentHost.config.reasoningEffortOverride.description', "Overrides the reasoning effort for Copilot SDK sessions regardless of the per-model picker value. Set it to a level the selected model supports (e.g. `low`, `medium`, `high`, `xhigh`, `max`); a value that isn't a recognized effort level is ignored and the session falls back to the picker value. Only affects Copilot SDK sessions; intended for experimentation."),
 		default: '',
+	}),
+	[CopilotCliConfigKey.ReasoningSummary]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.reasoningSummary.title', "Reasoning Summary"),
+		description: localize('agentHost.config.reasoningSummary.description', "When enabled, requests concise reasoning summaries for supported Copilot SDK sessions."),
+		default: false,
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',

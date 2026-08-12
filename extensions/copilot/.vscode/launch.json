@@ -78,14 +78,15 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Launch Copilot Extension - Watch Mode - Agents OSS",
-			"runtimeExecutable": "${workspaceFolder}/../vscode/scripts/code.sh",
+			"runtimeExecutable": "${workspaceFolder}/../../scripts/code.sh",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/../vscode/scripts/code.bat",
+				"runtimeExecutable": "${workspaceFolder}/../../scripts/code.bat",
 			},
 			"runtimeArgs": [
 				"--agents"
 			],
 			"attachSimplePort": 5870,
+			"autoAttachChildProcesses": true,
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 			],
@@ -98,6 +99,12 @@
 			},
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js",
+				"${workspaceFolder}/../../out/**/*.js",
+				"!**/node_modules/**"
+			],
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"${workspaceFolder}/../../out/**/*.js",
 				"!**/node_modules/**"
 			],
 			"presentation": {
