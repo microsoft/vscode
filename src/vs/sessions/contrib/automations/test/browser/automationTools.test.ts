@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationTarget, IAutomationDescriptor as IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -153,7 +153,7 @@ class RecordingAutomationRunner extends mock<IAutomationRunner>() {
 			if (this.notStarted) {
 				return this.notStarted;
 			}
-			const sessionResource = SESSION_RESOURCE.toString();
+			const sessionResource = SESSION_RESOURCE;
 			const run: IAutomationRun = {
 				id: 'run-1',
 				automationId: automation.id,
@@ -406,7 +406,7 @@ suite('AutomationTools', () => {
 			automationId: automation.id,
 			status: 'running',
 			trigger: 'manual',
-			sessionResource: SESSION_RESOURCE.toString(),
+			sessionResource: SESSION_RESOURCE,
 			startedAt: NOW,
 		});
 		const runner = new RecordingAutomationRunner(automationService);

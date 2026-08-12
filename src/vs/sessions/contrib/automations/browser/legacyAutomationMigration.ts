@@ -6,7 +6,7 @@
 import { equals } from '../../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AutomationTarget, AutomationWorkspaceIsolation, IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor as IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';

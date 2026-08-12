@@ -22,7 +22,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAutomation, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor as IAutomation, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -72,7 +72,7 @@ function run(overrides: Partial<IAutomationRun> = {}): IAutomationRun {
 		status,
 		trigger: 'manual',
 		startedAt: new Date().toISOString(),
-		sessionResource: SESSION_RESOURCE.toString(),
+		sessionResource: SESSION_RESOURCE,
 		canCancel: overrides.canCancel ?? (status === 'pending' || status === 'running' || status === 'blocked'),
 		...overrides,
 	};
@@ -622,7 +622,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
@@ -814,7 +814,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([
 			run(),
-			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE.toString() }),
+			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 		dialogService.confirmResult = { confirmed: true };
 
