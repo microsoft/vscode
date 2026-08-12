@@ -217,27 +217,28 @@
 
 /* --- Actions --- */
 
+/*
+ * Actions are `ActionBar` items, so the hover, focus ring and keyboard handling
+ * come from `.monaco-action-bar`. Only the compact size this surface wants is
+ * set here.
+ */
 .chat-input-notice-action {
+	flex-shrink: 0;
+}
+
+.chat-input-notice-action .action-label {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: var(--vscode-spacing-size200);
 	height: var(--vscode-spacing-size200);
-	flex-shrink: 0;
+	padding: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	touch-action: manipulation;
 }
 
-.chat-input-notice-action:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+.chat-input-notice-action .action-label:hover {
 	color: var(--vscode-foreground);
-}
-
-.chat-input-notice-action:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 /*

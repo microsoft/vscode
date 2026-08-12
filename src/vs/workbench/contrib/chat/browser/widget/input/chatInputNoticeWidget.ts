@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventHelper, EventType, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
-import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
+import { addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { alert, status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -207,42 +208,26 @@ export class ChatInputNoticeWidget extends Disposable implements IChatInputNotic
 		this._applyRegionAttributes();
 	}
 
-	/** An icon button, in the shape every notice's actions share. */
+	/**
+	 * An icon button, in the shape every notice's actions share. Built on
+	 * `ActionBar` so keyboard handling, touch, focus and theming come from the
+	 * shared action infrastructure rather than being re-implemented per notice.
+	 */
 	addAction(options: IChatInputNoticeActionOptions): HTMLElement {
-		const action = this.domNode.ownerDocument.createElement('div');
-		action.classList.add('chat-input-notice-action');
-		if (options.className) {
-			action.classList.add(options.className);
-		}
-		action.setAttribute('role', 'button');
-		action.tabIndex = 0;
-		action.setAttribute('aria-label', options.ariaLabel);
-
-		const icon = this.domNode.ownerDocument.createElement('span');
-		icon.classList.add(...ThemeIcon.asClassNameArray(options.icon));
-		icon.setAttribute('aria-hidden', 'true');
-		action.appendChild(icon);
-		(options.parent ?? this.domNode).appendChild(action);
-
 		const register = <T extends IDisposable>(disposable: T): T => options.store ? options.store.add(disposable) : this._register(disposable);
-		const activate = (event: Event) => {
-			// The notice is often removed by this, and an ancestor acting on the same
-			// click - the input taking focus, for one - would be acting on a notice
-			// the user has just dismissed.
-			EventHelper.stop(event, true);
-			options.onActivate();
-		};
-		register(Gesture.addTarget(action));
-		register(addDisposableListener(action, EventType.CLICK, activate));
-		register(addDisposableListener(action, TouchEventType.Tap, activate));
-		register(addDisposableListener(action, EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				activate(event);
-			}
-		}));
 
-		return action;
+		const container = this.domNode.ownerDocument.createElement('div');
+		container.classList.add('chat-input-notice-action');
+		(options.parent ?? this.domNode).appendChild(container);
+		register(toDisposable(() => container.remove()));
+
+		// The producer's class goes on the action itself rather than the housing, so
+		// it names the thing that is actually clicked, focused and styled.
+		const cssClass = [ThemeIcon.asClassName(options.icon), options.className].filter(Boolean).join(' ');
+		const actionBar = register(new ActionBar(container));
+		actionBar.push(register(new Action('chatInputNotice.action', options.ariaLabel, cssClass, true, async () => options.onActivate())), { icon: true, label: false });
+
+		return container;
 	}
 
 	/**
@@ -250,12 +235,11 @@ export class ChatInputNoticeWidget extends Disposable implements IChatInputNotic
 	 * every notice's dismiss reads and behaves the same, wherever it appears.
 	 */
 	addDismissAction(options: IChatInputNoticeDismissOptions): HTMLElement {
-		const dismiss = this.addAction({
+		return this.addAction({
 			...options,
 			ariaLabel: options.ariaLabel ?? localize('chatInputNotice.dismiss', "Dismiss"),
 			icon: Codicon.closeCompact,
+			className: [options.className, 'chat-input-notice-dismiss'].filter(Boolean).join(' '),
 		});
-		dismiss.classList.add('chat-input-notice-dismiss');
-		return dismiss;
 	}
 }

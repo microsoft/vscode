@@ -88,7 +88,7 @@ suite('ChatInputNoticeWidget', () => {
 			});
 	});
 
-	test('handles unmodified keyboard dismissal and action activation', () => {
+	test('dismisses on unmodified Escape only, and activates its actions', () => {
 		const container = createContainer(disposables);
 		let dismissals = 0;
 		let activations = 0;
@@ -104,10 +104,9 @@ suite('ChatInputNoticeWidget', () => {
 			onActivate: () => activations++,
 		});
 
-		action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, ctrlKey: true, bubbles: true }));
 		notice.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, shiftKey: true, bubbles: true }));
-		action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 		notice.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		action.querySelector<HTMLElement>('.action-label')!.click();
 
 		assert.deepStrictEqual({ dismissals, activations }, { dismissals: 1, activations: 1 });
 	});
@@ -117,7 +116,8 @@ suite('ChatInputNoticeWidget', () => {
 		const notice = createNotice(container);
 		const header = dom.append(notice.domNode, dom.$('.header'));
 
-		const dismiss = notice.addDismissAction({ parent: header, onActivate: () => { } });
+		const housing = notice.addDismissAction({ parent: header, onActivate: () => { } });
+		const dismiss = housing.querySelector<HTMLElement>('.action-label')!;
 
 		assert.deepStrictEqual(
 			{
@@ -125,10 +125,10 @@ suite('ChatInputNoticeWidget', () => {
 				role: dismiss.getAttribute('role'),
 				label: dismiss.getAttribute('aria-label'),
 				tabIndex: dismiss.tabIndex,
-				inHeader: dismiss.parentElement === header,
+				inHeader: housing.parentElement === header,
 			},
 			{
-				classes: ['chat-input-notice-action', 'chat-input-notice-dismiss'],
+				classes: ['action-label', 'codicon', 'codicon-close-compact', 'chat-input-notice-dismiss'],
 				role: 'button',
 				label: 'Dismiss',
 				tabIndex: 0,
@@ -148,9 +148,10 @@ suite('ChatInputNoticeWidget', () => {
 			store: renderStore,
 			onActivate: () => activations++,
 		});
-		action.click();
+		const button = () => action.querySelector<HTMLElement>('.action-label');
+		button()?.click();
 		renderStore.clear();
-		action.click();
+		button()?.click();
 
 		assert.strictEqual(activations, 1);
 	});
