@@ -17,6 +17,7 @@ import { IExtHostInitDataService } from '../../common/extHostInitDataService.js'
 import { IExtHostProgress } from '../../common/extHostProgress.js';
 import { IExtHostUrlsService } from '../../common/extHostUrls.js';
 import { IExtHostWindow } from '../../common/extHostWindow.js';
+import { Proxied } from '../../../services/extensions/common/proxyIdentifier.js';
 
 /** Builds a structurally-valid JWT carrying the given claims. */
 function jwt(claims: object): string {
@@ -80,10 +81,8 @@ suite('DynamicAuthProvider', () => {
 				return new NullLogger();
 			}
 		}();
-		const proxy = new class extends mock<MainThreadAuthenticationShape>() {
-			override $setSessionsForDynamicAuthProvider(): Promise<void> {
-				return Promise.resolve();
-			}
+		const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
+			override $setSessionsForDynamicAuthProvider = (): Promise<void> => Promise.resolve();
 		}();
 		const provider = disposables.add(new TestDynamicAuthProvider(
 			new class extends mock<IExtHostWindow>() { }(),
