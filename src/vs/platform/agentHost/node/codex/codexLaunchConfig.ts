@@ -25,9 +25,11 @@ export function buildCodexResumeParams(
 	workingDirectories?: readonly string[],
 	configOverrides: Readonly<Record<string, JsonValue>> = {},
 	developerInstructions?: string,
+	imageGenerationEnabled = false,
 ): ThreadResumeParams {
 	const config = {
 		...configOverrides,
+		'features.image_generation': imageGenerationEnabled,
 		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
 	};
 	return {
@@ -66,6 +68,8 @@ export function buildCodexLaunchConfig(
 		// would otherwise drop it.
 		`shell_environment_policy.set.${AiAgentEnvVar}="${AiAgentEnvValue}"`,
 		`features.tool_call_mcp_elicitation=false`,
+		// Keep image generation disabled for the Copilot/CAPI proxy by default.
+		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
 	];
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
