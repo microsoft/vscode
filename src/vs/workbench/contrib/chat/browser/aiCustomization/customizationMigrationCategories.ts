@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { PromptFileSource, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
@@ -33,6 +34,8 @@ export interface ICustomizationMigrationCategory {
 	readonly id: CustomizationMigrationCategoryId;
 	/** Prompt types scanned when collecting candidates for this category. */
 	readonly sourceTypes: readonly PromptsType[];
+	/** Experimental setting gating this migration. Each category is enabled independently. */
+	readonly enablementSetting: ChatConfiguration;
 	readonly shortcutLabel: string;
 	readonly shortcutTooltip: string;
 	readonly cardLabel: string;
@@ -67,6 +70,7 @@ const CUSTOMIZATION_DOCUMENTATION_URL = 'https://code.visualstudio.com/docs/agen
 const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.PromptFiles,
 	sourceTypes: [PromptsType.prompt],
+	enablementSetting: ChatConfiguration.ChatCustomizationsPromptMigrationEnabled,
 	shortcutLabel: localize('promptMigrationShortcutLabel', "Migrate Prompts"),
 	shortcutTooltip: localize('promptMigrationShortcutTooltip', "Convert deprecated prompt files to skills"),
 	cardLabel: localize('promptMigrationCardLabel', "Migrate Prompt Files"),
@@ -197,6 +201,7 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	id: CustomizationMigrationCategoryId.UserData,
 	sourceTypes: [PromptsType.agent, PromptsType.instructions],
+	enablementSetting: ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled,
 	shortcutLabel: localize('userDataMigrationShortcutLabel', "Migrate User Data"),
 	shortcutTooltip: localize('userDataMigrationShortcutTooltip', "Move User Data agents and instructions to the active harness"),
 	cardLabel: localize('userDataMigrationCardLabel', "Migrate User Data"),
@@ -324,10 +329,10 @@ export function getCustomizationMigrationCategory(id: CustomizationMigrationCate
 }
 
 /**
- * All prompt types any category can discover, so candidates can be collected with one pass per type.
+ * All prompt types the given categories can discover, so candidates can be collected with one pass per type.
  */
-export function getCustomizationMigrationSourceTypes(): readonly PromptsType[] {
-	return Array.from(new Set(CUSTOMIZATION_MIGRATION_CATEGORIES.flatMap(category => category.sourceTypes)));
+export function getCustomizationMigrationSourceTypes(categories: readonly ICustomizationMigrationCategory[]): readonly PromptsType[] {
+	return Array.from(new Set(categories.flatMap(category => category.sourceTypes)));
 }
 
 function countPromptStorages(customizations: readonly IPromptPath[]): { workspaceCount: number; userCount: number; totalCount: number } {

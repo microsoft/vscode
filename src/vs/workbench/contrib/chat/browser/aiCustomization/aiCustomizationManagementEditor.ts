@@ -680,8 +680,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled)) {
-				this.refreshCustomizationMigrationUi();
+			// Candidates are only collected for enabled categories, so enabling one must re-scan.
+			if (CUSTOMIZATION_MIGRATION_CATEGORIES.some(category => e.affectsConfiguration(category.enablementSetting))) {
+				void this.refreshCustomizationMigrationInfo();
 			}
 		}));
 
@@ -1104,7 +1105,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		try {
-			const sourceTypes = getCustomizationMigrationSourceTypes();
+			const enabledCategories = this.getEnabledMigrationCategories();
+			if (enabledCategories.length === 0) {
+				this.setCustomizationsToMigrate(new Map());
+				return;
+			}
+
+			const sourceTypes = getCustomizationMigrationSourceTypes(enabledCategories);
 			const customizationsByType = await Promise.all(sourceTypes.map(type => this.promptsService.listPromptFiles(type, CancellationToken.None)));
 			if (refreshSequence !== this.customizationMigrationRefreshSequence || activeHarnessId !== this.harnessService.activeHarness.get()) {
 				return;
@@ -1112,7 +1119,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			const allCustomizations = customizationsByType.flat();
 			const candidatesByCategory = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>();
-			for (const category of CUSTOMIZATION_MIGRATION_CATEGORIES) {
+			for (const category of enabledCategories) {
 				candidatesByCategory.set(category.id, allCustomizations.filter(customization => category.isCandidate(customization)));
 			}
 			this.setCustomizationsToMigrate(candidatesByCategory);
@@ -1138,7 +1145,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private getMigrationCandidates(category: ICustomizationMigrationCategory): readonly IPromptPath[] {
-		if (!this.isCustomizationMigrationEnabled()) {
+		if (!this.isMigrationCategoryEnabled(category)) {
 			return [];
 		}
 		return this.customizationsByMigrationCategory.get(category.id) ?? [];
@@ -1207,7 +1214,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly IPromptPath[]): Promise<void> {
-		if (customizations.length === 0 || !this.isCustomizationMigrationEnabled()) {
+		if (customizations.length === 0 || !this.isMigrationCategoryEnabled(category)) {
 			return;
 		}
 
@@ -1489,8 +1496,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.setCustomizationsToMigrate(updatedCandidates);
 	}
 
-	private isCustomizationMigrationEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled) === true;
+	private isMigrationCategoryEnabled(category: ICustomizationMigrationCategory): boolean {
+		return this.configurationService.getValue<boolean>(category.enablementSetting) === true;
+	}
+
+	private getEnabledMigrationCategories(): readonly ICustomizationMigrationCategory[] {
+		return CUSTOMIZATION_MIGRATION_CATEGORIES.filter(category => this.isMigrationCategoryEnabled(category));
 	}
 
 	private async resolveCustomizationMigrationTargetFolders(customizations: readonly IPromptPath[]): Promise<CustomizationMigrationTargetFolders | undefined> {
@@ -2140,7 +2151,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	public showCustomizationMigrationPage(categoryId: CustomizationMigrationCategoryId): void {
-		if (!this.isCustomizationMigrationEnabled()) {
+		if (!this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(categoryId))) {
 			return;
 		}
 

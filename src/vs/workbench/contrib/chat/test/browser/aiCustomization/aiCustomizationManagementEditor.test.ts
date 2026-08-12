@@ -19,6 +19,7 @@ import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
+import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,7 +50,7 @@ suite('aiCustomizationManagementEditor', () => {
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
 		showEmbeddedEditor(...args: unknown[]): Promise<void>;
 		getActiveHarnessLabel(): string;
-		welcomePage: { setMigrationCategories(categories: unknown): void } | undefined;
+		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
 		contributedSectionContainers: Map<AICustomizationManagementSection, HTMLElement>;
 		getEditorModeButtonLabel(): string;
@@ -225,25 +226,42 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('hides customization migration UI when the experimental setting is disabled', () => {
-		const welcomePageCalls: unknown[] = [];
-		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+	test('gates each migration category on its own experimental setting', () => {
+		const welcomePageCalls: ICustomizationMigrationCategorySummary[][] = [];
+		const configurationService = createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: false,
-		}));
+			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: false,
+		}) as IConfigurationService & { setValue(key: string, value: unknown): void };
+		const editor = createTestEditor(undefined, configurationService);
 		editor.customizationsByMigrationCategory = new Map([
 			[CustomizationMigrationCategoryId.PromptFiles, [{
 				uri: URI.file('/workspace/.github/prompts/prompt.prompt.md'),
 				storage: PromptsStorage.local,
 				type: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+			} as IPromptPath]],
+			[CustomizationMigrationCategoryId.UserData, [{
+				uri: URI.file('/user-data/prompts/legacy.agent.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
 			} as IPromptPath]],
 		]);
 		editor.welcomePage = {
-			setMigrationCategories: categories => welcomePageCalls.push(categories),
+			setMigrationCategories: categories => welcomePageCalls.push([...categories as readonly ICustomizationMigrationCategorySummary[]]),
 		};
 
 		editor.refreshCustomizationMigrationUi();
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled, true);
+		editor.refreshCustomizationMigrationUi();
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsPromptMigrationEnabled, true);
+		editor.refreshCustomizationMigrationUi();
 
-		assert.deepStrictEqual(welcomePageCalls, [[]]);
+		assert.deepStrictEqual(welcomePageCalls.map(categories => categories.map(category => category.id)), [
+			[],
+			[CustomizationMigrationCategoryId.UserData],
+			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
+		]);
 		editor.editorPreviewDisposables.dispose();
 	});
 
