@@ -163,19 +163,26 @@ suite('AgentHostSessionTitleController', () => {
 		return { controller, stateManager, session, db, titleActions, copilotApiService, octoKitService };
 	}
 
-	test('active-agent mode uses a 40-character fallback without utility generation and adds a reminder', async () => {
+	test('active-agent mode uses a word-bounded 40-character fallback without utility generation and adds a reminder', async () => {
 		const copilotApiService = new TestCopilotApiService();
 		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
 
-		controller.seedTitleFromFirstMessage(session.toString(), `  Explain   ${'title generation '.repeat(10)}  `);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
 		const prompt = await controller.preparePromptForAgent(session.toString(), buildDefaultChatUri(session), 'Continue');
 
-		assert.strictEqual(titleActions.length, 1);
-		assert.ok(titleActions[0].length <= 40);
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		assert.ok(prompt.includes('<system_notification>'));
 		assert.ok(prompt.includes('`rename_session`'));
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
+	});
+
+	test('active-agent fallback hard-truncates a single oversized word', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'x'.repeat(50));
+
+		assert.deepStrictEqual(titleActions, ['x'.repeat(40)]);
 	});
 
 	test('utility-model mode does not add an active-agent reminder', async () => {

@@ -116,7 +116,10 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
-		const fallbackTitle = this._normalizeTitle(userPrompt, this._isActiveAgentTitleGenerationEnabled() ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
+		const activeAgentTitleGenerationEnabled = this._isActiveAgentTitleGenerationEnabled();
+		const fallbackTitle = activeAgentTitleGenerationEnabled
+			? this._normalizeActiveAgentFallbackTitle(userPrompt)
+			: this._normalizeTitle(userPrompt);
 		if (!fallbackTitle) {
 			return;
 		}
@@ -130,7 +133,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		const replacesProvisionalTitle = this._provisionalTitles.has(key);
 		this._provisionalTitles.delete(key);
 		this._applySeedTitle(channel, additionalChat, fallbackTitle);
-		if (this._isActiveAgentTitleGenerationEnabled()) {
+		if (activeAgentTitleGenerationEnabled) {
 			this.markTitleAuto(channel, additionalChat, fallbackTitle);
 			return;
 		}
@@ -168,6 +171,17 @@ export class AgentHostSessionTitleController extends Disposable {
 	/** Trims, collapses whitespace, and length-caps a candidate title. */
 	private _normalizeTitle(text: string, maxLength = MAX_TITLE_LENGTH): string {
 		return Array.from(text.trim().replace(/\s+/g, ' ')).slice(0, maxLength).join('').trim();
+	}
+
+	private _normalizeActiveAgentFallbackTitle(text: string): string {
+		const normalized = text.trim().replace(/\s+/g, ' ');
+		const characters = Array.from(normalized);
+		if (characters.length <= MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH) {
+			return normalized;
+		}
+		const limited = characters.slice(0, MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH).join('');
+		const lastWordBoundary = limited.lastIndexOf(' ');
+		return lastWordBoundary > 0 ? limited.slice(0, lastWordBoundary) : limited;
 	}
 
 	/**
