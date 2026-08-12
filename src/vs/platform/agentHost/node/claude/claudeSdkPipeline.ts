@@ -131,7 +131,7 @@ export class ClaudeSdkPipeline extends Disposable {
 		const observed = new Map((await query.mcpServerStatus()).map(server => [server.name, server.status !== 'disabled']));
 		for (const [serverName, enabled] of desired) {
 			// `desired` is session-scoped state, so it can name servers this
-			// particular chat's query does not have (a peer chat that has not
+			// particular chat's query does not have (another chat that has not
 			// finished connecting its servers, or a chat created after the
 			// session state was published). Toggling one of those always fails
 			// with `Server not found: <name>` and would take the turn down with

@@ -328,13 +328,10 @@ export class AgentSideEffects extends Disposable {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
 			}
 			// A chat joining the catalog changes the session's authoritative
-			// membership, so every client already contributing to the session
-			// is re-fanned-out over the new set. Handled here (rather than in
-			// `handleAction`) because every chat-membership path — user
-			// `createChat`, a provider-spawned subagent, a restored subagent —
-			// funnels through the same server-dispatched action. Agent Host
-			// stays the sole owner of session→chat membership; the provider
-			// only ever replaces what it was handed.
+			// membership, so every already-contributing client is re-fanned-out
+			// over the new set. Handled here (not `handleAction`) because every
+			// chat-membership path (createChat, spawned/restored subagent)
+			// funnels through this server-dispatched action.
 			if (envelope.action.type === ActionType.SessionChatAdded) {
 				for (const activeClient of this._stateManager.getSessionState(envelope.channel)?.activeClients ?? []) {
 					this._fanOutActiveClient(envelope.channel, activeClient);
@@ -364,23 +361,17 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * The owning session's last host-published customization snapshot — the
-	 * same list clients observe on `SessionState.customizations`, including
-	 * user enablement toggles. Supplied explicitly at every provider boundary
-	 * that needs them.
-	 *
-	 * `undefined` means the host has not published a snapshot for this session
-	 * yet (it is unknown, provisional, or evicted). That is deliberately
-	 * distinct from an empty list: the provider must reconcile against its own
-	 * state instead of treating "no snapshot" as "no customizations".
+	 * The owning session's last host-published customization snapshot,
+	 * including user enablement toggles. `undefined` means the host has not
+	 * published a snapshot yet — distinct from an empty list, since the
+	 * provider must reconcile against its own state rather than treat "no
+	 * snapshot" as "no customizations".
 	 */
 	private _hostCustomizations(session: ProtocolURI): readonly Customization[] | undefined {
 		return this._stateManager.getSessionState(session)?.customizations;
 	}
 
-	/**
-	 * Hands a client's contribution to each exact chat Agent Host owns.
-	 */
+	/** Hands a client's contribution to each exact chat Agent Host owns. */
 	private _fanOutActiveClient(session: ProtocolURI, activeClient: SessionActiveClient): void {
 		const agent = this._options.getAgent(session);
 		if (!agent) {
@@ -1325,12 +1316,12 @@ export class AgentSideEffects extends Disposable {
 	/**
 	 * Forwards a completed client tool call to the provider.
 	 *
-	 * `chat` is the host-resolved *routing* target — for a subagent chat that
-	 * is the ancestor chat whose provider runtime owns the tool call (see
-	 * {@link _toolCallCompletionChat}). The context describes the chat the tool
+	 * `chat` is the host-resolved *routing* target: for a subagent chat, the
+	 * ancestor chat whose provider runtime owns the tool call (see
+	 * {@link _toolCallCompletionChat}). The context carries the chat the tool
 	 * call was actually addressed to, so a provider can recover the spawn edge
-	 * with `resolveSubagentChatParent(context)` instead of walking host state.
-	 * The two differ exactly when the addressed chat is a subagent.
+	 * via `resolveSubagentChatParent(context)` instead of walking host state.
+	 * The two differ only when the addressed chat is a subagent.
 	 */
 	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
 		const completionChat = this._toolCallCompletionChat(chatChannel);

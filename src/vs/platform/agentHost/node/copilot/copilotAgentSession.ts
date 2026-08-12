@@ -380,13 +380,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly chatChannelUri: URI;
-	/**
-	 * The host-chosen persistence/config scope for this chat (the
-	 * {@link IAgentChatContext.resource}): the session URI for a session's
-	 * default chat, or the concrete chat URI for an additional chat. Stored
-	 * verbatim; when omitted (internal resume/unbound paths that carry no
-	 * explicit resource) it falls back to a one-time URI-shape inference.
-	 */
+	/** Exact persistence/config scope for this chat (`IAgentChatContext.resource` when supplied). */
 	readonly resource?: URI;
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
@@ -407,25 +401,9 @@ export interface ICopilotAgentSessionOptions {
 	 * bare top-level customizations via {@link CopilotAgentSession.topLevelMcpCustomizations}.
 	 */
 	readonly resolveMcpChildId: (serverName: string) => string | undefined;
-	/**
-	 * Whether an active client's contributions reach this chat, per the
-	 * host-owned per-client chat membership (see
-	 * `CopilotAgent.getOrCreateActiveClient`). Applied when stamping a
-	 * client-contributed tool call so it is only ever attributed to a client
-	 * Agent Host fanned this chat out to. `chat` is the session's current chat
-	 * channel, passed at call time because {@link CopilotAgentSession.bindChatChannel}
-	 * can move it after construction. Defaults to "every client is in scope"
-	 * for standalone/test construction, where no membership is published.
-	 */
+	/** Returns whether a host-published client membership includes this chat. */
 	readonly clientReachesChat?: (clientId: string, chat: URI) => boolean;
-	/**
-	 * Reads the owning session's last host-published customization snapshot
-	 * (Section 8b of `MULTI_CHAT_ARCHITECTURE.md`) — the desired MCP-server
-	 * enablement this session reconciles against at send/steering time.
-	 * Supplied as an accessor so the session always sees the newest snapshot
-	 * Agent Host handed the agent, and never reads host state itself. Defaults
-	 * to an empty list for standalone/test construction.
-	 */
+	/** Reads the retained host snapshot this session uses for MCP enablement reconcile. */
 	readonly hostCustomizations?: () => readonly Customization[];
 	/**
 	 * Live registry of every active client's tool contributions, shared by
@@ -661,12 +639,7 @@ export class CopilotAgentSession extends Disposable {
 	/** @deprecated Compatibility alias for SDK callbacks; this is the exact persistence resource. */
 	get sessionUri(): URI { return this.resourceUri; }
 	private _chatChannelUri: URI;
-	/**
-	 * Persistence/config scope for this chat, fixed at construction. It is the
-	 * host-supplied {@link IAgentChatContext.resource} when available, and is
-	 * NOT re-derived from the (mutable) routing channel — so an explicitly
-	 * chosen resource is preserved across a later {@link bindChatChannel}.
-	 */
+	/** Fixed persistence scope for this chat; never re-derived from the mutable routing channel. Config reads/writes must use {@link _ownerSessionUri} instead — peer chats share that scope but have distinct storage. */
 	private readonly _storageUri: URI;
 
 	get chatChannelUri(): URI {
@@ -807,10 +780,7 @@ export class CopilotAgentSession extends Disposable {
 	private _sessionTotalNanoAiu = 0;
 	private _promptCacheState: ISessionPromptCacheState | undefined;
 	private _promptCacheRefreshGeneration = 0;
-	/**
-	 * Reads the owning session's last host-published customization snapshot
-	 * (Section 8b). See {@link ICopilotAgentSessionOptions.hostCustomizations}.
-	 */
+	/** Reads the latest retained host snapshot for this session. */
 	private readonly _hostCustomizations: () => readonly Customization[];
 	/**
 	 * Serializes the metrics reads behind {@link _refreshSessionUsageMetrics}. Several
@@ -858,10 +828,7 @@ export class CopilotAgentSession extends Disposable {
 	 * frozen into {@link _appliedSnapshot}.
 	 */
 	private readonly _activeClientToolSet: ActiveClientToolSet;
-	/**
-	 * Whether a client's contributions reach this chat, per the host-owned
-	 * membership. See {@link ICopilotAgentSessionOptions.clientReachesChat}.
-	 */
+	/** Whether a client's host-published membership includes this chat. */
 	private readonly _clientReachesChat: (clientId: string, chat: URI) => boolean;
 	/** Tool names that are client-provided, derived from snapshot. */
 	private readonly _clientToolNames: ReadonlySet<string>;
@@ -956,8 +923,6 @@ export class CopilotAgentSession extends Disposable {
 		this.resourceUri = options.resource ?? options.sessionUri;
 		this._slashCommandProvider = new CopilotSlashCommandProvider(() => this._wrapper.session.rpc.commands.list({ includeBuiltins: true, includeSkills: true, includeClientCommands: true }).then(c => c.commands), this._logService);
 		this._chatChannelUri = options.chatChannelUri;
-		// Persistence scope: honor the host-supplied resource; otherwise fall
-		// back once to the URI-shape inference (default chat → session scope).
 		this._storageUri = this.resourceUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._sessionLauncher = options.sessionLauncher;
@@ -1187,17 +1152,7 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
-	/**
-	 * The active client that owns a client-contributed tool *for this chat*.
-	 *
-	 * The membership-scoped counterpart of {@link ActiveClientToolSet.ownerOf}:
-	 * candidates are drawn from the same live registry, but a client Agent Host
-	 * did not fan this chat out to is skipped, so a tool call is never
-	 * attributed to — and therefore dispatched to — a client that does not
-	 * contribute here. Preference order matches `ownerOf`: the turn's sender
-	 * wins when it provides the tool and reaches this chat, otherwise the
-	 * first-inserted contributor that does.
-	 */
+	/** Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership. */
 	private _resolveClientToolOwner(toolName: string): string | undefined {
 		const chat = this._chatChannelUri;
 		const provides = (clientId: string) => this._activeClientToolSet.get(clientId).some(tool => tool.name === toolName);
@@ -1883,9 +1838,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _setPromptCacheState(promptCache: ISessionPromptCacheState | undefined): void {
-		// Concurrent sessions can share `resourceUri`, so the persisted metadata — not this
-		// instance's cached value — is authoritative. The seam re-reads it, skips a no-op
-		// write, and hands back the state that is in effect afterwards.
+		// `resourceUri` can be shared, so persist and re-read through the shared prompt-cache seam.
 		this._promptCacheState = this._promptCache.write(this.resourceUri, promptCache);
 	}
 
@@ -2377,7 +2330,7 @@ export class CopilotAgentSession extends Disposable {
 	 * answer questions or fill in elicitation forms.
 	 */
 	private _isAutopilotMode(): boolean {
-		return this._configurationService.getEffectiveValue(this._storageUri.toString(), platformSessionSchema, SessionConfigKey.Mode) === 'autopilot';
+		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.Mode) === 'autopilot';
 	}
 
 	/**
@@ -2588,10 +2541,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _reconcileMcpServerEnablement(): Promise<void> {
-		// The owning session's last host-published customization snapshot (Section 8b),
-		// retained by the agent and refreshed at every host boundary. This
-		// reconcile has no host call of its own, so it reads the retained value
-		// rather than shared host state.
+		// This reconcile has no host call of its own, so it reads the retained host snapshot.
 		const desiredCustomizations = this._hostCustomizations();
 		const desiredServers = getEffectiveMcpServerCustomizations(desiredCustomizations);
 		if (desiredServers.length === 0) {
@@ -3055,7 +3005,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
 			return true;
 		}
-		return this._configurationService.getEffectiveValue(this._storageUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
+		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
 	}
 
 	private _getSdkPermissionMode(): PermissionAllowAllMode {
@@ -3068,11 +3018,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _getConfiguredApprovalLevel(): string {
-		return this._configurationService.getEffectiveValue(this._storageUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 
 	private _getConfiguredAgentMode(): string {
-		return this._configurationService.getEffectiveValue(this._storageUri.toString(), platformSessionSchema, SessionConfigKey.Mode) ?? 'interactive';
+		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.Mode) ?? 'interactive';
 	}
 
 	private _subscribeToPermissionConfigChanges(): void {
@@ -3080,7 +3030,7 @@ export class CopilotAgentSession extends Disposable {
 			void this._syncPermissionModeAfterConfigChange();
 		}));
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
-			if (event.session === this._storageUri.toString() && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
+			if (event.session === this._ownerSessionUri.toString() && Object.hasOwn(event.config, SessionConfigKey.AutoApprove)) {
 				void this._syncPermissionModeAfterConfigChange();
 			}
 		}));
@@ -4336,19 +4286,11 @@ export class CopilotAgentSession extends Disposable {
 				agentName: e.data.agentName,
 				agentDisplayName: e.data.agentDisplayName,
 				agentDescription: e.data.agentDescription,
-				// The spawning Task tool's short `description` input (captured on
-				// tool start) is the concise per-task tab title for the subagent's
-				// read-only chat — distinct even for same-type subagents.
+				// Use the spawning Task tool's short description as the subagent chat title.
 				taskDescription: tracked?.meta?.subagentDescription,
-				// The full delegated instruction (the spawning tool's `prompt`
-				// argument) seeds the subagent peer chat's opening request.
+				// Seed the subagent chat with the spawning tool's full delegated prompt.
 				taskPrompt: typeof tracked?.parameters?.prompt === 'string' ? tracked.parameters.prompt : undefined,
-				// When the spawning tool call is itself an inner tool of
-				// another subagent, its recorded parent is the tool call one
-				// level up — the tool call in whose (subagent) chat this
-				// spawning tool lives. The host uses it to route the
-				// discovery content block to that immediate parent chat, at
-				// any nesting depth.
+				// Preserve the immediate parent tool-call edge so discovery content routes to the right ancestor chat.
 				parentToolCallId: tracked?.parentToolCallId,
 			});
 		}));
@@ -4923,7 +4865,7 @@ export class CopilotAgentSession extends Disposable {
 	 * propagate to all subscribed clients via `session/configChanged`.
 	 */
 	private _syncAhpConfigFromSdkMode(sdkMode: CopilotSdkMode): void {
-		const sessionUri = this._storageUri.toString();
+		const sessionUri = this._ownerSessionUri.toString();
 		const patch: Record<string, unknown> = {};
 		switch (sdkMode) {
 			case 'plan':

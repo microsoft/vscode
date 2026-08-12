@@ -22,10 +22,7 @@ import { ComponentToState, StateComponents, type RootState } from './state/sessi
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentHostAuthTokenRequest, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
-// IAgent and its directly-related provider-model types/helpers live in
-// ./agent.ts, kept free of any dependency on this file so the two never form
-// an import cycle. Re-exported here so existing call sites compile unchanged;
-// new provider code should import these directly from ./agent.js.
+// New provider code imports these from agent.ts.
 export type {
 	IAgent, IAgentChats, IAgentChatContext, IAgentCreateChatOptions, IAgentCreateChatForkSource,
 	IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateChatResult,
@@ -46,10 +43,7 @@ export {
 	SubagentChatSignal,
 } from './agent.js';
 
-// IPC contract between the renderer and the agent host utility process.
-// Defines the IAgentService / IAgentHostService service decorators that
-// orchestrate the IAgent provider model (see ./agent.ts) and every other
-// serializable event type on that boundary.
+// IPC contract between clients and the agent host process.
 
 export const enum AgentHostIpcChannels {
 	/** Channel for the agent host service on the main-process side */
@@ -762,7 +756,6 @@ export interface IAgentService {
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
-	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
 	/**
@@ -806,13 +799,11 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	/** Create a new terminal on the agent host. */
 	createTerminal(params: CreateTerminalParams): Promise<void>;
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
 
-	/** Invoke a server-defined changeset operation. */
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	/**
@@ -935,29 +926,16 @@ export interface IAgentService {
 	 */
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
 
-	/**
-	 * Copy a resource from one URI to another on the agent host's filesystem.
-	 */
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 
-	/**
-	 * Delete a resource at a URI on the agent host's filesystem.
-	 */
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 
-	/**
-	 * Move (rename) a resource from one URI to another on the agent host's filesystem.
-	 */
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
 
-	/**
-	 * Resolve a resource (stat + realpath) on the agent host's filesystem.
-	 */
+	/** Resolve a resource (stat + realpath). */
 	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
 
-	/**
-	 * Create a directory (mkdir -p semantics) on the agent host's filesystem.
-	 */
+	/** Create a directory (`mkdir -p` semantics). */
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
 
 	/**

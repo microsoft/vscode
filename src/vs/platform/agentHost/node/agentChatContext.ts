@@ -18,26 +18,19 @@ function toUri(resource: URI | ProtocolURI): URI {
 
 /**
  * Builds the host-owned {@link IAgentChatContext} for an addressed chat
- * operation.
+ * operation — the single place Agent Host derives the transient context handed
+ * to a provider, so every boundary (create, materialize, send, truncate,
+ * dispose, release, model/agent change, history read) carries the same facts:
  *
- * This is the single place Agent Host derives the transient context it hands to
- * a provider, so every boundary (create, materialize, send, truncate, dispose,
- * release, model/agent change, history read) carries the same, exhaustive
- * facts:
+ * - `resource` — provider-owned persistence scope for the exact chat;
+ * - `configurationResource` — opaque scope for shared configuration;
+ * - `origin` — how the chat came into existence, read from its `ChatSummary`.
+ *   Absent only in the narrow restore window before a chat is registered,
+ *   where the restoring caller supplies the origin itself;
+ * - `customizations` — the owning session's effective host customizations.
  *
- * - `resource` — the provider-owned persistence scope for the exact chat;
- * - `configurationResource` — the opaque scope for shared configuration;
- * - `origin` — the catalog's record of how the chat came into existence, read
- *   from the chat's authoritative `ChatSummary`. Restored chats register their
- *   summary before any state is resolved, and provider-spawned subagent chats
- *   record their tool spawn edge when the host adds them, so this is exhaustive
- *   for both. It is absent only in the narrow restore window before a chat is
- *   registered, where the restoring caller supplies the origin itself;
- * - `customizations` — the owning session's effective host customizations,
- *   including user enablement toggles.
- *
- * Accepts either resource form so callers that already hold protocol URI
- * strings (the action pipeline) do not have to round-trip through {@link URI}.
+ * Accepts either resource form so callers already holding protocol URI strings
+ * (the action pipeline) need not round-trip through {@link URI}.
  */
 export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI): IAgentChatContext {
 	const sessionKey = toKey(session);
@@ -57,13 +50,10 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
  * The exact chats an active client's contribution fans out to, owned by Agent
  * Host — or `undefined` when the host holds no state for the session.
  *
- * Returns the session's authoritative chat catalog (default chat first). The
- * distinction matters: an empty-or-absent catalog is NOT the same as "the
- * session has exactly its default chat". A session whose state the host has not
- * published yet has no authoritative membership at all, and Agent Host must not
- * invent one — callers skip the provider fan-out until real state exists rather
- * than fabricating a default-chat URI. Providers therefore only ever see a
- * complete, non-empty membership list.
+ * An empty/absent catalog is not the same as "only the default chat": a
+ * session whose state hasn't been published yet has no authoritative
+ * membership, so callers must skip provider fan-out rather than fabricate a
+ * default-chat URI. Returned lists are always complete and non-empty.
  */
 export function getSessionChatsForFanOut(stateManager: AgentHostStateManager, session: URI | ProtocolURI): URI[] | undefined {
 	const sessionKey = toKey(session);

@@ -70,7 +70,7 @@ export function tagWithParent(
 		// per-task tab title for the subagent's read-only chat.
 		taskDescription: spawn.description,
 		// The Task tool's `prompt` input is the full delegated instruction
-		// that seeds the subagent peer chat's opening request.
+		// that seeds the subagent chat's opening request.
 		taskPrompt: spawn.prompt,
 		// When the spawning Task tool is itself an inner tool of another
 		// subagent, its parent Task (one level up) is the tool call in

@@ -396,11 +396,11 @@ function buildDefaultStrategies(sdk: IClaudeAgentSdkService, logService: ILogSer
 }
 
 /**
- * Phase 12 — fetch a subagent's transcript by URI. Cache lookup goes
- * through the parent session's {@link SubagentRegistry} (each spawn
- * carries its `agentId`); on a miss, the strategy chain runs and the
- * resolved agentId is recorded back onto the spawn (first-writer-wins)
- * for future calls.
+ * Fetch a subagent's transcript by URI. Cache lookup goes through the
+ * parent session's {@link SubagentRegistry} (each spawn carries its
+ * `agentId`); on a miss, the strategy chain runs and the resolved
+ * agentId is recorded back onto the spawn (first-writer-wins) for
+ * future calls.
  *
  * Resilient: returns `[]` on any unresolvable agentId or SDK error
  * after warn-logging. Throws only on a malformed (non-subagent) URI,

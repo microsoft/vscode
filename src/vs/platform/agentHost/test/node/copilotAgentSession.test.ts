@@ -581,6 +581,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	sessionCustomizations?: () => readonly Customization[];
 	initialSessionMeta?: Record<string, unknown>;
 	sessionUri?: URI;
+	/** Exact persistence/config scope for this chat (`IAgentChatContext.resource`); distinct from `sessionUri` for peer chats. */
+	resource?: URI;
 	chatChannelUri?: URI;
 	resolveMcpChildId?: (serverName: string) => string | undefined;
 	/** Optional server-tool host wired into the session. */
@@ -730,8 +732,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// Simple per-key map suffices for tests; the real service walks
 		// session → parent → host and validates against the schema, but
 		// neither matters here — we just need to surface a value the
-		// session class will read.
-		getEffectiveValue: ((_session: string, _schema: unknown, key: string) => configValues[key]) as IAgentConfigurationService['getEffectiveValue'],
+		// session class will read. Gated on `sessionUri` (the owning
+		// session/configuration scope) so tests can catch a caller that
+		// mistakenly reads with a peer chat's own resource URI instead.
+		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? configValues[key] : undefined) as IAgentConfigurationService['getEffectiveValue'],
 		getEffectiveWorkingDirectory: () => undefined,
 		getEffectiveWorkingDirectories: () => undefined,
 		isWorkingDirectoryPending: () => false,
@@ -802,6 +806,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		CopilotAgentSession,
 		{
 			sessionUri,
+			resource: options?.resource,
 			chatChannelUri,
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
@@ -3739,6 +3744,117 @@ suite('CopilotAgentSession', () => {
 				pendingConfirmations: 0,
 				errors: ['[Copilot:test-session-1] Rejecting permission request for unroutable subagent tool call: toolCallId=tc-orphaned-subagent-tool, kind=shell'],
 			});
+		});
+	});
+
+	// ---- peer chat configuration scope --------------------------------------
+	// A peer chat's `resource` (its exact persistence/storage scope) differs
+	// from `sessionUri` (the shared owning/configuration scope). These tests
+	// prove config reads, permission/auto-approve resolution, and session
+	// config change notifications resolve through the owning session — so a
+	// peer chat observes the same effective config as the session's initial
+	// chat — while `resource` still governs its own storage.
+	suite('peer chat configuration scope', () => {
+
+		const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
+		const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
+
+		test('peer chat observes mode identically to the initial chat', async () => {
+			const configValues = { [SessionConfigKey.Mode]: 'autopilot' };
+			const question = { question: 'Pick a color', choices: ['red', 'blue', 'green'] };
+
+			const { runtime: initialRuntime } = await createAgentSession(disposables, { configValues });
+			const { runtime: peerRuntime } = await createAgentSession(disposables, {
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+				configValues,
+			});
+
+			const initialResult = await initialRuntime.handleUserInputRequest(question, { sessionId: 'test-session-1' });
+			const peerResult = await peerRuntime.handleUserInputRequest(question, { sessionId: 'test-session-1' });
+
+			assert.deepStrictEqual(peerResult, initialResult);
+			assert.strictEqual(peerResult.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
+		});
+
+		test('peer chat observes auto-approve/permissions identically to the initial chat', async () => {
+			const options = {
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				configValues: {
+					[SessionConfigKey.Mode]: 'autopilot',
+					[SessionConfigKey.AutoApprove]: 'default',
+				},
+			};
+
+			const { session: initialSession, mockSession: initialMockSession } = await createAgentSession(disposables, options);
+			await initialSession.send('hello', undefined, 'turn-1');
+
+			const { session: peerSession, mockSession: peerMockSession } = await createAgentSession(disposables, {
+				...options,
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+			});
+			await peerSession.send('hello', undefined, 'turn-1');
+
+			const summarize = (mockSession: MockCopilotSession) => ({
+				permissionModes: mockSession.permissionModeSetCalls,
+				sandbox: mockSession.sandboxConfigUpdates.at(-1),
+			});
+			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
+			assert.deepStrictEqual(summarize(peerMockSession), {
+				permissionModes: ['off'],
+				sandbox: {
+					enabled: true,
+					allowBypass: true,
+					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
+				},
+			});
+		});
+
+		test('peer chat observes session config changes identically to the initial chat', async () => {
+			const configValues = { [SessionConfigKey.AutoApprove]: 'assisted' };
+
+			const { session: initialSession, mockSession: initialMockSession, setConfigValue: setInitialConfigValue, fireSessionConfigChange: fireInitialSessionConfigChange } = await createAgentSession(disposables, { configValues: { ...configValues } });
+			await initialSession.syncPermissionMode('turn-start');
+			setInitialConfigValue(SessionConfigKey.AutoApprove, 'default');
+			fireInitialSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
+			await timeout(0);
+
+			const { session: peerSession, mockSession: peerMockSession, setConfigValue: setPeerConfigValue, fireSessionConfigChange: firePeerSessionConfigChange } = await createAgentSession(disposables, {
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+				configValues: { ...configValues },
+			});
+			await peerSession.syncPermissionMode('turn-start');
+			setPeerConfigValue(SessionConfigKey.AutoApprove, 'default');
+			// Config changes are always emitted keyed by the owning session URI
+			// (the default here), never by this peer chat's own `resource`.
+			firePeerSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' });
+			await timeout(0);
+
+			assert.deepStrictEqual(peerMockSession.permissionModeSetCalls, initialMockSession.permissionModeSetCalls);
+			assert.deepStrictEqual(peerMockSession.permissionModeSetCalls, ['auto', 'off']);
+		});
+
+		test('peer chat ignores session config changes scoped to its own chat resource', async () => {
+			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			setConfigValue(SessionConfigKey.AutoApprove, 'default');
+
+			// A change event keyed by this peer chat's own resource (rather than
+			// the owning session) must not be mistaken for the shared config scope.
+			fireSessionConfigChange({ [SessionConfigKey.AutoApprove]: 'default' }, peerChatUri.toString());
+			await timeout(0);
+
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['auto']);
 		});
 	});
 
@@ -8185,6 +8301,34 @@ suite('CopilotAgentSession', () => {
 			// Picking "Implement with Autopilot" flips the AHP mode immediately.
 			assert.deepStrictEqual(sessionConfigUpdates, [
 				{ session: 'copilot:/test-session-1', patch: { mode: 'autopilot' } },
+			]);
+		});
+
+		test('peer chat syncs mode=autopilot to the owning session, not its own chat resource', async () => {
+			// A peer chat's `resource` (exact persistence scope) differs from
+			// `sessionUri` (the shared owning/configuration scope). The SDK-mode
+			// sync must target the owning session so every peer chat observes it.
+			const parentSessionUri = AgentSession.uri('copilot', 'test-session-1');
+			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
+			const { session, runtime, waitForSignal, sessionConfigUpdates } = await createAgentSession(disposables, {
+				sessionUri: parentSessionUri,
+				chatChannelUri: peerChatUri,
+				resource: peerChatUri,
+			});
+			session.resetTurnState('turn-plan');
+
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
+			const request = getInputRequest(await waitForSignal(s => isAction(s, ActionType.ChatInputRequested)));
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				[request.questions![0].id]: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' },
+				},
+			});
+
+			assert.deepStrictEqual(await responsePromise, { approved: true, selectedAction: 'autopilot' });
+			assert.deepStrictEqual(sessionConfigUpdates, [
+				{ session: parentSessionUri.toString(), patch: { mode: 'autopilot' } },
 			]);
 		});
 

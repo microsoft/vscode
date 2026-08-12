@@ -1036,8 +1036,9 @@ export class ScriptedMockAgent implements IAgent {
 			}
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
-		disposeChat: (): Promise<void> => {
-			this._sessions.clear();
+		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => {
+			const { session } = this._resolveChatTarget(chat, context);
+			this._sessions.delete(AgentSession.id(session));
 			return Promise.resolve();
 		},
 		releaseChat: async (): Promise<void> => { },

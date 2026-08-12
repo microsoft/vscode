@@ -23,11 +23,20 @@ import { getClaudeConfirmationTitle, getClaudeInvocationMessage, getClaudePermis
  * Subagent correlation reads from `session.subagents` (the per-session
  * {@link import('./claudeSubagentRegistry.js').SubagentRegistry}); the
  * bridge no longer takes a host-singleton resolver dep.
+ *
+ * `configurationResource` is the session-wide configuration scope
+ * (`IAgentChatContext.configurationResource`), **not** the invoking
+ * chat's own persistence resource — a peer/side chat shares its owning
+ * session's configuration scope but has its own distinct chat URI.
+ * `ExitPlanMode`'s permission-mode write must target this shared scope
+ * so approving the plan from any chat in the session persists to the
+ * one config the SDK reads back, rather than silently writing under a
+ * peer chat URI nothing else ever reads.
  */
 export interface IClaudeCanUseToolDeps {
 	readonly getSession: (sessionId: string) => ClaudeAgentSession | undefined;
 	readonly configurationService: IAgentConfigurationService;
-	readonly resource: URI;
+	readonly configurationResource: URI;
 	readonly serverToolHost: IAgentServerToolHost | undefined;
 }
 
@@ -248,7 +257,7 @@ async function handleExitPlanMode(
 		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	if (approved) {
-		deps.configurationService.updateSessionConfig(deps.resource.toString(), {
+		deps.configurationService.updateSessionConfig(deps.configurationResource.toString(), {
 			[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits' satisfies ClaudePermissionMode,
 		});
 		return { behavior: 'allow', updatedInput: input };

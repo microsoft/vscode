@@ -48,7 +48,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
-import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -173,6 +173,8 @@ class TestCopilotApiService implements ICopilotApiService {
 class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
 	private _backfilled = false;
+	private readonly _providerBackfilled = new Set<string>();
+	private readonly _tombstones = new Set<string>();
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 
@@ -187,8 +189,24 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessions.set(session, { session, provider, startTime: existing?.startTime ?? startTime });
 	}
 
+	async registerSessionIfNotTombstoned(session: string, provider: string, startTime: number): Promise<boolean> {
+		this._beforeWrite();
+		if (this._tombstones.has(session)) {
+			return false;
+		}
+		const existing = this._sessions.get(session);
+		this._sessions.set(session, { session, provider, startTime: existing?.startTime ?? startTime });
+		return true;
+	}
+
 	async unregisterSession(session: string): Promise<void> {
 		this._beforeWrite();
+		this._sessions.delete(session);
+	}
+
+	async tombstoneAndUnregisterSession(session: string): Promise<void> {
+		this._beforeWrite();
+		this._tombstones.add(session);
 		this._sessions.delete(session);
 	}
 
@@ -207,6 +225,29 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async markSessionRegistryBackfilled(): Promise<void> {
 		this._beforeWrite();
 		this._backfilled = true;
+	}
+
+	async isProviderBackfilled(provider: string): Promise<boolean> {
+		return this._providerBackfilled.has(provider);
+	}
+
+	async markProviderBackfilled(provider: string): Promise<void> {
+		this._beforeWrite();
+		this._providerBackfilled.add(provider);
+	}
+
+	async isSessionTombstoned(session: string): Promise<boolean> {
+		return this._tombstones.has(session);
+	}
+
+	async markSessionTombstoned(session: string): Promise<void> {
+		this._beforeWrite();
+		this._tombstones.add(session);
+	}
+
+	async clearSessionTombstone(session: string): Promise<void> {
+		this._beforeWrite();
+		this._tombstones.delete(session);
 	}
 
 	async close(): Promise<void> { }
@@ -1843,8 +1884,54 @@ suite('AgentService (node dispatcher)', () => {
 				registryWriteAttempts: db.registryWriteAttempts,
 				registeredSessions: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
 			}, {
-				registryWriteAttempts: 2,
+				// register() now performs 2 durable writes (registerSession +
+				// clearSessionTombstone): 1 failed registerSession attempt above,
+				// then a successful registerSession + clearSessionTombstone pair here.
+				registryWriteAttempts: 3,
 				registeredSessions: [session.toString()],
+			});
+		});
+
+		test('marks the backing and rolls back creation when default-chat provider data cannot be persisted', async () => {
+			// N2: `_persistDefaultChatBacking`'s provider-data write and its
+			// backing-marker write must be independent — a provider-data
+			// write failure must not prevent (or roll back) the backing
+			// marker, since that marker is what keeps the backing session out
+			// of the top-level list.
+			class FailingProviderDataDatabase extends TestSessionDatabase {
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (key === 'defaultChatProviderData') {
+						throw new Error('provider data write failed');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			class BackedDefaultChatAgent extends MockAgent {
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: async (chat, context, options) => {
+						const result = await base.createChat(chat, context, options);
+						return result ? { ...result, providerData: 'blob', backingSession: AgentSession.uri(this.id, 'default-chat-backing-sdk-id') } : result;
+					},
+				}));
+			}
+
+			const db = new FailingProviderDataDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new BackedDefaultChatAgent('copilot'));
+			svc.registerProvider(agent);
+
+			await assert.rejects(() => svc.createSession({ provider: 'copilot' }), /provider data write failed/);
+
+			assert.deepStrictEqual({
+				registered: await svc.getRegisteredSessions(),
+				backingMarked: db.setMetadataCalls.some(c => c.key === 'peerChatBacking'),
+				providerDataPersisted: db.setMetadataCalls.some(c => c.key === 'defaultChatProviderData'),
+				disposeCalls: agent.disposeSessionCalls.length,
+			}, {
+				registered: [],
+				backingMarked: true,
+				providerDataPersisted: false,
+				disposeCalls: 1,
 			});
 		});
 	});
@@ -1913,7 +2000,17 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(() => svc.disposeSession(session), /metadata unavailable/);
 
-			assert.strictEqual(deletedSessionData, false);
+			assert.deepStrictEqual({
+				deletedSessionData,
+				providerSessionStillExists: !!(await copilotAgent.getSessionMetadata(session)),
+				registered: (await svc.getRegisteredSessions()).map(resource => resource.toString()),
+				hasState: !!svc.stateManager.getSessionState(session.toString()),
+			}, {
+				deletedSessionData: false,
+				providerSessionStillExists: true,
+				registered: [session.toString()],
+				hasState: true,
+			});
 		});
 
 		test('reports failed unregistration and allows deletion to retry durably', async () => {
@@ -2052,11 +2149,601 @@ suite('AgentService (node dispatcher)', () => {
 			const legacy = AgentSession.uri('copilot', 'legacy-session');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 
-			await assert.rejects(svc.listSessions(), /transient list failure/);
+			// A provider failure is logged and swallowed, not thrown: it must
+			// never hide sessions the registry already has from other providers.
+			assert.deepStrictEqual(await svc.listSessions(), []);
 			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
 
 			assert.deepStrictEqual((await svc.listSessions()).map(session => session.session.toString()), [legacy.toString()]);
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(session => session.toString()), [legacy.toString()]);
+		});
+
+		test('a provider registered after another provider already completed backfill still gets its own sweep', async () => {
+			// The bug this guards: a single global "backfill done" marker would
+			// permanently gate out a provider that registers later, even though
+			// its own legacy sessions were never enumerated.
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const early = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(early);
+
+			// Complete (and durably mark) the first provider's backfill before the
+			// second provider ever registers.
+			await svc.listSessions();
+
+			const late = disposables.add(new MockAgent('claude'));
+			const legacy = AgentSession.uri('claude', 'legacy-late');
+			(late as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			svc.registerProvider(late);
+
+			// A subsequent listSessions call awaits the late provider's own
+			// (independently tracked) sweep alongside the already-completed one.
+			const listed = new Set((await svc.listSessions()).map(s => s.session.toString()));
+			assert.deepStrictEqual(listed, new Set([legacy.toString()]));
+
+			const registered = new Set((await svc.getRegisteredSessions()).map(s => s.toString()));
+			assert.deepStrictEqual(registered, new Set([legacy.toString()]));
+		});
+
+		test('a provider whose legacy store becomes enumerable after an empty backfill is re-swept on its chat-list-changed signal', async () => {
+			// The bug this guards: a provider that legitimately reported *no*
+			// legacy sessions on its first sweep (not an error) would stay
+			// durably marked "backfilled" forever, even once its store becomes
+			// enumerable later. The provider's own `onDidChangeChatList` signal
+			// is the trigger that forces a re-sweep for exactly this case.
+			class LateEnumerableAgent extends MockAgent {
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+				listLegacyChatsCalls = 0;
+
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listLegacyChatsCalls++;
+					return super.listLegacyChats();
+				}
+
+				fireChatListChanged(): void {
+					this._onDidChangeChatList.fire();
+				}
+
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new LateEnumerableAgent('copilot'));
+			svc.registerProvider(agent);
+
+			// First sweep completes with nothing to import — this is a legitimate
+			// empty result, not a failure, so it durably marks the provider done.
+			await svc.listSessions();
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+
+			// The provider's legacy store now has a session — simulate its store
+			// becoming enumerable and it reporting the change.
+			const legacy = AgentSession.uri('copilot', 'legacy-became-enumerable');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			agent.fireChatListChanged();
+
+			// Wait for the fire-and-forget forced re-sweep triggered by the signal.
+			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(s => s.toString()), [legacy.toString()]);
+			assert.ok(agent.listLegacyChatsCalls >= 2, 'expected a re-sweep after the chat-list-changed signal');
+		});
+
+		test('registry backfill persists one provider despite another provider failing, and only the failing one is retried', async () => {
+			class CountingAgent extends MockAgent {
+				listLegacyChatsCalls = 0;
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listLegacyChatsCalls++;
+					return super.listLegacyChats();
+				}
+			}
+			class FailingThenRecoveringAgent extends MockAgent {
+				private _fail = true;
+				stopFailing(): void { this._fail = false; }
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					if (this._fail) {
+						throw new Error('provider B enumeration failed');
+					}
+					return super.listLegacyChats();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const providerA = disposables.add(new CountingAgent('copilot'));
+			const providerB = disposables.add(new FailingThenRecoveringAgent('other'));
+			svc.registerProvider(providerA);
+			svc.registerProvider(providerB);
+
+			const legacyA = AgentSession.uri('copilot', 'legacy-a');
+			(providerA as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacyA), legacyA);
+			const legacyB = AgentSession.uri('other', 'legacy-b');
+			(providerB as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacyB), legacyB);
+
+			// One provider failing must never hide sessions already registered
+			// (or registerable in the same sweep) by another provider.
+			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), [legacyA.toString()]);
+
+			// Provider A's sweep succeeded and is durably persisted even though
+			// provider B's failed in the same aggregate call.
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(s => s.toString()), [legacyA.toString()]);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('other'), false);
+
+			providerB.stopFailing();
+			const registered = new Set((await svc.listSessions()).map(s => s.session.toString()));
+			assert.deepStrictEqual(registered, new Set([legacyA.toString(), legacyB.toString()]));
+
+			// Provider A was not re-enumerated on retry: only the provider that
+			// previously failed needed to be swept again.
+			assert.strictEqual(providerA.listLegacyChatsCalls, 1);
+		});
+
+		test('a provider that cannot enumerate yet (undefined) is never marked backfilled and is retried', async () => {
+			// `undefined` from `listLegacyChats` means "cannot enumerate yet"
+			// (e.g. SDK not downloaded), not an authoritative "no legacy
+			// chats" — the provider must stay unmarked so a later trigger
+			// retries it, unlike a legitimate empty array which does mark it.
+			//
+			// `MockAgent.listLegacyChats` predates the `| undefined` contract
+			// (see `IAgent.listLegacyChats`), so the override is monkey-patched
+			// onto the instance rather than declared on a subclass to avoid a
+			// narrowing conflict with the base class's declared return type.
+			class NotYetEnumerableAgent extends MockAgent {
+				enumerable = false;
+				listLegacyChatsCalls = 0;
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new NotYetEnumerableAgent('copilot'));
+			const originalListLegacyChats = agent.listLegacyChats.bind(agent);
+			(agent as unknown as { listLegacyChats: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listLegacyChats = async () => {
+				agent.listLegacyChatsCalls++;
+				if (!agent.enumerable) {
+					return undefined;
+				}
+				return originalListLegacyChats();
+			};
+			svc.registerProvider(agent);
+			const legacy = AgentSession.uri('copilot', 'legacy-not-yet-enumerable');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+
+			assert.deepStrictEqual(await svc.listSessions(), []);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), false, 'an undefined result must never mark the provider backfilled');
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			// The provider's SDK becomes available and it can now enumerate; a
+			// later listSessions call (not a forced one) retries automatically
+			// because the marker was never set.
+			agent.enumerable = true;
+			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), [legacy.toString()]);
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+			assert.ok(agent.listLegacyChatsCalls >= 2);
+		});
+
+		test('a forced re-sweep requested while a sweep is already in flight is chained, not dropped', async () => {
+			// The bug this guards: a `force` request that arrived while a
+			// non-forced sweep was already running used to share that
+			// in-flight promise and return its (possibly stale) result,
+			// silently swallowing the force intent instead of re-reading the
+			// provider's on-disk set fresh.
+			const gate = new DeferredPromise<void>();
+			class GatedListAgent extends MockAgent {
+				listCalls = 0;
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					// Snapshot before gating so the first sweep reflects what
+					// the provider could enumerate at the time it was called,
+					// not whatever has since been added while it was stalled.
+					const snapshot = await super.listLegacyChats();
+					if (this.listCalls === 1) {
+						await gate.p;
+						return snapshot;
+					}
+					return snapshot;
+				}
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+				fireChatListChanged(): void { this._onDidChangeChatList.fire(); }
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedListAgent('copilot'));
+			svc.registerProvider(agent);
+
+			// Start the first (non-forced) sweep and let it stall inside
+			// `listLegacyChats` before it can see any sessions.
+			const first = svc.listSessions();
+			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 1);
+
+			// While the first sweep is still gated, a session becomes
+			// enumerable and the provider fires its late-enumeration signal,
+			// requesting a forced re-sweep.
+			const legacy = AgentSession.uri('copilot', 'legacy-race');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			agent.fireChatListChanged();
+
+			// The forced re-sweep cannot start until the in-flight one settles;
+			// let the first sweep's stale (empty) read complete now.
+			gate.complete();
+			const firstResult = await first;
+			assert.deepStrictEqual(firstResult, [], 'the first sweep started before the session existed and legitimately saw nothing');
+
+			// The chained forced re-sweep must still run afterwards and pick up
+			// the session that became enumerable mid-flight — the force intent
+			// must not have been dropped just because a sweep was in flight.
+			for (let i = 0; i < 50 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 2, 'the queued forced re-sweep must still run after the in-flight attempt settles');
+			// `listCalls` increments as soon as `listLegacyChats` is invoked, but
+			// registering the discovered session still needs a few more
+			// microtasks to complete; poll until it lands.
+			let registered: readonly URI[] = [];
+			for (let i = 0; i < 50; i++) {
+				registered = await svc.getRegisteredSessions();
+				if (registered.length > 0) {
+					break;
+				}
+				await timeout(0);
+			}
+			assert.deepStrictEqual(registered.map(s => s.toString()), [legacy.toString()]);
+		});
+
+		test('the legacy global backfill marker is never auto-mirrored, even once every currently-registered provider is backfilled', async () => {
+			// The bug this guards: mirroring the legacy global marker once
+			// "every known provider" was backfilled was unsafe because a
+			// provider (e.g. Codex) can register later than that point — a
+			// downgrade to pre-per-provider code reading a prematurely-set
+			// global marker would then silently skip that late provider's
+			// legacy sessions forever.
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const early = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(early);
+			await svc.listSessions();
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true);
+			assert.strictEqual(await svc.isLegacyRegistryBackfilled(), false, 'the legacy global marker must never be written automatically');
+
+			// A late-registering provider (simulating Codex enabling after
+			// startup) also completes its own sweep.
+			const late = disposables.add(new MockAgent('claude'));
+			svc.registerProvider(late);
+			await svc.listSessions();
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('claude'), true);
+
+			// Even with every currently-registered provider backfilled, the
+			// legacy global marker is still never mirrored — so a downgrade
+			// always safely re-sweeps from scratch instead of risking having
+			// skipped a provider that only registers later still.
+			assert.strictEqual(await svc.isLegacyRegistryBackfilled(), false);
+		});
+
+		test('a forced re-sweep cannot resurrect a session that was explicitly deleted (tombstone)', async () => {
+			class ChatListChangeAgent extends MockAgent {
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+				fireChatListChanged(): void { this._onDidChangeChatList.fire(); }
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new ChatListChangeAgent('copilot'));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'to-be-deleted') });
+			assert.ok((await svc.getRegisteredSessions()).some(s => s.toString() === session.toString()));
+
+			// Explicitly delete the session — this durably tombstones it.
+			await svc.disposeSession(session);
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			// Simulate the provider's own store still reporting the session
+			// (e.g. its deletion is eventual/lagging, or provider-side deletion
+			// is a no-op for this session type). Without tombstone consultation,
+			// the forced re-sweep below would resurrect it as a "legacy" find.
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+
+			// A forced re-sweep triggered by the provider's own signal must not
+			// resurrect the explicitly-deleted session.
+			agent.fireChatListChanged();
+			for (let i = 0; i < 50; i++) {
+				await timeout(0);
+			}
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), [], 'a tombstoned session must not be resurrected by a forced backfill sweep');
+			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), []);
+		});
+
+		test('an explicit create at a previously-deleted session URI clears its tombstone and allows reuse', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+			const reusedUri = AgentSession.uri('copilot', 'reused-after-delete');
+
+			const session = await svc.createSession({ provider: 'copilot', session: reusedUri });
+			await svc.disposeSession(session);
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			// Explicitly recreating at the exact same URI must succeed and be
+			// visible again — the tombstone must not block legitimate reuse.
+			const recreated = await svc.createSession({ provider: 'copilot', session: reusedUri });
+			assert.strictEqual(recreated.toString(), reusedUri.toString());
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(s => s.toString()), [reusedUri.toString()]);
+
+			// A subsequent forced backfill sweep for the same session must also
+			// keep it registered now that the tombstone has been cleared.
+			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), [reusedUri.toString()]);
+		});
+
+		test('a first-time backfill sweep cannot re-register a session concurrently, explicitly deleted mid-sweep', async () => {
+			// Guards the atomicity of `registerIfNotTombstoned`: backfill's own
+			// upfront tombstone filter was removed in favor of a single atomic
+			// DB write, precisely because a separate check-then-act would still
+			// race a concurrent explicit delete landing in between. This
+			// reproduces that window directly: the sweep has already read the
+			// provider's legacy list (deciding to (re-)register the session)
+			// before the explicit delete tombstones it.
+			const gate = new DeferredPromise<void>();
+			class GatedListAgent extends MockAgent {
+				listCalls = 0;
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					const result = await super.listLegacyChats();
+					if (this.listCalls === 1) {
+						await gate.p;
+					}
+					return result;
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedListAgent('copilot'));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({ provider: 'copilot', session: AgentSession.uri('copilot', 'race-delete-during-backfill') });
+			assert.ok((await svc.getRegisteredSessions()).some(s => s.toString() === session.toString()));
+
+			// Start the provider's first (non-forced) backfill sweep. It reads
+			// the legacy list (which still includes the session) and then
+			// stalls before its registration write.
+			const listPromise = svc.listSessions();
+			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
+				await timeout(0);
+			}
+
+			// While the sweep is stalled, the session is explicitly deleted.
+			await svc.disposeSession(session);
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			// Let the stalled sweep's registration attempt proceed.
+			gate.complete();
+			await listPromise;
+
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), [], 'the concurrently-tombstoned session must not be resurrected by the in-flight backfill sweep');
+		});
+
+		test('a provider that only has the legacy global marker (old database, no per-provider marker) does not run a fresh sweep', async () => {
+			// Compatibility semantics for an old (pre-per-provider) database:
+			// the legacy global marker being `true` with no per-provider
+			// marker and no tombstones (they did not exist under old code)
+			// must not trigger a real additive sweep, since that could
+			// resurrect a session explicitly deleted under the old code (no
+			// tombstone exists to protect it). A non-forced check instead
+			// treats the global marker as implicit per-provider completion.
+			class ChatListChangeAgent extends MockAgent {
+				listLegacyChatsCalls = 0;
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listLegacyChatsCalls++;
+					return super.listLegacyChats();
+				}
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+				fireChatListChanged(): void { this._onDidChangeChatList.fire(); }
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+			const db = new TransientRegistryWriteDatabase();
+			// Simulate an old database: the legacy global marker is already
+			// set, but nothing has ever written a per-provider marker (that
+			// concept did not exist yet), and there are no tombstones.
+			await db.markSessionRegistryBackfilled();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const agent = disposables.add(new ChatListChangeAgent('copilot'));
+			svc.registerProvider(agent);
+
+			// A session that was explicitly deleted under the old code (so it
+			// has no tombstone) is still in the provider's on-disk store.
+			const legacy = AgentSession.uri('copilot', 'old-db-deleted-session');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+
+			// A non-forced sweep must not enumerate/register it: the legacy
+			// global marker is treated as implicit completion instead.
+			assert.deepStrictEqual(await svc.listSessions(), []);
+			assert.strictEqual(agent.listLegacyChatsCalls, 0, 'a non-forced sweep must not even enumerate when the legacy global marker implicitly completes it');
+			assert.strictEqual(await svc.isProviderRegistryBackfilled('copilot'), true, 'the provider marker must still be durably converted so future non-forced checks are O(1)');
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			// A forced re-sweep (e.g. the provider's own chat-list-changed
+			// signal) still performs a real sweep — this is the accepted,
+			// documented tradeoff that lets new legacy data ever be
+			// discovered on an old database, at the cost of a narrow residual
+			// risk that a forced sweep specifically could resurrect a
+			// pre-tombstone-era deletion.
+			agent.fireChatListChanged();
+			for (let i = 0; i < 50 && agent.listLegacyChatsCalls === 0; i++) {
+				await timeout(0);
+			}
+			let registered: readonly URI[] = [];
+			for (let i = 0; i < 50; i++) {
+				registered = await svc.getRegisteredSessions();
+				if (registered.length > 0) {
+					break;
+				}
+				await timeout(0);
+			}
+			assert.deepStrictEqual(registered.map(s => s.toString()), [legacy.toString()]);
+		});
+
+		test('a second overlapping force arriving while a fresh forced sweep (no prior in-flight attempt) is still running is not dropped', async () => {
+			// A freshly-created backfill entry's `forceQueued` must always
+			// start `false`, even when the entry's own first attempt is
+			// itself invoked with `force` — seeding it from that `force` flag
+			// would make a brand-new forced sweep look like it already has a
+			// follow-up queued, so a second, genuinely distinct force
+			// arriving while that first attempt is still in flight would be
+			// silently coalesced away instead of chaining its own follow-up.
+			class SequentiallyGatedListAgent extends MockAgent {
+				listCalls = 0;
+				private readonly _gates: DeferredPromise<void>[] = [];
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					const gate = new DeferredPromise<void>();
+					this._gates[this.listCalls] = gate;
+					await gate.p;
+					return super.listLegacyChats();
+				}
+				releaseCall(index: number): void {
+					this._gates[index]?.complete();
+				}
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+				fireChatListChanged(): void { this._onDidChangeChatList.fire(); }
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SequentiallyGatedListAgent('copilot'));
+			svc.registerProvider(agent);
+
+			// Let the automatic non-forced first sweep (from `registerProvider`)
+			// start, then release and await it to completion so its entry is
+			// cleared — the provider has no in-flight backfill afterward.
+			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 1);
+			agent.releaseCall(1);
+			await svc.listSessions();
+			for (let i = 0; i < 20; i++) {
+				await timeout(0);
+			}
+
+			// Force #1 arrives with no existing entry for the provider: a
+			// brand-new, freshly-created forced sweep.
+			agent.fireChatListChanged();
+			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 2, 'the fresh forced sweep must have started');
+
+			// Force #2 arrives while that very first forced attempt (not a
+			// chained one) is still in flight, gated on its `listLegacyChats`
+			// read. Without the fix, the fresh entry's `forceQueued` would
+			// already read `true` (seeded from force #1's own `force` flag)
+			// and this would be silently dropped.
+			agent.fireChatListChanged();
+
+			// Release call #2; a chained call #3 must start as a result of
+			// force #2 having been correctly queued rather than dropped.
+			agent.releaseCall(2);
+			for (let i = 0; i < 50 && agent.listCalls < 3; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 3, 'the overlapping force arriving during a fresh forced sweep must not have been dropped');
+
+			agent.releaseCall(3);
+			for (let i = 0; i < 50; i++) {
+				if (agent.listCalls >= 3) {
+					break;
+				}
+				await timeout(0);
+			}
+		});
+
+		test('a second overlapping force arriving while a chained forced sweep is itself running is not dropped', async () => {
+			// Guards the N1 fix: `forceQueued` must be reset the moment the
+			// chained forced attempt actually *starts* running, not merely
+			// once it is scheduled — otherwise a second force arriving while
+			// that chained attempt is still in flight would see
+			// `forceQueued` still `true` from the first chain and be
+			// silently coalesced away instead of queuing its own follow-up.
+			class SequentiallyGatedListAgent extends MockAgent {
+				listCalls = 0;
+				private readonly _gates: DeferredPromise<void>[] = [];
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					const gate = new DeferredPromise<void>();
+					this._gates[this.listCalls] = gate;
+					await gate.p;
+					return super.listLegacyChats();
+				}
+				releaseCall(index: number): void {
+					this._gates[index]?.complete();
+				}
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+				fireChatListChanged(): void { this._onDidChangeChatList.fire(); }
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new SequentiallyGatedListAgent('copilot'));
+			svc.registerProvider(agent);
+
+			// Call #1: the initial non-forced sweep. Let it start and gate.
+			const first = svc.listSessions();
+			for (let i = 0; i < 20 && agent.listCalls === 0; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 1);
+
+			// Force #1 arrives while call #1 is in flight: chained to run
+			// again once call #1 settles.
+			agent.fireChatListChanged();
+
+			// Release call #1; the chained forced call #2 should start.
+			agent.releaseCall(1);
+			await first;
+			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 2, 'the chained forced re-sweep must have started');
+
+			// Force #2 arrives while call #2 (the chained forced sweep) is
+			// itself still in flight. Without the N1 fix, `forceQueued`
+			// would still be `true` from force #1 and this would be dropped.
+			agent.fireChatListChanged();
+
+			// Release call #2; a third, further-chained forced call #3 must
+			// start as a result of force #2 not having been dropped.
+			agent.releaseCall(2);
+			for (let i = 0; i < 50 && agent.listCalls < 3; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 3, 'the second overlapping force must not have been dropped');
+
+			agent.releaseCall(3);
+			for (let i = 0; i < 50; i++) {
+				if (agent.listCalls >= 3) {
+					break;
+				}
+				await timeout(0);
+			}
 		});
 
 		test('listSessions keeps a registered session the provider transiently drops', async () => {
@@ -3444,6 +4131,24 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(await db.getChatDraft(chat), expected);
 		}
 
+		test('rejects restoring a session that has been explicitly deleted (tombstoned) without resurrecting it', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			svc.registerProvider(agent);
+
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.disposeSession(session);
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+
+			await assert.rejects(
+				() => svc.restoreSession(session),
+				(error: unknown) => error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND,
+			);
+
+			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
+			assert.strictEqual(svc.stateManager.getSessionState(session.toString()), undefined, 'a rejected restore must not have populated any state');
+		});
+
 		test('restores the AH-owned workspaceless marker onto the summary _meta for any agent', async () => {
 			// The workspace-less marker is owned by the AH service and overlaid on
 			// restore from the central session DB — the agent (MockAgent) re-emits
@@ -4687,6 +5392,111 @@ suite('AgentService (node dispatcher)', () => {
 				leakedAfterRestart: false,
 			});
 		});
+
+		test('createChat succeeds and persists the backing-session marker after one transient write failure', async () => {
+			// A DB whose `setMetadata` can be told to fail for the peer-chat
+			// backing marker key a configurable number of times, to simulate a
+			// transient persistence failure that happens strictly after the
+			// chat already exists.
+			class FailingBackingMarkerDatabase extends TestSessionDatabase {
+				private _remainingBackingWriteFailures = 0;
+				failNextBackingWrites(count: number): void { this._remainingBackingWriteFailures = count; }
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (key === 'peerChatBacking' && this._remainingBackingWriteFailures > 0) {
+						this._remainingBackingWriteFailures--;
+						throw new Error('backing marker persistence failed');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			class BackedMultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'blob', backingSession: AgentSession.uri(this.id, 'backing-sdk-id') };
+				}
+			}
+
+			const db = new FailingBackingMarkerDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new BackedMultiChatAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+
+			// Only the peer chat's backing-marker write should fail — not the
+			// default chat's (already persisted above during createSession).
+			db.failNextBackingWrites(1);
+
+			// createChat must resolve successfully: the chat was already added to
+			// the catalog and announced before the best-effort marker write is
+			// attempted, so a marker-persistence failure must not diverge the
+			// create result from what subscribers already observed.
+			await svc.createChat(session, chatUri);
+
+			const state = svc.stateManager.getSessionState(session.toString());
+			assert.deepStrictEqual({
+				chatCreated: !!svc.stateManager.getChatState(chatUri.toString()),
+				inCatalog: !!state?.chats.some(c => c.resource.toString() === chatUri.toString()),
+				markerPersisted: db.setMetadataCalls.some(c => c.key === 'peerChatBacking' && c.value === chatUri.toString()),
+			}, {
+				chatCreated: true,
+				inCatalog: true,
+				// A single transient failure is retried inline and succeeds.
+				markerPersisted: true,
+			});
+		});
+
+		test('createChat succeeds and in-process-suppresses the backing session when the marker write keeps failing', async () => {
+			class FailingBackingMarkerDatabase extends TestSessionDatabase {
+				private _remainingBackingWriteFailures = 0;
+				failNextBackingWrites(count: number): void { this._remainingBackingWriteFailures = count; }
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (key === 'peerChatBacking' && this._remainingBackingWriteFailures > 0) {
+						this._remainingBackingWriteFailures--;
+						throw new Error('backing marker persistence failed');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			class BackedMultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, _chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: 'blob', backingSession: AgentSession.uri(this.id, 'backing-sdk-id') };
+				}
+			}
+
+			const db = new FailingBackingMarkerDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new BackedMultiChatAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
+			const backingSession = AgentSession.uri('copilot', 'backing-sdk-id');
+
+			// Both the initial write and its retry fail: the marker never
+			// persists durably for this backing session.
+			db.failNextBackingWrites(2);
+
+			await svc.createChat(session, chatUri);
+
+			const state = svc.stateManager.getSessionState(session.toString());
+			assert.strictEqual(!!svc.stateManager.getChatState(chatUri.toString()), true, 'chat should still be created');
+			assert.strictEqual(!!state?.chats.some(c => c.resource.toString() === chatUri.toString()), true, 'chat should still be in the catalog');
+			assert.strictEqual(db.setMetadataCalls.some(c => c.key === 'peerChatBacking' && c.value === chatUri.toString()), false, 'the marker never persisted durably');
+
+			// Simulate the provider's own SDK-level store also enumerating this
+			// backing session (as a real `listLegacyChats` would), so a
+			// subsequent backfill sweep would resurrect it as a standalone
+			// top-level session if the in-process suppression did not protect it.
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(backingSession), backingSession);
+
+			// Even without a durable marker, the in-process suppression keeps the
+			// backing session out of both listSessions and the registry: it must
+			// never resurface as a duplicate top-level session.
+			const listed = (await svc.listSessions()).map(s => s.session.toString());
+			assert.ok(!listed.includes(backingSession.toString()), 'the unpersisted backing session must not leak into listSessions');
+
+			const registered = (await svc.getRegisteredSessions()).map(s => s.toString());
+			assert.ok(!registered.includes(backingSession.toString()), 'the unpersisted backing session must not leak into the registry via backfill');
+		});
 	});
 
 	suite('createChat side chats', () => {
@@ -5793,6 +6603,88 @@ suite('AgentService (node dispatcher)', () => {
 			return [];
 		}
 
+		test('rolls back a new peer chat when its catalog entry cannot be persisted', async () => {
+			class FailingPeerCatalogDatabase extends TestSessionDatabase {
+				failPeerCatalogWrites = false;
+
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (this.failPeerCatalogWrites && key === 'peerChats') {
+						throw new Error('peer catalog write failed');
+					}
+					await super.setMetadata(key, value);
+				}
+			}
+
+			const db = new FailingPeerCatalogDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			class MultiChatAgent extends MockAgent {
+				readonly disposedPeers: URI[] = [];
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'peer-backing' };
+				}
+				override async disposeChat(_session: URI, chat: URI): Promise<void> {
+					this.disposedPeers.push(chat);
+				}
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'unpersisted-peer'));
+			db.failPeerCatalogWrites = true;
+
+			await assert.rejects(() => localService.createChat(session, peer), /peer catalog write failed/);
+
+			assert.deepStrictEqual({
+				chats: localService.stateManager.getSessionState(session.toString())?.chats.map(chat => chat.resource.toString()),
+				disposed: agent.disposedPeers.map(call => call.toString()),
+			}, {
+				chats: [buildDefaultChatUri(session)],
+				disposed: [peer.toString()],
+			});
+		});
+
+		test('marks a restored peer chat backing session on first materialize, keeping it out of the registered session list', async () => {
+			// S2: `_materializeRestoredPeerChat` must persist the backing
+			// marker for a *restored* peer chat's backing session, exactly as
+			// create-time materialization does, so it does not leak into
+			// `getRegisteredSessions()`/`listSessions()` once the provider's
+			// own store starts enumerating it too.
+			class BackedPeerChatAgent extends MockAgent {
+				override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
+					if (isDefaultChatUri(chat)) {
+						return;
+					}
+					return { providerData, backingSession: AgentSession.uri(this.id, 'restored-peer-backing-sdk-id') };
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new BackedPeerChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
+			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+
+			localService.stateManager.deleteSession(session.toString());
+			await localService.restoreSession(session);
+
+			// First access triggers `_materializeRestoredPeerChat`.
+			await localService.subscribe(peerUri, 'peer-reader');
+
+			assert.ok(db.setMetadataCalls.some(c => c.key === 'peerChatBacking'), 'the restored peer chat backing session must have been marked');
+
+			// Simulate the provider's own store now also enumerating the
+			// backing session (e.g. an SDK-side listSessions sweep).
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(
+				AgentSession.id(AgentSession.uri('copilot', 'restored-peer-backing-sdk-id')),
+				AgentSession.uri('copilot', 'restored-peer-backing-sdk-id'),
+			);
+
+			const registered = (await localService.listSessions()).map(s => s.session.toString());
+			assert.ok(!registered.includes(AgentSession.uri('copilot', 'restored-peer-backing-sdk-id').toString()), 'the backing session must not leak into the registered session list');
+		});
+
 		test('restore registers peer-chat metadata in catalog order and loads history on first access', async () => {
 			const calls: { call: string; uri: string; providerData?: string }[] = [];
 			class MultiChatAgent extends MockAgent {
@@ -6567,6 +7459,77 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('disposeChat ignores a provider-data update emitted during deletion', async () => {
+			class UpdatingDisposeAgent extends MockAgent {
+				private readonly _onDidUpdateChatData = new Emitter<{ chat: URI; providerData: string }>();
+				override readonly onDidChangeChatData = this._onDidUpdateChatData.event;
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'initial' };
+				}
+				override async disposeChat(_session: URI, chat: URI): Promise<void> {
+					this._onDidUpdateChatData.fire({ chat, providerData: 'late-update' });
+				}
+			}
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new UpdatingDisposeAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'peer-race'));
+			await localService.createChat(session, peer);
+
+			await localService.disposeChat(session, peer);
+
+			assert.deepStrictEqual({
+				catalog: await readCatalog(db),
+				inMemory: localService.stateManager.getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString()),
+			}, {
+				catalog: [],
+				inMemory: false,
+			});
+		});
+
+		test('disposeChat preserves the chat when catalog removal fails so deletion can be retried', async () => {
+			class FailingRemovalDatabase extends TestSessionDatabase {
+				failRemoval = false;
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (this.failRemoval && key === 'peerChats' && value === '[]') {
+						throw new Error('catalog removal failed');
+					}
+					await super.setMetadata(key, value);
+				}
+			}
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<IAgentCreateChatResult> {
+					return { providerData: 'initial' };
+				}
+				override async disposeChat(): Promise<void> { }
+			}
+			const db = new FailingRemovalDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'peer-retry'));
+			await localService.createChat(session, peer);
+			db.failRemoval = true;
+
+			await assert.rejects(() => localService.disposeChat(session, peer), /catalog removal failed/);
+			const retainedAfterFailure = localService.stateManager.getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString());
+			db.failRemoval = false;
+			await localService.disposeChat(session, peer);
+
+			assert.deepStrictEqual({
+				retainedAfterFailure,
+				catalog: await readCatalog(db),
+				inMemoryAfterRetry: localService.stateManager.getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString()),
+			}, {
+				retainedAfterFailure: true,
+				catalog: [],
+				inMemoryAfterRetry: false,
+			});
+		});
+
 		// ---- BC1: one-time legacy `*.chats` migration on restore ----------
 
 		test('legacy *.chats with no peerChats catalog migrates once into the orchestrator catalog', async () => {
@@ -6769,7 +7732,7 @@ suite('AgentService (node dispatcher)', () => {
 			// First restore: the single catalog write is rejected. Because the write
 			// is all-or-nothing, the key must stay absent (never a proper subset).
 			localService.stateManager.deleteSession(session.toString());
-			await localService.restoreSession(session);
+			await assert.rejects(() => localService.restoreSession(session), /simulated catalog write failure/);
 			const catalogAfterFailedWrite = await db.getMetadata('peerChats');
 
 			// Second restore: catalog still absent => migration re-runs and now

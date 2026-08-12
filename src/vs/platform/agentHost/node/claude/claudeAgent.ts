@@ -153,19 +153,16 @@ export function fromSdkModelInfo(m: ModelInfo, provider: AgentProvider): IAgentM
 	};
 }
 
-// Single source of truth for narrowing an arbitrary runtime value to
-// the closed `ClaudePermissionMode` union now lives in
-// `../../common/claudeSessionConfigKeys.ts` so it can be shared by
-// `ClaudeAgent`, `ClaudeSessionMetadataStore`, and any other consumer
-// that needs the same narrowing semantics. The live per-session read
-// helper lives in `./claudeSessionPermissionMode.ts` so the session
-// and materializer can read directly without threading callbacks
+// Narrowing an arbitrary runtime value to the closed `ClaudePermissionMode`
+// union lives in `../../common/claudeSessionConfigKeys.ts` so it is shared by
+// `ClaudeAgent`, `ClaudeSessionMetadataStore`, and other consumers. The live
+// per-session read helper lives in `./claudeSessionPermissionMode.ts` so the
+// session and materializer can read directly without threading callbacks
 // through the agent.
 
 // Provisional session state is hosted directly on {@link ClaudeAgentSession}
 // (pre-materialize fields: project, abortController, provisionalModel,
-// provisionalConfig). The legacy `IClaudeProvisionalSession` map shape
-// was retired in Phase 10.5 Step 3a.
+// provisionalConfig).
 
 /**
  * Provider-owned data that identifies one Claude SDK conversation.
@@ -308,24 +305,11 @@ class ClaudeActiveClientHandle implements IActiveClient {
 }
 
 /**
- * Phase 4 skeleton {@link IAgent} provider for the Claude Agent SDK.
+ * {@link IAgent} provider for the Claude Agent SDK.
  *
- * What is implemented:
- * - Provider id, descriptor, and protected resources surface so root
- *   state advertises Claude alongside Copilot CLI.
- * - GitHub token capture via {@link authenticate} and lazy acquisition
- *   of an {@link IClaudeProxyHandle} from {@link IClaudeProxyService}.
- * - {@link models} observable derived from {@link ICopilotApiService.models}
- *   filtered to Claude-family entries via {@link isClaudeModel}.
- *
- * What is stubbed:
- * - All other {@link IAgent} methods throw `Error('TODO: Phase N')`. The
- *   exact phase numbers reference the roadmap in
- *   `src/vs/platform/agentHost/node/claude/roadmap.md`.
- *
- * The class is intentionally lean: each subsequent phase adds one
- * concern (sessions, sendMessage, permissions, etc.) so the surface area
- * of any single review stays small.
+ * Handles descriptor/auth surfaces, model catalog enumeration (merging
+ * proxy and native transports), chat lifecycle (create/resolve/dispose),
+ * tool permissions, elicitation, and session persistence.
  */
 export class ClaudeAgent extends Disposable implements IAgent {
 	readonly id: AgentProvider = CLAUDE_AGENT_PROVIDER_ID;
@@ -355,11 +339,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Memoized teardown promise. Set on the first call to {@link shutdown},
-	 * returned by every subsequent call. Mirrors `CopilotAgent.shutdown`
-	 * at copilotAgent.ts:1246. Phase 5 has no async work so the race
-	 * is benign, but the contract is locked now so Phase 6's real
-	 * async teardown (Query.interrupt(), in-flight metadata writes)
-	 * cannot regress.
+	 * returned by every subsequent call, so concurrent callers share one
+	 * drain pass rather than racing independent teardowns.
 	 */
 	private _shutdownPromise: Promise<void> | undefined;
 
@@ -374,10 +355,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * Maps each host-supplied concrete chat URI to its {@link IClaudeChatBacking}.
 	 * This is the single, consolidated `chatUri → backing` mapping and the only
-	 * way a chat resolves: every chat — the session-backed default chat, a peer
-	 * chat, a fork, a side chat, a restored legacy chat — has exactly one exact
-	 * backing here. It encodes no membership kind and no persistence scope, so
-	 * nothing about a chat is ever recovered from URI shape or from a
+	 * way a chat resolves: every chat — a session's primary chat, a fork, a
+	 * side chat, a restored legacy chat — has exactly one exact backing here.
+	 * It encodes no membership kind and no persistence scope, so nothing
+	 * about a chat is ever recovered from URI shape or from a
 	 * provider-private classification.
 	 */
 	private readonly _chatBackings = new Map<string, IClaudeChatBacking>();
@@ -423,12 +404,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
 
 	/**
-	 * Phase 6: fired once per session when {@link _materializeProvisional}
-	 * promotes a provisional record into a real {@link ClaudeAgentSession}.
-	 * The {@link IAgentService} subscribes via the platform contract
-	 * (`agentService.ts:412`) to dispatch the deferred `sessionAdded`
-	 * notification — observers don't see the session in their list until
-	 * persistence has settled.
+	 * Fired once per session when {@link _materializeProvisional} promotes a
+	 * provisional record into a real {@link ClaudeAgentSession}. The
+	 * {@link IAgentService} subscribes via the platform contract to dispatch
+	 * the deferred `sessionAdded` notification — observers don't see the
+	 * session in their list until persistence has settled.
 	 */
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
 	readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
@@ -441,14 +421,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _disposeSequencer = new SequencerByKey<string>();
 
 	/**
-	 * Phase 6: per-session-id serializer for {@link sendMessage}. Held
-	 * across both {@link _materializeProvisional} AND `entry.send()` so
-	 * two concurrent first-message calls on the same session collapse
-	 * into one materialize plus two ordered sends. Separate from
-	 * {@link _disposeSequencer} so teardown racing a first send still
-	 * serializes without deadlocking inside the send sequencer (different key
-	 * spaces, single race-resolution lattice via the underlying
-	 * `AbortController`).
+	 * Per-session-id serializer for {@link sendMessage}. Held across both
+	 * {@link _materializeProvisional} AND `entry.send()` so two concurrent
+	 * first-message calls on the same session collapse into one materialize
+	 * plus two ordered sends. Separate from {@link _disposeSequencer} so
+	 * teardown racing a first send still serializes without deadlocking
+	 * inside the send sequencer.
 	 */
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 
@@ -899,8 +877,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * subscription models by opening a throwaway {@link IClaudeAgentSdkService.query}
 	 * (workspace-free options that read the user's real `~/.claude` config) and
 	 * calling `Query.supportedModels()` on it, then `close()`. The prompt never
-	 * yields, so no turn runs and no session transcript is written (verified
-	 * Phase 19 E2E). Projected with no commercial metadata.
+	 * yields, so no turn runs and no session transcript is written. Projected
+	 * with no commercial metadata.
 	 */
 	private async _fetchNativeModels(): Promise<readonly IAgentModelInfo[]> {
 		// A prompt iterable that never yields: enumeration only needs the
@@ -940,7 +918,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	// #endregion
 
-	// #region Stubs — implemented in later phases
+	// #region Chat truncation, permission/elicitation bridges, chat surface
 
 	/**
 	 * Seed the eagerly-claimed active client (tools + customizations) into the
@@ -1099,11 +1077,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * Builds the SDK `canUseTool` permission bridge for a session/chat. The
 	 * resolver searches every live SDK conversation by SDK id so one
 	 * chat's tool-permission requests reach its own pending-permission registry.
+	 *
+	 * `configurationResource` is the session-wide config scope, distinct from
+	 * the invoking chat's own `resource` — a peer/side chat has its own
+	 * `resource` but shares its owning session's `configurationResource`.
+	 * `ExitPlanMode`'s permission-mode write (the bridge's one config
+	 * mutation) must target that shared scope regardless of which chat
+	 * approved the plan.
 	 */
-	private _makeCanUseTool(sdkSessionId: string, resource: URI): NonNullable<Options['canUseTool']> {
+	private _makeCanUseTool(sdkSessionId: string, configurationResource: URI): NonNullable<Options['canUseTool']> {
 		return (toolName, input, options) =>
 			handleCanUseTool(
-				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, resource, serverToolHost: this._serverToolHost },
+				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, configurationResource, serverToolHost: this._serverToolHost },
 				sdkSessionId, toolName, input, options,
 			);
 	}
@@ -1112,7 +1097,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * Builds the SDK `onElicitation` bridge for a session/chat. Mirrors
 	 * {@link _makeCanUseTool}: resolves the session by SDK id (all live
 	 * chats) and delegates to the elicitation bridge, which parks on the
-	 * session's user-input channel. Phase 10.6.
+	 * session's user-input channel.
 	 */
 	private _makeOnElicitation(sdkSessionId: string): OnElicitation {
 		return (request, options) =>
@@ -1155,7 +1140,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// switch is pushed in separately at send time (see `hasPendingTransportSwitch`).
 		const transport = this._ensureAuthenticated(session.provisionalModel);
 
-		const canUseTool = this._makeCanUseTool(sessionId, resource);
+		const canUseTool = this._makeCanUseTool(sessionId, context.configurationResource);
 		const onElicitation = this._makeOnElicitation(sessionId);
 		this._recordChatScope(context.chat, context.configurationResource, context.resource);
 		try {
@@ -1392,7 +1377,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// was itself created or materialized ({@link _sourceChatScope}); a
 		// source whose scope was never recorded (no chat backing yet, e.g. a
 		// stale reference) degrades to the source URI itself, which is exactly
-		// its own persistence resource for any non-default chat.
+		// its own persistence resource for any chat that isn't a session's
+		// primary chat.
 		const sourceChat = options?.fork?.source ?? options?.sideChat?.source;
 		const sourceBinding = sourceChat ? this._sourceChatScope(sourceChat) : undefined;
 		const sourceResource = sourceBinding?.resource ?? sourceChat ?? context.resource;
@@ -1529,8 +1515,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * chat catalog is owned by the orchestrator now, so this only drops the
 	 * live session and its provider backing data. There is no separate
 	 * session-level finalization hook: the trace context keyed on the chat's
-	 * own `resource` (the configuration scope, for the default chat) is
-	 * released right here, once, when that exact chat is disposed.
+	 * own `resource` (the configuration scope, for a session's primary chat)
+	 * is released right here, once, when that exact chat is disposed.
 	 */
 	private async _disposeChat(chat: URI, operationContext?: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
@@ -1648,11 +1634,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// (forked or restored); otherwise materialize a fresh one.
 		const sdkInfo = await this._sdkService.getSessionInfo(chatSession.sessionId);
 		// Fail fast on a signed-out proxy before materializing, keeping the throw at
-		// this pre-`try` site so the freshly-built peer chat is left registered for a
+		// this pre-`try` site so the freshly-built chat is left registered for a
 		// retry rather than disposed. The resolved transport is passed into materialize
 		// as a value; a per-session provider switch is pushed in later at send time.
 		const transport = this._ensureAuthenticated(chatSession.provisionalModel);
-		const canUseTool = this._makeCanUseTool(chatSession.sessionId, resource);
+		const canUseTool = this._makeCanUseTool(chatSession.sessionId, configurationResource);
 		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
 		this._recordChatScope(chat, configurationResource, resource);
 		try {
@@ -1805,7 +1791,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * resource) so a later fork naming this chat as its source can resolve
 	 * both without deriving them from URI shape. This is the sole restore
 	 * path for a chat that was never (re-)created in this process — a cold
-	 * peer chat — so it is the only place that scope binding exists for it.
+	 * chat — so it is the only place that scope binding exists for it.
 	 */
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
 		const resolved = resolveAgentChatContext(context, chat);
@@ -1823,24 +1809,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/**
 	 * Recover the historical implicit default-chat SDK identity for a
-	 * session that predates the peer-chat catalog's persisted
+	 * session that predates the exact-chat catalog's persisted
 	 * `providerData`: before exact-chat backings existed, a session's
-	 * default chat was simply the SDK conversation sharing the session's
+	 * primary chat was simply the SDK conversation sharing the session's
 	 * own id (`AgentSession.id(session)`) — no separate blob was ever
 	 * written to decode. Uses only the host-supplied
 	 * `context.configurationResource` (never derives or recognizes a
 	 * default-chat shape from `chat` itself, per the exact-chat-only
 	 * restore contract) and records it as a plain, canonical exact backing.
-	 * There is no separate legacy class: from here on the recovered chat
-	 * resolves, routes, truncates, and releases exactly like every other
-	 * chat.
+	 * From here on the recovered chat resolves, routes, truncates, and
+	 * releases exactly like every other chat.
 	 *
-	 * Performs no SDK I/O and reads no legacy metadata, so it is
-	 * idempotent (recomputes the same identity on every call, and keeps an
-	 * already-recorded backing) and non-destructive — it never rewrites the
-	 * agent's own legacy metadata store, so older builds restoring the same
-	 * session are unaffected. Returns the canonical opaque blob so the
-	 * orchestrator can persist it additively going forward.
+	 * Performs no SDK I/O and reads no legacy metadata, so it is idempotent
+	 * (recomputes the same identity on every call, and keeps an
+	 * already-recorded backing) and non-destructive. Returns the canonical
+	 * opaque blob so the orchestrator can persist it additively going
+	 * forward.
 	 */
 	async recoverLegacyChat(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult> {
 		const { configurationResource, resource } = resolveAgentChatContext(context, chat);
@@ -1858,12 +1842,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	// #endregion
 
 	/**
-	 * Test-only accessor for the materialized {@link ClaudeAgentSession}.
-	 * Phase 6 section 5.1 Test 10 needs to inspect `_isResumed` directly because
-	 * Phase 6 has no teardown+recreate flow yet to observe its effect
-	 * (the flag drives `Options.resume = sessionId` in Phase 7+). Marked
-	 * `ForTesting` so the production surface stays unaware of its
-	 * existence; the protocol surface (`IAgent`) does not include it.
+	 * Test-only accessor for the materialized {@link ClaudeAgentSession}, so
+	 * tests can inspect `_isResumed` directly. Marked `ForTesting` so the
+	 * production surface stays unaware of its existence; the protocol
+	 * surface (`IAgent`) does not include it.
 	 */
 	getSessionForTesting(session: URI): ClaudeAgentSession | undefined {
 		const sess = this._findChatByUri(URI.parse(buildDefaultChatUri(session))) ?? this._findAnySession(AgentSession.id(session));
@@ -1978,13 +1960,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return turns;
 	}
 
-	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
-		// Plan section 3.3.2: SDK is the source of truth; we deliberately do
-		// NOT filter entries that lack a per-session DB — external Claude Code
-		// CLI sessions have no DB and must still surface (Phase-5 exit
-		// criterion). The SDK entry supplies the authoritative primary directory;
-		// an optional per-session overlay hydrates the additional-directory tail.
-		// External sessions without an overlay remain valid single-root entries.
+	async listLegacyChats(): Promise<IAgentChatMetadata[] | undefined> {
+		// SDK is the source of truth; we deliberately do NOT filter entries
+		// that lack a per-session DB — external Claude Code CLI sessions have
+		// no DB and must still surface. The SDK entry supplies the
+		// authoritative primary directory; an optional per-session overlay
+		// hydrates the additional-directory tail. External sessions without
+		// an overlay remain valid single-root entries.
 		//
 		// One-time legacy discovery only — the orchestrator fans this out
 		// across every provider via `Promise.all`. If our SDK dynamic import
@@ -1994,17 +1976,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		let sdkEntries: readonly SDKSessionInfo[];
 		try {
 			// Don't trigger a cold SDK download just to populate this list at
-			// startup. When the SDK isn't local yet, surface an empty list; the
-			// download fires (with host-level progress) once the user starts a
-			// session, and the next legacy discovery pass returns the full list.
+			// startup. When the SDK isn't local yet, return `undefined` — this
+			// is NOT an authoritative "no legacy chats" answer, just "can't
+			// enumerate yet". The download fires (with host-level progress)
+			// once the user starts a session, and the next legacy discovery
+			// pass returns the full list.
 			if (!(await this._sdkService.canLoadWithoutDownload())) {
 				this._logService.info('[Claude] SDK not downloaded yet; deferring legacy chat list until a session triggers the download');
-				return [];
+				return undefined;
 			}
 			sdkEntries = await this._sdkService.listSessions();
 		} catch (err) {
-			this._logService.warn('[Claude] SDK listSessions failed; surfacing empty list', err);
-			return [];
+			// SDK failed to load/enumerate — this is "can't enumerate yet",
+			// not an authoritative empty result, so callers must not treat it
+			// as "no legacy chats" and should retry later.
+			this._logService.warn('[Claude] SDK listSessions failed; deferring legacy chat list', err);
+			return undefined;
 		}
 		return Promise.all(sdkEntries.map(entry => {
 			const session = AgentSession.uri(this.id, entry.sessionId);
@@ -2014,11 +2001,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Phase 6.1 / Cycle D4 — per-chat lookup. Mirrors
-	 * {@link CopilotAgent.getChatMetadata} but accepts the external-CLI case: a
-	 * session that exists on disk via the raw Anthropic CLI has no per-session
-	 * DB, so we MUST NOT gate on the sidecar (the way Copilot's variant does).
-	 * The SDK is the source of truth for existence.
+	 * Per-chat lookup. Accepts the external-CLI case: a session that exists
+	 * on disk via the raw Anthropic CLI has no per-session DB, so this MUST
+	 * NOT gate on the sidecar. The SDK is the source of truth for existence.
 	 *
 	 * The SDK entry supplies the authoritative primary directory; an optional
 	 * per-session overlay hydrates the additional-directory tail. External
@@ -2133,25 +2118,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	chatConfigCompletions(_params: IAgentChatConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
-		// Plan section 3.3.5: Claude's only schema property is the
-		// `permissionMode` static enum, so dynamic completion is
-		// definitionally empty in Phase 5. Branch completion lands in
-		// Phase 6 once worktree extraction (section 8) is settled.
+		// Claude's only schema property is the `permissionMode` static enum,
+		// so dynamic completion is definitionally empty.
 		return Promise.resolve({ items: [] });
 	}
 
 	shutdown(): Promise<void> {
-		// Phase 6: drain provisional sessions FIRST so any in-flight
-		// `await sdk.startup()` (kicked off by a racing `sendMessage`)
-		// observes the abort and unwinds. Each provisional record's
-		// AbortController is wired into Options.abortController at
-		// materialize time, so aborting here flips the same signal the
-		// SDK is racing on.
+		// Drain provisional sessions FIRST so any in-flight `await
+		// sdk.startup()` (kicked off by a racing `sendMessage`) observes the
+		// abort and unwinds. Each provisional record's AbortController is
+		// wired into Options.abortController at materialize time, so
+		// aborting here flips the same signal the SDK is racing on.
 		//
 		// Then drain the materialized sessions through the existing
-		// per-session {@link _disposeSequencer} routing — that path
-		// inherits Phase 6's real async teardown (`Query.interrupt()`,
-		// in-flight metadata writes) once those land.
+		// per-session {@link _disposeSequencer} routing (`Query.interrupt()`,
+		// in-flight metadata writes).
 		//
 		// The promise is memoized so concurrent callers share a single
 		// drain pass — see `_shutdownPromise` JSDoc.
@@ -2256,14 +2237,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	private async _abortSession(chat: URI): Promise<void> {
-		// Phase 9 D1: cancel via the abort controller, NOT `Query.interrupt()`.
-		// Abort is a control-plane operation — it must NOT serialize
-		// through `_sessionSequencer` because an in-flight `sendMessage`
-		// task is parked on its turn deferred and would deadlock the abort
-		// behind the very turn it's trying to cancel. Calling
-		// `chat.abort()` directly rejects the in-flight deferred,
-		// which lets the queued sendMessage task complete and frees the
-		// sequencer for the next caller.
+		// Cancel via the abort controller, NOT `Query.interrupt()`. Abort is a
+		// control-plane operation — it must NOT serialize through
+		// `_sessionSequencer` because an in-flight `sendMessage` task is
+		// parked on its turn deferred and would deadlock the abort behind the
+		// very turn it's trying to cancel. Calling `chat.abort()` directly
+		// rejects the in-flight deferred, which lets the queued sendMessage
+		// task complete and frees the sequencer for the next caller.
 		const sess = this._findChatByUri(chat);
 		if (!sess) {
 			return;
@@ -2276,9 +2256,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
-		// Phase 9 D5: queued messages are intentionally a no-op. CONTEXT.md
-		// M10 + AgentSideEffects confirm queued messages are consumed
-		// server-side; the agent boundary always receives an empty queue.
+		// Queued messages are intentionally a no-op. CONTEXT.md M10 +
+		// AgentSideEffects confirm queued messages are consumed server-side;
+		// the agent boundary always receives an empty queue.
 		//
 		// Control-plane operations carry no host context, and need none: the
 		// exact chat backing is the only state they touch.
@@ -2502,7 +2482,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	// #endregion
 
 	override dispose(): void {
-		// Phase 6+ INVARIANT: SDK Query subprocesses (owned by individual
+		// INVARIANT: SDK Query subprocesses (owned by individual
 		// ClaudeAgentSession wrappers) MUST die BEFORE the proxy handle
 		// is disposed. After proxy disposal the proxy may rebind on a
 		// different port and a still-running subprocess would silently
@@ -2511,10 +2491,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		//
 		// Step 1: abort every session AbortController. These are the
 		// same controllers wired into `Options.abortController` at
-		// materialize time (sdk.d.ts:982), so any in-flight
-		// `await sdk.startup()` will reject and any sequencer-queued
-		// materialize continuation will trip its abort gates without
-		// reaching registration.
+		// materialize time, so any in-flight `await sdk.startup()` will
+		// reject and any sequencer-queued materialize continuation will
+		// trip its abort gates without reaching registration.
 		//
 		// Step 2: `super.dispose()` synchronously disposes both chat maps.
 		//

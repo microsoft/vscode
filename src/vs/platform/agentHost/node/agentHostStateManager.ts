@@ -442,14 +442,10 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Returns a chat's {@link ChatOrigin} from its catalog summary.
-	 *
-	 * Reads the {@link ChatSummary} rather than the {@link ChatState} on
-	 * purpose: a restored chat registers its summary (origin included) up front
-	 * and only materializes state lazily via {@link resolveChatState}, so the
-	 * summary is the one source that is populated for restored and
-	 * provider-spawned chats alike. Origin is immutable once a chat exists, so
-	 * no hydration is ever required to read it.
+	 * Returns a chat's {@link ChatOrigin} from its catalog summary, not its
+	 * (lazily-materialized) {@link ChatState}: a restored chat registers its
+	 * summary — origin included — up front, before state resolves via
+	 * {@link resolveChatState}. Origin is immutable, so no hydration is needed.
 	 */
 	getChatOrigin(chat: URI): ChatOrigin | undefined {
 		return this._chatEntries.get(chat)?.summary.origin;
@@ -561,12 +557,10 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Whether a session is idle and still provisional: created but not yet
-	 * materialized (lifecycle {@link SessionLifecycle.Creating}) and with no turn
-	 * activity (no active turn, no recorded turns). Such sessions — e.g. the
-	 * new-session composer's eagerly-created session before its first message —
-	 * must not leak into the session list (#321269). Returns `false` for a
-	 * session with no tracked state (nothing to suppress).
+	 * Whether a session is created but not yet materialized ({@link SessionLifecycle.Creating})
+	 * with no turn activity — e.g. the new-session composer's eagerly-created
+	 * session before its first message. Such sessions must not leak into the
+	 * session list (#321269). Returns `false` if the session has no tracked state.
 	 */
 	isIdleProvisionalSession(session: string): boolean {
 		const entry = this._sessionStates.get(session);
@@ -880,11 +874,9 @@ export class AgentHostStateManager extends Disposable {
 	 * peer chat's opaque, agent-owned restore blob. The StateManager never
 	 * parses it. The default chat never carries `providerData`.
 	 *
-	 * `options.origin` records how the chat came into existence (a fork, a side
-	 * chat, or a tool spawn). Omitting it means "the user created this chat",
-	 * which is exactly the default {@link ChatOriginKind.User} origin
-	 * {@link createDefaultChatSummary} stamps — so every chat in the catalog
-	 * always has an origin.
+	 * `options.origin` records how the chat came into existence (fork, side
+	 * chat, tool spawn). Omitting it defaults to {@link ChatOriginKind.User}
+	 * via {@link createDefaultChatSummary}, so every catalog chat has an origin.
 	 */
 	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
@@ -909,10 +901,6 @@ export class AgentHostStateManager extends Disposable {
 			this.updateChatTitle(session, defaultChatUri, sessionState.title);
 		}
 
-		// `createDefaultChatSummary` already stamps the plain
-		// `ChatOriginKind.User` origin a user-created chat has. Only an
-		// explicitly supplied origin (fork, side chat, tool spawn) replaces it,
-		// so a chat is never left without provenance.
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options?.title ?? '',

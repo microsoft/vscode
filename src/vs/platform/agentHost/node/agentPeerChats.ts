@@ -185,7 +185,7 @@ export function encodeProviderData(backing: IPersistedChat): string {
  */
 export function decodeProviderData(providerData: string): IPersistedChat | undefined {
 	try {
-		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; sideChat?: unknown };
+		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; agent?: unknown; sideChat?: unknown };
 		if (!value || typeof value !== 'object') {
 			return undefined;
 		}
@@ -198,6 +198,10 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 		// looks like a `ModelSelection`.
 		const validModel = model && typeof model === 'object' && typeof (model as { id?: unknown }).id === 'string'
 			? model as ModelSelection
+			: undefined;
+		const agent = value.agent as { uri?: unknown } | undefined;
+		const validAgent = agent && typeof agent === 'object' && typeof agent.uri === 'string'
+			? { uri: agent.uri }
 			: undefined;
 		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnCount?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
 		const validSelection = sideChat?.selection
@@ -226,7 +230,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 				...(sideChat.context ? { context: sideChat.context } : {}),
 			}
 			: undefined;
-		return { sdkSessionId, ...(validModel ? { model: validModel } : {}), ...(validSideChat ? { sideChat: validSideChat } : {}) };
+		return { sdkSessionId, ...(validModel ? { model: validModel } : {}), ...(validAgent ? { agent: validAgent } : {}), ...(validSideChat ? { sideChat: validSideChat } : {}) };
 	} catch {
 		return undefined;
 	}

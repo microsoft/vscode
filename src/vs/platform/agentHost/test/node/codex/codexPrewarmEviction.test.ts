@@ -445,6 +445,27 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual(agent['_sessions'].get('restored-empty-catalog')?.model, selectedModel);
 	});
 
+	test('cold chat restore prefers the latest persisted model over its creation backing', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const baseModel = agent.models.get()[0];
+		const creationModel = { id: 'creation-model' };
+		const persistedModel = { id: 'persisted-model' };
+		agent['_models'].set([
+			{ ...baseModel, id: creationModel.id },
+			{ ...baseModel, id: persistedModel.id },
+		], undefined);
+		await database.setMetadata('codex.model', persistedModel.id);
+
+		await agent.materializeChat(
+			URI.parse('agent-chat://peer/restored-updated-model'),
+			AgentSession.uri('codex', 'parent'),
+			JSON.stringify({ sessionId: 'restored-updated-model', model: creationModel }),
+		);
+
+		assert.deepStrictEqual(agent['_sessions'].get('restored-updated-model')?.model, persistedModel);
+	});
+
 	test('cold chat history resumes its backing thread before reading turns', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.threadId', 'restored-history-thread');
@@ -1460,7 +1481,6 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 });
-
 suite('CodexAgent baseline checkpoint', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1505,6 +1525,155 @@ suite('CodexAgent baseline checkpoint', () => {
 			]);
 		} finally {
 			peer.exit();
+		}
+	});
+});
+
+suite('CodexAgent managed working directory ownership', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a legacy overlay recording only the ownership flag is never reclaimed once cwd is adopted by a real folder', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'legacy-session');
+		const chat = defaultChatOf(session);
+		const sessionId = AgentSession.id(session);
+
+		const userFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-user-'));
+		const marker = join(userFolder, 'marker.txt');
+		fs.writeFileSync(marker, 'keep-me');
+		try {
+			// An overlay written before the explicit `managedWorkingDirectory`
+			// field existed: only the legacy boolean flag was ever recorded,
+			// and `cwd` has since been overwritten — by an adoption in some
+			// prior process — with a real, unmanaged user folder.
+			await agent['_metadataStore'].write(session, {
+				threadId: 'legacy-thread',
+				cwd: URI.file(userFolder),
+				ownsManagedWorkingDirectory: true,
+			});
+
+			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+			assert.strictEqual(
+				agent['_sessions'].get(sessionId)?.managedWorkingDirectory,
+				undefined,
+				'a legacy flag with no explicit path must not resurrect a managed directory',
+			);
+
+			// Idle-release then dispose: drops the runtime from memory and
+			// untracks the chat's configuration scope, driving the reclaim
+			// path for a session that is no longer live — the exact path a
+			// stale flag could otherwise infer `cwd` from. Clearing the
+			// released-directory memo simulates the in-memory map being
+			// empty, as it would be after a process restart.
+			agent['_releasedManagedWorkingDirectories'].clear();
+			await agent.chats.releaseChat(chat);
+			await agent.chats.disposeChat(chat);
+
+			assert.strictEqual(fs.existsSync(marker), true, 'the user folder must never be deleted');
+		} finally {
+			fs.rmSync(userFolder, { recursive: true, force: true });
+		}
+	});
+
+	test('an explicit managed working directory is still reclaimed once the session is no longer live', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'explicit-managed-session');
+		const chat = defaultChatOf(session);
+		const sessionId = AgentSession.id(session);
+
+		const managedFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-agent-codex-'));
+		try {
+			await agent['_metadataStore'].write(session, {
+				threadId: 'managed-thread',
+				cwd: URI.file(managedFolder),
+				ownsManagedWorkingDirectory: true,
+				managedWorkingDirectory: URI.file(managedFolder),
+			});
+
+			await agent.materializeChat(chat, session, JSON.stringify({ sessionId }));
+			assert.strictEqual(
+				agent['_sessions'].get(sessionId)?.managedWorkingDirectory?.fsPath,
+				URI.file(managedFolder).fsPath,
+				'an explicit managed path is trusted and restored',
+			);
+
+			agent['_releasedManagedWorkingDirectories'].clear();
+			await agent.chats.releaseChat(chat);
+			await agent.chats.disposeChat(chat);
+
+			assert.strictEqual(fs.existsSync(managedFolder), false, 'the explicitly recorded managed folder is still cleaned up');
+		} finally {
+			fs.rmSync(managedFolder, { recursive: true, force: true });
+		}
+	});
+
+	test('adopting a host-supplied working directory abandons a stale managed folder left behind by a failed thread start, and never touches the newly adopted folder', async () => {
+		const agent = await createAgent(disposables);
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		// A workspace-less session defers its backing until the first send.
+		// `_materialize` mints the managed temp folder and records it on the
+		// session *before* issuing `thread/start`; if that request fails, the
+		// folder is left behind with no thread id ever assigned. A retry that
+		// supplies a real, host-selected folder must abandon that stale
+		// managed folder via its own recorded path rather than orphaning it,
+		// and must never treat the newly adopted folder as managed.
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+		const sessionId = AgentSession.id(session);
+		let userFolder: string | undefined;
+		try {
+			const firstSend = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
+			const failedStart = await readNextRequest(peer.outbound);
+			assert.strictEqual(failedStart.method, 'thread/start');
+			peer.push({ id: failedStart.id, error: { code: -32000, message: 'boom' } });
+			await firstSend;
+
+			const entry = agent['_sessions'].get(sessionId)!;
+			assert.strictEqual(entry.threadId, undefined, 'the failed start never assigned a thread id');
+			assert.strictEqual(entry.prewarmClaimed, true, 'the real send already claimed prewarm before materializing');
+			const staleManagedFolder = entry.managedWorkingDirectory!;
+			assert.ok(staleManagedFolder, 'materialize created a managed folder before the failing thread/start call');
+			assert.strictEqual(fs.existsSync(staleManagedFolder.fsPath), true);
+
+			userFolder = fs.mkdtempSync(join(os.tmpdir(), 'vscode-codex-test-adopted-'));
+			const secondSend = agent.chats.sendMessage(chat, 'hello again', [URI.file(userFolder)], undefined, 'turn-2');
+			const restart = await readNextRequest(peer.outbound);
+			assert.strictEqual(restart.method, 'thread/start');
+			assert.strictEqual(restart.params.cwd, URI.file(userFolder).fsPath);
+			peer.push({ id: restart.id, result: { thread: { id: 'thread-adopt-2' } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await secondSend;
+
+			const restoredEntry = agent['_sessions'].get(sessionId)!;
+			assert.deepStrictEqual({
+				threadId: restoredEntry.threadId,
+				workingDirectory: restoredEntry.workingDirectory?.fsPath,
+				managedWorkingDirectory: restoredEntry.managedWorkingDirectory,
+				staleManagedFolderExists: fs.existsSync(staleManagedFolder.fsPath),
+				userFolderExists: fs.existsSync(userFolder),
+			}, {
+				threadId: 'thread-adopt-2',
+				workingDirectory: URI.file(userFolder).fsPath,
+				managedWorkingDirectory: undefined,
+				staleManagedFolderExists: false,
+				userFolderExists: true,
+			});
+		} finally {
+			peer.exit();
+			if (userFolder) {
+				fs.rmSync(userFolder, { recursive: true, force: true });
+			}
 		}
 	});
 });

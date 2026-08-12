@@ -18,9 +18,6 @@ import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type Config
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
-// Agent host process starter and connection abstractions.
-// Used by the main process to spawn and connect to the agent host utility process.
-
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
@@ -32,31 +29,17 @@ export interface IAgentHostStarter extends IDisposable {
 	readonly onRequestRestart?: Event<void>;
 	readonly onWillShutdown?: Event<void>;
 
-	/**
-	 * Creates the agent host utility process and connects to it.
-	 */
 	start(): Promise<IAgentHostConnection>;
 }
 
 // ---- Provider model -------------------------------------------------------
-//
-// The IAgent interface each agent backend (Claude, Codex, Copilot) implements,
-// plus every type, helper, and signal shape reachable from that interface
-// (chat lifecycle, create/materialize/legacy-migration payloads, config
-// parameters, and provider-facing signals). Deliberately self-contained here
-// — it MUST NOT import from ./agentService.js — so that agentService.ts (the
-// orchestrator-facing IAgentService / IAgentConnection contract) can depend on
-// it without introducing a cycle. agentService.ts re-exports the public
-// provider types from here for call-site compatibility; new provider code
-// should import directly from this file.
+// This file must not depend on agentService.ts.
 
 // ---- Diagnostics types referenced by the provider surface -------------------
 
 /** A network endpoint the agent host suggests probing, listed on {@link IAgentHostNetworkDiagnosticsInfo.endpoints}. */
 export interface IAgentHostNetworkEndpoint {
-	/** Human-readable name of the endpoint (e.g. "GitHub API"). */
 	readonly name: string;
-	/** The URL to probe. */
 	readonly url: string;
 	/** Substring the response body is expected to contain; when set, the probe reads the body and fails the check if it is absent. */
 	readonly expectedContent?: string;
@@ -159,12 +142,11 @@ export interface IAgentCreateSessionResult extends IAgentCreateChatResult {
 }
 
 /**
- * Payload of {@link IAgent.onDidMaterializeChat}. Fired once when a provisional chat
- * when a previously {@link IAgentCreateSessionResult.provisional} session has
- * its SDK session, worktree (if any), and on-disk metadata in place.
+ * Payload of {@link IAgent.onDidMaterializeChat}. Fired once a previously
+ * {@link IAgentCreateSessionResult.provisional} chat has its SDK session,
+ * worktree (if any), and on-disk metadata in place.
  */
 export interface IAgentMaterializeChatEvent {
-	/** Exact chat whose provider runtime materialized. */
 	readonly chat: URI;
 	/** Updated opaque backing for the session chat, when materialization minted it. */
 	readonly result?: IAgentCreateChatResult;
@@ -429,14 +411,7 @@ export function resolveAgentChatContext(configurationResourceOrContext: URI | IA
 
 /**
  * Reads the host-supplied {@link IAgentChatContext.origin} for an addressed
- * chat operation.
- *
- * Every chat in the host catalog has an origin — a plainly user-created chat,
- * including the session-backed default chat, carries
- * {@link ChatOriginKind.User}. `undefined` therefore means the context carries
- * no catalog entry at all: a legacy session-only context, a provider-internal
- * or test-constructed context, or the narrow restore window before the chat is
- * registered.
+ * chat operation. See {@link IAgentChatContext.origin} for absence semantics.
  */
 export function resolveAgentChatOrigin(context?: URI | IAgentChatContext): ChatOrigin | undefined {
 	return context && !URI.isUri(context) ? context.origin : undefined;
@@ -454,13 +429,9 @@ export function resolveSubagentChatParent(context?: URI | IAgentChatContext): IA
 }
 
 /**
- * Reads the last host-published customization snapshot carried by an addressed
- * chat operation's context.
- *
- * Returns `undefined` when the context carries no snapshot — a legacy
- * session-only context, or a session the host has not published customizations
- * for yet. That is deliberately distinct from an empty list, so a provider can
- * keep its own reconciled view instead of clearing it.
+ * Reads the last host-published customization snapshot carried by an
+ * addressed chat operation's context. See {@link IAgentChatContext.customizations}
+ * for absence semantics.
  */
 export function resolveAgentHostCustomizations(context?: URI | IAgentChatContext): readonly Customization[] | undefined {
 	return context && !URI.isUri(context) ? context.customizations : undefined;
@@ -503,7 +474,6 @@ export interface IAgentCreateChatOptions {
 
 /** Identifies the exact source chat and turn to fork from. */
 export interface IAgentCreateChatForkSource {
-	/** URI of the existing chat to fork from. */
 	readonly source: URI;
 	/** Turn ID in the source chat; content up to and including this turn is copied. */
 	readonly turnId: string;
@@ -519,7 +489,6 @@ export interface IAgentCreateChatForkSource {
 
 /** Immutable selected-text snapshot captured when a side chat is created. */
 export interface IAgentCreateChatSideChatSelection {
-	/** Exact selected-text snapshot captured at side-chat creation time. */
 	readonly text: string;
 	/** Optional provenance for the response part that contained {@link text}. */
 	readonly responsePartId?: string;
@@ -527,7 +496,6 @@ export interface IAgentCreateChatSideChatSelection {
 
 /** Identifies a source chat and turn a side chat (`/btw`) branches from. */
 export interface IAgentCreateChatSideChatSource {
-	/** URI of the existing chat the side chat branches from. */
 	readonly source: URI;
 	/** Turn ID in the source chat the side chat records as its provenance. */
 	readonly turnId: string;
@@ -566,7 +534,6 @@ export interface IAgentCreateChatResult {
 
 /** Payload of {@link IAgent.onDidChangeChatData}. */
 export interface IAgentChatDataChange {
-	/** The concrete chat whose backing blob changed. */
 	readonly chat: URI;
 	/** The new opaque blob to persist (replaces any previously stored value). */
 	readonly providerData: string;
@@ -587,7 +554,7 @@ export interface IAgentLegacyChat {
  * by a tool call in the parent chat).
  */
 export interface IAgentSpawnedChatParent {
-	/** The parent chat (chat) URI whose tool call performed the spawn. */
+	/** The parent chat URI whose tool call performed the spawn. */
 	readonly chat: URI;
 	/** The id of the tool call in the parent that spawned this chat. */
 	readonly toolCallId: string;
@@ -602,7 +569,6 @@ export interface IAgentSpawnedChatParent {
 export interface IAgentSpawnChatEvent {
 	/** The session URI the spawned chat belongs to. */
 	readonly session: URI;
-	/** The spawned chat's channel URI (the new chat). */
 	readonly chat: URI;
 	/**
 	 * The parent that spawned it, when the spawn was delegated by a tool call.
@@ -610,7 +576,6 @@ export interface IAgentSpawnChatEvent {
 	 * top-level, agent-initiated chat with no spawning tool call.
 	 */
 	readonly parent?: IAgentSpawnedChatParent;
-	/** Optional display title for the spawned chat. */
 	readonly title?: string;
 }
 
@@ -660,10 +625,6 @@ export namespace SubagentChatSignal {
 			session: URI.parse(session),
 			chat: URI.parse(buildSubagentChatUri(session, signal.toolCallId)),
 			parent: { chat: signal.chat, toolCallId: signal.toolCallId },
-			// Prefer the concise per-task description so two subagents of the same
-			// type still get distinct, meaningful tab names; fall back to the agent
-			// type's display name. Truncate so an over-long description never blows
-			// out the tab strip or the Subagents dropdown.
 			title: subagentChatTitle(signal.taskDescription, signal.agentDisplayName),
 		};
 	}
@@ -675,15 +636,10 @@ export namespace SubagentChatSignal {
  * The chat-addressed operation surface an agent exposes for the chats
  * within a session.
  *
- * Every operation method addresses a chat by a concrete chat channel URI. The
- * orchestrator ({@link IAgentService}) owns the feature-level `(session, chat)`
- * to chat-channel mapping and only ever calls these operations with a concrete
- * chat URI plus transient context when the provider needs the owning session or
- * storage scope. This replaces the legacy `(session, chat?)` parameter pairs
- * and the per-agent chat-role handling on {@link IAgent}.
- *
- * Every agent implements this surface; no session-addressed chat-operation
- * fallback remains.
+ * Every operation method addresses a chat by a concrete chat channel URI; the
+ * orchestrator ({@link IAgentService}) owns the `(session, chat)` mapping and
+ * calls these operations with a concrete chat URI plus transient context when
+ * the provider needs the owning session or storage scope.
  */
 export interface IAgentChats {
 	/**
@@ -693,8 +649,6 @@ export interface IAgentChats {
 	 * The orchestrator supplies provider-owned persistence and configuration
 	 * scopes via `context`, so the agent never has to recover either by parsing
 	 * `chat`.
-	 * Agent Host supplies the complete resolved creation options. The agent
-	 * creates one independently-backed chat without classifying its role.
 	 */
 	createChat(chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void>;
 
@@ -717,7 +671,6 @@ export interface IAgentChats {
 	/** Abort the in-flight turn for `chat`. */
 	abort(chat: URI, context?: URI | IAgentChatContext): Promise<void>;
 
-	/** Change the model for `chat`. */
 	changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
@@ -1099,8 +1052,17 @@ export interface IAgent {
 	/** Optional recovery hook for providers with historical backings but no persisted provider data. */
 	recoverLegacyChat?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void>;
 
-	/** Enumerate provider-native chats for one-time registry migration. */
-	listLegacyChats(): Promise<readonly IAgentChatMetadata[]>;
+	/**
+	 * Enumerate provider-native chats for one-time registry migration.
+	 *
+	 * Returns `undefined` when the provider cannot enumerate yet (for example
+	 * its SDK/binary/runtime or client is not yet available/started) so callers
+	 * must not treat this as an authoritative "no legacy chats" result and should
+	 * retry later. Returns an empty array only when the provider has authoritatively
+	 * determined there are no legacy chats to migrate (e.g. legacy support is
+	 * disabled or the provider has no legacy data format).
+	 */
+	listLegacyChats(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
@@ -1110,10 +1072,8 @@ export interface IAgent {
 
 	// ---- Authentication and diagnostics ------------------------------------
 
-	/** Declare protected resources required by this provider. */
 	getProtectedResources(): ProtectedResourceMetadata[];
 
-	/** Authenticate for one protected resource. */
 	authenticate(resource: string, token: string): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
@@ -1153,9 +1113,7 @@ export interface IAgent {
 	/** Optional lifecycle hook for providers whose resources react to archived state. */
 	onArchivedChanged?(session: URI, isArchived: boolean): Promise<void>;
 
-	/** Gracefully stop provider runtimes. */
 	shutdown(): Promise<void>;
 
-	/** Dispose this provider and all its resources. */
 	dispose(): void;
 }

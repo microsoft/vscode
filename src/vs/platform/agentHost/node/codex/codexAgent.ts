@@ -1910,6 +1910,22 @@ export class CodexAgent extends Disposable implements IAgent {
 		}));
 	}
 
+	/**
+	 * The scope Codex hands {@link IAgentServerToolHost} for a session's
+	 * server-tool confirmation/execution: the same host-supplied
+	 * configuration scope {@link IAgentServerToolHost.advertise} was called
+	 * with for this chat (see {@link _configScope}), never the runtime's own
+	 * identity. A peer chat's runtime is keyed by its own thread id (e.g.
+	 * `codex:/<threadId>`) once materialized, which is neither the addressed
+	 * AH session nor the chat channel and — critically — not the scope the
+	 * host indexes its per-session tool state under. Falls back to the
+	 * runtime's own URI only when the chat has never been tracked (there is
+	 * no better scope to route through).
+	 */
+	private _serverToolScope(session: ICodexSession): URI {
+		return session.chatChannel ? this._configScope(session.chatChannel) : session.sessionUri;
+	}
+
 	private async _handleDynamicToolCallRpc(params: DynamicToolCallParams): Promise<ServerRequestHandlerResult<DynamicToolCallResponse>> {
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
@@ -1923,7 +1939,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		const host = this._serverToolHost;
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
-				if (host.requiresConfirmation(session.sessionUri.toString(), params.tool)) {
+				const scope = this._serverToolScope(session).toString();
+				if (host.requiresConfirmation(scope, params.tool)) {
 					const entry = session.mapState.itemToToolCall.get(params.callId);
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
@@ -1942,7 +1959,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
 					}
 				}
-				const text = host.executeTool(session.sessionUri.toString(), params.tool, params.arguments);
+				const text = host.executeTool(scope, params.tool, params.arguments);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
@@ -3031,16 +3048,28 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * (`AgentSession.id(configurationResource)`) is not currently live —
 	 * mirroring the reclaim a live runtime already performs on its own
 	 * destructive teardown ({@link _teardownSessionInMemory}), for the case
-	 * where that runtime was never (or no longer) resident in memory.
+	 * where that runtime was never (or no longer) resident in memory. Every
+	 * caller of this method (`_disposeChat`'s scope release, and
+	 * `_disposeRuntimeSession`'s destructive path for an already-gone
+	 * runtime) is on a destructive-only path, so this also releases the
+	 * scope's OTel trace context — `sessionUri` here round-trips to the exact
+	 * key `_traceContext` acquired it under whenever this scope was the
+	 * runtime's own adopted identity (see {@link ICodexSession.threadId}).
 	 */
 	private async _reclaimManagedWorkingDirectoryIfNotLive(sessionUri: URI): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
 		if (this._sessions.has(sessionId)) {
 			return;
 		}
+		this._otelService.releaseSessionTraceContext(sessionUri.toString());
 		const overlay = await this._metadataStore.read(sessionUri);
+		// Only the explicit path is ever trusted here — `overlay.cwd` is the
+		// session's current working directory whether or not this agent ever
+		// managed it, and a legacy `ownsManagedWorkingDirectory` flag with no
+		// explicit path recorded (an overlay written before this field
+		// existed) must be left alone rather than guessed at.
 		const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId)
-			?? (overlay.ownsManagedWorkingDirectory ? overlay.cwd : undefined);
+			?? overlay.managedWorkingDirectory;
 		if (managedWorkingDirectory) {
 			await this._removeManagedWorkingDirectory(managedWorkingDirectory);
 		}
@@ -3142,30 +3171,25 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Create the chat addressed by `chat`. This is the single creation
-	 * algorithm every Codex chat goes through, whatever form the host asked
-	 * for: a session's first chat or a later one, fresh or forked.
+	 * Single creation path for every Codex chat (fresh or forked, first or
+	 * additional). Records the chat→backing binding as part of this call, not
+	 * as a follow-up assignment.
 	 *
-	 * The call consumes the fully resolved options Agent Host supplies (model,
-	 * agent, working directories, config, active client, fork source) and never
-	 * reads any of them back from another session's state. It mints exactly one
-	 * backing Codex thread, records the exact chat→backing binding as part of
-	 * the same creation step — never as a follow-up assignment once the caller
-	 * already has the result in hand — and reports that exact backing.
+	 * Identity of the new backing: while the owning session has no backing
+	 * yet, the runtime adopts the session's own identity (kept provisional,
+	 * see {@link ICodexSession.threadId}); otherwise it is identified by the
+	 * thread it mints and started eagerly.
 	 *
-	 * The one decision it makes is which identity the backing takes:
-	 *
-	 * - While the owning session has no backing yet, the runtime adopts the
-	 *   session's own identity, so every session-addressed call (config,
-	 *   metadata, finalization, session-scoped signals) keeps resolving against
-	 *   the URI Agent Host owns. A fresh backing of that kind stays
-	 *   provisional: its `thread/start` is deferred to prewarm or the first
-	 *   send, because the workbench may still rebind the URI after a
-	 *   chip-selection change and each rebind would otherwise leak an orphan
-	 *   thread.
-	 * - Otherwise the runtime is identified by the thread it mints, and that
-	 *   thread is started eagerly so the reported
-	 *   {@link IAgentCreateChatResult.backingSession} names it exactly.
+	 * A fresh create (not a rebind of an already-bound chat) is transactional:
+	 * a failure anywhere after the config-scope ref is registered — import
+	 * rejection, model resolution, fork/start-backing, the eager active-client
+	 * seed, or the server-tool advertise — rolls back every bit of state that
+	 * step (or an earlier one in this same call) may have committed: the
+	 * config-scope ref count and any managed working directory it alone was
+	 * keeping alive, plus, once a runtime was actually registered, that
+	 * runtime itself, its active-client handle, and its timers. A caller that
+	 * retries after a failed create must see a clean slate, never a
+	 * half-registered chat piling onto the next attempt.
 	 */
 	private async _createChat(chat: URI, context: IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
 		const target: ICodexTargetChat = { resource: chat };
@@ -3177,52 +3201,83 @@ export class CodexAgent extends Disposable implements IAgent {
 		// chat this agent has ever bound to it until `_disposeChat` untracks it.
 		this._trackConfigScopeChat(context.configurationResource, chat);
 
-
-		// Codex has no SDK-level conversation-import primitive: unlike fork
-		// (a `thread/fork` of an existing thread), there is no way to seed a
-		// brand-new thread's history from arbitrary caller-supplied turns.
-		// Reject explicitly rather than silently falling through to a fresh,
-		// empty chat and dropping the imported turns.
-		if (options?.importConversation) {
-			throw new Error('Codex does not support importing an existing conversation into a new chat.');
-		}
-
 		// A create for a chat that already has a backing — a workbench rebind
 		// after a chip-selection change, or a retried create. Refresh the
 		// resolved options onto that backing and hand it back, so a second
-		// create never mints a thread the first one is orphaned by.
+		// create never mints a thread the first one is orphaned by. A rebind
+		// failure leaves the existing binding exactly as it was — the chat was
+		// never new, so there is nothing here to roll back.
 		const boundSessionId = this._sessionIdByChatUri.get(chat.toString());
 		if (boundSessionId !== undefined) {
 			return this._rebindChat(boundSessionId, context, target, options);
 		}
 
-		// Populate the catalog before any path validates a model selection, so
-		// a model picked before models finished loading isn't dropped.
-		if (this._models.get().length === 0 && this._modelsRefreshPromise) {
-			await this._modelsRefreshPromise;
-		}
-		const adoptedSessionId = this._hasSessionBacking(owningSessionId) ? undefined : owningSessionId;
-		const session = options?.fork
-			? await this._forkChatBacking(options.fork, options, adoptedSessionId, target)
-			: adoptedSessionId !== undefined
-				? this._deferChatBacking(adoptedSessionId, options, target)
-				: await this._startChatBacking(context, options, target);
+		try {
+			// Codex has no SDK-level conversation-import primitive: unlike fork
+			// (a `thread/fork` of an existing thread), there is no way to seed a
+			// brand-new thread's history from arbitrary caller-supplied turns.
+			// Reject explicitly rather than silently falling through to a fresh,
+			// empty chat and dropping the imported turns.
+			if (options?.importConversation) {
+				throw new Error('Codex does not support importing an existing conversation into a new chat.');
+			}
 
-		// Seed the eager active client over the exact chat this call binds — the
-		// agent never invents a chat URI to stand in for it — before the prewarm
-		// below reads the client's tools into a `thread/start`.
-		await this._seedEagerActiveClient(session.sessionUri, chat, context, options?.activeClient);
-		if (session.threadId === undefined) {
-			this._schedulePrewarm(session);
+			// Populate the catalog before any path validates a model selection, so
+			// a model picked before models finished loading isn't dropped.
+			if (this._models.get().length === 0 && this._modelsRefreshPromise) {
+				await this._modelsRefreshPromise;
+			}
+			const adoptedSessionId = this._hasSessionBacking(owningSessionId) ? undefined : owningSessionId;
+			const session = options?.fork
+				? await this._forkChatBacking(options.fork, options, adoptedSessionId, target)
+				: adoptedSessionId !== undefined
+					? this._deferChatBacking(adoptedSessionId, options, target)
+					: await this._startChatBacking(context, options, target);
+
+			try {
+				// Seed the eager active client over the exact chat this call binds
+				// — the agent never invents a chat URI to stand in for it — before
+				// the prewarm below reads the client's tools into a `thread/start`.
+				await this._seedEagerActiveClient(session.sessionUri, chat, context, options?.activeClient);
+				if (session.threadId === undefined) {
+					this._schedulePrewarm(session);
+				}
+				// Server tools are session-scoped, so they are advertised on the
+				// session Agent Host addressed — the only URI it knows this chat by.
+				if (!session.serverToolsAdvertised && this._serverToolHost) {
+					session.serverToolsAdvertised = true;
+					this._serverToolHost.advertise(context.configurationResource.toString());
+				}
+			} catch (err) {
+				// The backing (and, if this was its adopted identity, the session
+				// itself) is already registered at this point — undo it exactly as
+				// a destructive dispose would, so nothing it created outlives this
+				// failed call.
+				await this._rollbackRegisteredChatCreation(session, chat);
+				throw err;
+			}
+			this._logService.info(`[Codex] created chat ${chat.toString()} backed by ${session.sessionUri.toString()} thread=${session.threadId ?? '(deferred)'} (session ${context.configurationResource.toString()})`);
+			return this._createChatResult(context, session);
+		} catch (err) {
+			await this._releaseConfigScopeIfDone(chat, context);
+			throw err;
 		}
-		// Server tools are session-scoped, so they are advertised on the session
-		// Agent Host addressed — the only URI it knows this chat by.
-		if (!session.serverToolsAdvertised && this._serverToolHost) {
-			session.serverToolsAdvertised = true;
-			this._serverToolHost.advertise(context.configurationResource.toString());
-		}
-		this._logService.info(`[Codex] created chat ${chat.toString()} backed by ${session.sessionUri.toString()} thread=${session.threadId ?? '(deferred)'} (session ${context.configurationResource.toString()})`);
-		return this._createChatResult(context, session);
+	}
+
+	/**
+	 * Undo a runtime this same {@link _createChat} call just registered, once
+	 * a later step in that call (the eager active-client seed or the
+	 * server-tool advertise) fails. Mirrors the destructive
+	 * {@link _disposeChat} path exactly — same active-client handle removal,
+	 * same {@link _teardownSessionInMemory} teardown (pending registries,
+	 * MCP controller, timers, managed working directory, OTel trace context)
+	 * — because a runtime a failed create leaves behind is indistinguishable
+	 * from one a caller created and immediately disposed.
+	 */
+	private async _rollbackRegisteredChatCreation(session: ICodexSession, chat: URI): Promise<void> {
+		this._removeActiveClientHandlesForChat(chat);
+		await this._teardownSessionInMemory(session, session.sessionId, true);
+		this._sessionIdByChatUri.delete(chat.toString());
 	}
 
 	/**
@@ -3319,17 +3374,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Register a backing whose codex thread is deferred.
-	 *
-	 * We DON'T call `thread/start` here because the workbench may rebind this
-	 * URI to a fresh one when the user changes a chip selection, and we'd
-	 * otherwise leak an orphan codex thread per rebind. The actual
-	 * `thread/start` happens on prewarm, the first `sendMessage`, or
-	 * `getChatMetadata` for restore. Codex also requires a working directory
-	 * to start a thread while the client may not have one to give (e.g. an
-	 * editor window with no workspace folder open); deferring lets a managed
-	 * temp folder be created lazily at materialize time (see `_materialize`)
-	 * instead of rejecting the creation.
+	 * Register a backing whose codex thread is deferred (see
+	 * {@link ICodexSession.threadId} for why). `thread/start` happens on
+	 * prewarm, the first `sendMessage`, or `getChatMetadata` for restore — by
+	 * which point a managed temp folder can be created lazily if the client
+	 * gave no working directory, instead of rejecting the creation.
 	 */
 	private _deferChatBacking(sessionId: string, options: IAgentCreateChatOptions | undefined, target: ICodexTargetChat): ICodexSession {
 		const model = this._resolveCreationModel(options?.model);
@@ -3504,17 +3553,21 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const overlay = await this._metadataStore.read(sessionUri);
 		const threadId = overlay.threadId ?? sessionId;
-		const releasedManagedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId);
-		const workingDirectory = overlay.cwd ?? releasedManagedWorkingDirectory;
+		// The explicit path is the only thing a destructive teardown may ever
+		// delete; `overlay.cwd` is the session's current working directory
+		// regardless of who picked it and must never be treated as a managed
+		// folder on the strength of a (possibly stale) ownership flag alone.
+		const managedWorkingDirectory = this._releasedManagedWorkingDirectories.get(sessionId) ?? overlay.managedWorkingDirectory;
+		const workingDirectory = overlay.cwd ?? managedWorkingDirectory;
 		if (this._models.get().length === 0) {
 			await this.refreshModels();
 		}
-		const model = this._supportedModelOrUndefined(decoded.model);
+		const model = this._supportedModelOrUndefined(overlay.modelId ? { id: overlay.modelId } : decoded.model);
 		// Codex's session id == thread id convention: the backing thread already
 		// exists on the app-server, so the entry resumes on first send.
 		const session = this._createResumedSessionEntry(sessionId, threadId, workingDirectory, model, target, undefined, undefined, overlay.agent);
-		if (decoded.ownsManagedWorkingDirectory || overlay.ownsManagedWorkingDirectory || releasedManagedWorkingDirectory) {
-			session.managedWorkingDirectory = workingDirectory;
+		if (managedWorkingDirectory) {
+			session.managedWorkingDirectory = managedWorkingDirectory;
 		}
 		this._releasedManagedWorkingDirectories.delete(sessionId);
 		this._sessions.set(sessionId, session);
@@ -3562,13 +3615,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * `thread/resume` (`needsResume: true`) — so the prewarm/first-turn flags
 	 * are pre-set to their post-materialization values.
 	 *
-	 * `sessionUri` is *derived* from `sessionId` rather than supplied, which
-	 * structurally enforces this class's central addressing invariant: a
-	 * runtime's {@link ICodexSession.sessionUri} always round-trips back to the
-	 * {@link _sessions} key it is registered under. Every lookup that starts
-	 * from an entry and ends in a map read — `_fire`, `_disposeRuntimeSession`,
-	 * `_readSession`, `_reclaimManagedWorkingDirectoryIfNotLive` — depends on it, so a caller must never
-	 * be able to stamp an entry with someone else's session URI.
+	 * `sessionUri` is *derived* from `sessionId` rather than supplied — see
+	 * {@link ICodexSession.sessionUri} for why that must always hold.
 	 */
 	private _createResumedSessionEntry(sessionId: string, threadId: string, workingDirectory: URI | undefined, model: ModelSelection | undefined, target?: ICodexTargetChat, workingDirectories?: readonly URI[], multiRootEnabled?: boolean, agent?: AgentSelection): ICodexSession {
 		const clientToolSet = new ActiveClientToolSet();
@@ -3655,7 +3703,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sourceOverlay = sourceSession ? undefined : await this._metadataStore.read(sourceSessionUri);
 		const sourceManagedWorkingDirectory = sourceSession?.managedWorkingDirectory
 			?? this._releasedManagedWorkingDirectories.get(AgentSession.id(sourceSessionUri))
-			?? (sourceOverlay?.ownsManagedWorkingDirectory ? sourceOverlay.cwd : undefined);
+			?? sourceOverlay?.managedWorkingDirectory;
 		const sourcePrimary = sourceRead.thread.cwd ? URI.file(sourceRead.thread.cwd) : options?.workingDirectories?.[0];
 		const sourceStoredWorkingDirectories = sourceSession?.workingDirectories ?? sourceRead.persistedWorkingDirectories;
 		const inheritedWorkingDirectories = sourcePrimary
@@ -3882,6 +3930,26 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/**
+	 * Abandon this session's own managed temp folder ahead of adopting a
+	 * different (host- or user-supplied) working directory. Clears the
+	 * in-memory field, removes the folder from disk via its known explicit
+	 * path, and persists the clear so a later reclaim — this process or a
+	 * future one restored from the same overlay — never has to infer a
+	 * managed path from `cwd` again. Must run before `session.workingDirectory`
+	 * is overwritten, so the folder being abandoned is never confused with the
+	 * folder being adopted.
+	 */
+	private async _abandonManagedWorkingDirectory(session: ICodexSession): Promise<void> {
+		const directory = session.managedWorkingDirectory;
+		if (!directory) {
+			return;
+		}
+		session.managedWorkingDirectory = undefined;
+		await this._removeManagedWorkingDirectory(directory);
+		await this._metadataStore.write(session.sessionUri, { managedWorkingDirectory: null, ownsManagedWorkingDirectory: false });
+	}
+
 	private async _materialize(session: ICodexSession, configResource: URI): Promise<void> {
 		if (session.disposed || !session.chatChannel) {
 			return;
@@ -3957,7 +4025,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// the `dynamicTools` of the `thread/start` above.
 		if (!session.serverToolsAdvertised && this._serverToolHost) {
 			session.serverToolsAdvertised = true;
-			this._serverToolHost.advertise(session.sessionUri.toString());
+			this._serverToolHost.advertise(configResource.toString());
 		}
 		// Surface the skills/hooks codex loaded for this working directory (from
 		// `.agents`/`.codex`) in the Customizations view now that the connection
@@ -4005,16 +4073,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			chat,
 			project: undefined,
 			workingDirectories: session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : undefined),
-			// The refreshed backing records the runtime's own durable id — NOT
-			// the app-server thread id. A session-backing runtime keeps the
-			// host-minted session id it was provisioned with and decouples the
-			// thread id into the metadata overlay (see
-			// `_persistMaterializedSession`), so a thread-keyed blob would make
-			// the next restore re-register this runtime under an id no
-			// host-addressed call ever uses, and every notification would then
-			// resolve to a session that does not exist. The thread id is still
-			// reported as `backingSession` so the host can mark that thread's
-			// durable record as an internal chat backing.
+			// providerData records the runtime's own durable id, not the
+			// app-server thread id — see {@link ICodexPersistedChat}. The
+			// thread id is still reported as `backingSession`.
 			...(session.threadId ? {
 				result: {
 					providerData: encodeCodexChat({
@@ -4092,6 +4153,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			agent: session.agent,
 			workingDirectories: multiRootActive ? session.workingDirectories : undefined,
 			ownsManagedWorkingDirectory: session.managedWorkingDirectory !== undefined,
+			managedWorkingDirectory: session.managedWorkingDirectory ?? null,
 		};
 		void this._metadataStore.write(session.sessionUri, fields);
 		if (multiRootActive) {
@@ -4130,6 +4192,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (session.prewarmClaimed) {
 			if (session.threadId === undefined && !session.materializePromise) {
+				await this._abandonManagedWorkingDirectory(session);
 				session.workingDirectory = workingDirectory;
 				if (this._isMultiRootActive(session)) {
 					session.workingDirectories = distinctWorkingDirectories([
@@ -4164,6 +4227,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				}
 			}
 		}
+		await this._abandonManagedWorkingDirectory(session);
 		session.workingDirectory = workingDirectory;
 	}
 
@@ -4482,10 +4546,16 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * destructive {@link IAgentChats.disposeChat} path from the
 	 * non-destructive {@link IAgentChats.releaseChat} (idle-eviction) path.
 	 *
-	 * A release no-ops for runtimes with nothing durable to resume from
-	 * (provisional runtimes whose codex thread was never started) and for
-	 * runtimes with a turn in flight — `thread/unsubscribe` mid-turn would drop
-	 * live progress.
+	 * Only a release (`deleteManagedWorkingDirectory === false`) no-ops for
+	 * runtimes with nothing durable to resume from (provisional runtimes whose
+	 * codex thread was never started — evicting them from memory would lose
+	 * their only copy of state) and for runtimes with a turn in flight —
+	 * `thread/unsubscribe` mid-turn would drop live progress. A destructive
+	 * dispose has no durable state to preserve either way, so it always tears
+	 * a provisional runtime down; leaving one behind would leak its pending
+	 * registries, MCP controller, prewarm timer, and (once claimed) managed
+	 * working directory, and would let a still-running prewarm continuation
+	 * materialize a thread for a chat the host already considers gone.
 	 */
 	private async _disposeRuntimeSession(sessionUri: URI, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		const sessionId = AgentSession.id(sessionUri);
@@ -4496,18 +4566,21 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			return;
 		}
-		// Provisional sessions have no codex thread on disk to resume from;
-		// releasing them would lose their in-memory state. Leave them in place.
-		if (session.threadId === undefined) {
-			return;
+		if (!deleteManagedWorkingDirectory) {
+			// Provisional sessions have no codex thread on disk to resume from;
+			// releasing them would lose their in-memory state. Leave them in
+			// place. Likewise a defensive active-turn guard: the orchestrator
+			// already skips eviction while a turn is active, but one could have
+			// started between that check and this call.
+			if (session.threadId === undefined || session.currentTurnId !== undefined) {
+				return;
+			}
 		}
-		// Defensive active-turn guard: the orchestrator already skips eviction
-		// while a turn is active, but one could have started between that check
-		// and this call.
-		if (!deleteManagedWorkingDirectory && session.currentTurnId !== undefined) {
-			return;
+		if (session.threadId !== undefined) {
+			this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
+		} else {
+			this._logService.info(`[Codex] Disposing provisional session ${session.sessionUri.toString()} (codex thread never started)`);
 		}
-		this._logService.info(`[Codex:${session.threadId}] Releasing idle session from memory (durable state preserved)`);
 		if (!deleteManagedWorkingDirectory && session.managedWorkingDirectory) {
 			this._releasedManagedWorkingDirectories.set(sessionId, session.managedWorkingDirectory);
 		}
@@ -4518,10 +4591,16 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Shared in-memory teardown for a codex session: drops the tracked entry,
 	 * disposes its MCP controller, unparks pending approvals / client tool calls
 	 * / user inputs, and unsubscribes the codex thread (`thread/unsubscribe`).
-	 * Non-destructive — the codex thread's on-disk rollout is preserved, so the
-	 * session can be resumed later. Shared by the destructive chat-dispose path
-	 * (which the orchestrator pairs with durable deletion) and the
-	 * non-destructive chat-release (idle eviction) path.
+	 * The codex thread's on-disk rollout is always preserved (there is no
+	 * app-server delete), so a released session can still be resumed later —
+	 * but a destructive `deleteManagedWorkingDirectory` also releases this
+	 * runtime's retained OTel trace context (see {@link _traceContext}), since
+	 * that context is scoped to this exact runtime's lifetime, not to its
+	 * durable rollout. Idle eviction must not release it: a released runtime
+	 * is expected to be re-addressed later and should keep the same trace
+	 * parent when it is. Shared by the destructive chat-dispose path (which
+	 * the orchestrator pairs with durable deletion) and the non-destructive
+	 * chat-release (idle eviction) path.
 	 */
 	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		session.disposed = true;
@@ -4541,6 +4620,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (deleteManagedWorkingDirectory) {
 			this._releasedManagedWorkingDirectories.delete(sessionId);
+			// Key must match the exact acquisition key in `_traceContext`: this
+			// runtime's own `sessionUri`, never the config scope or chat channel
+			// it happens to be addressed by.
+			this._otelService.releaseSessionTraceContext(session.sessionUri.toString());
 		}
 		if (session.customizationDirectory) {
 			const dir = session.customizationDirectory.fsPath;
@@ -4797,11 +4880,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
+		const backing = providerData ? decodeCodexChat(providerData) : undefined;
+		const sessionId = backing?.sessionId ?? AgentSession.id(session);
 		// A live runtime answers from memory. `thread/read` would otherwise
 		// re-enter the app-server, which cannot answer while one of its own
 		// threads is blocked waiting on a dynamic tool call — exactly the state
 		// a session server tool (`get_current_session`) runs in.
-		const live = this._sessions.get(AgentSession.id(session));
+		const live = this._sessions.get(sessionId);
 		if (live?.threadId) {
 			return {
 				chat,
@@ -4810,8 +4895,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				workingDirectories: live.workingDirectories ?? (live.workingDirectory ? [live.workingDirectory] : undefined),
 			};
 		}
-		const backing = providerData ? decodeCodexChat(providerData) : undefined;
-		const sessionId = backing?.sessionId ?? AgentSession.id(session);
 		const backingUri = backing ? AgentSession.uri(this.id, backing.sessionId) : session;
 		const read = await this._readSession(backingUri);
 		if (!read) {
@@ -4837,7 +4920,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			// keeps the construction time rather than falling back to 1970.
 			restored.startTime = metadata.startTime || restored.startTime;
 			restored.modifiedTime = metadata.modifiedTime || restored.modifiedTime;
-			if (overlay.ownsManagedWorkingDirectory) {
+			// Require our own recorded explicit path to positively corroborate
+			// the app-server's ground-truth cwd before adopting it as managed:
+			// `read.thread.cwd` is authoritative for "what is this thread's
+			// cwd" but not for "did we create it", and a stale
+			// `ownsManagedWorkingDirectory` flag alone must never resurrect a
+			// real user folder as something a later reclaim may delete.
+			if (overlay.managedWorkingDirectory && workingDirectory && isEqual(overlay.managedWorkingDirectory, workingDirectory)) {
 				restored.managedWorkingDirectory = workingDirectory;
 			}
 			this._sessions.set(sessionId, restored);
@@ -4899,7 +4988,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+	async listLegacyChats(): Promise<IAgentChatMetadata[] | undefined> {
 		// After the orchestrator-owned session registry (I3-removal stage 2),
 		// AH no longer unions provider top-level session enumeration from this
 		// method; it now serves only the registry's one-time backfill of
@@ -4907,12 +4996,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		// to `codex:/<threadId>` below — that thread→URI identity is the LEGACY
 		// persisted identity of those sessions, not an active I3 invariant.
 		// Don't connect (and trigger a cold SDK download) just to list threads
-		// at startup. When the SDK isn't local yet, surface an empty list; the
-		// download fires (with host-level progress) once the user starts a
-		// session, and the registry's next backfill pass returns the full list.
+		// at startup. When the SDK isn't local yet, return `undefined` — this
+		// is NOT an authoritative "no legacy chats" answer, just "can't
+		// enumerate yet". The download fires (with host-level progress) once
+		// the user starts a session, and the registry's next backfill pass
+		// returns the full list.
 		if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
 			this._logService.info('[Codex] SDK not downloaded yet; deferring thread/list until a session triggers the download');
-			return [];
+			return undefined;
 		}
 		try {
 			const conn = await this._ensureConnection();
@@ -4943,11 +5034,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		} catch (err) {
 			// This backfill runs across every not-yet-migrated provider; a
 			// rejection here should not take a sibling provider's backfill
-			// down with it. Returning empty is a workaround for that
-			// aggregation, not a correct signal — an empty list is
-			// indistinguishable from "this agent has no legacy sessions".
+			// down with it. `undefined` signals "can't enumerate yet" so the
+			// orchestrator retries later instead of treating this as an
+			// authoritative "no legacy sessions" result.
 			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
-			return [];
+			return undefined;
 		}
 	}
 
@@ -4981,16 +5072,13 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * `chat` is the one exact chat this handle contributes to; there is no
-	 * chat-array membership to fan out to and no sibling inference — Agent
-	 * Host calls this once per addressed chat (replaying the call whenever a
-	 * new chat joins the session), and the agent's own eager seed names the
-	 * chat it is binding. `context` is used only to resolve the chat's
-	 * backing runtime when it has no live binding yet (the narrow window
-	 * before a restore materializes it), mirroring
-	 * {@link _resolveConversationSession}. `hostCustomizations` is not
-	 * consumed here: Codex reconciles a client's pushed plugin customizations
-	 * directly through {@link _syncClientCustomizations}.
+	 * `chat` is the one exact chat this handle contributes to — no fan-out to
+	 * chat-array membership or sibling inference; Agent Host calls this once
+	 * per addressed chat. `context` only resolves the chat's backing runtime
+	 * when it has no live binding yet, mirroring
+	 * {@link _resolveConversationSession}. `hostCustomizations` is unused:
+	 * Codex reconciles pushed plugin customizations via
+	 * {@link _syncClientCustomizations}.
 	 */
 	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, _hostCustomizations?: readonly Customization[]): IActiveClient {
 		const key = `${chat.toString()}\u0000${client.clientId}`;

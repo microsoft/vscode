@@ -11,7 +11,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -625,6 +625,28 @@ class RecordingTitleOTelService extends MockAgentHostOTelService {
 	}
 }
 
+/**
+ * Records every configuration scope whose trace context was released, so a
+ * failed `createChat` can be asserted to release it exactly when it finalizes
+ * the scope (i.e. no other chat still shares it) and never otherwise.
+ */
+class RecordingReleaseOTelService implements IAgentHostOTelService {
+	declare readonly _serviceBrand: undefined;
+	readonly released: string[] = [];
+
+	async getSdkTelemetryConfig() { return undefined; }
+	async getNativeSdkTelemetryConfig() { return undefined; }
+	getSessionTraceContext() { return undefined; }
+	releaseSessionTraceContext(sessionUri: string): void {
+		this.released.push(sessionUri);
+	}
+	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
+	getCurrentTraceContext() { return undefined; }
+	getSpansDbPath() { return undefined; }
+	emitSessionTitleChanged(_conversationId: string, _sessionUri: string, _title: string): void { }
+	async flush() { }
+}
+
 class TestProxyResolver implements IAgentHostProxyResolver {
 	declare readonly _serviceBrand: undefined;
 	resolveProxyCalls = 0;
@@ -651,6 +673,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
+		@IAgentHostOTelService otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
@@ -658,7 +681,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, createTestGitHubEndpointService(), otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -683,6 +706,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
+		@IAgentHostOTelService otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry byokBridgeRegistry: IByokLmBridgeRegistry,
@@ -690,7 +714,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, createTestGitHubEndpointService(), otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -741,7 +765,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
@@ -763,7 +787,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
 	services.set(IAgentHostReviewService, NULL_REVIEW_SERVICE);
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
-	services.set(IAgentHostOTelService, {
+	services.set(IAgentHostOTelService, options?.otelService ?? {
 		_serviceBrand: undefined,
 		getSdkTelemetryConfig: async () => undefined,
 		getNativeSdkTelemetryConfig: async () => undefined,
@@ -797,7 +821,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService, configurationService: configService, fileService, stateManager };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry; otelService?: IAgentHostOTelService }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -1450,6 +1474,7 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 		try {
 			const sessions = await agent.listLegacyChats();
+			assert.ok(sessions);
 			assert.deepStrictEqual({
 				models: agent.models.get(),
 				sessions: sessions.map(session => sessionIdOfChat(session.chat)),
@@ -1623,13 +1648,17 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('reports a classified Copilot client startup failure', async () => {
+	test('surfaces undefined (not a rejection) for a classified Copilot client startup failure', async () => {
+		// A `startupFailed`-classified error means the CLI client is transiently
+		// unavailable, not that this provider authoritatively has no legacy
+		// chats: `listLegacyChats` must resolve to `undefined` (still reporting
+		// the failure via telemetry) rather than reject or return `[]`.
 		const client = new TestCopilotClient([]);
 		client.startError = new Error('Failed to start CLI server: spawn failed');
 		const telemetryService = new RecordingTelemetryService();
 		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
 		try {
-			await assert.rejects(agent.listLegacyChats(), /Failed to start CLI server/);
+			assert.strictEqual(await agent.listLegacyChats(), undefined);
 			assert.strictEqual(telemetryService.errorEvents.length, 1);
 			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
 			assert.deepStrictEqual({
@@ -1701,7 +1730,11 @@ suite('CopilotAgent', () => {
 		try {
 			for (const testCase of cases) {
 				client.startError = new Error(testCase.message);
-				await assert.rejects(agent.listLegacyChats());
+				// All of these are `startupFailed`-classified: the client is
+				// transiently unavailable, so `listLegacyChats` resolves to
+				// `undefined` (still reporting telemetry below) rather than
+				// rejecting.
+				assert.strictEqual(await agent.listLegacyChats(), undefined);
 			}
 
 			assert.deepStrictEqual(telemetryService.errorEvents.map(event => {
@@ -2081,7 +2114,11 @@ suite('CopilotAgent', () => {
 			const shutdownPromise = agent.shutdown();
 			startGate.complete();
 
-			await assert.rejects(listPromise, CancellationError);
+			// Shutting down mid-start is "client transiently unavailable", not
+			// an authoritative "no legacy chats" answer, so `listLegacyChats`
+			// resolves to `undefined` rather than rejecting with the
+			// `CancellationError` that `_ensureClient` itself throws.
+			assert.strictEqual(await listPromise, undefined);
 			await shutdownPromise;
 
 			assert.deepStrictEqual({
@@ -2188,7 +2225,9 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
-				const listed = (await agent.listLegacyChats()).find(s => sessionIdOfChat(s.chat) === sessionId);
+				const sessions = await agent.listLegacyChats();
+				assert.ok(sessions);
+				const listed = sessions.find(s => sessionIdOfChat(s.chat) === sessionId);
 				const chat = defaultChatUri(session);
 				const meta = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
 				return {
@@ -3463,7 +3502,9 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			assert.deepStrictEqual((await agent.listLegacyChats()).map(s => sessionIdOfChat(s.chat)), ['owned']);
+			const sessions = await agent.listLegacyChats();
+			assert.ok(sessions);
+			assert.deepStrictEqual(sessions.map(s => sessionIdOfChat(s.chat)), ['owned']);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -3480,7 +3521,9 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			assert.deepStrictEqual((await agent.listLegacyChats()).map(withoutUndefinedProperties), [{
+			const sessions = await agent.listLegacyChats();
+			assert.ok(sessions);
+			assert.deepStrictEqual(sessions.map(withoutUndefinedProperties), [{
 				chat: defaultChatUri(legacySession),
 				startTime: 1000,
 				modifiedTime: 2000,
@@ -3508,7 +3551,9 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 
-			assert.deepStrictEqual((await agent.listLegacyChats()).map(withoutUndefinedProperties), [{
+			const sessions = await agent.listLegacyChats();
+			assert.ok(sessions);
+			assert.deepStrictEqual(sessions.map(withoutUndefinedProperties), [{
 				chat: defaultChatUri(session),
 				startTime: 1000,
 				modifiedTime: 2000,
@@ -3600,8 +3645,10 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId);
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
+				const sessions = await agent.listLegacyChats();
+				assert.ok(sessions);
 				assert.deepStrictEqual(
-					(await agent.listLegacyChats()).map(s => ({ id: sessionIdOfChat(s.chat), adoptable: readSessionEhcliAdoptable(s._meta), cwd: s.workingDirectories?.map(d => d.fsPath) })),
+					sessions.map(s => ({ id: sessionIdOfChat(s.chat), adoptable: readSessionEhcliAdoptable(s._meta), cwd: s.workingDirectories?.map(d => d.fsPath) })),
 					[{ id: sessionId, adoptable: true, cwd: [URI.file(workingDirectory).fsPath] }],
 				);
 			} finally {
@@ -3667,8 +3714,10 @@ suite('CopilotAgent', () => {
 				await writeExtensionHostMarker(userHome, sessionId); // marker present but already adopted
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
+				const sessions = await agent.listLegacyChats();
+				assert.ok(sessions);
 				assert.deepStrictEqual(
-					(await agent.listLegacyChats()).map(s => ({ id: sessionIdOfChat(s.chat), adoptable: readSessionEhcliAdoptable(s._meta) })),
+					sessions.map(s => ({ id: sessionIdOfChat(s.chat), adoptable: readSessionEhcliAdoptable(s._meta) })),
 					[{ id: sessionId, adoptable: false }],
 				);
 			} finally {
@@ -4595,6 +4644,300 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+	});
+
+	suite('createChat failure rollback', () => {
+		/** Structural view of the agent's private per-scope maps under test. */
+		function activeClients(agent: CopilotAgent): { get(session: URI): { dispose(): void } | undefined } {
+			return (agent as unknown as { _activeClients: { get(session: URI): { dispose(): void } | undefined } })._activeClients;
+		}
+		function sessionLifetimes(agent: CopilotAgent): Map<string, { isPermanentlyClosed: boolean }> {
+			return (agent as unknown as { _sessionLifetimes: Map<string, { isPermanentlyClosed: boolean }> })._sessionLifetimes;
+		}
+		function provisionalSessions(agent: CopilotAgent): Map<string, unknown> {
+			return (agent as unknown as { _provisionalSessions: Map<string, unknown> })._provisionalSessions;
+		}
+		function hostCustomizations(agent: CopilotAgent, session: URI): readonly Customization[] {
+			return (agent as unknown as { _retainedHostCustomizations(session: URI): readonly Customization[] })._retainedHostCustomizations(session);
+		}
+
+		/**
+		 * Stubs `_createAgentSession` so the `n`th call it services (1-based)
+		 * throws once `initializeSession` runs, mirroring an SDK `createSession`
+		 * failure without needing a real CLI process; every other call
+		 * succeeds trivially, just like {@link stubForkSeams}'s fake above.
+		 */
+		function stubMintFailureOnCall(agent: CopilotAgent, failingCallNumber: number, message = 'mint failed'): void {
+			let callIndex = 0;
+			const internals = agent as unknown as {
+				_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI; resource?: URI }) => CopilotAgentSession;
+			};
+			internals._createAgentSession = (launchPlan, _dir, _activeClient, identity) => {
+				callIndex++;
+				const shouldFail = callIndex === failingCallNumber;
+				return {
+					sessionUri: AgentSession.uri('copilotcli', launchPlan.sessionId),
+					chatChannelUri: identity?.chatChannelUri,
+					sessionId: launchPlan.sessionId,
+					appliedSnapshot: { tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
+					onMcpNotification: Event.None,
+					mcpServerStates: observableValue('test', []),
+					async initializeSession(): Promise<void> {
+						if (shouldFail) {
+							throw new Error(message);
+						}
+					},
+					async remapTurnIds(): Promise<void> { },
+					async getMessages(): Promise<readonly Turn[]> { return []; },
+					async destroySession(): Promise<void> { },
+					handleClientToolCallComplete(): void { },
+					dispose(): void { launchPlan.shellManager?.dispose(); },
+				} as unknown as CopilotAgentSession;
+			};
+		}
+
+		test('a client-startup failure on a workspace-less deferred create leaves no trace of the scope (including its scratch dir)', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/rollback-startup-home-`));
+			const client = new TestCopilotClient([]);
+			client.startError = new Error('Failed to start CLI server: spawn failed');
+			const otelService = new RecordingReleaseOTelService();
+			const agent = createTestAgent(disposables, { copilotClient: client, userHome, otelService });
+			const session = AgentSession.uri('copilotcli', 'rollback-startup-session');
+			const sessionId = AgentSession.id(session);
+			const chat = defaultChatUri(session);
+			const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', sessionId);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// No workingDirectories: `_resolveCreateWorkingDirectory` mkdir's the
+				// stable scratch dir before `_ensureClient()` throws, so the scratch
+				// dir exists at the moment of failure — the rollback must remove it.
+				await assert.rejects(() => provisionSession(agent, { session }), /Failed to start CLI server/);
+
+				assert.deepStrictEqual({
+					chatScope: chatScopes(agent).has(chat.toString()),
+					chatBacking: chatBackings(agent).has(chat.toString()),
+					provisional: provisionalSessions(agent).has(sessionId),
+					activeClient: !!activeClients(agent).get(session),
+					lifetime: sessionLifetimes(agent).has(sessionId),
+					scratchDirRemoved: await fs.access(scratchDir.fsPath).then(() => false, () => true),
+					released: otelService.released,
+				}, {
+					chatScope: false,
+					chatBacking: false,
+					provisional: false,
+					activeClient: false,
+					lifetime: false,
+					scratchDirRemoved: true,
+					released: [session.toString()],
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
+		test('an import/resume failure disposes the ActiveClient it created and drops the ghost chat backing', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/rollback-import-home-`));
+			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/rollback-import-cwd-`));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.resumeSession = async () => { throw new Error('resume failed'); };
+			const otelService = new RecordingReleaseOTelService();
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, userHome, otelService });
+			const session = AgentSession.uri('copilotcli', 'rollback-import-session');
+			const sessionId = AgentSession.id(session);
+			const chat = defaultChatUri(session);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const turn: Turn = {
+					id: 'rollback-import-turn',
+					state: TurnState.Complete,
+					message: { text: 'Remember ROLLBACK_IMPORT.', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+					usage: {},
+				};
+
+				// `_resumeSession` records `_chatBackings` unconditionally before
+				// resuming; the failure surfaces from `initializeSession` (via the
+				// stubbed `client.resumeSession`) afterwards, leaving a ghost entry
+				// the rollback must drop, and an ActiveClient
+				// (`_getOrCreateActiveClient` in `_doResumeSession`) it must dispose.
+				await assert.rejects(() => provisionSession(agent, {
+					session,
+					workingDirectories: [workingDirectory],
+					importConversation: { turns: [turn] },
+				}), /resume failed/);
+
+				assert.deepStrictEqual({
+					chatScope: chatScopes(agent).has(chat.toString()),
+					chatBacking: chatBackings(agent).has(chat.toString()),
+					activeClient: !!activeClients(agent).get(session),
+					lifetimeClosed: sessionLifetimes(agent).get(sessionId)?.isPermanentlyClosed,
+					released: otelService.released,
+				}, {
+					chatScope: false,
+					chatBacking: false,
+					activeClient: false,
+					lifetimeClosed: true,
+					released: [session.toString()],
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
+		test('a fresh mint failure disposes the ActiveClient and session lifetime it created', async () => {
+			const client = new TestCopilotClient([]);
+			const otelService = new RecordingReleaseOTelService();
+			const agent = createTestAgent(disposables, { copilotClient: client, otelService });
+			stubMintFailureOnCall(agent, 1, 'createSession failed');
+			const session = AgentSession.uri('copilotcli', 'rollback-mint-session');
+			const sessionId = AgentSession.id(session);
+			const chat = defaultChatUri(session);
+			const workingDirectory = URI.file('/rollback-mint-workspace');
+			const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///rollback-plugin', uri: 'file:///rollback-plugin', name: 'Rollback Plugin', enabled: true };
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// A non-deferred, non-fork, non-import create dispatches straight to
+				// `_mintChatBacking`, which claims an ActiveClient (via
+				// `_getOrCreateActiveClient`) and a session lifetime (via
+				// `_queueSession`) before `initializeSession` fails. The context also
+				// carries a host customization snapshot, so the failure must clear
+				// the retained snapshot along with everything else.
+				await assert.rejects(() => agent.chats.createChat(chat, { configurationResource: session, resource: session, customizations: [plugin] }, {
+					workingDirectories: [workingDirectory],
+					deferBacking: false,
+				}), /createSession failed/);
+
+				assert.deepStrictEqual({
+					chatScope: chatScopes(agent).has(chat.toString()),
+					chatBacking: chatBackings(agent).has(chat.toString()),
+					activeClient: !!activeClients(agent).get(session),
+					lifetimeClosed: sessionLifetimes(agent).get(sessionId)?.isPermanentlyClosed,
+					hostCustomizations: hostCustomizations(agent, session),
+					released: otelService.released,
+				}, {
+					chatScope: false,
+					chatBacking: false,
+					activeClient: false,
+					lifetimeClosed: true,
+					hostCustomizations: [],
+					released: [session.toString()],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a failing peer mint rolls back its own state but leaves an already-succeeded sibling chat\'s scope resources intact', async () => {
+			const client = new TestCopilotClient([]);
+			const otelService = new RecordingReleaseOTelService();
+			const agent = createTestAgent(disposables, { copilotClient: client, otelService });
+			// The 2nd `_createAgentSession` call (the peer chat's) fails; the 1st
+			// (the default chat's) succeeds and stays live.
+			stubMintFailureOnCall(agent, 2, 'peer mint failed');
+			const session = AgentSession.uri('copilotcli', 'rollback-sibling-session');
+			const sessionId = AgentSession.id(session);
+			const defaultChat = defaultChatUri(session);
+			const peerChat = URI.parse(buildChatUri(session, 'rollback-sibling-peer'));
+			const workingDirectory = URI.file('/rollback-sibling-workspace');
+			const plugin: Customization = { type: CustomizationType.Plugin, id: 'file:///rollback-sibling-plugin', uri: 'file:///rollback-sibling-plugin', name: 'Rollback Sibling Plugin', enabled: true };
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				await agent.chats.createChat(defaultChat, { configurationResource: session, resource: session, customizations: [plugin] }, {
+					workingDirectories: [workingDirectory],
+					deferBacking: false,
+				});
+				await assert.rejects(() => agent.chats.createChat(peerChat, exactChatContext(session, peerChat, session), {
+					workingDirectories: [workingDirectory],
+					deferBacking: false,
+				}), /peer mint failed/);
+
+				assert.deepStrictEqual({
+					// The failed peer's own bookkeeping is gone.
+					peerChatScope: chatScopes(agent).has(peerChat.toString()),
+					peerChatBacking: chatBackings(agent).has(peerChat.toString()),
+					// The scope is still live because the default chat still shares it,
+					// so nothing scope-wide is finalized.
+					defaultChatScope: chatScopes(agent).has(defaultChat.toString()),
+					defaultChatLive: hasLiveChat(agent, defaultChat),
+					activeClient: !!activeClients(agent).get(session),
+					lifetimeClosed: sessionLifetimes(agent).get(sessionId)?.isPermanentlyClosed,
+					hostCustomizations: hostCustomizations(agent, session).map(c => c.id),
+					released: otelService.released,
+				}, {
+					peerChatScope: false,
+					peerChatBacking: false,
+					defaultChatScope: true,
+					defaultChatLive: true,
+					activeClient: true,
+					lifetimeClosed: false,
+					hostCustomizations: ['file:///rollback-sibling-plugin'],
+					released: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a client-start failure on a duplicate/reconnect create for an already-reserved chat leaves its existing binding untouched', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/rollback-duplicate-home-`));
+			const client = new TestCopilotClient([]);
+			const otelService = new RecordingReleaseOTelService();
+			const agent = createTestAgent(disposables, { copilotClient: client, userHome, otelService });
+			const session = AgentSession.uri('copilotcli', 'rollback-duplicate-session');
+			const sessionId = AgentSession.id(session);
+			const chat = defaultChatUri(session);
+			const scratchDir = URI.joinPath(userHome, '.copilot', 'chats', sessionId);
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// First create succeeds: reserves the chat's backing, stands up the
+				// scope's ActiveClient/lifetime, and (workspace-less) creates the
+				// stable scratch dir.
+				const first = await provisionSession(agent, { session });
+				assert.strictEqual(first.provisional, true);
+
+				const before = {
+					chatScope: chatScopes(agent).has(chat.toString()),
+					chatBacking: chatBackings(agent).get(chat.toString()),
+					activeClient: !!activeClients(agent).get(session),
+					lifetimeClosed: sessionLifetimes(agent).get(sessionId)?.isPermanentlyClosed,
+					scratchDirExists: await fs.access(scratchDir.fsPath).then(() => true, () => false),
+					released: [...otelService.released],
+				};
+
+				// Force the very next `_ensureClient()` call to attempt a fresh
+				// client start — as if the CLI process crashed and a reconnect is
+				// underway — and make that restart fail.
+				(agent as unknown as { _client: unknown })._client = undefined;
+				client.startError = new Error('Failed to reconnect CLI server');
+
+				// A duplicate/reconnect create for the SAME already-reserved chat:
+				// `_reserveChatBacking` calls `_ensureClient()` unconditionally
+				// before its own idempotency check ever runs, so this failure
+				// surfaces before `_createChat` (or `_reserveChatBacking`) can even
+				// recognize the chat as already bound. The preexisting reservation
+				// must come out exactly as it went in — none of it is this call's
+				// to unwind.
+				await assert.rejects(() => provisionSession(agent, { session }), /Failed to reconnect CLI server/);
+
+				assert.deepStrictEqual({
+					chatScope: chatScopes(agent).has(chat.toString()),
+					chatBacking: chatBackings(agent).get(chat.toString()),
+					activeClient: !!activeClients(agent).get(session),
+					lifetimeClosed: sessionLifetimes(agent).get(sessionId)?.isPermanentlyClosed,
+					scratchDirExists: await fs.access(scratchDir.fsPath).then(() => true, () => false),
+					released: otelService.released,
+				}, before);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
 	});
 
 	suite('createChat exact-chat provisioning (import)', () => {
@@ -6884,6 +7227,39 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a cold peer fork reads the source peer storage scope', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'cold-peer-fork-owner');
+				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				const source = URI.parse(buildChatUri(session, 'source-peer'));
+				await agent.materializeChat(source, exactChatContext(session, source), JSON.stringify({ sdkSessionId: 'source-peer-sdk' }));
+
+				let resolvedSourceResource: string | undefined;
+				(agent as unknown as { _ensureResolvedChatSession: (context: { resource: URI }) => Promise<CopilotAgentSession> })._ensureResolvedChatSession = async context => {
+					resolvedSourceResource = context.resource.toString();
+					return {} as unknown as CopilotAgentSession;
+				};
+				(agent as unknown as { _forkSdkChat: () => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async () => {
+					return { sessionId: 'forked-peer-sdk', inheritedTurnCount: 0 };
+				};
+				stubBackingSession(agent);
+
+				const fork = URI.parse(buildChatUri(session, 'forked-peer'));
+				await agent.chats.createChat(fork, exactChatContext(session, fork), {
+					fork: { source, turnId: 'turn-1' },
+					workingDirectories: [URI.file('/workspace')],
+				});
+
+				assert.strictEqual(resolvedSourceResource, source.toString());
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('sendMessage routes an exact chat URI to the addressed chat', async () => {
 			const agent = createTestAgent(disposables);
 			try {
@@ -7014,7 +7390,52 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('disposeChat releases the peer chat\'s own OTel trace context without releasing a still-live sibling\'s scope', async () => {
+			const otelService = new RecordingReleaseOTelService();
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), otelService });
+			try {
+				const session = AgentSession.uri('copilotcli', 'conv-peer-otel');
+				const defaultChat = defaultChatUri(session);
+				const defaultRec = installFake(agent, AgentSession.id(session), 'session', session);
+				const peerChat = URI.parse(buildChatUri(session, 'peer-otel'));
+				const peerRec = installFake(agent, peerChat.toString(), 'chat', session);
+
+				// A peer chat's own OTel trace context is keyed by its host-chosen
+				// persistence resource — its own chat URI, `exactChatContext`'s
+				// default `resource` — never by the shared session scope.
+				// Disposing it while the default chat still shares the scope must
+				// release only that key: the scope is still live, so nothing
+				// scope-wide is released or finalized.
+				await agent.chats.disposeChat(peerChat, exactChatContext(session, peerChat));
+
+				assert.deepStrictEqual({
+					peerDisposed: peerRec.disposed,
+					defaultDisposed: defaultRec.disposed,
+					peerLive: hasLiveChat(agent, peerChat),
+					defaultLive: hasLiveChat(agent, defaultChat),
+					released: otelService.released,
+				}, {
+					peerDisposed: true,
+					defaultDisposed: false,
+					peerLive: false,
+					defaultLive: true,
+					released: [peerChat.toString()],
+				});
+
+				// Disposing the last remaining chat — the default, whose own
+				// resource coincides with the scope — finalizes the scope too:
+				// its key is released once for the chat's own teardown and once
+				// more (idempotently) by scope finalization.
+				await agent.chats.disposeChat(defaultChat, exactChatContext(session, defaultChat, session));
+
+				assert.deepStrictEqual(otelService.released, [peerChat.toString(), session.toString(), session.toString()]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
+
 
 	suite('active-client chat membership fan-out', () => {
 		/**

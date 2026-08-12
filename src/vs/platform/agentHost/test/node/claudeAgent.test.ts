@@ -4665,6 +4665,7 @@ suite('ClaudeAgent', () => {
 
 		await disposeSession(agent, created.session);
 		const result = await agent.listLegacyChats();
+		assert.ok(result);
 
 		assert.deepStrictEqual({
 			ids: result.map(r => sessionIdOfChat(r.chat)),
@@ -4730,6 +4731,7 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		const result = await agent.listLegacyChats();
+		assert.ok(result);
 		const a = result.find(r => sessionIdOfChat(r.chat) === 'a');
 		const b = result.find(r => sessionIdOfChat(r.chat) === 'b');
 		assert.deepStrictEqual({
@@ -4799,6 +4801,7 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		const result = await agent.listLegacyChats();
+		assert.ok(result);
 		const find = (id: string) => result.find(r => sessionIdOfChat(r.chat) === id);
 		assert.deepStrictEqual({
 			count: result.length,
@@ -4811,14 +4814,17 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('legacy discovery returns an empty list when the SDK fails to load', async () => {
+	test('legacy discovery returns undefined (cannot enumerate yet) when the SDK fails to load', async () => {
 		// Copilot-reviewer comment: `AgentService.listSessions` fans out
 		// across providers via `Promise.all` (agentService.ts:202-204).
 		// If our SDK dynamic import rejects (corrupt install, missing
 		// optional dep) and we let it propagate, every other provider's
 		// session list disappears too \u2014 the sibling Copilot provider
-		// goes blank. Catching here keeps Claude's row empty while
-		// Copilot's row still surfaces.
+		// goes blank. Catching here keeps Claude's row from poisoning the
+		// fan-out; `undefined` (not `[]`) signals "can't enumerate yet"
+		// rather than falsely claiming there are no legacy chats, so the
+		// caller retries on the next legacy discovery pass instead of
+		// permanently dropping this provider's chats from migration.
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.listSessionsRejection = new Error('simulated SDK load failure');
 
@@ -4837,7 +4843,7 @@ suite('ClaudeAgent', () => {
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
 		const result = await agent.listLegacyChats();
-		assert.deepStrictEqual(result, []);
+		assert.deepStrictEqual(result, undefined);
 	});
 
 	test('getChatMetadata joins SDK info with sidecar overlay, returns SDK-only fields for external sessions, and undefined for unknown ids (Phase 6.1 / Cycle D4 / I7)', async () => {
@@ -5000,7 +5006,10 @@ suite('ClaudeAgent', () => {
 		}, {
 			metadata: undefined,
 			messages: [],
-			sessions: [],
+			// `undefined`, not `[]`: the SDK isn't local yet so legacy
+			// discovery can't enumerate, and must not falsely claim there
+			// are no legacy chats to migrate.
+			sessions: undefined,
 			getSessionInfoCalls: [],
 			getSessionMessagesCalls: [],
 		});
@@ -6830,6 +6839,85 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		}, {
 			result: { behavior: 'deny', message: 'The user declined the plan, maybe ask why?' },
 			recordedModes: [],
+		});
+	});
+
+	test('Test 13c — ExitPlanMode: approving from a peer chat persists permissionMode to the owning session config scope, not the peer chat URI', async () => {
+		// A peer/side chat shares its owning session's `configurationResource`
+		// but is addressed by its own distinct chat URI (`resource`). The
+		// permission-mode write on Approve must land on the shared session
+		// scope regardless of which chat surfaced the plan — writing under
+		// the peer's own chat URI would silently no-op (no session entry is
+		// ever keyed by a chat channel URI) and the mode would never persist.
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(ctx.agent, { workingDirectories: [URI.file('/work')] });
+		const session = created.session;
+
+		const state = ctx.stateManager.createSession({
+			resource: session.toString(),
+			provider: 'claude',
+			title: 't',
+			status: SessionStatus.Idle,
+			createdAt: new Date().toISOString(),
+			modifiedAt: new Date().toISOString(),
+		});
+		// Seed `state.config` (see `materialize()` above) so `updateSessionConfig` writes propagate.
+		(state as { config?: SessionConfigState }).config = {
+			schema: { type: 'object', properties: {} },
+			values: {},
+		};
+
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const peerContext = { configurationResource: session, resource: peer };
+		const peerResult = await ctx.agent.chats.createChat(peer, peerContext, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerResult!.backingSession!);
+
+		const configChanges: string[] = [];
+		disposables.add(ctx.stateManager.onDidChangeSessionConfig(e => configChanges.push(e.session.toString())));
+
+		// Materialize the peer chat's own SDK conversation and keep its turn
+		// open, mirroring `startActiveTurn`, so `canUseTool` can be driven
+		// directly for that chat's captured `Options`.
+		const turnActive = new DeferredPromise<void>();
+		const finishTurn = new DeferredPromise<void>();
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		ctx.sdk.queryAdvance = async index => {
+			if (index === 1) {
+				turnActive.complete();
+				await finishTurn.p;
+			}
+		};
+		const sendPromise = ctx.agent.chats.sendMessage(peer, 'hi', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
+		await turnActive.p;
+		disposables.add(toDisposable(() => {
+			finishTurn.complete();
+			void sendPromise.catch(() => { });
+		}));
+
+		const peerCanUseTool = ctx.sdk.capturedStartupOptions.at(-1)?.canUseTool;
+		assert.ok(peerCanUseTool, 'peer chat canUseTool callback was wired into Options');
+
+		const promise = peerCanUseTool('ExitPlanMode', { plan: 'peer plan' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_peer_plan',
+			requestId: 'tu_peer_plan',
+		});
+		await tick();
+
+		ctx.agent.respondToPermissionRequest('tu_peer_plan', true);
+		const result = await promise;
+
+		assert.deepStrictEqual({
+			result,
+			configChanges,
+			ownerPermissionMode: ctx.configService.getSessionConfigValues(session.toString())?.['permissionMode'],
+		}, {
+			result: { behavior: 'allow', updatedInput: { plan: 'peer plan' } },
+			// Exactly one config write, keyed by the owning session — never
+			// by the peer chat's own URI.
+			configChanges: [session.toString()],
+			ownerPermissionMode: 'acceptEdits',
 		});
 	});
 
