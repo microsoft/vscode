@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -1097,6 +1097,54 @@ suite('SessionsManagementService', () => {
 			eventsWhilePreparingRequest: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure'],
 			events: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure', 'clear', 'send:prepared'],
 			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
+		});
+	});
+
+	test('createAndSendNewChatRequest clears request activity when already cancelled', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let requestOptionsResolved = false;
+		let activityCleared = 0;
+		let deleted = 0;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return {
+					uri: URI.parse('test:///folder'),
+					label: 'Test',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override startNewSessionRequest() {
+				return { dispose: () => activityCleared++ };
+			}
+			override deleteNewSession(): void {
+				deleted++;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.createAndSendNewChatRequest(URI.parse('test:///folder'), {
+			kind: 'deferred',
+			activity: 'Fetching pull request...',
+			async resolve() {
+				requestOptionsResolved = true;
+				return { query: 'prepared' };
+			},
+		}, undefined, CancellationToken.Cancelled), /Canceled/);
+
+		assert.deepStrictEqual({
+			requestOptionsResolved,
+			activityCleared,
+			deleted,
+		}, {
+			requestOptionsResolved: false,
+			activityCleared: 1,
+			deleted: 1,
 		});
 	});
 

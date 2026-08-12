@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -753,14 +753,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		const session = provider.createNewSession(folderUri, sessionTypeId, { metadata: createOptions?.metadata });
 		this._unlistedNewSessions.set(session.resource, session);
-		const requestActivity = isDeferredNewSessionRequestOptions(options)
-			? provider.startNewSessionRequest?.(session.sessionId, options.activity)
-			: provider.startNewSessionRequest?.(session.sessionId);
+		const requestActivity = new MutableDisposable();
 		try {
+			requestActivity.value = isDeferredNewSessionRequestOptions(options)
+				? provider.startNewSessionRequest?.(session.sessionId, options.activity)
+				: provider.startNewSessionRequest?.(session.sessionId);
 			try {
 				createOptions?.onSessionCreated?.(session);
 			} catch (error) {
-				requestActivity?.dispose();
 				provider.deleteNewSession(session.sessionId);
 				throw error;
 			}
@@ -768,6 +768,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				.find(sessionType => sessionType.id === sessionTypeId)?.supportsWorktreeConfiguration === true;
 			return await this._configureAndSendNewSession(provider, session, options, createOptions, supportsWorktreeConfiguration, token, folderUri, requestActivity);
 		} finally {
+			requestActivity.dispose();
 			this._unlistedNewSessions.delete(session.resource);
 		}
 	}
@@ -786,7 +787,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		supportsWorktreeConfiguration: boolean,
 		token: CancellationToken,
 		folderUri?: URI,
-		requestActivity?: IDisposable,
+		requestActivity?: MutableDisposable<IDisposable>,
 	): Promise<ISession | undefined> {
 		try {
 			if (token.isCancellationRequested) {
@@ -796,7 +797,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				try {
 					return isDeferredNewSessionRequestOptions(options) ? await options.resolve() : options;
 				} finally {
-					requestActivity?.dispose();
+					requestActivity?.clear();
 				}
 			})();
 			const configurationPromise = this._configureNewSession(provider, session, createOptions, supportsWorktreeConfiguration, token, folderUri);
