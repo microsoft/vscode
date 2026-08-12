@@ -60,6 +60,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
+import { ISessionDataService, isSessionAttachmentPath } from '../../common/sessionDataService.js';
 
 const USER_AGENT_PREFIX = 'vscode_claude_code';
 
@@ -606,6 +607,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IAgentPluginManager private readonly _pluginManager: IAgentPluginManager,
 		@IProductService private readonly _productService: IProductService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
@@ -1123,7 +1125,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _makeCanUseTool(sdkSessionId: string, configurationResource: URI): NonNullable<Options['canUseTool']> {
 		return (toolName, input, options) =>
 			handleCanUseTool(
-				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, configurationResource, serverToolHost: this._serverToolHost },
+				{
+					getSession: id => this._findSessionBySdkId(id),
+					configurationService: this._configurationService,
+					configurationResource,
+					serverToolHost: this._serverToolHost,
+					isSessionAttachmentPath: filePath => isSessionAttachmentPath(this._sessionDataService, configurationResource, filePath),
+				},
 				sdkSessionId, toolName, input, options,
 			);
 	}

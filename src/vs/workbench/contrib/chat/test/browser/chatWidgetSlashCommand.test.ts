@@ -30,7 +30,7 @@ suite('ChatWidget Slash Commands', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('during-request execution trims from the parsed slash-command range', async () => {
+	test('during-request execution trims from the parsed slash-command range and forwards explicit context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -69,26 +69,33 @@ suite('ChatWidget Slash Commands', () => {
 			chatSlashCommandService,
 			input: {
 				currentModeKind: ChatModeKind.Ask,
+				getAttachedContext: () => ({ asArray: () => [pastedText] }),
 				acceptInput(storeToHistory?: boolean, preserveFocus?: boolean): void {
 					acceptedInput = { storeToHistory, preserveFocus };
 				},
 			},
 		} as unknown as ChatWidget;
 
-		const handled = await (ChatWidget.prototype as unknown as {
+		const privateMethods = ChatWidget.prototype as unknown as {
+			_getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined): NonNullable<IChatSendRequestOptions['attachedContext']>;
 			_executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean>;
-		})._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', { attachedContext: [pastedText] }, true, true);
+		};
+		const attachedContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, false);
+		const preservedInputContext = privateMethods._getAttachedContextForConcurrentSlashCommand.call(widget, true);
+		const handled = await privateMethods._executeSlashCommandDuringRequest.call(widget, '   /btw   keep indentation', { attachedContext }, true, true);
 
 		assert.deepStrictEqual({
 			handled,
 			executedPrompt,
 			acceptedInput,
 			attachedContext: executedRequestOptions?.attachedContext,
+			preservedInputContext,
 		}, {
 			handled: true,
 			executedPrompt: 'keep indentation',
 			acceptedInput: { storeToHistory: true, preserveFocus: true },
 			attachedContext: [pastedText],
+			preservedInputContext: [],
 		});
 	});
 });
