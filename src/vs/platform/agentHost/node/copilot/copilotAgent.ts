@@ -1247,10 +1247,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
-		const tokenChanged = this._githubToken !== token;
-		this._githubToken = token;
-		this._updateRestrictedTelemetry(token);
-		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
+		const normalizedToken = token || undefined;
+		const tokenChanged = this._githubToken !== normalizedToken;
+		this._githubToken = normalizedToken;
+		this._updateRestrictedTelemetry(normalizedToken);
+		this._logService.info(`[Copilot] Auth token ${tokenChanged ? (normalizedToken ? 'updated' : 'cleared') : 'unchanged'}`);
 		if (tokenChanged) {
 			await this._restartClientIfProxyChanged();
 			void this._scheduleModelRefresh();
