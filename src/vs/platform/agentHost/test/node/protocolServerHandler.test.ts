@@ -21,6 +21,7 @@ import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.j
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import { AutomationExecutionLifetime } from '../../common/state/protocol/state.js';
+import { AutomationRunCauseKind, AutomationRunOperation, AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -672,6 +673,74 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(envelope.origin.clientId, clientId);
 			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
 		}
+	});
+
+	test('server-only automation-run actions are rejected, not dispatched', () => {
+		const runUri = 'ahp-automation-run:/run-1';
+		stateManager.restoreAutomationRun({
+			resource: runUri,
+			automation: 'ahp-automation:/automation-1',
+			cause: { kind: AutomationRunCauseKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: '2025-01-01T00:00:00.000Z', startedAt: '2025-01-01T00:00:00.000Z' },
+			sessions: [],
+			artifacts: [],
+			operations: [AutomationRunOperation.Cancel],
+		});
+		const transport = connectClient('automation-run-client', [runUri]);
+		transport.sent.length = 0;
+		agentService.handledActions.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: runUri,
+			clientSeq: 7,
+			action: {
+				type: ActionType.AutomationRunLifecycleChanged,
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2025-01-01T00:00:00.000Z', startedAt: '2025-01-01T00:00:00.000Z', completedAt: '2025-01-01T00:01:00.000Z' },
+				operations: [],
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			dispatched: agentService.handledActions,
+			rejected: !!envelope?.rejectionReason,
+			status: stateManager.getAutomationRunState(runUri)?.lifecycle.status,
+		}, {
+			dispatched: [],
+			rejected: true,
+			status: AutomationRunStatus.Running,
+		});
+	});
+
+	test('automation-run cancellation requests reach the agent service', () => {
+		const runUri = 'ahp-automation-run:/run-2';
+		stateManager.restoreAutomationRun({
+			resource: runUri,
+			automation: 'ahp-automation:/automation-1',
+			cause: { kind: AutomationRunCauseKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: '2025-01-01T00:00:00.000Z', startedAt: '2025-01-01T00:00:00.000Z' },
+			sessions: [],
+			artifacts: [],
+			operations: [AutomationRunOperation.Cancel],
+		});
+		const transport = connectClient('automation-cancel-client', [runUri]);
+		transport.sent.length = 0;
+		agentService.handledActions.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: runUri,
+			clientSeq: 8,
+			action: { type: ActionType.AutomationRunCancelRequested },
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			dispatched: agentService.handledActions,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			dispatched: [{ type: ActionType.AutomationRunCancelRequested }],
+			rejectionReason: undefined,
+		});
 	});
 
 	test('session working-directory actions reach the agent service', () => {

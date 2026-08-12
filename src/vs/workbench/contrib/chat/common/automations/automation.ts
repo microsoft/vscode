@@ -58,6 +58,16 @@ export interface IAutomationHost {
 	readonly revision: number;
 	readonly connected: boolean;
 	readonly hasUnsupportedTriggers: boolean;
+
+	/** Whether the owning authority currently permits editing the definition. */
+	readonly canEdit: boolean;
+
+	/** Whether the owning authority currently permits starting a run on demand. */
+	readonly canRun: boolean;
+
+	/** Whether the owning authority currently permits deleting the definition. */
+	readonly canDelete: boolean;
+
 	readonly migrationPending?: boolean;
 	readonly migrationConflict?: boolean;
 }

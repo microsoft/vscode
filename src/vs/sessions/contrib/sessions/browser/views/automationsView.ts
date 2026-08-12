@@ -172,7 +172,9 @@ class AutomationCardsSection extends Disposable {
 		const migrationConflict = automation.host?.migrationConflict === true;
 		const disconnected = automation.host?.connected === false;
 		const readOnly = migrationPending || disconnected;
-		const editDisabled = readOnly || automation.host?.hasUnsupportedTriggers === true;
+		const editDisabled = readOnly || automation.host?.hasUnsupportedTriggers === true || automation.host?.canEdit === false;
+		const runDisabled = readOnly || automation.host?.canRun === false;
+		const deleteDisabled = readOnly || automation.host?.canDelete === false;
 		const wrapper = DOM.append(this.container, $('.automations-card-wrapper'));
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('role', 'group');
@@ -226,12 +228,12 @@ class AutomationCardsSection extends Disposable {
 		actions.setAttribute('role', 'group');
 		actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
 		const buttonBar = this.disposables.add(new ButtonBar(actions));
-		const runBtn = this.createIconButton(buttonBar, Codicon.play, localize('runNow', "Run now"), readOnly);
+		const runBtn = this.createIconButton(buttonBar, Codicon.play, localize('runNow', "Run now"), runDisabled);
 		this.disposables.add(runBtn.onDidClick(() => {
 			void this.runNow(automation);
 		}));
 
-		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), readOnly);
+		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), deleteDisabled);
 		this.disposables.add(deleteBtn.onDidClick(() => {
 			void this.confirmDelete(automation);
 		}));
@@ -629,6 +631,7 @@ class AutomationHistorySection extends Disposable {
 	}
 
 	private async stopRun(run: IAutomationRun, automationName: string, stopButton: Button): Promise<void> {
+		status(localize('automationRunStoppingStatus', "Stopping the automation run for {0}", automationName));
 		try {
 			await this.automationService.cancelRun(run.id);
 			status(localize('automationRunStoppedStatus', "Stopped the automation run for {0}", automationName));

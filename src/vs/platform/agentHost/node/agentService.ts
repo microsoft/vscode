@@ -3372,6 +3372,8 @@ export class AgentService extends Disposable implements IAgentService {
 		if (action.type === ActionType.AutomationRunCancelRequested) {
 			void this._automations.cancel(channel).catch(error => {
 				this._logService.error(`[AgentService] Failed to cancel automation run ${channel}: ${toErrorMessage(error)}`);
+				// Echo the failure so the requesting client stops waiting for a stopped run.
+				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
 			});
 			return;
 		}

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,7 +14,7 @@ import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AutomationOperation, AutomationScheduleKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
+import { AutomationOperation, AutomationScheduleKind, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentAutomationService, type IAutomationSessionExecutor } from '../../node/agentAutomationService.js';
@@ -36,6 +37,19 @@ suite('AgentAutomationService', () => {
 		executor = new TestAutomationExecutor(manager);
 		service = disposables.add(new AgentAutomationService(resource, fileService, manager, executor, new NullLogService()));
 	});
+
+	/** Seeds the durable store that a freshly constructed service loads on startup. */
+	async function writeStore(store: unknown): Promise<void> {
+		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/automations' }));
+		await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify(store)));
+	}
+
+	/** Lets queued persistence and lifecycle work settle before asserting. */
+	async function waitForIdle(): Promise<void> {
+		for (let index = 0; index < 5; index++) {
+			await timeout(0);
+		}
+	}
 
 	test('manual request is durable and idempotent across restart', async () => {
 		await service.create({ channel: 'ahp-automation:/test', definition: automationDefinition() });
@@ -137,6 +151,91 @@ suite('AgentAutomationService', () => {
 			disposeCount: 1,
 			primarySession: undefined,
 		});
+	});
+
+	test('retains only the advertised number of runs', async () => {
+		const limit = service.capabilities.runHistoryLimit!;
+		await service.create({ channel: 'ahp-automation:/test', definition: automationDefinition() });
+		const created: string[] = [];
+		for (let index = 0; index < limit + 2; index++) {
+			const result = await service.run({ channel: 'ahp-automation:/test', requestId: `request-${index}` });
+			created.push(result.run);
+			const run = manager.getAutomationRunState(result.run)!;
+			manager.dispatchServerAction(buildDefaultChatUri(run.primarySession!), {
+				type: ActionType.ChatTurnComplete,
+				turnId: executor.turnId!,
+				duration: 1,
+			});
+		}
+		// The idempotency key of a pruned run must not resurrect it.
+		const rerun = await service.run({ channel: 'ahp-automation:/test', requestId: 'request-0' });
+
+		assert.deepStrictEqual({
+			retained: manager.getAutomationState('ahp-automation:/test')?.runs.length,
+			oldestRunState: manager.getAutomationRunState(created[0]),
+			newestRetained: manager.getAutomationState('ahp-automation:/test')?.runs[0].resource,
+			rerunIsNew: rerun.run !== created[0],
+		}, {
+			retained: limit,
+			oldestRunState: undefined,
+			newestRetained: rerun.run,
+			rerunIsNew: true,
+		});
+	});
+
+	test('a due tick starts at most one run even when several triggers fire', async () => {
+		const scheduled = new Date(Date.now() - 5 * 60_000).toISOString();
+		await writeStore({
+			version: 1,
+			automations: [{
+				resource: 'ahp-automation:/scheduled',
+				definition: {
+					...automationDefinition(),
+					triggers: [
+						{ id: 'trigger-a', kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Hourly, timeZone: 'UTC' } },
+						{ id: 'trigger-b', kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Hourly, timeZone: 'UTC' } },
+					],
+				},
+				revision: 1,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Dispose, AutomationOperation.Run],
+				createdAt: '2025-01-01T00:00:00.000Z',
+				modifiedAt: '2025-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+			requestRuns: {},
+			triggerNextRuns: { 'ahp-automation:/scheduled': { 'trigger-a': scheduled, 'trigger-b': scheduled } },
+			initialTurnIds: {},
+		});
+		const scheduledExecutor = new TestAutomationExecutor(manager);
+		const scheduledService = disposables.add(new AgentAutomationService(resource, fileService, manager, scheduledExecutor, new NullLogService()));
+		await scheduledExecutor.createStarted.p;
+		await scheduledService.list({ channel: 'ahp-root://' });
+		await waitForIdle();
+
+		const runs = manager.getAutomationState('ahp-automation:/scheduled')?.runs ?? [];
+		assert.deepStrictEqual({
+			createdSessions: scheduledExecutor.createCount,
+			runCount: runs.length,
+			// Both triggers advance even though only one of them claimed the run slot.
+			advancedTriggers: manager.getAutomationState('ahp-automation:/scheduled')?.nextRunAt !== scheduled,
+		}, {
+			createdSessions: 1,
+			runCount: 1,
+			advancedTriggers: true,
+		});
+	});
+
+	test('rejects event triggers that this host cannot fire', async () => {
+		await assert.rejects(() => service.create({
+			channel: 'ahp-automation:/event',
+			definition: {
+				...automationDefinition(),
+				triggers: [{ id: 'trigger-a', kind: AutomationTriggerKind.Event, type: 'pullRequest', events: ['opened'] }],
+			},
+		}), /event triggers are not supported/);
+
+		assert.strictEqual(manager.getAutomationState('ahp-automation:/event'), undefined);
 	});
 
 	test('unix cron treats restricted day-of-month and weekday as alternatives', async () => {

@@ -22,7 +22,8 @@ import { type IAgentService } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type StateAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { isClientDispatchable } from '../common/state/protocol/common/reducer-helpers.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -500,6 +501,9 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
+							// The untrusted view is what the client actually sent; `action` is the
+							// narrowed view used once the payload passed origin validation.
+							const untrusted = msg.params.action as StateAction;
 							const action = msg.params.action as SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction;
 							const channel = msg.params.channel;
 							// Unsupported actions are echoed as rejections so optimistic clients roll back.
@@ -510,6 +514,16 @@ export class ProtocolServerHandler extends Disposable {
 									action,
 									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
 									`Unsupported action: ${action.type}`,
+								);
+							} else if (isAutomationRunAction(untrusted) && !isClientDispatchable(untrusted)) {
+								// Automation-run channels are host-owned: only the cancellation request
+								// may originate from a client, never lifecycle, session, or artifact state.
+								this._logService.warn(`[ProtocolServer] rejecting server-only client action: ${untrusted.type}`);
+								this._stateManager.rejectClientAction(
+									channel,
+									untrusted,
+									{ clientId: client.clientId, clientSeq: msg.params.clientSeq },
+									`Action may only be produced by the server: ${untrusted.type}`,
 								);
 							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
