@@ -16,12 +16,12 @@ import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { IDomainService } from '../../../endpoint/common/domainService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../endpoint/common/endpointProvider';
 import { IEnvService } from '../../../env/common/envService';
-import { ILogService } from '../../../log/common/logService';
 import { IFetcherService } from '../../../networking/common/fetcherService';
 import { ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { CAPIChatMessage } from '../../../networking/common/openai';
 import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
+import { TestLogService } from '../../../testing/common/testLogService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { ITokenizerProvider } from '../../../tokenizer/node/tokenizer';
 import { ChatEndpoint } from '../chatEndpoint';
@@ -67,7 +67,7 @@ const createMockServices = () => ({
 	configurationService: new InMemoryConfigurationService(new DefaultsOnlyConfigurationService()),
 	expService: new NullExperimentationService(),
 	chatWebSocketService: {} as IChatWebSocketManager,
-	logService: {} as ILogService
+	logService: new TestLogService()
 });
 
 

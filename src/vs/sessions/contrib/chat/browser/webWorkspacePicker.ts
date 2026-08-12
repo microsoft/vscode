@@ -63,7 +63,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super(
-			options,
+			{
+				...options,
+				sessionWorkspaceProviderFilter: providerId => providerId === _agentHostFilterService.selectedProviderId,
+			},
 			actionWidgetService,
 			uriIdentityService,
 			sessionsProvidersService,
@@ -121,19 +124,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			return;
 		}
 
-		const firstRecent = scopedProviderId !== undefined
-			? this._getRecentWorkspaces().find(w => w.providerId === scopedProviderId)
-			: undefined;
-		if (firstRecent) {
-			const folderUri = firstRecent.workspace.folders[0]?.root;
-			if (folderUri) {
-				this.setSelectedWorkspace(folderUri);
-				return;
-			}
-		}
-
-		this.clearSelection();
-		this._onDidSelectWorkspace.fire(undefined);
+		this._resetAutomaticSelection();
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {

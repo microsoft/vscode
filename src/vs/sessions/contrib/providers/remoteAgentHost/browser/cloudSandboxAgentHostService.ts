@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -18,68 +18,21 @@ import {
 	CloudSandboxEnabledSettingId,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxConnectOptions,
-	CloudSandboxEnvironmentOfflineError,
-	ICloudSandboxCredentialsService,
+	ICloudSandboxApiService,
 	isCloudSandboxSealedToken,
 	type ICloudSandboxClientToken,
-	type ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { CloudSandboxCredentialRefresher, MAX_WAKING_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
 /** Maximum number of `/connect` "waking" retries before giving up. */
 const MAX_WAKING_RETRIES = 20;
-
-/** Upper bound on a single waking Retry-After wait (ms), guarding against a hostile header. */
-const MAX_WAKING_DELAY_MS = 30_000;
-
-/** Refresh the Web PubSub credentials this long before the access token's `expires_at`. */
-const CREDENTIAL_REFRESH_LEAD_MS = 60_000;
-
-/** Floor / ceiling for the scheduled credential-refresh delay. */
-const MIN_CREDENTIAL_REFRESH_DELAY_MS = 5_000;
-const MAX_CREDENTIAL_REFRESH_DELAY_MS = 55 * 60_000;
-
-/** Backoff delay after a failed credential refresh before retrying. */
-const CREDENTIAL_REFRESH_RETRY_MS = 30_000;
-
-/** Maximum time to wait for a sandbox environment to report `online` before giving up. */
-const ENVIRONMENT_READY_TIMEOUT_MS = 120_000;
-
-/** Delay between environment status polls while waiting for `online`. */
-const ENVIRONMENT_POLL_INTERVAL_MS = 2_000;
-
-/**
- * How many full establish attempts (each minting a fresh client id via `/connect`, which is the
- * only call that publishes a new daemon spawn) before giving up.
- */
-const MAX_ESTABLISH_ATTEMPTS = 3;
-
-/** Delay between establish attempts. */
-const ESTABLISH_RETRY_DELAY_MS = 2_000;
-
-/** Mutable holder for the current Web PubSub credentials, read by the transport factory. */
-interface ICloudSandboxCreds {
-	token: ICloudSandboxClientToken;
-}
-
-/**
- * Delay (ms) until credentials should be refreshed, computed as `expires_at` minus a lead time and
- * clamped to a sane range. Falls back to the minimum when `expires_at` is missing/unparseable.
- */
-function credentialRefreshDelayMs(expiresAt: string | undefined): number {
-	const expiryMs = expiresAt ? Date.parse(expiresAt) : NaN;
-	if (Number.isNaN(expiryMs)) {
-		return MIN_CREDENTIAL_REFRESH_DELAY_MS;
-	}
-	const delay = expiryMs - Date.now() - CREDENTIAL_REFRESH_LEAD_MS;
-	return Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delay));
-}
 
 /**
  * Renderer-side coordinator for Copilot cloud sandbox connections.
@@ -101,7 +54,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
-		@ICloudSandboxCredentialsService private readonly _credentialsService: ICloudSandboxCredentialsService,
+		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -141,46 +94,22 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}`);
 
-		// Each attempt mints a fresh client id via `/connect`; only that call republishes the daemon
-		// spawn, so a failed attempt cannot be recovered by reusing the same id.
-		let lastError: unknown;
-		for (let attempt = 1; attempt <= MAX_ESTABLISH_ATTEMPTS; attempt++) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			try {
-				return await this._establish(options, address, token);
-			} catch (err) {
-				if (isCancellationError(err) || err instanceof CancellationError) {
-					throw err;
-				}
-				// Retrying re-mints credentials and wakes the sandbox again, which cannot help here.
-				if (err instanceof CloudSandboxEnvironmentOfflineError) {
-					throw err;
-				}
-				lastError = err;
-				if (attempt >= MAX_ESTABLISH_ATTEMPTS) {
-					break;
-				}
-				this._logService.warn(`${LOG_PREFIX} Establish attempt ${attempt}/${MAX_ESTABLISH_ATTEMPTS} failed for ${address}; retrying with a fresh connect`, err);
-				await timeout(ESTABLISH_RETRY_DELAY_MS, token);
-			}
-		}
-		this._logService.error(`${LOG_PREFIX} Connection setup failed`, lastError);
-		throw lastError;
+		// Asked once: Mission Control blocks on the compute resume before replying, so its answer
+		// already reflects that attempt and re-asking only repeats the wait. `202 waking` is the one
+		// retried case, polled inside the mint against Mission Control's own Retry-After.
+		const clientToken = await this._mintWithWaking(options, token);
+
+		// A token only means Mission Control believes the environment is online — a sandbox deleted
+		// minutes ago still has a fresh heartbeat, so one is minted for a host that is already gone.
+		// The handshake's liveness watchdog settles that case.
+		return await this._establish(options, address, clientToken, token);
 	}
 
 	/**
-	 * One establish attempt: mint credentials, wait for the environment to be online, open the relay,
-	 * drive the AHP handshake, and register the connection.
+	 * Open the relay with an already-minted token, drive the AHP handshake, and register the
+	 * connection.
 	 */
-	private async _establish(options: ICloudSandboxConnectOptions, address: string, token: CancellationToken): Promise<string> {
-		const clientToken = await this._mintWithWaking(options, token);
-
-		// Credentials can be issued before the daemon is listening, which would leave `initialize`
-		// unanswered, so wait for the environment to report `online`.
-		await this._waitForEnvironmentOnline(options.environmentId, token);
-
+	private async _establish(options: ICloudSandboxConnectOptions, address: string, clientToken: ICloudSandboxClientToken, token: CancellationToken): Promise<string> {
 		// Mutable holder read by the transport factory: the protocol client re-invokes the factory to
 		// soft-reconnect, picking up whatever credentials the refresh scheduler last wrote.
 		const creds: ICloudSandboxCreds = { token: clientToken };
@@ -251,7 +180,13 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 		// Keep credentials fresh for the life of the connection so reconnects have a valid token.
 		const store = new DisposableStore();
-		this._scheduleCredentialRefresh(store, address, options, clientToken.client_id, creds);
+		store.add(this._instantiationService.createInstance(
+			CloudSandboxCredentialRefresher,
+			address,
+			{ environmentId: options.environmentId, sessionId: options.sessionId },
+			clientToken.client_id,
+			creds,
+		));
 		this._managed.set(address, store);
 		// Expose the sealed GitHub token so the AHP `authenticate` pass can present it to the host.
 		this._creds.set(address, creds);
@@ -262,95 +197,13 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		return address;
 	}
 
-	/**
-	 * Poll until the environment reports `online`. Proceeds without gating when the environment
-	 * cannot be read. Protocol compatibility is settled by the `initialize` handshake.
-	 *
-	 * Credentials are minted first, and Mission Control answers `202 waking` until the environment
-	 * is up — so a token in hand means the wake already completed. A state that cannot recover from
-	 * there is reported immediately rather than waited out.
-	 *
-	 * TODO: when the environment is unreachable, render the session's history read-only and queue
-	 * follow-ups until the host reconnects, as github-ui does. That needs a history source that does
-	 * not depend on the relay, which we do not have yet.
-	 */
-	private async _waitForEnvironmentOnline(environmentId: string, token: CancellationToken): Promise<void> {
-		const deadline = Date.now() + ENVIRONMENT_READY_TIMEOUT_MS;
-		let lastStatus: string | undefined;
-		while (true) {
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-			let environment: ICloudSandboxEnvironment;
-			try {
-				environment = await this._credentialsService.getEnvironment(environmentId, token);
-			} catch (err) {
-				this._logService.warn(`${LOG_PREFIX} Could not read environment ${environmentId}; connecting without a readiness gate`, err);
-				return;
-			}
-
-			if (environment.status === 'online') {
-				if (lastStatus) {
-					this._logService.info(`${LOG_PREFIX} Environment ${environmentId} is online.`);
-				}
-				return;
-			}
-			if (environment.status === 'offline' || environment.status === 'draining') {
-				throw new CloudSandboxEnvironmentOfflineError(environment.status);
-			}
-			if (environment.status !== lastStatus) {
-				lastStatus = environment.status;
-				this._logService.info(`${LOG_PREFIX} Environment ${environmentId} is '${environment.status}'; waiting for it to come online.`);
-			}
-			if (Date.now() >= deadline) {
-				// Not fatal: an environment may be reachable without reporting `online`, so fall
-				// through and let the handshake decide.
-				this._logService.warn(`${LOG_PREFIX} Environment ${environmentId} still '${environment.status}' after ${Math.round(ENVIRONMENT_READY_TIMEOUT_MS / 1000)}s; attempting to connect anyway.`);
-				return;
-			}
-			await timeout(ENVIRONMENT_POLL_INTERVAL_MS, token);
-		}
-	}
-
-	/**
-	 * Re-mint Web PubSub credentials shortly before they expire and write them into {@link creds}.
-	 * The open socket is untouched; the new token is used the next time the transport is rebuilt.
-	 */
-	private _scheduleCredentialRefresh(store: DisposableStore, address: string, options: ICloudSandboxConnectOptions, clientId: string, creds: ICloudSandboxCreds): void {
-		const timer = store.add(new MutableDisposable());
-		const arm = (delayMs: number) => {
-			timer.value = disposableTimeout(() => void refresh(), Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs));
-		};
-		const refresh = async () => {
-			try {
-				const result = await this._credentialsService.reconnect(
-					{ environmentId: options.environmentId, sessionId: options.sessionId }, clientId, CancellationToken.None,
-				);
-				if (result.kind === 'waking') {
-					arm(Math.min(result.waking.retryAfterSeconds * 1000, MAX_WAKING_DELAY_MS));
-					return;
-				}
-				// Keep the previous sealed token when a refresh omits it.
-				creds.token = result.token.encrypted_github_token
-					? result.token
-					: { ...result.token, encrypted_github_token: creds.token.encrypted_github_token, host_encryption_key: creds.token.host_encryption_key };
-				this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${address}`);
-				arm(credentialRefreshDelayMs(result.token.expires_at));
-			} catch (err) {
-				this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${address}; retrying`, err);
-				arm(CREDENTIAL_REFRESH_RETRY_MS);
-			}
-		};
-		arm(credentialRefreshDelayMs(creds.token.expires_at));
-	}
-
 	/** Mint client creds, retrying (bounded) while the environment is waking. */
 	private async _mintWithWaking(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<ICloudSandboxClientToken> {
 		for (let attempt = 0; attempt < MAX_WAKING_RETRIES; attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const result = await this._credentialsService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
+			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId }, token);
 			if (result.kind === 'token') {
 				return result.token;
 			}

@@ -9,6 +9,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import {
 	SessionHasChangesContext,
 	SessionHasPullRequestContext,
+	SessionHasIssuesContext,
 	SessionHasWorkspaceContext,
 	IsQuickChatSessionContext,
 	SessionIsArchivedContext,
@@ -53,6 +54,7 @@ interface ISessionContextKeys {
 	readonly hasGitRepository: IContextKey<boolean>;
 	readonly hasChanges: IContextKey<boolean>;
 	readonly hasPullRequest: IContextKey<boolean>;
+	readonly hasIssues: IContextKey<boolean>;
 	readonly hasWorkspace: IContextKey<boolean>;
 	readonly isQuickChat: IContextKey<boolean>;
 	readonly isCreated: IContextKey<boolean>;
@@ -93,6 +95,7 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasGitRepository: SessionHasGitRepositoryContext.bindTo(contextKeyService),
 			hasChanges: SessionHasChangesContext.bindTo(contextKeyService),
 			hasPullRequest: SessionHasPullRequestContext.bindTo(contextKeyService),
+			hasIssues: SessionHasIssuesContext.bindTo(contextKeyService),
 			hasWorkspace: SessionHasWorkspaceContext.bindTo(contextKeyService),
 			isQuickChat: IsQuickChatSessionContext.bindTo(contextKeyService),
 			isCreated: SessionIsCreatedContext.bindTo(contextKeyService),
@@ -154,6 +157,9 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	const pullRequest = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest;
 	keys.hasPullRequest.set(!!pullRequest);
 
+	const issues = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.issues;
+	keys.hasIssues.set(!!issues?.length);
+
 	keys.hasWorkspace.set(!!session?.workspace.read(reader)?.label);
 
 	// Sourced from the session's `isQuickChat` tag — never inferred from
@@ -178,7 +184,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	keys.sticky.set(session?.sticky.read(reader) ?? false);
 
 	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
-	// so the Conversations menu only surfaces once a session has more than one
+	// so the Chats dropdown only surfaces once a session has more than one
 	// real chat. Counts the whole chat list (open or closed) so a committed chat
 	// that was closed still keeps the menu available to reopen it.
 	const committedChatCount = session?.chats.read(reader)
@@ -207,12 +213,12 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 	// so they are closeable but not deletable.
 	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
 
-	// The active chat has subagents when any tool-origin chat names it as its
-	// parent. These are listed as a separate group in the Conversations menu, so
-	// the menu must surface even when the active chat is the only committed chat.
 	const allChats = session?.chats.read(reader) ?? [];
-	keys.activeChatHasSubagents.set(!!activeChat && allChats.some(chat =>
+	const subagentScopeResource = activeChat?.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
+		? activeChat.origin.parentChat
+		: activeChat?.resource;
+	keys.activeChatHasSubagents.set(!!subagentScopeResource && allChats.some(chat =>
 		chat.origin?.kind === ChatOriginKind.Tool &&
 		!!chat.origin.parentChat &&
-		isEqual(chat.origin.parentChat, activeChat.resource)));
+		isEqual(chat.origin.parentChat, subagentScopeResource)));
 }

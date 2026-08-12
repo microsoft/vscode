@@ -48,6 +48,7 @@ export class PlaywrightDriver {
 
 	private static traceCounter = 1;
 	private static screenShotCounter = 1;
+	private static reloadMarkerCounter = 1;
 
 	private static readonly vscodeToPlaywrightKey: { [key: string]: string } = {
 		cmd: 'Meta',
@@ -141,6 +142,43 @@ export class PlaywrightDriver {
 			url: p.url(),
 			isCurrent: p === this._currentPage
 		}));
+	}
+
+	/**
+	 * Wait for an open window/page whose URL contains the provided pattern.
+	 */
+	async waitForPage(urlPattern: string, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
+	}
+
+	/**
+	 * Run an action and wait for a newly opened window/page whose URL contains the provided pattern.
+	 */
+	async waitForNewPage(urlPattern: string, action: () => Promise<unknown>, timeoutMs: number = 10_000): Promise<playwright.Page> {
+		const existingPages = new Set(this.getAllWindows());
+		await action();
+
+		const deadline = Date.now() + timeoutMs;
+		do {
+			const page = this.getAllWindows().find(candidate => !existingPages.has(candidate) && !candidate.isClosed() && candidate.url().includes(urlPattern));
+			if (page) {
+				return page;
+			}
+			await wait(100);
+		} while (Date.now() < deadline);
+
+		const openUrls = this.getAllWindows().map(page => page.url());
+		throw new Error(`Timed out waiting for new page matching '${urlPattern}'. Open pages: ${JSON.stringify(openUrls)}`);
 	}
 
 	/**
@@ -397,6 +435,25 @@ export class PlaywrightDriver {
 
 	async didFinishLoad(): Promise<void> {
 		await this.whenLoaded;
+	}
+
+	/**
+	 * Stamps the current document so that {@link waitForWindowReload} can tell the
+	 * document apart from the one that a window reload will bring up.
+	 */
+	async markWindowForReload(): Promise<string> {
+		const marker = `vscodeSmokeTestReloadMarker${PlaywrightDriver.reloadMarkerCounter++}`;
+		await this.page.evaluate(m => { (window as unknown as Record<string, boolean>)[m] = true; }, marker);
+
+		return marker;
+	}
+
+	/**
+	 * Waits until the document that was stamped via {@link markWindowForReload} is
+	 * gone, meaning the window reload actually took effect.
+	 */
+	async waitForWindowReload(marker: string, timeout: number = 60_000): Promise<void> {
+		await this.page.waitForFunction(m => !(window as unknown as Record<string, boolean>)[m], marker, { timeout, polling: 100 });
 	}
 
 	private _cdpSession: playwright.CDPSession | undefined;

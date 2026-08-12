@@ -54,6 +54,18 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**
+	 * Stable preference key used to persist/read a
+	 * {@link IRemoteAgentHostLocationPreferenceService} choice for this
+	 * host, present on remote providers. Distinct from {@link remoteAddress}
+	 * for SSH hosts, whose live address is a forwarded local endpoint (e.g.
+	 * `localhost:4321`) rather than the stable `ssh:<alias>` (or
+	 * `user@host:port`) key `computeSSHConnectionKey()` and
+	 * `SSHRemoteAgentHostService` key preferences by. Providers with no
+	 * separate stable identity (tunnels, WSL, cloud sandbox) may omit this;
+	 * consumers should fall back to {@link remoteAddress}.
+	 */
+	readonly remoteLocationPreferenceKey?: string;
+	/**
 	 * Establish (or re-establish) the connection for this host on demand.
 	 * Tears down any existing connection first. Present on remote providers
 	 * that manage their own transport (e.g. tunnel relay); providers that
@@ -220,14 +232,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
-
-/**
- * Experimental setting id controlling whether the local agent host acts as the
- * default sessions provider. When enabled (and `chat.agentHost.enabled` is
- * true), the local agent host's session types are surfaced before those of
- * other providers. Defaults to `true`.
- */
-export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
 
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;

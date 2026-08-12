@@ -10,7 +10,8 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { IGitExtensionService } from '../../../../platform/git/common/gitExtensionService';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
-import { SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnablement } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { ModelConfiguration, PromptingStrategy, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsEnablement } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { ObservableGit } from '../../../../platform/inlineEdits/common/observableGit';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
@@ -29,6 +30,7 @@ import { Result } from '../../../../util/common/result';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
@@ -41,6 +43,22 @@ import { ILlmNESTelemetry, NextEditProviderTelemetryBuilder, ReusedRequestKind }
 const testModelTelemetry: IStatelessNextEditModelTelemetry = {
 	modelName: 'test-speculative-patch-model',
 	modelConfig: JSON.stringify({ promptingStrategy: 'patchBased02WithRecentLineNumbers' }),
+};
+
+const testModelConfiguration: ModelConfiguration = {
+	modelName: 'test-speculative-patch-model',
+	promptingStrategy: PromptingStrategy.PatchBased02WithRecentLineNumbers,
+	includeTagsInCurrentFile: false,
+	lintOptions: undefined,
+};
+
+const testModelService: IInlineEditsModelService = {
+	_serviceBrand: undefined,
+	modelInfo: undefined,
+	onModelListUpdated: Event.None,
+	setCurrentModelId: async _modelId => { },
+	selectedModelConfiguration: () => testModelConfiguration,
+	defaultModelConfiguration: () => testModelConfiguration,
 };
 
 interface ICallRecord {
@@ -263,6 +281,7 @@ describe('NextEditProvider speculative requests', () => {
 			new NesHistoryContextProvider(workspace, git),
 			new NesXtabHistoryTracker(workspace, undefined, configService, expService),
 			undefined,
+			testModelService,
 			configService,
 			snippyService,
 			logService,
@@ -625,6 +644,46 @@ describe('NextEditProvider speculative requests', () => {
 			// Clean up: let the speculative request finish
 			specContinue.complete();
 			await statelessProvider.calls[1].completed.p;
+		});
+
+		it('reused speculative request preserves inline-rendered state on the cached entry', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsSpeculativeRequests, SpeculativeRequestsEnablement.On);
+
+			const statelessProvider = new TestStatelessNextEditProvider();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenNoSuggestions', edit: lineReplacement(1, 'const value = 2;') });
+			const specContinue = new DeferredPromise<void>();
+			statelessProvider.enqueueBehavior({ kind: 'yieldEditThenWait', edit: lineReplacement(2, 'console.log(value + 1);'), continueSignal: specContinue });
+			const { nextEditProvider, workspace } = createProviderAndWorkspace(statelessProvider);
+
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/spec-cache-entry-identity.ts').toString()),
+				initialValue: 'const value = 1;\nconsole.log(value);',
+			});
+			doc.setSelection([new OffsetRange(0, 0)], undefined);
+
+			const firstSuggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(firstSuggestion.result?.edit);
+			nextEditProvider.handleShown(firstSuggestion);
+			await statelessProvider.waitForCall(2);
+			nextEditProvider.handleAcceptance(doc.id, firstSuggestion);
+			doc.applyEdit(firstSuggestion.result.edit.toEdit());
+
+			const speculativeSuggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(speculativeSuggestion.result?.cacheEntry);
+			speculativeSuggestion.result.cacheEntry.wasRenderedAsInlineSuggestion = true;
+
+			specContinue.complete();
+			await statelessProvider.calls[1].completed.p;
+
+			const cachedSuggestion = await getNextEdit(nextEditProvider, doc.id);
+			assert(cachedSuggestion.result?.cacheEntry);
+			expect({
+				isSameCacheEntry: cachedSuggestion.result.cacheEntry === speculativeSuggestion.result.cacheEntry,
+				wasRenderedAsInlineSuggestion: cachedSuggestion.result.cacheEntry.wasRenderedAsInlineSuggestion,
+			}).toEqual({
+				isSameCacheEntry: true,
+				wasRenderedAsInlineSuggestion: true,
+			});
 		});
 
 		it('skips cache delay for edits from speculative requests even when enforceCacheDelay is true', async () => {

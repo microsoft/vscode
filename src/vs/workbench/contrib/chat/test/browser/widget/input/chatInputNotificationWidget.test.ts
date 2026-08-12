@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { SyncDescriptor } from '../../../../../../../platform/instantiation/common/descriptors.js';
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
@@ -108,6 +109,35 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
 	});
 
+	test('reports visibility changes when a notification is shown and hidden', () => {
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', localChatSessionType);
+		const visibilityChanges: boolean[] = [];
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		store.add(instantiationService.createInstance(ChatInputNotificationWidget, {
+			modelTargetChatSessionType: currentSessionType,
+			onDidChangeVisibility: visible => visibilityChanges.push(visible),
+		}));
+
+		notificationService.setNotification({
+			id: 'local-only',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Local only',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			sessionTypes: [localChatSessionType],
+		});
+		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
+
+		assert.deepStrictEqual(visibilityChanges, [true, false]);
+	});
+
 	test('reactively applies session resource filter when the session changes', () => {
 		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
 		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
@@ -138,6 +168,69 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'First session only');
 		currentSessionResource.set(secondSession, undefined);
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+	});
+
+	test('renders markdown descriptions as rich content', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+
+		notificationService.setNotification({
+			id: 'markdown-description',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Cache is stale',
+			description: new MarkdownString('Consider a new chat. [Learn more](https://aka.ms/learn)'),
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		});
+
+		const description = widget.domNode.querySelector('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.deepStrictEqual({
+			text: description?.textContent,
+			markdown: !!description?.querySelector('.chat-input-notification-description-markdown'),
+			linkText: link?.textContent,
+			linkHref: link?.getAttribute('data-href') ?? link?.getAttribute('href'),
+		}, {
+			text: 'Consider a new chat. Learn more',
+			markdown: true,
+			linkText: 'Learn more',
+			linkHref: 'https://aka.ms/learn',
+		});
+	});
+
+	test('auto-dismiss on message only applies to the sending session', () => {
+		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
+		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
+		const notificationService = createNotificationService();
+
+		for (const [id, sessionResource] of [['first', firstSession], ['second', secondSession]] as const) {
+			notificationService.setNotification({
+				id,
+				severity: ChatInputNotificationSeverity.Info,
+				message: 'Cache is stale',
+				description: undefined,
+				actions: [],
+				dismissible: true,
+				autoDismissOnMessage: true,
+				sessionResources: [sessionResource],
+			});
+		}
+
+		notificationService.handleMessageSent({ sessionType: SessionType.AgentHostCopilot, sessionResource: firstSession });
+
+		assert.deepStrictEqual({
+			inFirstSession: notificationService.getActiveNotification(n => n.id === 'first')?.id,
+			inSecondSession: notificationService.getActiveNotification(n => n.id === 'second')?.id,
+		}, {
+			inFirstSession: undefined,
+			inSecondSession: 'second',
+		});
 	});
 
 	/**
@@ -244,6 +337,28 @@ suite('ChatInputNotificationWidget', () => {
 
 		assert.deepStrictEqual(commandService.executed, [{ id: 'test.upgrade', args: [] }]);
 		assert.strictEqual(notificationService.dismissed.join(','), 'info');
+	});
+
+	test('keep-open actions execute without dismissing the notification', async () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+		showNotification(notificationService, {
+			id: 'setup',
+			message: 'Setup',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Sign In', commandId: 'test.signIn', keepOpen: true }],
+		});
+
+		clickAction(widget);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			executed: commandService.executed,
+			dismissed: notificationService.dismissed,
+		}, {
+			executed: [{ id: 'test.signIn', args: [] }],
+			dismissed: [],
+		});
 	});
 
 	test('catches rejected command actions', async () => {
@@ -402,6 +517,32 @@ suite('ChatInputNotificationWidget', () => {
 		});
 
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Agent Host promo');
+	});
+
+	test('matches a notification scoped to both Copilot model targets', () => {
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', SessionType.AgentHostCopilot);
+		const { notificationService, widget } = createWidget({
+			delegate: { modelTargetChatSessionType: currentSessionType },
+		});
+
+		showNotification(notificationService, {
+			id: 'copilot-model-setup',
+			message: 'Choose how you want to use Copilot.',
+			actions: [],
+			sessionTypes: [SessionType.AgentHostCopilot, SessionType.CopilotCLI],
+		});
+		const text = () => widget.domNode.querySelector('.chat-input-notification')?.textContent;
+		const agentHostText = text();
+		currentSessionType.set(SessionType.CopilotCLI, undefined);
+		const copilotCliText = text();
+
+		assert.deepStrictEqual({
+			agentHostText,
+			copilotCliText,
+		}, {
+			agentHostText: 'Choose how you want to use Copilot.',
+			copilotCliText: 'Choose how you want to use Copilot.',
+		});
 	});
 
 	test('announces only the notification rendered in the current session', () => {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IpcMainEvent } from 'electron';
+import { IpcMainEvent, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
@@ -21,18 +21,22 @@ import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
-import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
+import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
-import '../common/agentHostEnablementService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 	private utilityProcessStarted: DeferredPromise<void> | undefined = undefined;
+	private readonly _windowSenders = new Map<number, WebContents>();
+	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
 	private readonly _onRequestConnection = this._register(new Emitter<void>());
 	readonly onRequestConnection = this._onRequestConnection.event;
+	private readonly _onRequestRestart = this._register(new Emitter<void>());
+	readonly onRequestRestart = this._onRequestRestart.event;
 	private readonly _onWillShutdown = this._register(new Emitter<void>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
@@ -71,6 +75,15 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		validatedIpcMain.on('vscode:createAgentHostMessageChannel', onWindowConnection);
 		this._register(toDisposable(() => {
 			validatedIpcMain.removeListener('vscode:createAgentHostMessageChannel', onWindowConnection);
+		}));
+
+		const onRestart = () => {
+			this._notifyWindowsWillRestart();
+			this._onRequestRestart.fire();
+		};
+		validatedIpcMain.on(AgentHostRestartIpcChannel, onRestart);
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeListener(AgentHostRestartIpcChannel, onRestart);
 		}));
 	}
 
@@ -158,6 +171,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
+				[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeMainProcess,
 				...sdkEnv,
 				...otelEnv,
 				...telemetryIdEnv,
@@ -177,6 +191,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			}
 			this._logService.error(`[AgentHost:stderr] ${data}`);
 		}));
+		store.add(this.utilityProcess.onExit(() => this._notifyWindowsWillRestart()));
 		store.add(toDisposable(() => {
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
@@ -201,6 +216,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	}
 
 	private async _onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
+		this._trackWindowSender(e.sender);
 		this._onRequestConnection.fire();
 
 		// Wait for utilityProcess.start() to actually run before calling connect(),
@@ -220,6 +236,27 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		}
 
 		e.sender.postMessage('vscode:createAgentHostMessageChannelResult', nonce, [port]);
+	}
+
+	private _notifyWindowsWillRestart(): void {
+		for (const sender of this._windowSenders.values()) {
+			if (!sender.isDestroyed()) {
+				sender.send(AgentHostWillRestartIpcChannel);
+			}
+		}
+	}
+
+	private _trackWindowSender(sender: WebContents): void {
+		if (this._windowSenders.has(sender.id)) {
+			return;
+		}
+		this._windowSenders.set(sender.id, sender);
+		const onDestroyed = () => this._windowSenderCleanup.deleteAndDispose(sender.id);
+		sender.once('destroyed', onDestroyed);
+		this._windowSenderCleanup.set(sender.id, toDisposable(() => {
+			sender.removeListener('destroyed', onDestroyed);
+			this._windowSenders.delete(sender.id);
+		}));
 	}
 
 	private static readonly _expectedStderrPatterns = [
