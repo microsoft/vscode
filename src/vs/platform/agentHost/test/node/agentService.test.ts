@@ -25,7 +25,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
@@ -35,11 +35,12 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
@@ -2394,6 +2395,65 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(agent.listLegacyChatsCalls >= 2, 'expected a re-sweep after the chat-list-changed signal');
 		});
 
+		test('surfaces registered adoptable legacy metadata directly from the provider catalog', async () => {
+			class AdoptableLegacyAgent extends MockAgent {
+				override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
+					return undefined;
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptableLegacyAgent('copilot'));
+			const legacy = AgentSession.uri('copilot', 'adoptable-legacy');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
+			svc.registerProvider(agent);
+			await svc.listSessions();
+
+			await (svc as unknown as { _surfaceAdoptableLegacySessions(): Promise<void> })._surfaceAdoptableLegacySessions();
+
+			const surfaced = svc.stateManager.getSurfacedSessionSummary(legacy.toString());
+			assert.deepStrictEqual({
+				resource: surfaced?.resource,
+				provider: surfaced?.provider,
+				adoptable: readSessionEhcliAdoptable(surfaced?._meta),
+			}, {
+				resource: legacy.toString(),
+				provider: 'copilot',
+				adoptable: true,
+			});
+		});
+
+		test('does not surface an adoptable legacy session deleted during provider enumeration', async () => {
+			const enumeration = new DeferredPromise<void>();
+			class GatedLegacyAgent extends MockAgent {
+				listCalls = 0;
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					const result = await super.listLegacyChats();
+					if (++this.listCalls > 1) {
+						await enumeration.p;
+					}
+					return result;
+				}
+			}
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedLegacyAgent('copilot'));
+			const legacy = AgentSession.uri('copilot', 'deleted-adoptable-legacy');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			agent.sessionMetadataOverrides = { _meta: withSessionEhcliAdoptable(undefined) };
+			svc.registerProvider(agent);
+			await svc.listSessions();
+
+			const surfacing = (svc as unknown as { _surfaceAdoptableLegacySessions(): Promise<void> })._surfaceAdoptableLegacySessions();
+			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.unregister(legacy);
+			enumeration.complete();
+			await surfacing;
+
+			assert.strictEqual(svc.stateManager.getSurfacedSessionSummary(legacy.toString()), undefined);
+		});
+
 		test('registry backfill persists one provider despite another provider failing, and only the failing one is retried', async () => {
 			class CountingAgent extends MockAgent {
 				listLegacyChatsCalls = 0;
@@ -4645,6 +4705,51 @@ suite('AgentService (node dispatcher)', () => {
 			await assert.rejects(
 				() => service.restoreSession(AgentSession.uri('copilot', 'nonexistent')),
 				/Session not found on backend/,
+			);
+		});
+
+		test('adopts an already-surfaced legacy session on open even when the migrate setting is off', async () => {
+			// The surfaced adoptable marker stays authoritative after migration is disabled.
+			class AdoptOnOpenAgent extends MockAgent {
+				adoptCalls = 0;
+				private _adopted = false;
+				constructor() { super('copilot'); }
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					this.adoptCalls++;
+					this._adopted = true;
+					return { adopted: true, eligible: true };
+				}
+				override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+					// Un-adopted: no backend metadata yet (mirrors the real gap).
+					return this._adopted ? { chat, startTime: Date.now(), modifiedTime: Date.now() } : undefined;
+				}
+			}
+
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new AdoptOnOpenAgent());
+			localService.registerProvider(agent);
+			agent.sessionMessages = [];
+
+			const session = AgentSession.uri('copilot', 'surfaced-legacy');
+			const sessionStr = session.toString();
+			// Migrate setting is off (default). Surface the session as adoptable.
+			const summary: SessionSummary = {
+				resource: sessionStr,
+				provider: 'copilot',
+				title: 'Legacy',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				_meta: withSessionEhcliAdoptable(undefined),
+			};
+			localService.stateManager.announceSurfacedSession(summary);
+
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual(
+				{ adoptCalls: agent.adoptCalls, restored: !!localService.stateManager.getSessionState(sessionStr) },
+				{ adoptCalls: 1, restored: true },
 			);
 		});
 

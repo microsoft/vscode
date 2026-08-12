@@ -56,7 +56,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId } from '../../common/agentHostByokLm.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -2551,7 +2551,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// `isolation: 'folder'` keeps the session in place in the reused cwd —
 			// a git repo would otherwise default to worktree and show a spurious
 			// "Creating worktree…".
-			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle);
+			await this._storeSessionMetadata(session, undefined, workingDirectory, [workingDirectory], workingDirectory, project, project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, customTitle, /* markRead */ true);
 			return { adopted: true, eligible: true };
 		});
 	}
@@ -4023,13 +4023,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
-	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string): Promise<void> {
+	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, customTitle?: string, markRead?: boolean): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
 			const work: Promise<void>[] = [];
 			if (model) {
 				work.push(db.setMetadata(CopilotAgent._META_MODEL, this._serializeModelSelection(model)));
+			}
+			// Persist read ownership so the adopted session isn't reported unread on open.
+			if (markRead) {
+				work.push(db.setMetadata(AH_META_IS_READ_DB_KEY, 'true'));
 			}
 			if (workingDirectory) {
 				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));

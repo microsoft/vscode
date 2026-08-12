@@ -5,7 +5,6 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { rm } from 'fs/promises';
 import { PassThrough } from 'stream';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';

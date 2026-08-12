@@ -1495,17 +1495,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _surfaceAdoptableLegacySessions(): Promise<void> {
-		let listed: IAgentSessionMetadata[];
 		try {
-			listed = await this.listSessions();
+			await this._ensureRegistryBackfilled();
 		} catch (err) {
-			this._logService.warn('[AgentService] surfaceAdoptableLegacySessions: listSessions failed', err);
+			this._logService.warn('[AgentService] surfaceAdoptableLegacySessions: registry backfill failed', err);
 			return;
 		}
+		const results = await Promise.allSettled([...this._providers.values()].map(provider => this._enumerateProviderSessions(provider)));
+		const listed: IAgentSessionMetadata[] = [];
+		for (const result of results) {
+			if (result.status === 'fulfilled' && result.value) {
+				listed.push(...result.value);
+			}
+		}
+		const registered = new Set((await this._sessionRegistry.list()).map(entry => entry.session.toString()));
 		for (const meta of listed) {
 			// Only announce sessions surfaced as adoptable-legacy — never native
 			// sessions (which clients already know from their own listSessions).
-			if (!readSessionEhcliAdoptable(meta._meta)) {
+			if (!registered.has(meta.session.toString()) || !readSessionEhcliAdoptable(meta._meta)) {
 				continue;
 			}
 			const provider = AgentSession.provider(meta.session);
@@ -1519,6 +1526,9 @@ export class AgentService extends Disposable implements IAgentService {
 			if (this._stateManager.getSessionState(key)) {
 				continue; // already adopted / restored
 			}
+			if (await this._sessionRegistry.isTombstoned(meta.session)) {
+				continue;
+			}
 			this._stateManager.announceSurfacedSession(this._surfacedSessionSummary(meta, provider));
 			this._announcedSurfacedKeys.add(key);
 		}
@@ -1530,7 +1540,12 @@ export class AgentService extends Disposable implements IAgentService {
 			resource: meta.session.toString(),
 			provider,
 			title: meta.summary ?? '',
-			status: meta.status ?? SessionStatus.Idle,
+			// Surfaced legacy sessions predate agent-host read ownership, which has
+			// no per-session read flag for them yet. Default them to read: the
+			// client trusts the provider's read state once it owns it, so an
+			// unflagged summary would otherwise flip every previously-seen session
+			// to unread the moment migration is turned on.
+			status: withSessionStatusFlag(meta.status ?? SessionStatus.Idle, SessionStatus.IsRead, true),
 			createdAt: new Date(meta.startTime).toISOString(),
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
@@ -3557,13 +3572,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session: seed its
 		// VS Code-layer metadata in place (reusing the on-disk event log) so the
-		// restore below can hydrate it. Gated on the migrate setting so the common
-		// (non-migration) restore path does no extra work; a no-op for native /
-		// already-adopted sessions.
+		// restore below can hydrate it. A no-op for native / already-adopted sessions.
+		// Adopt when the migrate setting is on OR the session is already surfaced as
+		// adoptable — the latter so an entry the user can see in the list never
+		// dead-ends on "not found" if the setting was toggled off after surfacing.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+		const surfacedAdoptable = readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionStr)?._meta);
 		const migrationStartTime = Date.now();
 		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
-		if (migrateLegacyEnabled && agent.ensureChatAdopted) {
+		if ((migrateLegacyEnabled || surfacedAdoptable) && agent.ensureChatAdopted) {
 			try {
 				const defaultChat = URI.parse(buildDefaultChatUri(session));
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat));

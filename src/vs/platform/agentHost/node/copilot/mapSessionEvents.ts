@@ -470,6 +470,13 @@ export async function mapSessionEvents(
 					touch(parentBuilder);
 				}
 				break;
+			case 'session.start': {
+				// Restore the initial model; later model-change events take precedence.
+				if (!e.agentId && e.data.selectedModel) {
+					currentModel = { id: e.data.selectedModel };
+				}
+				break;
+			}
 			case 'session.model_change': {
 				currentModel = { id: e.data.newModel };
 				break;
