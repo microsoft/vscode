@@ -84,6 +84,24 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
+	test('side bar toggle is grouped before the panel controls in the session title bar', () => {
+		const sideBarToggle = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentToggleSidebarVisibility');
+
+		assert.deepStrictEqual({
+			group: sideBarToggle?.group,
+			order: sideBarToggle?.order,
+			inLeftLayoutMenu: MenuRegistry.getMenuItems(Menus.TitleBarLeftLayout)
+				.filter(isIMenuItem)
+				.some(item => item.command.id === 'workbench.action.agentToggleSidebarVisibility'),
+		}, {
+			group: 'navigation',
+			order: 9,
+			inLeftLayoutMenu: false,
+		});
+	});
+
 	test('original-layout auxiliary bar toggle reuses the core command with state-dependent icons on the editor title layout menu', () => {
 		// The original (non-single-pane) editor-title menu items reference the core toggle command
 		// rather than registering their own; assert it is actually registered so the contribution
