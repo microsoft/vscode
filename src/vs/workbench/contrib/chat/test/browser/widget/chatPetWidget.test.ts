@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
-import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_IDLE_SLEEP_DELAY, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetVerticalOffset, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetVisible, shouldPlaceChatPetSpeechBubbleLeft } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_IDLE_SLEEP_DELAY, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, advanceChatPetThrow, doesChatPetStateTrackCursor, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalPosition, getChatPetPlatformTop, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetThrowLanding, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetVisible, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -239,6 +239,24 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
+	test('blocks keyboard interaction while unavailable or already interacting', () => {
+		assert.deepStrictEqual([
+			isChatPetKeyboardInteractionEnabled(false, false, false, false, false),
+			isChatPetKeyboardInteractionEnabled(true, true, false, false, false),
+			isChatPetKeyboardInteractionEnabled(true, false, true, false, false),
+			isChatPetKeyboardInteractionEnabled(true, false, false, true, false),
+			isChatPetKeyboardInteractionEnabled(true, false, false, false, true),
+			isChatPetKeyboardInteractionEnabled(true, false, false, false, false),
+		], [
+			false,
+			false,
+			false,
+			false,
+			false,
+			true,
+		]);
+	});
+
 	test('restores a custom position or uses the default position when reopening', () => {
 		assert.deepStrictEqual([
 			getChatPetRestoredHorizontalPosition(undefined, 20, 220),
@@ -351,49 +369,51 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('disables cursor tracking for fixed-eye sprite states', () => {
-		assert.deepStrictEqual([
-			doesChatPetStateTrackCursor('idle'),
-			doesChatPetStateTrackCursor('sleep'),
-			doesChatPetStateTrackCursor('waking'),
-			doesChatPetStateTrackCursor('typing'),
-			doesChatPetStateTrackCursor('rendering'),
-			doesChatPetStateTrackCursor('buttonPress'),
-			doesChatPetStateTrackCursor('complete'),
-			doesChatPetStateTrackCursor('jump'),
-			doesChatPetStateTrackCursor('love'),
-			doesChatPetStateTrackCursor('cool'),
-			doesChatPetStateTrackCursor('yapping'),
-			doesChatPetStateTrackCursor('yappingMouthOpen'),
-			doesChatPetStateTrackCursor('sing'),
-			doesChatPetStateTrackCursor('speechless'),
-			doesChatPetStateTrackCursor('worry'),
-			doesChatPetStateTrackCursor('dizzy'),
-			doesChatPetStateTrackCursor('falling'),
-			doesChatPetStateTrackCursor('splat'),
-			doesChatPetStateTrackCursor('onTheRun'),
-			doesChatPetStateTrackCursor('searching'),
-		], [
-			true,
-			false,
-			false,
-			false,
-			true,
-			false,
-			false,
-			false,
-			false,
-			false,
-			true,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-		]);
+		assert.deepStrictEqual({
+			idle: doesChatPetStateTrackCursor('idle'),
+			sleep: doesChatPetStateTrackCursor('sleep'),
+			waking: doesChatPetStateTrackCursor('waking'),
+			typing: doesChatPetStateTrackCursor('typing'),
+			rendering: doesChatPetStateTrackCursor('rendering'),
+			buttonPress: doesChatPetStateTrackCursor('buttonPress'),
+			complete: doesChatPetStateTrackCursor('complete'),
+			jump: doesChatPetStateTrackCursor('jump'),
+			love: doesChatPetStateTrackCursor('love'),
+			cool: doesChatPetStateTrackCursor('cool'),
+			yapping: doesChatPetStateTrackCursor('yapping'),
+			yappingMouthOpen: doesChatPetStateTrackCursor('yappingMouthOpen'),
+			sing: doesChatPetStateTrackCursor('sing'),
+			speechless: doesChatPetStateTrackCursor('speechless'),
+			worry: doesChatPetStateTrackCursor('worry'),
+			dizzy: doesChatPetStateTrackCursor('dizzy'),
+			falling: doesChatPetStateTrackCursor('falling'),
+			wallImpact: doesChatPetStateTrackCursor('wallImpact'),
+			splat: doesChatPetStateTrackCursor('splat'),
+			onTheRun: doesChatPetStateTrackCursor('onTheRun'),
+			searching: doesChatPetStateTrackCursor('searching'),
+		}, {
+			idle: true,
+			sleep: false,
+			waking: false,
+			typing: false,
+			rendering: true,
+			buttonPress: false,
+			complete: false,
+			jump: false,
+			love: false,
+			cool: false,
+			yapping: true,
+			yappingMouthOpen: false,
+			sing: false,
+			speechless: false,
+			worry: false,
+			dizzy: false,
+			falling: false,
+			wallImpact: false,
+			splat: false,
+			onTheRun: false,
+			searching: false,
+		});
 	});
 
 	test('tracks body facing while idle and locks it during animations', () => {
@@ -490,6 +510,8 @@ suite('ChatPetWidget', () => {
 			getChatPetSpriteName('dizzy', 'stable'),
 			getChatPetSpriteName('dizzy', 'insider'),
 			getChatPetSpriteName('falling', 'stable'),
+			getChatPetSpriteName('wallImpact', 'stable'),
+			getChatPetSpriteName('wallImpact', 'insider'),
 			getChatPetSpriteName('jump', 'stable'),
 			getChatPetSpriteName('jump', 'insider'),
 			getChatPetSpriteName('splat', 'insider'),
@@ -512,6 +534,8 @@ suite('ChatPetWidget', () => {
 			'buddy-dizzy-stable',
 			'buddy-dizzy-insiders',
 			'buddy-falling-stable',
+			'buddy-wall-impact-stable',
+			'buddy-wall-impact-insiders',
 			'buddy-jump-stable',
 			'buddy-jump-insiders',
 			'buddy-splat-insiders',
@@ -537,6 +561,7 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('yapping'),
 			getChatPetFrameDurations('yappingMouthOpen'),
 			getChatPetFrameDurations('falling'),
+			getChatPetFrameDurations('wallImpact'),
 			getChatPetFrameDurations('jump'),
 			getChatPetFrameDurations('splat'),
 			getChatPetRespawnFrameDurations(),
@@ -559,6 +584,7 @@ suite('ChatPetWidget', () => {
 			[],
 			[],
 			Array.from({ length: 4 }, () => 120),
+			[],
 			[70, 80, 90, 160, 100, 100],
 			[120, 100, 100, 200],
 			[120, 100, 120, 240, 100, 120],
@@ -680,6 +706,74 @@ suite('ChatPetWidget', () => {
 			[10, -40],
 			[50, -100],
 			[100, 200],
+		]);
+	});
+
+	test('turns recent horizontal flicks into bounded wall throws', () => {
+		assert.deepStrictEqual([
+			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 60, y: 10, time: 40 }, { x: 120, y: 20, time: 80 }], 100),
+			getChatPetThrowVelocity([{ x: 200, y: 100, time: 0 }, { x: 150, y: 60, time: 50 }, { x: 120, y: 40, time: 80 }], 90),
+			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 40, y: 0, time: 100 }], 100),
+			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 50, y: 100, time: 50 }], 50),
+			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 70, y: 90, time: 100 }], 100),
+			getChatPetThrowVelocity([{ x: 0, y: 0, time: 0 }, { x: 120, y: 0, time: 80 }], 161),
+		], [
+			{ x: 1_500, y: -420 },
+			{ x: -1_000, y: -750 },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+		]);
+	});
+
+	test('advances wall throws through gravity and bounded collisions', () => {
+		const bounds = { minimumLeft: 0, maximumLeft: 80, minimumTop: 0 };
+		const frames = [
+			advanceChatPetThrow({ left: 10, top: 100, x: 500, y: -100 }, 20, bounds),
+			advanceChatPetThrow({ left: 70, top: 100, x: 1_000, y: 0 }, 20, bounds),
+			advanceChatPetThrow({ left: 10, top: 1, x: 0, y: -200 }, 10, bounds),
+			advanceChatPetThrow({ left: 0, top: 100, x: 1_000, y: 0 }, 20, { minimumLeft: 0, maximumLeft: 0, minimumTop: 0 }),
+		].map(frame => ({
+			...frame,
+			left: Math.round(frame.left * 100) / 100,
+			top: Math.round(frame.top * 100) / 100,
+			y: Math.round(frame.y * 100) / 100,
+		}));
+
+		assert.deepStrictEqual(frames, [
+			{ left: 20, top: 98.36, x: 500, y: -64, wall: undefined },
+			{ left: 80, top: 100.09, x: 1_000, y: 18, wall: 'right' },
+			{ left: 10, top: 0, x: 0, y: 36.4, wall: undefined },
+			{ left: 0, top: 100.36, x: 0, y: 36, wall: undefined },
+		]);
+	});
+
+	test('settles throws that exceed their bounds or maximum duration', () => {
+		assert.deepStrictEqual([
+			shouldSettleChatPetThrow(0, 3_999, 100, 200, 400),
+			shouldSettleChatPetThrow(0, 4_000, 100, -200, 400),
+			shouldSettleChatPetThrow(0, 100, 401, -1, 400),
+			shouldSettleChatPetThrow(0, 100, 401, 0, 400),
+		], [
+			false,
+			true,
+			false,
+			true,
+		]);
+	});
+
+	test('lands a throw at the first platform or floor crossing', () => {
+		assert.deepStrictEqual([
+			getChatPetThrowLanding(10, 80, 30, 120, 48, 48, 0, 100, 148, 400),
+			getChatPetThrowLanding(80, 80, 120, 120, 48, 48, 0, 100, 148, 400),
+			getChatPetThrowLanding(120, 360, 140, 420, 48, 48, 0, 100, 148, 400),
+			getChatPetThrowLanding(10, 120, 30, 80, 48, 48, 0, 100, 148, 400),
+		], [
+			{ left: 20, top: 100, landsOnPlatform: true },
+			undefined,
+			{ left: 133.33333333333334, top: 400, landsOnPlatform: false },
+			undefined,
 		]);
 	});
 
