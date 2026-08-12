@@ -456,6 +456,9 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					setTimeout(() => location.assign(url), 300);
 				}, 'http://127.0.0.1:${deniedPort}/page-delayed-private');
 				await page.evaluate(url => window.open(url), 'http://localhost:${allowedPort}/delayed-popup');
+				await page.evaluate(url => {
+					setTimeout(() => window.open(url), 100);
+				}, 'http://localhost:${allowedPort}/delayed-popup');
 				return 'scheduled';`,
 		});
 		await new Promise(resolve => setTimeout(resolve, 700));

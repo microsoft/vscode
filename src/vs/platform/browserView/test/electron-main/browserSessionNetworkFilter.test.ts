@@ -236,6 +236,37 @@ suite('BrowserSession network filter', () => {
 		});
 	});
 
+	test('derives popup filtering from a tracked opener without an active action', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+		invokeRequest(filter, {
+			url: 'https://allowed.example/opener',
+			resourceType: 'mainFrame',
+			webContentsId: 1,
+		});
+
+		const allowedPopup = invokeRequest(filter, {
+			url: 'https://allowed.example/popup',
+			resourceType: 'mainFrame',
+			webContentsId: 3,
+			referrer: 'https://allowed.example/opener',
+		});
+		const delayedDeniedNavigation = invokeRequest(filter, {
+			url: 'https://denied.example/delayed',
+			resourceType: 'mainFrame',
+			webContentsId: 3,
+			referrer: 'https://allowed.example/popup',
+		});
+
+		assert.deepStrictEqual({
+			allowedPopup,
+			delayedDeniedNavigation,
+		}, {
+			allowedPopup: { cancel: false },
+			delayedDeniedNavigation: { cancel: true },
+		});
+	});
+
 	test('uses the webContents object when webContentsId is omitted', () => {
 		const { filter } = createFilter();
 		const webContents = { id: 1, once: () => { } } as unknown as Electron.WebContents;

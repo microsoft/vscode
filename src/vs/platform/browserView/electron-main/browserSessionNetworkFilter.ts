@@ -14,6 +14,7 @@ type AgentAction = { webContentsId: number; webContentsIds: Set<number>; policyE
 type RequestClassification = {
 	readonly isMainFrame: boolean;
 	readonly matchingAgentActions: readonly AgentAction[];
+	readonly attributableFilteredReferrerOwners: readonly number[];
 	readonly policyErrorTargets: readonly number[];
 	readonly shouldFilter: boolean;
 };
@@ -66,6 +67,7 @@ function classifyRequest(context: RequestClassificationContext): RequestClassifi
 	return {
 		isMainFrame,
 		matchingAgentActions,
+		attributableFilteredReferrerOwners,
 		policyErrorTargets,
 		// Unknown ownerless requests fail closed whenever tracked content exists.
 		shouldFilter: shouldFilterMainFrame
@@ -176,6 +178,9 @@ export class BrowserSessionNetworkFilter {
 			for (const action of classification.matchingAgentActions) {
 				action.webContentsIds.add(webContentsId);
 				this.addDerivedWebContents(action.webContentsId, webContentsId);
+			}
+			for (const ownerId of classification.attributableFilteredReferrerOwners) {
+				this.addDerivedWebContents(ownerId, webContentsId);
 			}
 		}
 		if (classification.isMainFrame) {
