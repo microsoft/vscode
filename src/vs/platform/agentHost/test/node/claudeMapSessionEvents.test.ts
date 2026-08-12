@@ -444,7 +444,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
 				toolCallId: 'tu_write',
-				invocationMessage: { markdown: 'Editing [new.ts](file:///src/new.ts)' },
+				invocationMessage: { markdown: 'Edit [new.ts](file:///src/new.ts)' },
 				toolInput: '{\n  "file_path": "/src/new.ts",\n  "content": "one\\ntwo"\n}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}],
