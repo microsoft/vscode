@@ -17,6 +17,7 @@ import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, Sessi
 import { type AutoMergeMethod, type CreatedPullRequest, type GitHubIssueOrPullRequest, type IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -188,6 +189,15 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual(titleActions, [`${'x'.repeat(37)}...`]);
 	});
 
+	test('active-agent fallback hard-caps an oversized token crossing the target', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), `Fix https://example.com/${'x'.repeat(500)}`);
+
+		assert.strictEqual(titleActions[0].length, 40);
+		assert.ok(titleActions[0].endsWith('...'));
+	});
+
 	test('active-agent fallback omits the ellipsis when the crossing word completes the prompt', () => {
 		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
 
@@ -201,6 +211,26 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Explain title generation');
 
 		assert.strictEqual(await controller.preparePromptForAgent(session.toString(), buildDefaultChatUri(session), 'Continue'), 'Continue');
+	});
+
+	test('materialized server tools override later root setting changes', async () => {
+		const enabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, false);
+		enabled.stateManager.dispatchServerAction(enabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: sessionServerToolDefinitions,
+		});
+		enabled.controller.seedTitleFromFirstMessage(enabled.session.toString(), 'Use advertised rename tool');
+
+		const disabled = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		disabled.stateManager.dispatchServerAction(disabled.session.toString(), {
+			type: ActionType.SessionServerToolsChanged,
+			tools: [],
+		});
+		disabled.controller.seedTitleFromFirstMessage(disabled.session.toString(), 'Do not use missing rename tool');
+
+		assert.ok((await enabled.controller.preparePromptForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session), 'Continue')).includes('`rename_session`'));
+		assert.strictEqual(await disabled.controller.preparePromptForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session), 'Continue'), 'Continue');
+		assert.strictEqual(disabled.copilotApiService.utilityCalls.length, 1);
 	});
 
 	test('active-agent mode reminds peer chats and keeps deterministic fork provenance without utility calls', async () => {

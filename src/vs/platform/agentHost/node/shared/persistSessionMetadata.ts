@@ -48,3 +48,13 @@ export function persistSessionMetadata(sessionDataService: ISessionDataService, 
 		onError(err);
 	}
 }
+
+/** Persists multiple metadata values before returning and propagates write failures. */
+export async function persistSessionMetadataValues(sessionDataService: ISessionDataService, session: string, values: Readonly<Record<string, string>>): Promise<void> {
+	const ref = sessionDataService.openDatabase(URI.parse(session));
+	try {
+		await Promise.all(Object.entries(values).map(([key, value]) => ref.object.setMetadata(key, value)));
+	} finally {
+		ref.dispose();
+	}
+}

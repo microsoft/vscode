@@ -149,7 +149,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		if (group && !group.isEnabled(toolName)) {
+		if (group && !this._isEnabledForSession(group, sessionUri, toolName)) {
 			return false;
 		}
 		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
@@ -162,9 +162,16 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		if (!group.isEnabled(toolName)) {
+		if (!this._isEnabledForSession(group, sessionUri, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
 		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);
+	}
+
+	private _isEnabledForSession(group: IServerToolGroup, sessionUri: URI, toolName: string): boolean {
+		const advertisedTools = this._stateManager.getSessionState(sessionUri)?.serverTools;
+		return advertisedTools
+			? advertisedTools.some(tool => tool.name === toolName)
+			: group.isEnabled(toolName);
 	}
 }

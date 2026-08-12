@@ -91,8 +91,64 @@ suite('SessionServerTools', () => {
 		]);
 	});
 
-	test('runtime definitions reflect active-agent title generation changes after host construction', () => {
+	test('new sessions use the current setting while materialized sessions keep their advertised tools', async () => {
 		let enabled = false;
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const disabledSession = 'copilot:/s1';
+		const enabledSession = 'copilot:/s2';
+		for (const resource of [disabledSession, enabledSession]) {
+			stateManager.createSession({
+				resource,
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			});
+		}
+		const accessor = createAccessor({
+			isActiveAgentTitleGenerationEnabled: () => enabled,
+			listSessions: async () => [
+				sessionMeta('s1', SessionStatus.Idle, workspace),
+				sessionMeta('s2', SessionStatus.Idle, workspace),
+			],
+		});
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(accessor),
+		]);
+
+		host.advertise(disabledSession);
+		enabled = true;
+		host.advertise(enabledSession);
+
+		await assert.rejects(
+			async () => host.executeTool(buildDefaultChatUri(disabledSession), SessionServerToolName.RenameSession, { title: 'Disabled' }),
+			/Server tool "rename_session" is disabled/,
+		);
+		assert.strictEqual(
+			await host.executeTool(buildDefaultChatUri(enabledSession), SessionServerToolName.RenameSession, { title: 'Enabled' }),
+			'Renamed session to "Enabled".',
+		);
+		assert.deepStrictEqual({
+			disabledTools: stateManager.getSessionState(disabledSession)?.serverTools?.map(tool => tool.name),
+			enabledTools: stateManager.getSessionState(enabledSession)?.serverTools?.map(tool => tool.name),
+		}, {
+			disabledTools: [
+				SessionServerToolName.ListSessions,
+				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.CreateSession,
+				SessionServerToolName.CreateChat,
+				SessionServerToolName.SendMessage,
+				SessionServerToolName.GetSessionContext,
+				SessionServerToolName.DeleteSession,
+			],
+			enabledTools: sessionServerToolDefinitions.map(tool => tool.name),
+		});
+		stateManager.dispose();
+	});
+
+	test('materialized rename tools remain executable after the root setting is disabled', async () => {
+		let enabled = true;
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const session = 'copilot:/s1';
 		stateManager.createSession({
@@ -108,42 +164,11 @@ suite('SessionServerTools', () => {
 		]);
 
 		host.advertise(session);
-		const disabledDefinitions = host.definitions.map(tool => tool.name);
-		const disabledTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
-		enabled = true;
-		host.advertise(session);
-		const enabledTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
-		assert.deepStrictEqual({
-			disabledDefinitions,
-			disabledTools,
-			enabledTools,
-		}, {
-			disabledDefinitions: disabledTools,
-			disabledTools: [
-				SessionServerToolName.ListSessions,
-				SessionServerToolName.GetCurrentSession,
-				SessionServerToolName.CreateSession,
-				SessionServerToolName.CreateChat,
-				SessionServerToolName.SendMessage,
-				SessionServerToolName.GetSessionContext,
-				SessionServerToolName.DeleteSession,
-			],
-			enabledTools: sessionServerToolDefinitions.map(tool => tool.name),
-		});
-		stateManager.dispose();
-	});
-
-	test('rename execution rejects a stale disabled tool', async () => {
-		let enabled = true;
-		const stateManager = new AgentHostStateManager(new NullLogService());
-		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled })),
-		]);
 		enabled = false;
 
-		await assert.rejects(
-			async () => host.executeTool('ahp-chat://default/copilot%3A%2Fs1', SessionServerToolName.RenameSession, { title: 'New title' }),
-			/Server tool "rename_session" is disabled/,
+		assert.strictEqual(
+			await host.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Still enabled' }),
+			'Renamed session to "Still enabled".',
 		);
 		stateManager.dispose();
 	});

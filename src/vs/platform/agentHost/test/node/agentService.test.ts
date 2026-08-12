@@ -8332,13 +8332,6 @@ suite('AgentService (node dispatcher)', () => {
 				title: 'Complete replacement peer chat title',
 			});
 
-			for (let attempt = 0; attempt < 20 && await db.getMetadata('customTitle') !== 'Complete replacement session title'; attempt++) {
-				await Promise.resolve();
-			}
-			for (let attempt = 0; attempt < 20 && await db.getMetadata(`customChatTitle:${peerChat}`) !== 'Complete replacement peer chat title'; attempt++) {
-				await Promise.resolve();
-			}
-
 			assert.deepStrictEqual({
 				sessionResult,
 				chatResult,
@@ -8358,6 +8351,36 @@ suite('AgentService (node dispatcher)', () => {
 				persistedChatTitle: 'Complete replacement peer chat title',
 				persistedChatSource: 'agent',
 			});
+		});
+
+		test('rename tool reports a failure when title persistence fails', async () => {
+			class FailingTitleDatabase extends TestSessionDatabase {
+				override async setMetadata(key: string, value: string): Promise<void> {
+					if (key === 'customTitle' || key === 'customTitleSource') {
+						throw new Error('title persistence failed');
+					}
+					return super.setMetadata(key, value);
+				}
+			}
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const db = new FailingTitleDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Will fail' }),
+				/title persistence failed/,
+			);
 		});
 	});
 

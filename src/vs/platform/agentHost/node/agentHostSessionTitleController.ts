@@ -9,6 +9,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
@@ -116,7 +117,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
-		const activeAgentTitleGenerationEnabled = this._isActiveAgentTitleGenerationEnabled();
+		const activeAgentTitleGenerationEnabled = this._isActiveAgentTitleGenerationEnabled(channel);
 		const fallbackTitle = activeAgentTitleGenerationEnabled
 			? this._normalizeActiveAgentFallbackTitle(userPrompt)
 			: this._normalizeTitle(userPrompt);
@@ -152,7 +153,7 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	/** Seeds and persists a provisional title suggested by a locally handled command. */
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void {
-		const title = this._normalizeTitle(suggestedTitle, this._isActiveAgentTitleGenerationEnabled() ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
+		const title = this._normalizeTitle(suggestedTitle, this._isActiveAgentTitleGenerationEnabled(channel) ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
 		if (!title) {
 			return;
 		}
@@ -185,8 +186,12 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 		const remaining = characters.slice(MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH).join('');
 		const nextWordBoundary = remaining.indexOf(' ');
+		const completedWord = nextWordBoundary >= 0 ? remaining.slice(0, nextWordBoundary) : remaining;
+		if (Array.from(completedWord).length > MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH) {
+			return `${Array.from(limited).slice(0, MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH - 3).join('')}...`;
+		}
 		return nextWordBoundary >= 0
-			? `${limited}${remaining.slice(0, nextWordBoundary)}...`
+			? `${limited}${completedWord}...`
 			: normalized;
 	}
 
@@ -276,7 +281,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * always preserved.
 	 */
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
-		if (this._isActiveAgentTitleGenerationEnabled()) {
+		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
 			return;
 		}
 		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
@@ -356,7 +361,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	 * so generation costs at most a single small-model call.
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
-		if (this._isActiveAgentTitleGenerationEnabled()) {
+		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
 			this.markTitleAuto(channel, chatChannel, fallbackTitle);
 			return;
 		}
@@ -425,7 +430,7 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	async preparePromptForAgent(channel: ProtocolURI, chatChannel: ProtocolURI, prompt: string): Promise<string> {
-		if (!this._isActiveAgentTitleGenerationEnabled()) {
+		if (!this._isActiveAgentTitleGenerationEnabled(channel)) {
 			return prompt;
 		}
 		const additionalChat = this._additionalChatChannel(chatChannel);
@@ -766,8 +771,11 @@ export class AgentHostSessionTitleController extends Disposable {
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
-	private _isActiveAgentTitleGenerationEnabled(): boolean {
-		return this._options.isActiveAgentTitleGenerationEnabled?.() === true;
+	private _isActiveAgentTitleGenerationEnabled(channel: ProtocolURI): boolean {
+		const serverTools = this._stateManager.getSessionState(channel)?.serverTools;
+		return serverTools
+			? serverTools.some(tool => tool.name === SessionServerToolName.RenameSession)
+			: this._options.isActiveAgentTitleGenerationEnabled?.() === true;
 	}
 
 	private async _readPersistedTitleSource(session: ProtocolURI, key: string): Promise<string | undefined> {

@@ -235,15 +235,6 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter));
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
-		this._localCommands = this._register(instantiationService.createInstance(
-			AgentHostLocalCommands,
-			this._stateManager,
-			this._options.localTurns,
-			// Draining the queue re-enters agent lookup / telemetry / sendMessage,
-			// which is this class's responsibility, so the dispatcher hands the
-			// turn back here once it has completed a host-handled command.
-			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
-		));
 		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
 			sessionDataService: this._options.sessionDataService,
 			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
@@ -253,6 +244,16 @@ export class AgentSideEffects extends Disposable {
 			copilotApiService: this._options.copilotApiService,
 			isActiveAgentTitleGenerationEnabled: () => this._agentConfigService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
 		}));
+		this._localCommands = this._register(instantiationService.createInstance(
+			AgentHostLocalCommands,
+			this._stateManager,
+			this._options.localTurns,
+			// Draining the queue re-enters agent lookup / telemetry / sendMessage,
+			// which is this class's responsibility, so the dispatcher hands the
+			// turn back here once it has completed a host-handled command.
+			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
+			(session: ProtocolURI, chat?: ProtocolURI) => this._titleController.markTitleRenamed(session, chat),
+		));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
 			const currentMode = getConfiguredSessionMode(e.current);

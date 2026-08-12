@@ -59,7 +59,7 @@ import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
@@ -1028,8 +1028,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._stateManager.getSessionState(session.toString())?.title !== title) {
 			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
 		}
-		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), SESSION_CUSTOM_TITLE_KEY, title);
-		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AGENT);
+		await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
+			[SESSION_CUSTOM_TITLE_KEY]: title,
+			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
+		});
 		this._sideEffects.markTitleRenamed(session.toString());
 		return { title };
 	}
@@ -1046,8 +1048,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._stateManager.getSessionState(session.toString())) {
 			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
 		}
-		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), customChatTitleMetadataKey(chat.toString()), title);
-		persistSessionMetadata(this._sessionDataService, this._logService, session.toString(), customChatTitleSourceMetadataKey(chat.toString()), AGENT_HOST_TITLE_SOURCE_AGENT);
+		await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
+			[customChatTitleMetadataKey(chat.toString())]: title,
+			[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AGENT,
+		});
 		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { title };
 	}

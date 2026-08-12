@@ -1287,14 +1287,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					return formatCreateChatResult(result);
 				}
 				case SessionServerToolName.RenameSession:
-					if (!accessor.isActiveAgentTitleGenerationEnabled()) {
-						throw new Error(`${SessionServerToolName.RenameSession} is disabled because active-agent title generation is not enabled.`);
-					}
 					return applyRenameSessionTool(accessor, rawArgs, currentSessionUri(sessionUri));
 				case SessionServerToolName.RenameChat:
-					if (!accessor.isActiveAgentTitleGenerationEnabled()) {
-						throw new Error(`${SessionServerToolName.RenameChat} is disabled because active-agent title generation is not enabled.`);
-					}
 					return applyRenameChatTool(accessor, rawArgs, sessionUri);
 				case SessionServerToolName.SendMessage: {
 					if (sentMessageCount >= maxSentMessages) {
