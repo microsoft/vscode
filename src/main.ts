@@ -245,6 +245,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 		// override which password-store is used on Linux
 		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
+
+		// Opt-in to disable Bluetooth and prevent BlueZ connection popups
+		SUPPORTED_ELECTRON_SWITCHES.push('disable-bluetooth');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -365,12 +368,6 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// use up to 2
 	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
-	// Disable Bluetooth by default on Linux to prevent BlueZ connection popups
-	// https://github.com/microsoft/vscode/issues/134461
-	if (process.platform === 'linux' && !app.commandLine.hasSwitch('enable-bluetooth') && !app.commandLine.hasSwitch('disable-bluetooth')) {
-		app.commandLine.appendSwitch('disable-bluetooth');
-	}
-
 	return argvConfig;
 }
 
@@ -380,6 +377,7 @@ interface IArgvConfig {
 	readonly 'disable-lcd-text'?: boolean;
 	readonly 'proxy-bypass-list'?: string;
 	readonly 'disable-hardware-acceleration'?: boolean;
+	readonly 'disable-bluetooth'?: boolean;
 	readonly 'force-color-profile'?: string;
 	readonly 'enable-crash-reporter'?: boolean;
 	readonly 'crash-reporter-id'?: string;
@@ -436,7 +434,10 @@ function createDefaultArgvConfigSync(argvConfigPath: string): void {
 			'{',
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true',
+			'	// "disable-hardware-acceleration": true,',
+			'',
+			'	// Disable Bluetooth to prevent BlueZ connection popups on Linux.',
+			'	// "disable-bluetooth": true',
 			'}'
 		];
 
