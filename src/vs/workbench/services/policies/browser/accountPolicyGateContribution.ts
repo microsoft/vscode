@@ -9,10 +9,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -49,6 +50,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
+	private readonly compatibilityNotificationHandle = this._register(new MutableDisposable());
 	private dismissedKey: string | undefined;
 
 	private initialised = false;
@@ -62,12 +64,14 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
 		this.lastInfo = this.gateService.gateInfo;
+		this.updateManagedSettingsCompatibilityState(this.defaultAccountService.managedSettingsCompatibilityError);
 
 		// Apply context key + setForceHidden immediately (fail-closed), but defer the
 		// notification until either the first onDidChangeGateInfo or a 5s timeout —
@@ -78,6 +82,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.initialised = true;
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
+		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(error => this.updateManagedSettingsCompatibilityState(error)));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -93,10 +98,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 		// Suppress the context key during the transient `policyNotResolved` state
 		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
-		const isRestricted = info.state === AccountPolicyGateState.Restricted
-			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+		const isRestricted = this.isGateRestricted(info);
 		this.contextKey.set(isRestricted);
-		this.chatEntitlementService.setForceHidden(isRestricted);
+		this.updateForceHidden();
 		this.logService.info(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
 
 		if (stateChanged) {
@@ -122,7 +126,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		// Composite key so swapping accounts (while still blocked) re-shows the notification.
 		const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 		const notificationKey = `${info.reason ?? ''}:${accountName ?? ''}`;
 
@@ -201,5 +204,54 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		}));
 		handleDisposables.add({ dispose: () => handle.close() });
 		this.notificationHandle.value = handleDisposables;
+	}
+
+	private isGateRestricted(info: IAccountPolicyGateInfo): boolean {
+		return info.state === AccountPolicyGateState.Restricted
+			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+	}
+
+	private updateForceHidden(): void {
+		this.chatEntitlementService.setForceHidden(
+			this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null
+		);
+	}
+
+	private updateManagedSettingsCompatibilityState(error: IManagedSettingsCompatibilityError | null): void {
+		this.updateForceHidden();
+		if (!error) {
+			this.compatibilityNotificationHandle.clear();
+			return;
+		}
+		if (this.compatibilityNotificationHandle.value) {
+			return;
+		}
+
+		const message = localize(
+			'managedSettingsUpdate.notification',
+			"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
+			this.productService.nameShort
+		);
+		const handleDisposables = new DisposableStore();
+		const handle = this.notificationService.prompt(
+			Severity.Warning,
+			message,
+			[
+				{
+					label: localize('managedSettingsUpdate.notification.update', "Check for Updates"),
+					run: () => this.commandService.executeCommand('update.checkForUpdate'),
+				},
+				{
+					label: localize('managedSettingsUpdate.notification.learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview')),
+				},
+			],
+			{ sticky: true }
+		);
+		handleDisposables.add(handle.onDidClose(() => {
+			this.compatibilityNotificationHandle.clear();
+		}));
+		handleDisposables.add({ dispose: () => handle.close() });
+		this.compatibilityNotificationHandle.value = handleDisposables;
 	}
 }
