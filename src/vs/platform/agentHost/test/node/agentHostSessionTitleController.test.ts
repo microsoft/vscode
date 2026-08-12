@@ -173,8 +173,10 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		assert.ok(prompt.includes('<system_notification>'));
-		assert.ok(prompt.includes('Before doing any other work or responding to the user, you MUST call the `rename_session` tool exactly once'));
-		assert.ok(prompt.includes('Do not skip this call even if the current name already seems descriptive.'));
+		assert.ok(prompt.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_session` tool exactly once'));
+		assert.ok(prompt.includes('before your final response'));
+		assert.ok(prompt.includes('Do not rename prematurely when inspecting referenced issues, pull requests, files, or other context would produce a better title.'));
+		assert.ok(prompt.includes('If the user explicitly asks to rename the session, call the tool immediately.'));
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -209,7 +211,8 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const prompt = await controller.preparePromptForAgent(session.toString(), chat, 'Continue');
-		assert.ok(prompt.includes('Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once'));
+		assert.ok(prompt.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_chat` tool exactly once'));
+		assert.ok(prompt.includes('If the user explicitly asks to rename the chat, call the tool immediately.'));
 		assert.ok(!prompt.includes('`rename_session`'));
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
