@@ -86,8 +86,8 @@ suite('SessionServerTools', () => {
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 6).map(def => def.inputSchema?.properties?.title), [
-			{ type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.', maxLength: 40 },
-			{ type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.', maxLength: 40 },
+			{ type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.' },
+			{ type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.' },
 		]);
 	});
 
@@ -451,7 +451,7 @@ suite('SessionServerTools', () => {
 		assert.throws(() => getRenameSessionArgs({ title: 'X' }, sessions), /current session/);
 	});
 
-	test('rename titles use GitHub app normalization and length limits', () => {
+	test('rename titles normalize presentation without truncating agent input', () => {
 		const projectSession = sessionMeta('project', SessionStatus.Idle, workspace);
 		const generalChatSession = { ...sessionMeta('chat', SessionStatus.Idle, workspace), workingDirectories: undefined };
 		assert.deepStrictEqual({
@@ -459,13 +459,13 @@ suite('SessionServerTools', () => {
 			acronym: getRenameSessionArgs({ title: 'ADDING JWT AUTH' }, [projectSession], projectSession.session).title,
 			generalChat: getRenameSessionArgs({ title: 'Fix &amp;   ship IT' }, [generalChatSession], generalChatSession.session).title,
 			chat: getRenameChatArgs({ chat: 'agent-host-session://copilot/project?chat=peer', title: 'Don&#39;t   panic' }, [projectSession]).title,
-			truncated: getRenameSessionArgs({ title: 'A'.repeat(41) }, [projectSession], projectSession.session).title,
+			complete: getRenameSessionArgs({ title: 'Review PR #330289 session overlap coordination' }, [projectSession], projectSession.session).title,
 		}, {
 			project: 'Fix input flicker',
 			acronym: 'Adding JWT auth',
 			generalChat: 'Fix & ship IT',
 			chat: 'Don\'t panic',
-			truncated: `A${'a'.repeat(39)}`,
+			complete: 'Review PR #330289 session overlap coordination',
 		});
 	});
 
