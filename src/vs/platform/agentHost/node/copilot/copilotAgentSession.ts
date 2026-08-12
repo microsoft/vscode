@@ -741,6 +741,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn !== undefined; }
 	get chatUri(): URI { return this._chatChannelUri; }
+	get currentTurnId(): string | undefined { return this._currentTurn?.id; }
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
 	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
