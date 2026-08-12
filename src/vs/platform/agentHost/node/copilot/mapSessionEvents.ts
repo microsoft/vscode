@@ -15,12 +15,13 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { buildNonPtyShellTerminalUri } from './copilotNonPtyShellTerminals.js';
 import { getInvocationMessage, getPastTenseMessage, getShellIntention, getShellLanguage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
+import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 
@@ -82,8 +83,8 @@ function stripPromptScaffolding(text: string): string {
 }
 
 /**
- * Converts SDK `tool.execution_complete` content blocks into AHP tool result
- * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * Converts SDK `tool.execution_complete` image and shell result blocks into
+ * AHP tool result content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
  * the tool call's terminal content block; when no terminal block exists yet
  * (e.g. history replay, where no live channel survives) and `terminal` is
  * provided, a non-pty terminal block is synthesized so the outcome still
@@ -99,6 +100,13 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
+			case 'image':
+				content.push({
+					type: ToolResultContentType.EmbeddedResource,
+					data: sdkContent.data,
+					contentType: sdkContent.mimeType,
+				});
+				break;
 			case 'shell_exit': {
 				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,
@@ -170,6 +178,7 @@ interface ITurnBuilder {
 	lastEventAt: string | undefined;
 	readonly responseParts: ResponsePart[];
 	usage: UsageInfo | undefined;
+	error: ErrorInfo | undefined;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
@@ -188,7 +197,7 @@ function newTurnBuilder(id: string, text: string, options?: { attachments?: Mess
 		...(options?.model ? { model: options.model } : {}),
 		...(options?.agent ? { agent: options.agent } : {}),
 	};
-	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, pendingTools: new Map() };
+	return { id, message, startedAt: options?.startedAt, lastEventAt: options?.startedAt, responseParts: [], usage: undefined, error: undefined, pendingTools: new Map() };
 }
 
 /** Reads the SDK envelope's ISO 8601 `timestamp`, or `undefined` when missing or unparseable. */
@@ -274,6 +283,7 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		responseParts: builder.responseParts,
 		usage: builder.usage,
 		state,
+		...(builder.error ? { error: builder.error } : {}),
 	};
 }
 
@@ -376,12 +386,13 @@ export async function mapSessionEvents(
 	// at most one turn per invocation).
 	const subagentBuilders = new Map<string, ITurnBuilder>();
 	const subagentTurnStates = new Map<string, TurnState>();
+	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 
 	let parentBuilder: ITurnBuilder | undefined;
 	let parentTurnState = TurnState.Cancelled;
-	let parentTurnAborted = false;
+	let parentTurnTerminated = false;
 	let rootAssistantTurnActive = false;
 	let pendingAutoModeResolved: Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data'] | undefined;
 
@@ -402,7 +413,7 @@ export async function mapSessionEvents(
 		turns.push(finalizeTurn(parentBuilder, parentTurnState));
 		parentBuilder = undefined;
 		parentTurnState = TurnState.Cancelled;
-		parentTurnAborted = false;
+		parentTurnTerminated = false;
 	};
 
 	const flushSubagent = (parentToolCallId: string): void => {
@@ -414,7 +425,8 @@ export async function mapSessionEvents(
 		subagentBuilders.delete(parentToolCallId);
 		const state = subagentTurnStates.get(parentToolCallId) ?? TurnState.Complete;
 		subagentTurnStates.delete(parentToolCallId);
-		if (builder.responseParts.length === 0) {
+		terminatedSubagentTurns.delete(parentToolCallId);
+		if (builder.responseParts.length === 0 && !builder.error) {
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
@@ -458,6 +470,13 @@ export async function mapSessionEvents(
 					touch(parentBuilder);
 				}
 				break;
+			case 'session.start': {
+				// Restore the initial model; later model-change events take precedence.
+				if (!e.agentId && e.data.selectedModel) {
+					currentModel = { id: e.data.selectedModel };
+				}
+				break;
+			}
 			case 'session.model_change': {
 				currentModel = { id: e.data.newModel };
 				break;
@@ -522,7 +541,7 @@ export async function mapSessionEvents(
 				const hasToolRequests = !!d.toolRequests && d.toolRequests.length > 0;
 				const parentToolCallId = resolveParentToolCallId(e.agentId, d.parentToolCallId);
 				if (!content && !reasoningText && !hasToolRequests) {
-					if (!parentToolCallId && parentBuilder && !parentTurnAborted) {
+					if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 						touch(parentBuilder);
 					}
@@ -550,7 +569,7 @@ export async function mapSessionEvents(
 						content,
 					});
 				}
-				if (!parentToolCallId && builder === parentBuilder && !parentTurnAborted) {
+				if (!parentToolCallId && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = hasToolRequests ? TurnState.Cancelled : TurnState.Complete;
 				}
 				if (d.toolRequests?.length) {
@@ -563,15 +582,34 @@ export async function mapSessionEvents(
 				if (!notification) {
 					break;
 				}
-				if (rootAssistantTurnActive && parentBuilder) {
+				if (parentBuilder && (rootAssistantTurnActive || notification.startsTurn)) {
 					parentBuilder.responseParts.push({
 						kind: ResponsePartKind.SystemNotification,
 						content: notification.messageText,
 					});
 					touch(parentBuilder);
-				} else if (notification.startsTurn) {
-					flushParent();
-					parentBuilder = newTurnBuilder(e.id, notification.messageText, { origin: MessageKind.SystemNotification, startedAt: currentEventTimestamp });
+				}
+				break;
+			}
+			case 'session.error': {
+				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
+				if (e.agentId) {
+					if (!parentToolCallId || terminatedSubagentTurns.has(parentToolCallId)) {
+						break;
+					}
+					const builder = ensureSubagentBuilder(parentToolCallId);
+					subagentTurnStates.set(parentToolCallId, TurnState.Error);
+					terminatedSubagentTurns.add(parentToolCallId);
+					builder.error = buildChatErrorInfoFromCopilotSdkFields(e.data);
+					touch(builder);
+					break;
+				}
+				if (parentBuilder && !parentTurnTerminated) {
+					rootAssistantTurnActive = false;
+					parentTurnState = TurnState.Error;
+					parentTurnTerminated = true;
+					parentBuilder.error = buildChatErrorInfoFromCopilotSdkFields(e.data);
+					touch(parentBuilder);
 				}
 				break;
 			}
@@ -586,7 +624,7 @@ export async function mapSessionEvents(
 			}
 			case 'tool.execution_start': {
 				const parentToolCallId = resolveParentToolCallId(e.agentId, e.data.parentToolCallId);
-				if (!parentToolCallId && parentBuilder) {
+				if (!parentToolCallId && parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Cancelled;
 					touch(parentBuilder);
 				}
@@ -614,7 +652,7 @@ export async function mapSessionEvents(
 							content: summary,
 						});
 					}
-					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnAborted) {
+					if (!parentToolCallId && d.success && builder === parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Complete;
 					}
 					continue;
@@ -659,12 +697,14 @@ export async function mapSessionEvents(
 			case 'abort': {
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
 				if (parentToolCallId) {
-					subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					if (!terminatedSubagentTurns.has(parentToolCallId)) {
+						subagentTurnStates.set(parentToolCallId, TurnState.Cancelled);
+					}
 				} else {
 					rootAssistantTurnActive = false;
-					if (parentBuilder) {
+					if (parentBuilder && !parentTurnTerminated) {
 						parentTurnState = TurnState.Cancelled;
-						parentTurnAborted = true;
+						parentTurnTerminated = true;
 						touch(parentBuilder);
 					}
 				}
@@ -702,7 +742,7 @@ export async function mapSessionEvents(
 						content: summary,
 					});
 				}
-				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnAborted) {
+				if (!parentToolCallId && completion?.success && builder === parentBuilder && !parentTurnTerminated) {
 					parentTurnState = TurnState.Complete;
 				}
 				continue;
@@ -825,7 +865,11 @@ function makeCompletedToolCallPart(
 	if (toolOutput !== undefined) {
 		content.push({ type: ToolResultContentType.Text, text: toolOutput });
 	}
-	appendSdkToolResultContent(content, d.result?.contents, { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName });
+	appendSdkToolResultContent(
+		content,
+		d.result?.contents,
+		info.toolKind === 'terminal' ? { session: sessionUriStr, toolCallId: d.toolCallId, title: info.displayName } : undefined,
+	);
 
 	// Restore file edit content references from the database.
 	const edits = storedEdits?.get(d.toolCallId);

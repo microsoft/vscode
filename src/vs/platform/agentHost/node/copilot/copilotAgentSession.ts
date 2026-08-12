@@ -61,11 +61,11 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
-import { stripProxyErrorMarker, tryBuildChatErrorMeta, tryBuildChatErrorMetaFromFields } from '../shared/forwardedChatError.js';
+import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { getEffectiveMcpServerCustomizations, McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
@@ -124,6 +124,7 @@ interface ICopilotStreamingToolCall {
 
 const SESSION_STATE_DIRECTORY = 'session-state';
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
+const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user denied permission.' } satisfies PermissionRequestResult;
 
 function isPermissionDeniedKind(kind: PermissionResult['kind'] | undefined): boolean {
 	switch (kind) {
@@ -348,20 +349,6 @@ function getCopilotCLISessionStateDir(userHome: string): string {
 	return join(getCopilotHomePath(userHome, process.env), SESSION_STATE_DIRECTORY);
 }
 
-/**
- * Matches the temp file names the Copilot SDK uses when spilling large tool
- * results to disk. The SDK writes these into `os.tmpdir()` and references the
- * path back to the model so it can read the output in a follow-up turn.
- *
- * Two layouts are emitted by the SDK depending on the codepath:
- *  - `<timestamp>-copilot-tool-output-<6-char-id>.txt` (large tool result)
- *  - `copilot-tool-output-<timestamp>-<6-char-id>.txt` (streaming output buffer)
- *
- * Both live directly inside `os.tmpdir()`, so we additionally require the
- * file's parent directory to be the OS temp directory before auto-approving.
- */
-const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-[a-z0-9]{6}|copilot-tool-output-\d{10,}-[a-z0-9]{6})\.txt$/i;
-
 function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
 	const fileUri = normalizePath(URI.file(filePath));
 	const tmpDirUri = normalizePath(URI.file(tmpDir));
@@ -369,9 +356,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 	if (!extUriBiasedIgnorePathCase.isEqual(parentUri, tmpDirUri)) {
 		return false;
 	}
-	const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
-	const basename = lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
-	return COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE.test(basename);
+	return isCopilotSdkToolOutputFile(filePath);
 }
 
 /**
@@ -2084,17 +2069,6 @@ export class CopilotAgentSession extends Disposable {
 				mode = sdkMode;
 			}
 			prompt = configAction.strippedPrompt;
-		} else if (slashCommand?.command === 'rubber-duck') {
-			if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.RubberDuck) !== true) {
-				// Feature not enabled — pass the remaining text through as a plain
-				// message rather than injecting agent instructions for an unavailable agent.
-				prompt = slashCommand.rest;
-			} else {
-				const userPrompt = slashCommand.rest;
-				prompt = userPrompt
-					? `The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.\n\nAdditional instructions: ${userPrompt}`
-					: 'The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.';
-			}
 		} else if (slashCommand) {
 			const runtimeSlashCommand = await this._slashCommandProvider.resolveSlashCommand(slashCommand.command);
 			// Skills can be passed as is to the runtime.
@@ -2771,17 +2745,29 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			// Auto-approve the agent host's server tools. They only read or
-			// mutate the session's own server-held state and never touch the
-			// workspace, shell, or network, so prompting for them is redundant
-			// noise. Tools that explicitly require confirmation (e.g. revealing
-			// unreviewed review comments) are excluded so the user is prompted.
-			if (!managedApprovalRequired && request.kind === 'custom-tool' && typeof request.toolName === 'string'
-				&& this._serverToolHost?.toolNames.includes(request.toolName)
-				&& !this._serverToolHost.requiresConfirmation(request.toolName)
-			) {
-				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${request.toolName}`);
-				return { kind: 'approve-once' };
+			const serverToolHost = this._serverToolHost;
+			const serverToolName = request.kind === 'custom-tool' && typeof request.toolName === 'string'
+				&& serverToolHost?.toolNames.includes(request.toolName)
+				? request.toolName
+				: undefined;
+			if (serverToolHost && serverToolName) {
+				const canRequireConfirmation = serverToolHost.canRequireConfirmation(serverToolName);
+				// A tool that normally confirms but has nothing to confirm right
+				// now poses no question to the user, so it runs without prompting
+				// even under managed approval.
+				if (canRequireConfirmation
+					&& !serverToolHost.requiresConfirmation(this._chatChannelUri.toString(), serverToolName)
+				) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName} because it has nothing to confirm`);
+					return { kind: 'approve-once' };
+				}
+				// Server tools that never confirm only read or mutate the
+				// session's own server-held state and never touch the workspace,
+				// shell, or network, so prompting for them is redundant noise.
+				if (!canRequireConfirmation && !managedApprovalRequired) {
+					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName}`);
+					return { kind: 'approve-once' };
+				}
 			}
 
 			// The SDK's built-in terminal reports `kind: 'shell'`. The Agent Host's
@@ -3184,7 +3170,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
-		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : { kind: 'denied-interactively-by-user' })) {
+		if (this._pendingPermissions.respond(requestId, approved ? { kind: 'approve-once' } : USER_DENIED_PERMISSION_RESULT)) {
 			this._deletePendingEditContent(requestId);
 			return true;
 		}
@@ -4106,7 +4092,8 @@ export class CopilotAgentSession extends Disposable {
 			// SDK result content, so a `shell_exit` lands its completion data on
 			// the terminal block (skip if any terminal block was already added
 			// while the tool was running).
-			const ptyTerminalUri = isShellTool(tracked.toolName) ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
+			const isShellCommandTool = isShellTool(tracked.toolName);
+			const ptyTerminalUri = isShellCommandTool ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
 			let retireNonPtyShellTracking = !!ptyTerminalUri;
 			if (ptyTerminalUri && !content.some(c => c.type === ToolResultContentType.Terminal)) {
 				content.push({
@@ -4116,8 +4103,12 @@ export class CopilotAgentSession extends Disposable {
 				});
 			}
 
-			const shellExit = appendSdkToolResultContent(content, e.data.result?.contents, { session: this.sessionUri, toolCallId: e.data.toolCallId, title: tracked.displayName });
-			if (isShellTool(tracked.toolName) && !ptyTerminalUri) {
+			const shellExit = appendSdkToolResultContent(
+				content,
+				e.data.result?.contents,
+				isShellCommandTool ? { session: this.sessionUri, toolCallId: e.data.toolCallId, title: tracked.displayName } : undefined,
+			);
+			if (isShellCommandTool && !ptyTerminalUri) {
 				const completion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
 				if (completion) {
 					retireNonPtyShellTracking = completion.shouldRetire;
@@ -4303,19 +4294,11 @@ export class CopilotAgentSession extends Disposable {
 			if (this._currentTurn) {
 				this._reportToolCallDetails(this._currentTurn, 'failed');
 			}
-			// Prefer the structured SDK fields (the Copilot CLI classifies its own
-			// CAPI errors); fall back to decoding a forwarded marker from the message.
-			const meta = tryBuildChatErrorMetaFromFields(e.data) ?? tryBuildChatErrorMeta(e.data.message);
 			this._emitAction({
 				type: ActionType.ChatError,
 				turnId: this._turnId,
 				duration: this._currentTurn?.duration ?? 0,
-				error: {
-					errorType: e.data.errorType,
-					message: stripProxyErrorMarker(e.data.message),
-					stack: e.data.stack,
-					...(meta ? { _meta: meta } : {}),
-				},
+				error: buildChatErrorInfoFromCopilotSdkFields(e.data),
 			});
 		}));
 
@@ -5003,6 +4986,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onSubagentCompleted(invalidate));
 		this._register(wrapper.onSubagentFailed(invalidate));
 		this._register(wrapper.onTurnEnd(invalidate));
+		this._register(wrapper.onSessionError(invalidate));
 		// In-place rewrites of the persisted log.
 		this._register(wrapper.onSessionCompactionComplete(invalidate));
 		this._register(wrapper.onSessionTruncation(invalidate));
@@ -5323,6 +5307,13 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	getNextTurnEventId(turnId: string): Promise<string | undefined> {
 		return this._databaseRef.object.getNextTurnEventId(turnId);
+	}
+
+	/**
+	 * Returns the SDK event ID associated with the given protocol turn.
+	 */
+	getTurnEventId(turnId: string): Promise<string | undefined> {
+		return this._databaseRef.object.getTurnEventId(turnId);
 	}
 
 	/**

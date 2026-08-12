@@ -5,12 +5,12 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { getDelayedChannel, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { getDelayedChannel, IChannel, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
@@ -19,7 +19,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
-import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
@@ -31,6 +31,8 @@ import {
 	AgentHostByokModelsEnabledSettingId,
 	AgentHostIpcChannels,
 	AgentHostOTelPolicyIpcChannel,
+	AgentHostRestartIpcChannel,
+	AgentHostWillRestartIpcChannel,
 	AgentSession,
 	IAgentCreateChatOptions,
 	IAgentCreateSessionConfig,
@@ -60,6 +62,13 @@ import type { ComponentToState, RootState, StateComponents } from '../common/sta
 
 const LOG_PREFIX = '[AgentHost:renderer]';
 
+class LocalAgentHostIpcChannelTransport extends AgentHostIpcChannelTransport {
+	constructor(channel: IChannel, connectionStore: DisposableStore, ahpLogger: AhpJsonlLogger | undefined) {
+		super(channel, ahpLogger, AgentHostClientConnectionKind.Local);
+		this._register(connectionStore);
+	}
+}
+
 /**
  * Renderer-side implementation of {@link IAgentHostService} for the local
  * agent host. State and request traffic use AHP over the Protocol channel;
@@ -70,11 +79,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readonly clientId = generateUuid();
 
-	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
-	private readonly _management: IAgentHostManagementService;
+	private _messagePortClient: MessagePortClient | undefined;
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
 	private _connectStarted = false;
+	private _didAcquireInitialMessagePort = false;
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
 
@@ -103,9 +112,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
-		this._management = ProxyChannel.toService<IAgentHostManagementService>(
-			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Management)))
-		);
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
@@ -119,24 +125,31 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				this.startAgentHost();
 			}
 		}));
+
+		const onWillRestart = () => this._protocolClient?.notifyTransportClosed();
+		ipcRenderer.on(AgentHostWillRestartIpcChannel, onWillRestart);
+		this._register(toDisposable(() => ipcRenderer.removeListener(AgentHostWillRestartIpcChannel, onWillRestart)));
 	}
 
 	startAgentHost(): void {
 		if (!this._protocolClient) {
-			const transport = new AgentHostIpcChannelTransport(
-				getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
-				this._ahpLogger,
-				AgentHostClientConnectionKind.Local,
-			);
+			mark('code/agentHost/willStart');
+			this._forwardOTelPolicy();
 			this._protocolClient = this._register(this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
-				transport,
+				() => this._createTransport(),
 				undefined,
 				this.clientId,
 				this._clientInfo,
 			));
 			this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
+			this._register(this._protocolClient.onDidChangeConnectionState(state => {
+				if (state === AgentHostClientState.Connected) {
+					this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${this.clientId}`);
+					this._onAgentHostStart.fire();
+				}
+			}));
 		}
 
 		void this._connect().catch(error => {
@@ -150,29 +163,80 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return;
 		}
 		this._connectStarted = true;
-		mark('code/agentHost/willStart');
 
+		const protocolClient = this._requireClient();
+		await protocolClient.connect();
+		mark('code/agentHost/didConnect');
+	}
+
+	private _createTransport(): AgentHostIpcChannelTransport {
+		const clientEventually = new DeferredPromise<MessagePortClient>();
+		const connectionStore = new DisposableStore();
+		void this._acquireMessagePort(clientEventually, connectionStore).catch(error => clientEventually.error(error));
+		return new LocalAgentHostIpcChannelTransport(
+			getDelayedChannel(clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
+			connectionStore,
+			this._ahpLogger,
+		);
+	}
+
+	private async _acquireMessagePort(clientEventually: DeferredPromise<MessagePortClient>, connectionStore: DisposableStore): Promise<void> {
 		this._logService.info(`${LOG_PREFIX} Acquiring MessagePort to agent host...`);
-		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
 		const port = await acquirePort('vscode:createAgentHostMessageChannel', 'vscode:createAgentHostMessageChannelResult');
-		mark('code/agentHost/didAcquireMessagePort');
+		if (!this._didAcquireInitialMessagePort) {
+			this._didAcquireInitialMessagePort = true;
+			mark('code/agentHost/didAcquireMessagePort');
+		}
 		this._logService.info(`${LOG_PREFIX} MessagePort acquired, creating client...`);
 
-		const store = this._register(new DisposableStore());
-		const client = store.add(new MessagePortClient(port, this.clientId));
+		const client = connectionStore.add(new MessagePortClient(port, this.clientId));
 		registerAgentHostClientChannels(
 			client,
 			this._instantiationService,
 			this._logService,
 			this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId) === true,
 		);
-		this._clientEventually.complete(client);
+		this._messagePortClient = client;
+		connectionStore.add(toDisposable(() => {
+			if (this._messagePortClient === client) {
+				this._messagePortClient = undefined;
+			}
+		}));
+		clientEventually.complete(client);
+	}
 
+	private _forwardOTelPolicy(): void {
+		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
+	}
+
+	private async _getManagementService(): Promise<IAgentHostManagementService> {
 		const protocolClient = this._requireClient();
-		await protocolClient.connect();
-		mark('code/agentHost/didConnect');
-		this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${protocolClient.clientId}`);
-		this._onAgentHostStart.fire();
+		const connectionState = protocolClient.connectionState;
+		if (connectionState === AgentHostClientState.Closed || connectionState === AgentHostClientState.Incompatible) {
+			throw new Error('Local agent host is not connected.');
+		}
+		if (connectionState !== AgentHostClientState.Connected) {
+			const state = await Event.toPromise(Event.filter(
+				protocolClient.onDidChangeConnectionState,
+				state => state === AgentHostClientState.Connected || state === AgentHostClientState.Closed || state === AgentHostClientState.Incompatible,
+			));
+			if (state !== AgentHostClientState.Connected) {
+				throw new Error('Local agent host is not connected.');
+			}
+		}
+
+		return this._getAvailableManagementService();
+	}
+
+	private _getAvailableManagementService(): IAgentHostManagementService {
+		if (!this._messagePortClient) {
+			throw new Error('Local agent host management connection is not available.');
+		}
+		return ProxyChannel.toService<IAgentHostManagementService>(this._messagePortClient.getChannel(AgentHostIpcChannels.Management));
+	}
+
+	private async _callManagement<T>(callback: (management: IAgentHostManagementService) => Promise<T>): Promise<T> {
+		return callback(await this._getManagementService());
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {
@@ -256,7 +320,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				throw new Error('Cannot create local agent host session without a provider.');
 			}
 			const session = config.session ?? AgentSession.uri(config.provider, generateUuid());
-			const promise = this._management.createSessionWithExtensions({ ...config, session });
+			const promise = this._callManagement(management => management.createSessionWithExtensions({ ...config, session }));
 			this._requireClient().trackSessionCreate(session, promise);
 			return promise;
 		}
@@ -285,7 +349,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	createChat(session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<void> {
 		if (options && hasChatExtensions(options)) {
-			return this._management.createChatWithExtensions(session, chat, options);
+			return this._callManagement(management => management.createChatWithExtensions(session, chat, options));
 		}
 		return this._requireClient().createChat(session, chat, options);
 	}
@@ -351,31 +415,32 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	shutdown(): Promise<void> {
-		return this._management.shutdown();
+		return this._callManagement(management => management.shutdown());
 	}
 
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
-		return this._management.getNetworkDiagnosticsInfo();
+		return this._callManagement(management => management.getNetworkDiagnosticsInfo());
 	}
 
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
-		return this._management.getManagedSettingsDiagnostics();
+		return this._getAvailableManagementService().getManagedSettingsDiagnostics();
 	}
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
-		return this._management.diagnosticsFetch(url);
+		return this._callManagement(management => management.diagnosticsFetch(url));
 	}
 
 	async restartAgentHost(): Promise<void> {
-		// Restart is managed by the main process lifecycle owner.
+		this._forwardOTelPolicy();
+		ipcRenderer.send(AgentHostRestartIpcChannel);
 	}
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo> {
-		return this._management.startWebSocketServer();
+		return this._callManagement(management => management.startWebSocketServer());
 	}
 
 	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> {
-		return this._management.getInspectInfo(tryEnable);
+		return this._callManagement(management => management.getInspectInfo(tryEnable));
 	}
 }
 

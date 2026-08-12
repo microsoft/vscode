@@ -28,7 +28,13 @@ export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
  * pick the same base branch.
  */
 export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	return persistedBaseBranch ?? sessionGitStateBaseBranch;
+	const branchName = persistedBaseBranch ?? sessionGitStateBaseBranch;
+	if (!branchName) {
+		return undefined;
+	}
+	return branchName
+		.replace(/^refs\/remotes\/origin\//, '')
+		.replace(/^origin\//, '');
 }
 
 /**
@@ -254,6 +260,11 @@ export interface IAgentHostGitService {
 	commitAll(workingDirectory: URI, message: string): Promise<void>;
 
 	/**
+	 * Merges `branchName` into the currently checked-out branch. A failed merge is aborted before the error is rethrown.
+	 */
+	mergeBranch(workingDirectory: URI, branchName: string): Promise<string>;
+
+	/**
 	 * Restores files in the working tree via `git restore`. When
 	 * {@link options.staged} is true, restores the index instead of the
 	 * working tree. When {@link options.ref} is provided, the contents are
@@ -293,7 +304,7 @@ export interface IAgentHostGitService {
 	 * git work tree. Called on session open and after each turn completes
 	 * so the UI always reflects current branch/remote/change state.
 	 */
-	getSessionGitState(workingDirectory: URI): Promise<ISessionGitState | undefined>;
+	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
@@ -428,6 +439,22 @@ function getBranchPriority(branch: string, currentBranch: string | undefined, de
 		return 1;
 	}
 	return 2;
+}
+
+/**
+ * Splits an upstream tracking branch (e.g. `origin/feature`) into its remote
+ * and remote-side branch name. Returns `undefined` when the branch has no
+ * upstream or the value is not of the `<remote>/<branch>` shape.
+ */
+export function parseUpstreamBranchName(upstreamBranchName: string | undefined): { remote: string; branch: string } | undefined {
+	const separatorIndex = upstreamBranchName?.indexOf('/') ?? -1;
+	if (!upstreamBranchName || separatorIndex <= 0 || separatorIndex === upstreamBranchName.length - 1) {
+		return undefined;
+	}
+	return {
+		remote: upstreamBranchName.substring(0, separatorIndex),
+		branch: upstreamBranchName.substring(separatorIndex + 1),
+	};
 }
 
 export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {

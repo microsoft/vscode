@@ -33,10 +33,49 @@ export function resolveNewSessionWorkspaceFolder(
 	candidates: readonly IRoutableSession[],
 	defaultFolder: URI | undefined,
 ): URI | undefined {
-	return folderMentionedInUtterance(utterance, folders)
+	return resolveMentionedWorkspaceFolder(utterance, folders)?.uri
 		?? folderFromRelatedSession(results, candidates, folders)
 		?? defaultFolder
 		?? folders[0]?.uri;
+}
+
+/** Resolves an explicitly mentioned workspace folder name or path basename. */
+export function resolveMentionedWorkspaceFolder(utterance: string, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
+	const normalizedUtterance = normalizeFolderMentionText(utterance);
+	let best: { folder: IWorkspaceFolder; length: number } | undefined;
+	for (const folder of folders) {
+		const names = new Set([folder.name, folder.uri.path.split('/').filter(Boolean).at(-1)]);
+		for (const name of names) {
+			if (!name || name.length < 3) {
+				continue;
+			}
+			const normalizedName = normalizeFolderMentionText(name).trim();
+			let start = normalizedUtterance.indexOf(normalizedName);
+			while (start >= 0) {
+				if (isWordBoundary(normalizedUtterance[start - 1])
+					&& isWordBoundary(normalizedUtterance[start + normalizedName.length])) {
+					if (!best || normalizedName.length > best.length) {
+						best = { folder, length: normalizedName.length };
+					}
+					break;
+				}
+				start = normalizedUtterance.indexOf(normalizedName, start + normalizedName.length);
+			}
+		}
+	}
+	return best?.folder;
+}
+
+function normalizeFolderMentionText(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/\bvs\s+code\b/gu, 'vscode')
+		.replace(/[\s._-]+/gu, ' ');
+}
+
+/** Returns the workspace folder represented by a routed session's working-directory metadata. */
+export function resolveSessionWorkspaceFolder(candidate: IRoutableSession, folders: readonly IWorkspaceFolder[]): IWorkspaceFolder | undefined {
+	return folderForSessionMetadata(candidate, folders);
 }
 
 /**
@@ -87,32 +126,6 @@ function sessionStatusPriority(status: string | undefined): number {
 	return status === 'working' ? 2 : status === 'idle' ? 1 : 0;
 }
 
-function folderMentionedInUtterance(utterance: string, folders: readonly IWorkspaceFolder[]): URI | undefined {
-	const normalizedUtterance = utterance.toLocaleLowerCase();
-	let best: { folder: IWorkspaceFolder; length: number } | undefined;
-	for (const folder of folders) {
-		const names = new Set([folder.name, folder.uri.path.split('/').filter(Boolean).at(-1)]);
-		for (const name of names) {
-			if (!name || name.length < 3) {
-				continue;
-			}
-			const normalizedName = name.toLocaleLowerCase();
-			let start = normalizedUtterance.indexOf(normalizedName);
-			while (start >= 0) {
-				if (isWordBoundary(normalizedUtterance[start - 1])
-					&& isWordBoundary(normalizedUtterance[start + normalizedName.length])) {
-					if (!best || normalizedName.length > best.length) {
-						best = { folder, length: normalizedName.length };
-					}
-					break;
-				}
-				start = normalizedUtterance.indexOf(normalizedName, start + normalizedName.length);
-			}
-		}
-	}
-	return best?.folder.uri;
-}
-
 function folderFromRelatedSession(
 	results: readonly ISessionRouteResult[],
 	candidates: readonly IRoutableSession[],
@@ -137,14 +150,14 @@ function folderForSessionMetadata(candidate: IRoutableSession, folders: readonly
 		if (!path) {
 			continue;
 		}
-		const normalizedPath = path.replaceAll('\\', '/').replace(/\/+$/, '').replace(/^([a-zA-Z]:\/)/, '/$1').toLocaleLowerCase();
+		const normalizedPath = path.replaceAll('\\', '/').replace(/\/+$/, '').replace(/^([a-zA-Z]:\/)/, '/$1').toLowerCase();
 		const match = folders
 			.filter(folder => {
-				const folderPath = folder.uri.path.replace(/\/+$/, '').toLocaleLowerCase();
+				const folderPath = folder.uri.path.replace(/\/+$/, '').toLowerCase();
 				return normalizedPath === folderPath
 					|| normalizedPath.startsWith(`${folderPath}/`)
-					|| normalizedPath.endsWith(`/${folder.name.toLocaleLowerCase()}`)
-					|| normalizedPath.endsWith(`/${folder.name.toLocaleLowerCase()}.git`);
+					|| normalizedPath.endsWith(`/${folder.name.toLowerCase()}`)
+					|| normalizedPath.endsWith(`/${folder.name.toLowerCase()}.git`);
 			})
 			.sort((a, b) => b.uri.path.length - a.uri.path.length)[0];
 		if (match) {

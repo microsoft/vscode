@@ -16,7 +16,7 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../comm
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
-import { clearUserSelectedSessionType, getRememberedSessionType, hasPreferredCopilotHarness, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
+import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
@@ -41,6 +41,7 @@ export enum ChatConfiguration {
 	UtilitySmallModel = 'chat.utilitySmallModel',
 	BYOKUtilityModelDefault = 'chat.byokUtilityModelDefault',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
+	SaveBeforeSend = 'chat.saveBeforeSend',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
@@ -256,6 +257,9 @@ export namespace ChatAgentLocation {
  */
 const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeChatEditor,
+	// Chat's own read-only resources, such as a pasted-text artifact: their
+	// contents already reach the model through the attachment they belong to.
+	Schemas.vscodeChatResponseResource,
 	Schemas.walkThrough,
 	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
@@ -265,6 +269,13 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	'ccreq',
 	'openai-codex', // Codex session custom editor scheme
 ]);
+
+/** Schemes whose models are chat input editors. */
+export const chatInputSchemes: readonly string[] = [Schemas.vscodeChatInput, Schemas.sessionsChatInput];
+
+export function isChatInputModel(uri: URI): boolean {
+	return chatInputSchemes.includes(uri.scheme);
+}
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
 	const chatService = accessor.get(IChatSessionsService);
@@ -348,13 +359,6 @@ export interface IDefaultNewChatSessionTypeOptions {
 export interface IResolvedNewChatSessionType {
 	/** The session type to open for the new chat. */
 	readonly sessionType: string;
-	/**
-	 * True when {@link sessionType} is the one-time `chat.editor.preferCopilotHarness`
-	 * swap. The caller must persist the marker (via `markPreferredCopilotHarness`)
-	 * only once it has actually applied this session type, so the migration is not
-	 * consumed by a caller that discards the result.
-	 */
-	readonly isPreferCopilotHarnessSwap: boolean;
 }
 
 export function getDefaultNewChatSessionType(
@@ -396,33 +400,25 @@ export function resolveDefaultNewChatSessionType(
 	const agentHostEnabled = accessor.get(IAgentHostEnablementService).enabled.get();
 
 	if (options?.explicitOverride) {
-		return { sessionType: options.explicitOverride, isPreferCopilotHarnessSwap: false };
+		return { sessionType: options.explicitOverride };
 	}
 
 	if (isVirtualWorkspace(workspace)) {
-		return { sessionType: localChatSessionType, isPreferCopilotHarnessSwap: false };
+		return { sessionType: localChatSessionType };
 	}
 
 	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
 	if (remembered && remembered !== localChatSessionType) {
-		return { sessionType: remembered, isPreferCopilotHarnessSwap: false };
+		return { sessionType: remembered };
 	}
 
-	// One-time migration: when the agent host is enabled and the user has opted
-	// in via `chat.editor.preferCopilotHarness`, swap an existing local editor
-	// session to Copilot exactly once (guarded by the persisted marker). Never
-	// swap when the agent host is disabled, since the Copilot harness would be
-	// unavailable. This function does not persist the marker itself; the caller
-	// marks it only after applying the swap, so a caller that discards the
-	// result does not consume the one-time migration.
 	if (options?.currentSessionType === localChatSessionType
 		&& agentHostEnabled
-		&& configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness)
-		&& !hasPreferredCopilotHarness(storageService)) {
-		return { sessionType: SessionType.AgentHostCopilot, isPreferCopilotHarnessSwap: true };
+		&& configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness)) {
+		return { sessionType: SessionType.AgentHostCopilot };
 	}
 
-	return { sessionType: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options), isPreferCopilotHarnessSwap: false };
+	return { sessionType: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options) };
 }
 
 function getUsableRememberedSessionType(

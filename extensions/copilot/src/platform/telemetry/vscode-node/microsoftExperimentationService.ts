@@ -5,7 +5,7 @@
 
 import path from 'path';
 import * as vscode from 'vscode';
-import { getExperimentationServiceFromConfig, IExperimentationFilterProvider, TargetPopulation } from 'vscode-tas-client';
+import { getExperimentationService, IExperimentationFilterProvider, TargetPopulation } from 'vscode-tas-client';
 import { platform, PlatformToString } from '../../../util/vs/base/common/platform';
 import { isObject } from '../../../util/vs/base/common/types';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
@@ -29,34 +29,6 @@ function getTargetPopulation(isPreRelease: boolean): TargetPopulation {
 
 function trimVersionSuffix(version: string): string {
 	return version.split('-')[0];
-}
-
-/**
- * Formats an ISO date into the `yyyymmddHH` form the experimentation backend expects
- * (10 digits: yyyymmddHH). Returns an empty string when unavailable.
- */
-function formatReleaseDate(iso: string): string {
-	if (!iso) {
-		return '';
-	}
-	const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
-	if (!match) {
-		return '';
-	}
-	return match.slice(1, 5).join('');
-}
-
-/**
- * Reads and formats the product release date from `product.json`, or `undefined` on failure.
- */
-function readReleaseDate(logService: ILogService, tag: string): string | undefined {
-	try {
-		const product = require(path.join(vscode.env.appRoot, 'product.json'));
-		return formatReleaseDate(product.date ?? '');
-	} catch (error) {
-		logService.warn(`${tag} Failed to read product.json for release date: ${error}`);
-		return undefined;
-	}
 }
 
 const CopilotRelatedPluginVersionPrefix = 'X-Copilot-RelatedPluginVersion-';
@@ -187,7 +159,28 @@ class PlatformAndReleaseDateFilterProvider implements IExperimentationFilterProv
 	constructor(
 		private _logService: ILogService
 	) {
-		this._releaseDate = readReleaseDate(_logService, '[PlatformAndReleaseDateFilterProvider]::readReleaseDate');
+		this._releaseDate = this._initReleaseDate();
+	}
+
+	private _initReleaseDate(): string | undefined {
+		try {
+			const product = require(path.join(vscode.env.appRoot, 'product.json'));
+			return this._formatReleaseDate(product.date ?? '');
+		} catch (error) {
+			this._logService.warn(`[PlatformAndReleaseDateFilterProvider]::_initReleaseDate Failed to read product.json for release date: ${error}`);
+			return undefined;
+		}
+	}
+
+	private _formatReleaseDate(iso: string): string {
+		if (!iso) {
+			return '';
+		}
+		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
+		if (!match) {
+			return '';
+		}
+		return match.slice(1, 5).join('');
 	}
 
 	getFilters(): Map<string, string> {
@@ -222,46 +215,6 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 	}
 }
 
-/**
- * Emits the Copilot-side filters for the new TAS assignments API (POST /api/v1/assignments)
- * using the new userParam key names. Reads the Copilot token fresh on each call so refreshed
- * assignments pick up account changes. The generic `vscode_core_*` app/build/extension/target
- * filters are added automatically by `vscode-tas-client`.
- */
-class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
-	private readonly _releaseDate: string | undefined;
-
-	constructor(
-		private readonly _copilotTokenStore: ICopilotTokenStore,
-		private readonly _logService: ILogService
-	) {
-		this._releaseDate = readReleaseDate(_logService, '[CopilotAssignmentsFilterProvider]::readReleaseDate');
-	}
-
-	getFilters(): Map<string, string | undefined> {
-		const token = this._copilotTokenStore.copilotToken;
-		const internalOrg = token
-			? (token.isVscodeTeamMember ? 'vscode' : token.isGitHubInternal ? 'github' : token.isMicrosoftInternal ? 'microsoft' : undefined)
-			: undefined;
-
-		const filters = new Map<string, string | undefined>();
-		filters.set('vscode_core_platform', PlatformToString(platform));
-		if (this._releaseDate) {
-			filters.set('vscode_core_releasedate', this._releaseDate);
-		}
-		filters.set('vscode_core_windowkind', vscode.workspace.isAgentSessionsWorkspace ? 'agents' : 'editor');
-		filters.set('devdeviceid', vscode.env.devDeviceId);
-		filters.set('copilottrackingid', token?.getTokenValue('tid'));
-		filters.set('github_core_organizationid', token?.organizationList.join(','));
-		filters.set('github_core_businessid', token?.enterpriseList.join(','));
-		filters.set('github_core_isghormsftstaff', internalOrg ? '1' : '0');
-		filters.set('github_core_ghmsftorexternal', internalOrg === 'github' ? 'github' : (internalOrg === 'microsoft' || internalOrg === 'vscode') ? 'microsoft' : 'external');
-
-		this._logService.trace(`[CopilotAssignmentsFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);
-		return filters;
-	}
-}
-
 export class MicrosoftExperimentationService extends BaseExperimentationService {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -279,54 +232,26 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		let self: MicrosoftExperimentationService | undefined = undefined;
 		const delegateFn = (globalState: vscode.Memento, userInfoStore: UserInfoStore) => {
 			const wrappedMemento = new ExpMementoWrapper(globalState, envService);
-			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
-			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
-			// Route the assignments request through the extension's fetcher service so it gets
-			// proxy handling, retries/fallback, and the standard user-agent for free.
-			const assignmentsFetch = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }) =>
-				fetcherService.fetch(url, {
-					method: init.method,
-					headers: init.headers,
-					body: init.body,
-					callSite: 'exp.assignments',
-				});
-			return getExperimentationServiceFromConfig({
-				extensionName: id,
-				extensionVersion: version,
+			return getExperimentationService(
+				id,
+				version,
 				targetPopulation,
-				telemetry: telemetryService,
-				memento: wrappedMemento,
-				filterProviders: [
-					new GithubAccountFilterProvider(userInfoStore, logService),
-					new RelatedExtensionsFilterProvider(logService),
-					new CopilotExtensionsFilterProvider(logService),
-					// The callback is called in super ctor. At that time, self/this is not initialized yet (but also, no filter could have been possibly set).
-					new CopilotCompletionsFilterProvider(() => self?.getCompletionsFilters() ?? new Map(), logService),
-					new DevDeviceIdFilterProvider(vscode.env.devDeviceId),
-					new PlatformAndReleaseDateFilterProvider(logService),
-					new WindowKindFilterProvider(logService),
-				],
-				assignmentsEndpoint,
-				assignmentsFilterProviders: assignmentsEndpoint ? [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)] : undefined,
-				assignmentsFetch: assignmentsEndpoint ? assignmentsFetch : undefined,
-			});
+				telemetryService,
+				wrappedMemento,
+				new GithubAccountFilterProvider(userInfoStore, logService),
+				new RelatedExtensionsFilterProvider(logService),
+				new CopilotExtensionsFilterProvider(logService),
+				// The callback is called in super ctor. At that time, self/this is not initialized yet (but also, no filter could have been possibly set).
+				new CopilotCompletionsFilterProvider(() => self?.getCompletionsFilters() ?? new Map(), logService),
+				new DevDeviceIdFilterProvider(vscode.env.devDeviceId),
+				new PlatformAndReleaseDateFilterProvider(logService),
+				new WindowKindFilterProvider(logService),
+			);
 		};
 
 		super(delegateFn, context, copilotTokenStore, configurationService, logService);
 
 		self = this; // This is now fully initialized.
-
-		// The assignments endpoint is sourced from the Copilot token, which may arrive after
-		// this service is created. Recreate the delegate when its `exp` endpoint changes.
-		let currentExp = copilotTokenStore.copilotToken?.endpoints?.exp;
-		this._register(copilotTokenStore.onDidStoreUpdate(() => {
-			const token = copilotTokenStore.copilotToken;
-			const newExp = token?.endpoints?.exp;
-			if (newExp !== currentExp) {
-				currentExp = newExp;
-				this.recreateDelegate();
-			}
-		}));
 
 		if (fetcherService instanceof FetcherService) {
 			fetcherService.setExperimentationService(this);

@@ -12,6 +12,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, derived, derivedObservableWithCache, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -107,6 +108,9 @@ const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 /** Breathing room rendered beneath the last file row when the whole list fits. */
 const TREE_PANE_LIST_BOTTOM_PADDING = 12;
 
+/** The file changes section always reserves room for at least this many file rows. */
+const TREE_PANE_MIN_VISIBLE_ROWS = 5;
+
 // --- ButtonBar widget
 
 /**
@@ -173,7 +177,12 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
-					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs)
+					buttonConfigProvider: (action, index) => {
+						const configuration = this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs);
+						return index === 0
+							? { ...configuration, showIcon: false, showLabel: true }
+							: configuration;
+					}
 				},
 				menuService, contextKeyService, contextMenuService, keybindingService, telemetryService, hoverService
 			);
@@ -282,8 +291,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			container,
 			{
 				telemetrySource: 'changesView',
-				buttonConfigProvider: (_action, index) => {
-					return { showIcon: true, showLabel: index === 0 };
+				buttonConfigProvider: (action, index) => {
+					return index === 0
+						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label) }
+						: { showIcon: true, showLabel: false };
 				}
 			}
 		));
@@ -1055,7 +1066,7 @@ export class ChangesViewPane extends ViewPane {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
 
-		const desiredSize = this.getTreePaneDesiredSize();
+		const desiredSize = Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
 		const availableSize = this.getSplitViewAvailableHeight() - reservedSectionHeight;
 		return Math.min(desiredSize, Math.max(EMPTY_FILE_CHANGES_MIN_HEIGHT, availableSize));
 	}
@@ -1071,8 +1082,18 @@ export class ChangesViewPane extends ViewPane {
 		return filesHeaderHeight + treeContentHeight + bottomPadding;
 	}
 
+	/** Height needed to show {@link TREE_PANE_MIN_VISIBLE_ROWS} file rows, regardless of how many are listed. */
+	private getTreePaneReservedRowsSize(): number {
+		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
+		return filesHeaderHeight + TREE_PANE_MIN_VISIBLE_ROWS * ChangesTreeDelegate.ROW_HEIGHT + TREE_PANE_LIST_BOTTOM_PADDING;
+	}
+
 	private getTreePaneMaximumSize(): number {
-		return this.getTreePaneDesiredSize();
+		if (this.listContainer?.style.display === 'none') {
+			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
+		}
+
+		return Math.max(this.getTreePaneDesiredSize(), this.getTreePaneReservedRowsSize());
 	}
 
 	private fireTreePaneSizeChange(): void {

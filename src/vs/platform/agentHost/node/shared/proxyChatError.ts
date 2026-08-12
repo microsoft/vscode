@@ -7,12 +7,9 @@ import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from './copilotAp
 
 /**
  * Marker prefix used to smuggle a structured, serialized chat fetch error
- * through the agent SDK subprocess boundary. The model proxies run in this
- * (the agent host) process and hold the rich {@link CopilotApiError}, but the
- * agent SDKs (Claude, Codex, Copilot CLI) run as child processes that only
- * see an HTTP/SSE error. The proxy appends `VSCODE_PROXY_ERROR:<base64>` to
- * the error message; the SDK forwards that text back verbatim, and the agent
- * decodes it on the way out.
+ * through the Claude and Codex child-process boundaries. Their model proxies
+ * hold the rich {@link CopilotApiError}, while the child processes only see
+ * HTTP/SSE error text.
  */
 export const PROXY_ERROR_PREFIX = 'VSCODE_PROXY_ERROR:';
 
@@ -63,7 +60,7 @@ export interface IForwardedChatError {
  * sync with the Copilot Chat extension's error classification so the core
  * formatter produces identical messages.
  */
-function statusToFetchType(status: number): string {
+export function httpStatusToChatFetchType(status: number): string {
 	switch (status) {
 		case 402:
 			return 'quotaExceeded';
@@ -100,7 +97,7 @@ export function buildForwardedChatError(err: CopilotApiError): IForwardedChatErr
 	const capiError = extractCapiError(err.envelope.error.message) ?? { code: err.envelope.error.type, message: err.envelope.error.message };
 	return {
 		fetchError: {
-			type: statusToFetchType(status),
+			type: httpStatusToChatFetchType(status),
 			reason: capiError.message ?? err.envelope.error.message,
 			requestId,
 			capiError,
@@ -145,71 +142,6 @@ function extractCapiError(message: string): { code?: string; message?: string } 
  */
 export function encodeForwardedChatError(forwarded: IForwardedChatError): string {
 	return `${PROXY_ERROR_PREFIX}${Buffer.from(JSON.stringify(forwarded)).toString('base64')}`;
-}
-
-/**
- * Fields from a structured agent-SDK error (notably the Copilot CLI SDK's
- * `ErrorData`) used to build a forwarded chat error directly, without a
- * {@link PROXY_ERROR_PREFIX} marker. The Copilot CLI authenticates with CAPI
- * itself (no VS Code proxy to embed a marker), but its `session.error` event
- * already carries the structured classification we need.
- */
-export interface ISdkChatErrorFields {
-	readonly errorType: string;
-	readonly errorCode?: string;
-	readonly message: string;
-	readonly statusCode?: number;
-	readonly providerCallId?: string;
-	readonly serviceRequestId?: string;
-}
-
-/**
- * Maps an agent-SDK error category (and optional HTTP status) to the
- * extension's `ChatFetchResponseType` string value, or `undefined` when the
- * error is not a model/CAPI error we can render richly. Categories mirror the
- * Copilot CLI SDK's `ErrorData.errorType` values.
- */
-function sdkErrorTypeToFetchType(errorType: string, statusCode: number | undefined): string | undefined {
-	switch (errorType) {
-		case 'quota':
-			return 'quotaExceeded';
-		case 'rate_limit':
-			return 'rateLimited';
-		case 'context_limit':
-			return 'length';
-		case 'authentication':
-		case 'authorization':
-			return 'agent_unauthorized';
-	}
-	return statusCode !== undefined ? statusToFetchType(statusCode) : undefined;
-}
-
-/**
- * Builds a {@link IForwardedChatError} from a structured agent-SDK error.
- * Returns `undefined` when the error cannot be classified as a model/CAPI
- * error, so callers can fall back to the raw message.
- */
-export function buildForwardedChatErrorFromFields(data: ISdkChatErrorFields): IForwardedChatError | undefined {
-	const type = sdkErrorTypeToFetchType(data.errorType, data.statusCode);
-	if (!type) {
-		return undefined;
-	}
-	// The Copilot CLI SDK classifies quota errors only via `errorType: 'quota'`
-	// (or a 402 status) and does not carry a fine-grained CAPI code. Default to
-	// the generic `quota_exceeded` code so the core formatter renders the
-	// plan-specific quota message (matching the extension's CLI handling, which
-	// calls `getQuotaMessageForPlan` directly) instead of the bare title.
-	const code = data.errorCode ?? (type === 'quotaExceeded' ? 'quota_exceeded' : undefined);
-	const capiError = (code || data.message) ? { code, message: data.message } : undefined;
-	return {
-		fetchError: {
-			type,
-			reason: data.message,
-			requestId: data.providerCallId ?? '',
-			serverRequestId: data.serviceRequestId,
-			...(capiError && { capiError }),
-		},
-	};
 }
 
 /**
@@ -277,16 +209,6 @@ export function toChatErrorMeta(forwarded: IForwardedChatError): Record<string, 
  */
 export function tryBuildChatErrorMeta(errorText: string | undefined): Record<string, unknown> | undefined {
 	const forwarded = tryParseForwardedChatError(errorText);
-	return forwarded ? toChatErrorMeta(forwarded) : undefined;
-}
-
-/**
- * Convenience: build the protocol `ErrorInfo._meta` record from a structured
- * agent-SDK error. Returns `undefined` when the error cannot be classified as
- * a model/CAPI error, so callers can fall back to the raw message.
- */
-export function tryBuildChatErrorMetaFromFields(data: ISdkChatErrorFields): Record<string, unknown> | undefined {
-	const forwarded = buildForwardedChatErrorFromFields(data);
 	return forwarded ? toChatErrorMeta(forwarded) : undefined;
 }
 

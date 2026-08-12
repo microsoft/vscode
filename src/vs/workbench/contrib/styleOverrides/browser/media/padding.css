@@ -249,10 +249,25 @@
 	margin-bottom: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
 }
 
+.style-override.monaco-workbench .activitybar:not(.top):not(.bottom) > .content > .composite-bar {
+	margin-top: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
+}
+
 .style-override.monaco-workbench .part.basepanel:is(.bottom, .top, .left, .right) .composite.title {
 	padding-right: var(--vscode-spacing-size40);
 	padding-left: var(--vscode-spacing-size20);
 	overflow: visible;
+}
+
+.style-override.monaco-workbench .part.basepanel > .composite.title > .title-actions {
+	min-width: 0;
+}
+
+.style-override.monaco-workbench .part.basepanel > .composite.title > .global-actions {
+	position: relative;
+	z-index: 1;
+	flex: 0 0 auto;
+	background-color: var(--vscode-panel-background);
 }
 
 .style-override.monaco-workbench .quick-input-titlebar {

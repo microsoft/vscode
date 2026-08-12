@@ -182,7 +182,7 @@ suite('ActivitybarPart', () => {
 		assert.strictEqual(part.maximumHeight, Number.POSITIVE_INFINITY);
 	});
 
-	test('floating panels reserves symmetric width gutters', () => {
+	test('floating panels reserves outer padding on the left', () => {
 		const { part } = createActivitybarPart(false, true);
 
 		assert.deepStrictEqual(
@@ -194,14 +194,14 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
-	test('floating panels reserves inner and outer gutters on the right', () => {
+	test('floating panels reserves a 4px inner gap and both gutters on the right', () => {
 		const { part } = createActivitybarPart(false, true, Position.RIGHT);
 
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
 			}
 		);
 	});

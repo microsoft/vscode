@@ -30,6 +30,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AgentHostClientConnectionTelemetryTracker } from '../../node/agentHostClientConnectionTelemetry.js';
+import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -279,6 +280,7 @@ suite('ProtocolServerHandler', () => {
 	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
+	let managedSettingsService: AgentHostManagedSettingsService;
 	let handler: ProtocolServerHandler;
 	let fileSystemProvider: AgentHostFileSystemProvider;
 	let logService: CountingLogService;
@@ -318,6 +320,7 @@ suite('ProtocolServerHandler', () => {
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
+		managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 		logService = new CountingLogService();
 		telemetryService = new TestTelemetryService();
 		disposables.add(agentService);
@@ -329,6 +332,7 @@ suite('ProtocolServerHandler', () => {
 			disposables.add(fileSystemProvider = new AgentHostFileSystemProvider()),
 			logService,
 			telemetryService,
+			managedSettingsService,
 		));
 	});
 
@@ -446,6 +450,28 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
 	});
 
+	test('handshake retains an initial subscription whose state has not materialized', () => {
+		const transport = connectClient('client-1', [defaultChatUri]);
+		const response = findResponse(transport.sent, 1) as { result: InitializeResult };
+		assert.deepStrictEqual(response.result.snapshots, []);
+		transport.sent.length = 0;
+
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(defaultChatUri, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello after restore', origin: { kind: MessageKind.User } },
+		});
+
+		const actionMessages = findNotifications(transport.sent, 'action');
+		const turnStarted = actionMessages.find(message => {
+			const envelope = message.params as unknown as { action?: { type: string } };
+			return envelope.action?.type === ActionType.ChatTurnStarted;
+		});
+		assert.ok(turnStarted, 'should deliver actions after the initially missing state materializes');
+	});
+
 	test('ping responds before initialize', async () => {
 		const transport = new MockProtocolTransport();
 		disposables.add(transport);
@@ -496,7 +522,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('extension methods can be disabled', () => {
+	test('extension methods can be disabled without blocking managed settings contributions', () => {
 		const localDisposables = disposables.add(new DisposableStore());
 		const localServer = localDisposables.add(new MockProtocolServer());
 		localDisposables.add(new ProtocolServerHandler(
@@ -510,6 +536,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new AgentHostFileSystemProvider()),
 			logService,
 			NullTelemetryService,
+			managedSettingsService,
 		));
 		const transport = new MockProtocolTransport();
 		localServer.simulateConnection(transport);
@@ -519,13 +546,18 @@ suite('ProtocolServerHandler', () => {
 		}));
 		transport.sent.length = 0;
 		transport.simulateMessage(request(2, 'shutdown', {}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		}));
 
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
 			shutdownCalls: agentService.shutdownCalls,
+			managedSettingsPermissions: managedSettingsService.permissions,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
+			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		});
 	});
 
@@ -871,6 +903,30 @@ suite('ProtocolServerHandler', () => {
 			result: null,
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
+		});
+	});
+
+	test('createSession rejects a fork targeting its source session', async () => {
+		const transport = connectClient('client-self-fork');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		const session = URI.parse('copilot:///same-session').toString();
+
+		transport.simulateMessage(request(2, 'createSession', {
+			channel: session,
+			provider: 'copilot',
+			fork: { session, turnId: 'turn-1' },
+		}));
+		const response = await responsePromise as { error?: { code: number; message: string } };
+
+		assert.deepStrictEqual({
+			errorCode: response.error?.code,
+			errorMessage: response.error?.message,
+			createCalls: agentService.createSessionConfigs.length,
+		}, {
+			errorCode: AhpErrorCodes.SessionAlreadyExists,
+			errorMessage: `Fork target session must differ from source session: ${session}`,
+			createCalls: 0,
 		});
 	});
 
@@ -1239,6 +1295,7 @@ suite('ProtocolServerHandler', () => {
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				logService,
 				telemetryService,
+				managedSettingsService,
 			)));
 		}
 
@@ -1298,6 +1355,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new FailingAgentHostFileSystemProvider()),
 			logService,
 			localTelemetry,
+			managedSettingsService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -1334,6 +1392,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new FailingReconnectAgentHostFileSystemProvider()),
 			logService,
 			localTelemetry,
+			managedSettingsService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(localHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2406,6 +2465,98 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(response.result, agentService.managedSettingsDiagnostics);
 	});
 
+	test('setClientManagedSettingsPermissions validates and attributes contributions to the connected client', async () => {
+		const transport = connectClient('client-managed-settings-contribution');
+		transport.sent.length = 0;
+
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+		}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { allow: ['Shell'] },
+		}));
+		await Promise.resolve();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+	});
+
+	test('scopes managed settings contributions to each protocol handler', () => {
+		const firstTransport = connectClient('shared-client-id');
+		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { ask: ['Shell'] },
+		}));
+
+		const localDisposables = disposables.add(new DisposableStore());
+		const secondServer = localDisposables.add(new MockProtocolServer());
+		const secondHandler = localDisposables.add(new ProtocolServerHandler(
+			agentService,
+			stateManager,
+			secondServer,
+			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			localDisposables.add(new AgentHostFileSystemProvider()),
+			logService,
+			NullTelemetryService,
+			managedSettingsService,
+		));
+		const secondTransport = new MockProtocolTransport();
+		secondServer.simulateConnection(secondTransport);
+		secondTransport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'shared-client-id',
+		}));
+		secondTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+
+		secondTransport.simulateClose();
+		secondHandler.dispose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
+	});
+
+	test('removes managed settings contributions for active and grace clients on dispose', () => {
+		const activeTransport = connectClient('client-managed-settings-active');
+		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { ask: ['Shell'] },
+		}));
+		const graceTransport = connectClient('client-managed-settings-grace');
+		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}));
+		graceTransport.simulateClose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+
+		handler.dispose();
+
+		assert.deepStrictEqual(managedSettingsService.permissions, {});
+	});
+
+	test('removes a managed settings contribution after disconnect grace expires', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const transport = connectClient('client-managed-settings-disconnect');
+			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+				permissions: { ask: ['Shell'] },
+			}));
+			transport.simulateClose();
+
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
+		});
+	});
+
 	test('extension request preserves ProtocolError code and data', async () => {
 		// Override authenticate to throw a ProtocolError with data
 		const origHandler = agentService.authenticate;
@@ -2452,6 +2603,7 @@ suite('ProtocolServerHandler', () => {
 			localDisposables.add(new AgentHostFileSystemProvider()),
 			logService,
 			NullTelemetryService,
+			managedSettingsService,
 		));
 		const counts: number[] = [];
 		localDisposables.add(combinedHandler.onDidChangeConnectionCount(count => counts.push(count)));
@@ -2589,6 +2741,7 @@ suite('ProtocolServerHandler', () => {
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				new NullLogService(),
 				NullTelemetryService,
+				managedSettingsService,
 			));
 		});
 
@@ -2759,6 +2912,7 @@ suite('ProtocolServerHandler', () => {
 				localDisposables.add(new AgentHostFileSystemProvider()),
 				new NullLogService(),
 				NullTelemetryService,
+				managedSettingsService,
 			));
 		});
 
