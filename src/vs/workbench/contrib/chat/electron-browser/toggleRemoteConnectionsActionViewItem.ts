@@ -19,7 +19,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { ITunnelHostService } from '../common/tunnelHost.js';
 import { RENAME_TUNNEL_ID, SHOW_TUNNEL_HOST_OUTPUT_ID } from './tunnelHostService.js';
 
-const TUNNEL_ACCESS_DOCS_URL = 'http://aka.ms/vscode-agent-tunnel-access';
+const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
 
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
@@ -143,7 +143,9 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			}
 			return localize('tunnelHost.hover.enabled', "Remote session access is enabled");
 		}
-		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : 'vscode.dev/agents';
-		return localize('tunnelHost.hover.idle.ariaLabel', "Allow connections from other machines and {0}", agentsUrl);
+		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
+		return agentsUrl
+			? localize('tunnelHost.hover.idle.ariaLabel', "Allow connections from other machines and {0}", agentsUrl.replace(/https?:\/\//, ''))
+			: localize('tunnelHost.hover.idle.ariaLabel.noWebUrl', "Allow connections from other machines");
 	}
 }
