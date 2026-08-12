@@ -8,7 +8,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type StringOrMarkdown, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionGitState, readSessionGitHubState, ResponsePartKind, ToolCallStatus, TurnState, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -944,18 +944,6 @@ export function serializeCurrentSession(currentSession: URI, sessions: readonly 
 	});
 }
 
-function parseListedSessionCount(resultText: string | undefined): number | undefined {
-	if (!resultText) {
-		return undefined;
-	}
-	try {
-		const parsed = JSON.parse(resultText) as { sessions?: unknown };
-		return Array.isArray(parsed.sessions) ? parsed.sessions.length : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
 interface IDeleteSessionArgs {
 	readonly session?: unknown;
 }
@@ -986,24 +974,13 @@ export async function applyDeleteSessionTool(accessor: ISessionServerToolAccesso
 	return `Deleted session ${session.toString()}. Reply with one short sentence confirming the session was deleted.`;
 }
 
-function getSessionToolDisplay(toolName: string, _args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
+function getSessionToolDisplay(toolName: string, _args: unknown, _result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
-		case SessionServerToolName.ListSessions: {
-			let pastTenseMessage: StringOrMarkdown;
-			const count = result ? parseListedSessionCount(result.text) : undefined;
-			if (count === undefined) {
-				pastTenseMessage = localize('toolComplete.listSessions', "Checked sessions");
-			} else if (count === 1) {
-				pastTenseMessage = localize('toolComplete.listSessions.one', "Checked 1 session");
-			} else {
-				pastTenseMessage = localize('toolComplete.listSessions.many', "Checked {0} sessions", count);
-			}
+		case SessionServerToolName.ListSessions:
 			return {
 				displayName: localize('toolName.listSessions', "List Sessions"),
-				invocationMessage: localize('toolInvoke.listSessions', "Checking sessions"),
-				pastTenseMessage,
+				invocationMessage: localize('toolInvoke.listSessions', "List sessions"),
 			};
-		}
 		case SessionServerToolName.CreateSession:
 			return {
 				displayName: localize('toolName.createSession', "Create Session"),
@@ -1013,26 +990,22 @@ function getSessionToolDisplay(toolName: string, _args: unknown, result?: IServe
 		case SessionServerToolName.CreateChat:
 			return {
 				displayName: localize('toolName.createChat', "Create Chat"),
-				invocationMessage: localize('toolInvoke.createChat', "Creating chat"),
-				pastTenseMessage: localize('toolComplete.createChat', "Created chat"),
+				invocationMessage: localize('toolInvoke.createChat', "Create chat"),
 			};
 		case SessionServerToolName.SendMessage:
 			return {
 				displayName: localize('toolName.sendMessage', "Send Message"),
-				invocationMessage: localize('toolInvoke.sendMessage', "Sending message"),
-				pastTenseMessage: localize('toolComplete.sendMessage', "Sent message"),
+				invocationMessage: localize('toolInvoke.sendMessage', "Send message"),
 			};
 		case SessionServerToolName.GetSessionContext:
 			return {
 				displayName: localize('toolName.getSessionContext', "Get Session Context"),
-				invocationMessage: localize('toolInvoke.getSessionContext', "Reading session context"),
-				pastTenseMessage: localize('toolComplete.getSessionContext', "Read session context"),
+				invocationMessage: localize('toolInvoke.getSessionContext', "Read session context"),
 			};
 		case SessionServerToolName.GetCurrentSession:
 			return {
 				displayName: localize('toolName.getCurrentSession', "Get Current Session"),
-				invocationMessage: localize('toolInvoke.getCurrentSession', "Checking current session"),
-				pastTenseMessage: localize('toolComplete.getCurrentSession', "Checked current session"),
+				invocationMessage: localize('toolInvoke.getCurrentSession', "Get current session"),
 			};
 		case SessionServerToolName.DeleteSession:
 			return {

@@ -210,6 +210,7 @@ function shellToolCallPart(item: CommandExecutionItem, command: string): ToolCal
 
 function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>): ToolCallResponsePart {
 	const query = describeWebSearch(item.query, item.action);
+	const invocationMessage = `Searching the web for ${query}`;
 	return {
 		kind: ResponsePartKind.ToolCall,
 		toolCall: {
@@ -218,11 +219,11 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 			toolName: 'web_search',
 			displayName: 'Web search',
 			_meta: toToolCallMeta({ toolKind: 'search' }),
-			invocationMessage: query,
+			invocationMessage,
 			toolInput: query,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: true,
-			pastTenseMessage: `Searched ${query}`,
+			pastTenseMessage: `Searched the web for ${query}`,
 		},
 	};
 }
@@ -241,7 +242,7 @@ function fileChangeToolCallPart(item: Extract<ThreadItem, { type: 'fileChange' }
 			invocationMessage: summary,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success,
-			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
+			pastTenseMessage: success ? summary : 'Failed to apply file changes',
 			content: textContent(output),
 			error: success ? undefined : { message: `Patch ${item.status}` },
 		},

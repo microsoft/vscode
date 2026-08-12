@@ -10,9 +10,8 @@ import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
 /**
  * Result of a server tool, passed to {@link IServerToolGroup.getDisplay} so the
- * owning group can tailor its past-tense message to what the tool returned
- * (for example a count parsed from the textual result). Absent while the tool
- * is still running.
+ * owning group can tailor its completion message to what the tool returned.
+ * Absent while the tool is still running.
  */
 export interface IServerToolDisplayResult {
 	/** The textual tool result (the string the group's `execute` returned). */
@@ -31,9 +30,9 @@ export interface IServerToolDisplayResult {
 export interface IServerToolDisplay {
 	/** Human-readable tool name (e.g. "List Comments"). */
 	readonly displayName?: string;
-	/** Present-tense message shown while the tool runs (e.g. "Checking comments"). */
+	/** Message shown while the tool runs (e.g. "List comments"). */
 	readonly invocationMessage?: StringOrMarkdown;
-	/** Past-tense message shown once the tool completes (e.g. "Checked 3 comments"). */
+	/** Message shown once the tool completes; fast tools should reuse the invocation message. */
 	readonly pastTenseMessage?: StringOrMarkdown;
 }
 
