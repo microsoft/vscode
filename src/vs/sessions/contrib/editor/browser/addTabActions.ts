@@ -16,7 +16,7 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/browser/searchEditorActions.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -37,8 +37,7 @@ const addTabActionWhen = ContextKeyExpr.and(
 
 const addTabLayoutWhen = ContextKeyExpr.and(
 	addTabActionWhen,
-	IsTopRightEditorGroupContext,
-	MainEditorAreaVisibleContext);
+	IsTopRightEditorGroupContext);
 
 const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
 

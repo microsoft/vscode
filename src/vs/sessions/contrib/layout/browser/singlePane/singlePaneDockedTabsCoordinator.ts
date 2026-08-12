@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Sequencer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -14,7 +16,7 @@ import { EditorActivation, IEditorOptions } from '../../../../../platform/editor
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../../../workbench/common/editor.js';
+import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from '../../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -23,11 +25,10 @@ import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContex
 import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISinglePaneLayoutContext, SinglePaneDockedTabsCoordinator, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
+import { ISinglePaneLayoutContext } from './singlePaneLayoutStrategy.js';
 
 /** Options to open the Changes tab pinned first, inactive (the workbench auto-activates it only when the group is empty). */
 const CHANGES_TAB_OPTIONS: IEditorOptions = { pinned: true, index: 0, inactive: true, preserveFocus: true, activation: EditorActivation.PRESERVE, isExplicit: false };
@@ -40,11 +41,11 @@ const FILES_TAB_OPTIONS: IEditorOptions = { pinned: true, inactive: true, preser
 
 /**
  * What the active session wants from its managed docked tabs.
- *  - `changesSessionResource`: set for any workspace session (the Changes multi-diff tab). `undefined` otherwise.
- *  - `wantsChangesTab`: `true` for any workspace, non-quick-chat session.
+ *  - `changesSessionResource`: set for a created workspace session (the Changes multi-diff tab). `undefined` otherwise.
+ *  - `wantsChangesTab`: `true` for a created workspace session.
  *  - `wantsFilesTab`: `true` for any workspace, non-quick-chat session (the empty Files placeholder tab).
  */
-interface IManagedTabsTarget {
+export interface IManagedTabsTarget {
 	readonly changesSessionResource: URI | undefined;
 	readonly workspace: ISessionWorkspace | undefined;
 	readonly wantsChangesTab: boolean;
@@ -53,9 +54,10 @@ interface IManagedTabsTarget {
 
 /**
  * Why a reconcile was queued — which "ensure" actions it may take. All default to
- * `false`; each is set by exactly one trigger (see the constructor).
+ * `false`; each is set by exactly one caller (the New/Existing lifecycle strategies, or one
+ * of this coordinator's own ambient triggers).
  */
-interface IReconcileTrigger {
+export interface IReconcileTrigger {
 	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
 	readonly openDefaultsIfEmpty?: boolean;
 	/** Ensure the Changes tab, inactive, when a new-session view becomes eligible or finishes restoring. */
@@ -81,22 +83,33 @@ interface IPendingReconcile {
 }
 
 /**
- * Owns the two managed docked tabs — the pinned Changes multi-diff tab and the
- * empty Files placeholder tab for workspace sessions. See
- * `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
+ * Owns the two managed docked tabs (the pinned Changes multi-diff tab and the empty Files
+ * placeholder tab for workspace sessions) and the detail-only editor-area collapse. Shared
+ * (not a strategy) because both belong to one reconcile pipeline that must stay single-instance
+ * across the New→Existing submit transition — see `SinglePaneLayoutStrategy`'s doc comment.
+ * Owned and disposed by {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}.
+ * `SinglePaneNewSessionStrategy` supplies its own supplementary reconcile intents via
+ * {@link queueReconcile}; `SinglePaneQuickChatStrategy` never wants managed tabs, so it never
+ * calls in — the ambient session-change trigger below reconciles them away on its own.
+ *
+ * See `SINGLE_PANE_SCENARIOS.md` for the full reconcile rules.
  */
-export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
+export class SinglePaneDockedTabsCoordinator extends Disposable {
+
+	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
+	private _collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;
+	private readonly _sequencer = new Sequencer();
 
 	private _generation = 0;
 	private _lastSyncedSessionKey: string | undefined;
 
-	// The pending reconcile intents, **scoped to the session they were queued
-	// for**. Multiple triggers can fire for one logical event on the same session
-	// (e.g. submit fires [Trigger A] and, via the submit restore, [Trigger D]);
-	// their intents are accumulated so the single surviving (latest-generation)
-	// reconcile applies all of them. Scoping to `sessionKey` ensures a trigger
-	// queued for one session is never merged into — nor applied to — a different
-	// session it was superseded by (a session switch drops the stale intents).
+	// The pending reconcile intents, **scoped to the session they were queued for**. Multiple
+	// triggers can fire for one logical event on the same session (e.g. submit fires the
+	// ambient session-change trigger and, via the submit restore, the settled-restore trigger);
+	// their intents are accumulated so the single surviving (latest-generation) reconcile
+	// applies all of them. Scoping to `sessionKey` ensures a trigger queued for one session is
+	// never merged into — nor applied to — a different session it was superseded by (a session
+	// switch drops the stale intents).
 	private _pending: IPendingReconcile | undefined;
 
 	private readonly _changesTabMissingContext: IContextKey<boolean>;
@@ -104,9 +117,11 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 	private readonly _changesTabAvailableContext: IContextKey<boolean>;
 	private readonly _filesTabAvailableContext: IContextKey<boolean>;
 
+	/** Last observed editor-area visibility, to act only on transitions. */
+	private _editorAreaVisible: boolean | undefined;
+
 	constructor(
-		ctx: ISinglePaneLayoutContext,
-		private readonly _coordinator: SinglePaneDockedTabsCoordinator,
+		private readonly _ctx: ISinglePaneLayoutContext,
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -116,84 +131,58 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(ctx);
+		super();
 
 		this._changesTabMissingContext = SinglePaneChangesTabMissingContext.bindTo(contextKeyService);
 		this._filesTabMissingContext = SinglePaneFilesTabMissingContext.bindTo(contextKeyService);
 		this._changesTabAvailableContext = SinglePaneChangesTabAvailableContext.bindTo(contextKeyService);
 		this._filesTabAvailableContext = SinglePaneFilesTabAvailableContext.bindTo(contextKeyService);
 
-		// [Trigger A] Session switch / created transition. A submit (uncreated →
-		// created) additionally opens the Changes tab active even though the group
-		// already holds the Files placeholder.
-		let previousIsCreated: boolean | undefined;
-		let previousSessionKey: string | undefined;
-		let previousWantsChangesTab = false;
-		let previousSession: IActiveSession | undefined;
-		let changesActivationPendingForSession: string | undefined;
+		// [Ambient trigger] Session switch / created transition, kind-agnostic (fires for New,
+		// Existing, and Quick Chat alike — a quick chat's target wants neither tab, so this
+		// reconciles any stray managed tabs away). The New/Existing-specific "ensure the
+		// Changes tab" nuances are supplied by those strategies via `queueReconcile`.
 		this._register(autorun(reader => {
-			const session = this._sessionsService.activeSession.read(reader);
-			const isCreated = session ? session.isCreated.read(reader) : false;
-			const sessionKey = session?.resource.toString();
 			const target = this._readTarget(reader);
-			const isSubmit = previousIsCreated === false && isCreated
-				&& (previousSession === session || previousSession?.isCreated.read(undefined) === true);
-			if (isSubmit) {
-				changesActivationPendingForSession = sessionKey;
-			} else if (sessionKey !== previousSessionKey) {
-				changesActivationPendingForSession = undefined;
-			}
-			const hasChanges = (session?.changes.read(reader).length ?? 0) > 0;
-			const ensureChangesActive = changesActivationPendingForSession === sessionKey && hasChanges;
-			if (ensureChangesActive) {
-				changesActivationPendingForSession = undefined;
-			}
-			const ensureChanges = !isCreated && target.wantsChangesTab
-				&& (sessionKey !== previousSessionKey || !previousWantsChangesTab);
-			previousIsCreated = session ? isCreated : undefined;
-			previousSession = session;
-			previousSessionKey = sessionKey;
-			previousWantsChangesTab = target.wantsChangesTab;
-			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, ensureChangesActive });
+			this.queueReconcile(target, { openDefaultsIfEmpty: true });
 		}));
 
-		// [Trigger B] The user opened the side pane.
+		// [Ambient trigger] The user opened the side pane.
 		this._register(this._layoutService.onDidRevealSidePane(() => {
-			this._queueReconcile(this._readTarget(undefined), { openDefaultsIfEmpty: true });
+			this.queueReconcile(this._readTarget(undefined), { openDefaultsIfEmpty: true });
 		}));
 
-		// [Trigger C] Editor list / side-pane visibility change. This tidies the
-		// tabs (removing the redundant Files placeholder while a real file is open)
-		// but must not open the defaults — a user file open/close is not a view-open
-		// moment, so closing the last tab still closes the side pane. The
-		// layout-driven add (a working-set apply during a switch, which empties the
-		// group) is handled by [Trigger D] on the *settled* restore, not here — the
-		// editor change fires *during* the async apply, racing the empty state.
+		// [Ambient trigger] Editor list / side-pane visibility change. This tidies the tabs
+		// (removing the redundant Files placeholder while a real file is open) but must not
+		// open the defaults — a user file open/close is not a view-open moment, so closing the
+		// last tab still closes the side pane. The layout-driven add (a working-set apply
+		// during a switch, which empties the group) is handled by the settled-restore trigger
+		// below, not here — the editor change fires *during* the async apply, racing the empty
+		// state.
 		const partVisibilityChangedSignal = observableSignalFromEvent(this, this._layoutService.onDidChangePartVisibility);
 		const editorsChangedSignal = observableSignalFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange));
 		this._register(autorun(reader => {
 			partVisibilityChangedSignal.read(reader);
 			editorsChangedSignal.read(reader);
-			this._queueReconcile(this._readTarget(undefined), {});
+			this.queueReconcile(this._readTarget(undefined), {});
 		}));
 
-		// [Trigger D] Reconcile after the session-switch working set has fully settled.
+		// [Ambient trigger] Reconcile after the session-switch working set has fully settled.
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
 			const session = this._sessionsService.activeSession.get();
 			const target = this._readTarget(undefined);
 			const ensureChanges = target.wantsChangesTab && session?.isCreated.get() === false;
-			this._queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges });
+			this.queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges });
 		}));
 
-		// [Tidy strip] Opening a real workspace file makes the empty Files
-		// placeholder redundant, so remove it (a tidy `[Changes][file]` strip).
-		// This is a **one-shot reaction to a genuinely new file open**, not a
-		// standing rule: the user can still add the Files tab via `+` while a file
-		// is open (that opens an EmptyFileEditorInput, not a real file, so it is
-		// not removed). Skipped when the editor is merely *re-activated* (selecting
-		// an already-open file, or a close revealing the next editor — both fire
-		// `onWillOpenEditor` while the editor is already in the group), when it
-		// targets a non-main-part group, or during a restore-driven open.
+		// [Tidy strip] Opening a real workspace file makes the empty Files placeholder
+		// redundant, so remove it (a tidy `[Changes][file]` strip). This is a **one-shot
+		// reaction to a genuinely new file open**, not a standing rule: the user can still add
+		// the Files tab via `+` while a file is open (that opens an EmptyFileEditorInput, not a
+		// real file, so it is not removed). Skipped when the editor is merely *re-activated*
+		// (selecting an already-open file, or a close revealing the next editor — both fire
+		// `onWillOpenEditor` while the editor is already in the group), when it targets a
+		// non-main-part group, or during a restore-driven open.
 		this._register(this._editorService.onWillOpenEditor(e => {
 			if (this._ctx.isRestoringSessionLayout || !this._isWorkspaceFileEditor(e.editor)) {
 				return;
@@ -202,11 +191,81 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			if (!group || group.contains(e.editor)) {
 				return;
 			}
-			void this._coordinator.sequencer.queue(() => this._removeFilesTab(this._editorGroupsService.mainPart.activeGroup)).catch(onUnexpectedError);
+			void this._sequencer.queue(() => this._removeFilesTab(this._editorGroupsService.mainPart.activeGroup)).catch(onUnexpectedError);
+		}));
+
+		// [Editor-area collapse] When the editor area is hidden **while the detail panel (aux
+		// bar) stays open** — a detail-only collapse — close every non-docked editor so only
+		// the docked Changes/Files tabs remain. Closing the **whole side pane** (both the
+		// editor area and the aux bar) is *not* a collapse — editors are left untouched so they
+		// are still there when the side pane is reopened. Kind-agnostic: applies the same way
+		// whether the detail-only state belongs to a New Session or an Existing Session.
+		const editorAreaVisibleObs = observableSignalFromEvent(this, this._layoutService.onDidChangePartVisibility);
+		this._register(autorun(reader => {
+			editorAreaVisibleObs.read(reader);
+			const visible = this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
+			if (this._editorAreaVisible === undefined) {
+				this._editorAreaVisible = visible;
+				return;
+			}
+			if (visible === this._editorAreaVisible) {
+				return;
+			}
+			this._editorAreaVisible = visible;
+
+			// Session-switch restores toggle editor-area visibility as a side effect; those
+			// are layout-driven, not a user hide/show, so skip them.
+			if (this._ctx.isRestoringSessionLayout) {
+				return;
+			}
+
+			if (visible) {
+				void this._sequencer.queue(() => this._restoreCollapsedTabs()).catch(onUnexpectedError);
+				return;
+			}
+
+			// Only collapse on a **detail-only** hide (editor closed, detail kept). Closing the
+			// whole side pane hides the aux bar too (the toggle hides it *before* the editor,
+			// so it is already hidden here) — leave the editors open so they return when the
+			// side pane is reopened.
+			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				void this._sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
+			}
+		}));
+
+		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
+		this._register(this._editorService.onDidEditorsChange(() => {
+			if (!this._ctx.isRestoringSessionLayout) {
+				this._queueCollapseIfDetailsOnly();
+			}
 		}));
 	}
 
-	// --- Trigger plumbing -------------------------------------------------
+	/** The resource this managed Changes editor input shows, if it is one. */
+	getChangesEditorResource(editor: EditorInput): URI | undefined {
+		const resource = editor.resource;
+		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
+	}
+
+	// --- Trigger plumbing (called by the New/Existing lifecycle strategies) -----------------
+
+	/** Reads the current managed-tabs target for the active session (or for `reader`'s transaction, if given). */
+	readTarget(reader: IReader | undefined): IManagedTabsTarget {
+		return this._readTarget(reader);
+	}
+
+	/** Queues a reconcile for the active session, merging `trigger` with any not-yet-applied pending intents for that session. */
+	queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
+		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		// Accumulate intents only within the same session; a session switch drops the previous
+		// session's pending intents (and takes the latest target).
+		const mergedTrigger = this._pending && this._pending.sessionKey === sessionKey
+			? mergeTriggers(this._pending.trigger, trigger)
+			: trigger;
+		this._pending = { sessionKey, target, trigger: mergedTrigger };
+		const generation = ++this._generation;
+		void this._sequencer.queue(() => this._reconcile(generation)).catch(onUnexpectedError);
+	}
 
 	private _readTarget(reader: IReader | undefined): IManagedTabsTarget {
 		const read = <T>(obs: IObservable<T>): T => reader ? obs.read(reader) : obs.get();
@@ -216,19 +275,8 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 		if (!session || isQuickChat || !workspace) {
 			return { changesSessionResource: undefined, workspace: undefined, wantsChangesTab: false, wantsFilesTab: false };
 		}
-		return { changesSessionResource: session.resource, workspace, wantsChangesTab: true, wantsFilesTab: true };
-	}
-
-	private _queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
-		// Accumulate intents only within the same session; a session switch drops
-		// the previous session's pending intents (and takes the latest target).
-		const mergedTrigger = this._pending && this._pending.sessionKey === sessionKey
-			? mergeTriggers(this._pending.trigger, trigger)
-			: trigger;
-		this._pending = { sessionKey, target, trigger: mergedTrigger };
-		const generation = ++this._generation;
-		void this._coordinator.sequencer.queue(() => this._reconcile(generation)).catch(onUnexpectedError);
+		const isCreated = read(session.isCreated);
+		return { changesSessionResource: isCreated ? session.resource : undefined, workspace, wantsChangesTab: isCreated, wantsFilesTab: true };
 	}
 
 	// --- Reconcile --------------------------------------------------------
@@ -238,17 +286,16 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			return;
 		}
 
-		// Consume the accumulated intents. If this reconcile is superseded mid-run,
-		// the finally block hands them back — but only if the successor is for the
-		// *same* session, so intents never leak across a session switch.
+		// Consume the accumulated intents. If this reconcile is superseded mid-run, the finally
+		// block hands them back — but only if the successor is for the *same* session, so
+		// intents never leak across a session switch.
 		const pending = this._pending;
 		this._pending = undefined;
 		try {
 			await this._reconcileCore(pending.target, pending.trigger, generation);
 		} finally {
-			// If a newer reconcile superseded this one, hand our intents to it — but
-			// only when it targets the same session, so intents never leak across a
-			// session switch.
+			// If a newer reconcile superseded this one, hand our intents to it — but only when
+			// it targets the same session, so intents never leak across a session switch.
 			const successor = this._pending as IPendingReconcile | undefined;
 			if (generation !== this._generation && successor && successor.sessionKey === pending.sessionKey) {
 				this._pending = { ...successor, trigger: mergeTriggers(successor.trigger, pending.trigger) };
@@ -262,14 +309,13 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 		const changesResource = target.changesSessionResource ? this._sessionChangesService.getChangesEditorResource(target.changesSessionResource) : undefined;
 
-		// Reconciling can transiently empty the group (e.g. closing a stale Changes
-		// tab). Suppress editor-part auto-visibility across the whole operation so a
-		// transient empty group is never mistaken for the user closing all tabs
-		// (which would close the side pane).
+		// Reconciling can transiently empty the group (e.g. closing a stale Changes tab).
+		// Suppress editor-part auto-visibility across the whole operation so a transient empty
+		// group is never mistaken for the user closing all tabs (which would close the side pane).
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
-			// [1] Close stale/foreign Changes editors. Compute the empty-group ensure
-			// only after this, so a group left empty by the cleanup counts as empty.
+			// [1] Close stale/foreign Changes editors. Compute the empty-group ensure only
+			// after this, so a group left empty by the cleanup counts as empty.
 			await this._closeForeignChangesEditors(group, changesResource);
 			if (generation !== this._generation) {
 				return;
@@ -280,7 +326,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
-			const activeChangesResource = this._editorService.activeEditor && this._coordinator.getChangesEditorResource(this._editorService.activeEditor);
+			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
 			const activateChanges = !!trigger.ensureChangesActive && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
 			const ensureAllInputs = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 				&& !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
@@ -324,7 +370,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 	private _resetCollapsedEditorsOnSessionChange(): void {
 		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
 		if (sessionKey !== this._lastSyncedSessionKey) {
-			this._coordinator.collapsedEditors = undefined;
+			this._collapsedEditors = undefined;
 			this._lastSyncedSessionKey = sessionKey;
 		}
 	}
@@ -363,7 +409,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 	private async _closeForeignChangesEditors(group: IEditorGroup, activeChangesResource: URI | undefined): Promise<void> {
 		const foreign = group.editors.filter(editor => {
-			const resource = this._coordinator.getChangesEditorResource(editor);
+			const resource = this.getChangesEditorResource(editor);
 			return resource && (!activeChangesResource || !isEqual(resource, activeChangesResource));
 		});
 		if (foreign.length > 0) {
@@ -397,7 +443,7 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 
 	private _findChangesEditor(group: IEditorGroup, changesResource: URI): EditorInput | undefined {
 		return group.editors.find(editor => {
-			const resource = this._coordinator.getChangesEditorResource(editor);
+			const resource = this.getChangesEditorResource(editor);
 			return !!resource && isEqual(resource, changesResource);
 		});
 	}
@@ -414,11 +460,70 @@ export class SinglePaneManagedTabsStrategy extends SinglePaneLayoutStrategy {
 	/** Offer the `+` "Changes"/"Files" entries when the session supports them but their tabs are closed. */
 	private _updateAddTabContexts(target: IManagedTabsTarget): void {
 		const group = this._editorGroupsService.mainPart.activeGroup;
-		const changesPresent = group.editors.some(editor => this._coordinator.getChangesEditorResource(editor) !== undefined);
+		const changesPresent = group.editors.some(editor => this.getChangesEditorResource(editor) !== undefined);
 		const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
 		this._changesTabAvailableContext.set(target.wantsChangesTab);
 		this._filesTabAvailableContext.set(target.wantsFilesTab);
 		this._changesTabMissingContext.set(target.wantsChangesTab && !changesPresent);
 		this._filesTabMissingContext.set(target.wantsFilesTab && !filesPresent);
+	}
+
+	// --- Editor-area collapse ----------------------------------------------
+
+	private _queueCollapseIfDetailsOnly(): void {
+		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			void this._sequencer.queue(() => this._collapseNonManagedTabs()).catch(onUnexpectedError);
+		}
+	}
+
+	private async _collapseNonManagedTabs(): Promise<void> {
+		const group = this._editorGroupsService.mainPart.activeGroup;
+		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditors ?? [])];
+		const toClose: EditorInput[] = [];
+		group.editors.forEach((editor, index) => {
+			if (editor instanceof DockedEditorInput || this.getChangesEditorResource(editor)) {
+				return;
+			}
+			// Capture editors that can be reopened so they are restored when the editor area is
+			// shown again; the rest are still closed but not restored.
+			const untyped = editor.toUntyped();
+			if (untyped) {
+				captured.push({ editor: untyped, index });
+			}
+			toClose.push(editor);
+		});
+		if (toClose.length === 0) {
+			return;
+		}
+
+		this._collapsedEditors = captured;
+		const suppressEditorPartAutoVisibility = this._layoutService.suppressEditorPartAutoVisibility();
+		try {
+			await this._editorService.closeEditors(toClose.map(editor => ({ groupId: group.id, editor })), { preserveFocus: true });
+		} finally {
+			suppressEditorPartAutoVisibility.dispose();
+		}
+	}
+
+	private async _restoreCollapsedTabs(): Promise<void> {
+		const captured = this._collapsedEditors;
+		this._collapsedEditors = undefined;
+		if (!captured || captured.length === 0) {
+			return;
+		}
+
+		const group = this._editorGroupsService.mainPart.activeGroup;
+		const suppressEditorPartAutoVisibility = this._layoutService.suppressEditorPartAutoVisibility();
+		try {
+			// Reopen in ascending index order, each at its original tab position, so the tabs
+			// return to where they were before the editor area was hidden.
+			await this._editorService.openEditors(
+				[...captured]
+					.sort((a, b) => a.index - b.index)
+					.map(({ editor, index }) => ({ ...editor, options: { ...editor.options, index, inactive: true, preserveFocus: true, pinned: true } })),
+				group);
+		} finally {
+			suppressEditorPartAutoVisibility.dispose();
+		}
 	}
 }

@@ -30,7 +30,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
 import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
@@ -107,8 +107,8 @@ suite('Sessions - Editor Contribution', () => {
 		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
 	});
 
-	test('single-title Add Tab menu keeps supported managed editors visible', () => {
-		const getWhen = (action: NewFileTabAction | NewChangesTabAction): ContextKeyExpression => {
+	test('Add Tab menu stays available in dock-only mode', () => {
+		const getWhen = (action: NewFileTabAction | NewChangesTabAction | NewSearchTabAction): ContextKeyExpression => {
 			const menu = action.desc.menu;
 			const item = Array.isArray(menu) ? menu[0] : menu;
 			assert.ok(item?.when);
@@ -121,7 +121,6 @@ suite('Sessions - Editor Contribution', () => {
 			[IsSessionsWindowContext.key]: true,
 			[IsAuxiliaryWindowContext.key]: false,
 			[IsTopRightEditorGroupContext.key]: true,
-			[MainEditorAreaVisibleContext.key]: true,
 		};
 		const scenarios = (availableKey: string, missingKey: string) => {
 			const when = availableKey === SinglePaneFilesTabAvailableContext.key
@@ -131,6 +130,7 @@ suite('Sessions - Editor Contribution', () => {
 				singleTabAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: true, [missingKey]: false }),
 				multipleTabsAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: false }),
 				multipleTabsMissing: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: true }),
+				dockOnlyMissing: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: true }),
 				unsupported: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: false, [missingKey]: true }),
 			};
 		};
@@ -138,9 +138,11 @@ suite('Sessions - Editor Contribution', () => {
 		assert.deepStrictEqual({
 			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
 			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
+			searchInDockOnly: evaluate(getWhen(new NewSearchTabAction()), baseContext),
 		}, {
-			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
-			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
+			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
+			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
+			searchInDockOnly: true,
 		});
 	});
 

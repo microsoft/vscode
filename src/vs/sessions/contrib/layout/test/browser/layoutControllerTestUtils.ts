@@ -178,7 +178,8 @@ export interface ITestLayoutHarness {
 	onDidChangeEditorMaximized: Emitter<void>;
 	onDidActiveEditorChange: Emitter<void>;
 	onWillOpenEditor: Emitter<IEditorWillOpenEvent>;
-	onDidCloseEditor: Emitter<{ editor: EditorInput }>;
+	onWillCloseEditor: Emitter<{ editor: EditorInput }>;
+	onDidCloseEditor: Emitter<{ editor: EditorInput; groupId?: number }>;
 	onDidEditorsChange: Emitter<void>;
 	onDidLayoutMainContainer: Emitter<IDimension>;
 	onDidChangeViewContainerVisibility: Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>;
@@ -291,7 +292,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
 		onDidActiveEditorChange: store.add(new Emitter<void>()),
 		onWillOpenEditor: store.add(new Emitter<IEditorWillOpenEvent>()),
-		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
+		onWillCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
+		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput; groupId?: number }>()),
 		onDidEditorsChange: store.add(new Emitter<void>()),
 		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
 		onDidChangeViewContainerVisibility: store.add(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>()),
@@ -338,6 +340,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	const testActiveGroup: IEditorGroup = new class extends mock<IEditorGroup>() {
 		override readonly id = 1;
 		override get editors() { return harness.activeGroupEditors as IEditorGroup['editors']; }
+		override readonly onWillCloseEditor = harness.onWillCloseEditor.event as IEditorGroup['onWillCloseEditor'];
 		override get count() { return harness.activeGroupEditors.length; }
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
 		override contains(editor: EditorInput) { return harness.activeGroupEditors.includes(editor as EditorInput); }
@@ -577,6 +580,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				} else {
 					harness.activeGroupEditors.push(store.add(editor));
 				}
+				harness.onDidEditorsChange.fire();
 			}
 			return undefined;
 		}
@@ -598,14 +602,21 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		override async closeEditors(editors: readonly { editor: EditorInput }[], options?: ICloseEditorOptions): Promise<void> {
 			await harness.onCloseEditors?.();
+			let didClose = false;
 			for (const { editor } of editors) {
 				const index = harness.activeGroupEditors.indexOf(editor);
 				if (index !== -1) {
+					didClose = true;
+					harness.onWillCloseEditor.fire({ editor });
 					harness.closeSuppressionFlags.push(harness.editorPartAutoVisibilitySuppressionDepth > 0);
 					harness.closeForceFlags.push(options?.force === true);
 					harness.activeGroupEditors.splice(index, 1);
 					harness.closedEditors.push(editor);
+					harness.onDidCloseEditor.fire({ editor, groupId: 1 });
 				}
+			}
+			if (didClose) {
+				harness.onDidEditorsChange.fire();
 			}
 		}
 	});
@@ -617,9 +628,16 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				override get groups() { return groups; }
 				override get activeGroup() { return testActiveGroup; }
 				override getGroup(id: number) { return id === testActiveGroup.id ? testActiveGroup : undefined; }
+				override readonly onDidAddGroup = Event.None;
 			};
 		}
-		override get groups() { return [{ isEmpty: !harness.editorGroupsHaveContent }] as unknown as IEditorGroupsService['groups']; }
+		override get groups() {
+			return [{
+				isEmpty: !harness.editorGroupsHaveContent,
+				editors: harness.activeGroupEditors,
+				onWillCloseEditor: harness.onWillCloseEditor.event,
+			}] as unknown as IEditorGroupsService['groups'];
+		}
 		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
