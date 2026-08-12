@@ -674,6 +674,28 @@ suite('Response', () => {
 		});
 	});
 
+	test('system notification keeps streaming tool progress at the response tail', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ kind: 'markdownContent', content: new MarkdownString('Checking the workspace.') });
+		response.updateContent(ChatToolInvocation.createStreaming({
+			toolCallId: 'tool-call-1',
+			toolId: 'view',
+			toolData: {
+				id: 'view',
+				modelDescription: 'Read a file',
+				displayName: 'Reading',
+				source: ToolDataSource.Internal,
+			},
+		}));
+		response.updateContent({ kind: 'systemNotification', content: new MarkdownString('Background agent completed') });
+
+		assert.deepStrictEqual(response.value.map(part => part.kind), [
+			'markdownContent',
+			'systemNotification',
+			'toolInvocation',
+		]);
+	});
+
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });

@@ -889,6 +889,19 @@ export class Response extends AbstractResponse implements IDisposable {
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
 			this._contentChanged(quiet);
+		} else if (progress.kind === 'systemNotification') {
+			const lastStreamingToolIndex = this._responseParts.findLastIndex(part =>
+				part.kind === 'toolInvocation'
+				&& IChatToolInvocation.isStreaming(part)
+				&& !IChatToolInvocation.isEffectivelyHidden(part)
+			);
+			if (lastStreamingToolIndex === -1) {
+				this._responseParts.push(progress);
+			} else {
+				// Keep the live foreground tool at the visual tail when a side-channel notification arrives.
+				this._responseParts.splice(lastStreamingToolIndex, 0, progress);
+			}
+			this._contentChanged(quiet);
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.

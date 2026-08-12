@@ -872,12 +872,29 @@ suite('ChatListRenderer', () => {
 			subAgentInvocationId: 'subagent-1',
 			toolSpecificData: undefined,
 		};
+		const secondParentSubagent: IChatToolInvocationSerialized = {
+			...parentSubagent,
+			toolCallId: 'subagent-2',
+			toolSpecificData: { kind: 'subagent', description: 'Review tests', isActive: true },
+		};
+		const secondChildTool: IChatToolInvocationSerialized = {
+			...childTool,
+			toolCallId: 'child-2',
+			subAgentInvocationId: 'subagent-2',
+		};
 		const parts: IChatRendererContent[] = [
 			{ kind: 'references', references: [] },
 			parentSubagent,
 			childTool,
 			{ kind: 'markdownContent', content: { value: '<vscode_codeblock_uri subAgentInvocationId="subagent-1">file:///test.txt</vscode_codeblock_uri>' } },
 			{ kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' },
+		];
+		const parallelSubagentParts: IChatRendererContent[] = [
+			{ kind: 'references', references: [] },
+			parentSubagent,
+			childTool,
+			secondParentSubagent,
+			secondChildTool,
 		];
 
 		assert.deepStrictEqual({
@@ -886,12 +903,21 @@ suite('ChatListRenderer', () => {
 			endsWithSubagentHook: endsWithActiveSubagentContent(parts),
 			endsWithSubagentChildTool: endsWithActiveSubagentContent(parts.slice(0, 3)),
 			endsWithParentSubagentTool: endsWithActiveSubagentContent(parts.slice(0, 2)),
+			endsWithParallelSubagents: endsWithActiveSubagentContent(parallelSubagentParts),
+			endsWithParentMarkdownBeforeNestedUpdates: endsWithActiveSubagentContent([
+				...parallelSubagentParts,
+				{ kind: 'markdownContent', content: { value: 'Waiting on the remaining reviewers.' } },
+				{ ...childTool, toolCallId: 'child-3' },
+				{ kind: 'hook', hookType: 'PostToolUse', subAgentInvocationId: 'subagent-2' },
+			]),
 		}, {
 			relevantParts: ['references'],
 			endsWithTaggedMarkdown: true,
 			endsWithSubagentHook: true,
 			endsWithSubagentChildTool: true,
 			endsWithParentSubagentTool: true,
+			endsWithParallelSubagents: true,
+			endsWithParentMarkdownBeforeNestedUpdates: false,
 		});
 
 		parentSubagent.toolSpecificData = { kind: 'subagent', description: 'Investigate', isActive: false };
