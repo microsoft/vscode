@@ -44,6 +44,10 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	private _slotElement: HTMLElement | undefined;
 	protected _triggerElement: HTMLElement | undefined;
 
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._triggerElement ? [this._triggerElement] : [];
+	}
+
 	protected abstract readonly _property: string;
 	protected abstract readonly _pickerId: string;
 	protected abstract readonly _telemetryId: string;
@@ -81,7 +85,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		this._slotElement = slot;
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.tabIndex = 0;
+		trigger.tabIndex = -1;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getActiveContext()?.tooltip ?? '' })));
@@ -148,6 +152,10 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
 		return this._showPicker(anchor, onHide);
+	}
+
+	openPicker(): void {
+		this._showPicker();
 	}
 
 	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {

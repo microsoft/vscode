@@ -7,7 +7,7 @@ import { getActiveWindow } from '../../../../../../../base/browser/dom.js';
 import { IManagedHoverContent } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { HorizontalRovingActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAnchor } from '../../../../../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -88,7 +88,7 @@ export interface IModelPickerDelegate {
  * Wraps a {@link ModelPickerWidget} and adapts it for use in an action bar,
  * providing curated model suggestions, upgrade prompts, and grouped layout.
  */
-export class ModelPickerActionItem extends BaseActionViewItem {
+export class ModelPickerActionItem extends HorizontalRovingActionViewItem {
 	private readonly _pickerWidget: ModelPickerWidget;
 	private readonly _managedHover = this._register(new MutableDisposable());
 
@@ -115,13 +115,23 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 		// Sync widget → delegate when user picks a model
 		this._register(this._pickerWidget.onDidChangeSelection(model => delegate.setModel(model)));
+		this._register(this._pickerWidget.onDidChangeActionBarFocusElements(() => this.refreshRovingFocusElements()));
 	}
 
 	override render(container: HTMLElement): void {
 		this._pickerWidget.render(container);
 		this.element = this._pickerWidget.domNode;
+		this.registerRovingFocus(container);
 		this._updateTooltip();
-		container.classList.add('chat-input-picker-item');
+		container.classList.add('chat-input-picker-item', 'model-picker-item');
+	}
+
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._pickerWidget.actionBarFocusElements;
+	}
+
+	protected getRovingFocusElements(): readonly HTMLElement[] {
+		return this.actionBarFocusElements;
 	}
 
 	private _getAnchorElement(): HTMLElement {

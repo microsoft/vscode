@@ -213,6 +213,10 @@ export class ToolBar extends Disposable {
 		return this.element;
 	}
 
+	getFocusElements(): readonly HTMLElement[] {
+		return this.actionBar.getFocusElements();
+	}
+
 	focus(): void {
 		this.actionBar.focus();
 	}

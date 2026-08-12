@@ -99,9 +99,11 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 
 1. **Menu action** — `registerAction2()` with a `when` clause gating it to the correct session type
 2. **Action view item** — `actionViewItemService.register()` to provide a custom widget instead of a button
-3. **Picker widget** — A `Disposable` class with a `render(container)` method, wrapped in `PickerActionViewItem`
+3. **Picker widget** — A `Disposable` class with a `render(container)` method and `actionBarFocusElements`, wrapped in the shared `contrib/chat/browser/PickerActionViewItem`
 
 Model picker widgets that back the new-chat `/models` slash command also inject `INewChatModelPickerService` and register their opener with it. `NewChatInputWidget` scopes that service per input, so action view item factories must instantiate those model picker widgets from the factory's `instantiationService` argument rather than a contribution-level service.
+
+Mode/custom-agent picker widgets likewise register their opener with the input-scoped `INewChatModePickerService`, which lets the new-session composer handle the standard agent-picker shortcut without pretending to be an `IChatWidget`.
 
 ### Toolbar Menus
 

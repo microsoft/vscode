@@ -143,6 +143,10 @@ export class PermissionPicker extends Disposable {
 	protected _triggerElement: HTMLElement | undefined;
 	protected readonly _renderDisposables = this._register(new DisposableStore());
 
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._triggerElement ? [this._triggerElement] : [];
+	}
+
 	constructor(
 		protected readonly _delegate: IPermissionPickerDelegate,
 		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
@@ -172,7 +176,7 @@ export class PermissionPicker extends Disposable {
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.tabIndex = 0;
+		trigger.tabIndex = -1;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 

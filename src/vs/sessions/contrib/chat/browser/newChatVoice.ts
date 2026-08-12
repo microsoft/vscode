@@ -215,6 +215,11 @@ export interface INewChatVoiceControllerOptions {
  * glow/transcript, and {@link INewChatVoiceTargetService} routing.
  */
 export class NewChatVoiceController extends Disposable {
+	private readonly _toolbar: MenuWorkbenchToolBar;
+
+	getFocusElements(): readonly HTMLElement[] {
+		return this._toolbar.getFocusElements();
+	}
 
 	constructor(
 		options: INewChatVoiceControllerOptions,
@@ -243,7 +248,7 @@ export class NewChatVoiceController extends Disposable {
 		const initiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
-		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
+		const toolbar = this._toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, itemOptions) => {
 				// While listening the menu swaps the start action for the

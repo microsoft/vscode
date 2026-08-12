@@ -8,7 +8,7 @@ import '../../../../../base/browser/ui/segmentedIconToggle/segmentedIconToggle.c
 import './media/voiceInputMode.css';
 import { getActiveWindow, getWindow } from '../../../../../base/browser/dom.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { HorizontalRovingActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -321,7 +321,7 @@ export interface IVoiceInputModePillOptions {
  * conversational agent). Only one mode can be active at a time — activating one stops
  * the other. Both segments stay visible (when available) so users discover both modes.
  */
-export class VoiceInputModeActionViewItem extends BaseActionViewItem {
+export class VoiceInputModeActionViewItem extends HorizontalRovingActionViewItem {
 
 	private _reel: HTMLElement | undefined;
 	private _dictationCell: HTMLElement | undefined;
@@ -381,6 +381,15 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super(undefined, action);
+	}
+
+	protected getRovingFocusElements(): readonly HTMLElement[] {
+		return this.actionBarFocusElements;
+	}
+
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return [this._dictationCell, this._voiceCell, this._listenCell]
+			.filter((cell): cell is HTMLElement => !!cell && !cell.classList.contains('collapsed'));
 	}
 
 	/** Set the per-state pill/waveform colors from the theme-derived voice accent. */
@@ -477,6 +486,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._listenCell.setAttribute('type', 'button');
 		this._listenCell.setAttribute('role', 'button');
 		this._listenIcon = dom.append(this._listenCell, dom.$('span.chat-voice-input-mode-icon'));
+		this.registerRovingFocus(container);
 		this._updateAriaLabels();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateAriaLabels()));
 		this._register(addMicButtonContextMenuListener(
@@ -638,6 +648,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			this._listenCell!.setAttribute('aria-pressed', String(listening));
 			this._listenIcon!.className = `chat-voice-input-mode-icon ${ThemeIcon.asClassName(listening ? Codicon.personVoiceFilledCompact : Codicon.personVoiceCompact)}`;
 			this._updateAriaLabels();
+			this.refreshRovingFocusElements();
 
 			// Audio-reactive bars only while live (and not hovering the disconnect preview).
 			this._syncBarAnimation();

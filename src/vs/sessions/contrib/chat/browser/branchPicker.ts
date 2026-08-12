@@ -96,6 +96,10 @@ export class BranchPicker extends Disposable {
 	private _isolationCheckbox: Checkbox | undefined;
 	private _isolationState: IBranchPickerIsolationState | undefined;
 
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._triggerElement ? [this._triggerElement] : [];
+	}
+
 	constructor(
 		private readonly _options: IBranchPickerOptions,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,

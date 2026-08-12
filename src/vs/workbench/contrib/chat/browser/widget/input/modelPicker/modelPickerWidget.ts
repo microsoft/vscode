@@ -101,6 +101,8 @@ export class ModelPickerWidget extends Disposable {
 
 	private readonly _onDidChangeSelection = this._register(new Emitter<ILanguageModelChatMetadataAndIdentifier>());
 	readonly onDidChangeSelection: Event<ILanguageModelChatMetadataAndIdentifier> = this._onDidChangeSelection.event;
+	private readonly _onDidChangeActionBarFocusElements = this._register(new Emitter<void>());
+	readonly onDidChangeActionBarFocusElements = this._onDidChangeActionBarFocusElements.event;
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
@@ -128,6 +130,16 @@ export class ModelPickerWidget extends Disposable {
 
 	get nameButton(): HTMLElement | undefined {
 		return this._nameButton;
+	}
+
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		if (!this._nameButton) {
+			return [];
+		}
+		const configButton = this._configButton;
+		return configButton && configButton.style.display !== 'none'
+			? [this._nameButton, configButton]
+			: [this._nameButton];
 	}
 
 	constructor(
@@ -309,9 +321,7 @@ export class ModelPickerWidget extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._domNode = dom.append(container, dom.$('div.action-label.model-picker-split'));
-		this._domNode.setAttribute('role', 'group');
-		// The container groups the individual buttons; only the buttons should be
-		// tab stops, not the container itself.
+		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.tabIndex = -1;
 
 		// Apply initial collapsed state now that _domNode exists
@@ -321,7 +331,7 @@ export class ModelPickerWidget extends Disposable {
 
 		// Model name button
 		this._nameButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-name'));
-		this._nameButton.tabIndex = 0;
+		this._nameButton.tabIndex = -1;
 		this._nameButton.setAttribute('role', 'button');
 		this._nameButton.setAttribute('aria-haspopup', 'true');
 		this._nameButton.setAttribute('aria-expanded', 'false');
@@ -329,7 +339,7 @@ export class ModelPickerWidget extends Disposable {
 		// Combined configuration button (conditionally visible): opens a single
 		// dropdown with Thinking Effort and Context Size sections.
 		this._configButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-config'));
-		this._configButton.tabIndex = 0;
+		this._configButton.tabIndex = -1;
 		this._configButton.setAttribute('role', 'button');
 		this._configButton.setAttribute('aria-haspopup', 'true');
 		this._configButton.setAttribute('aria-expanded', 'false');
@@ -702,7 +712,11 @@ export class ModelPickerWidget extends Disposable {
 		dom.reset(this._nameButton, ...nameChildren);
 
 		if (this._configButton) {
+			const wasVisible = this._configButton.style.display !== 'none';
 			this._configuration.renderButton(this._configButton, compact, noModelsAvailable);
+			if (wasVisible !== (this._configButton.style.display !== 'none')) {
+				this._onDidChangeActionBarFocusElements.fire();
+			}
 		}
 
 		// Aria — name the control "Models" to match the visible label; the comma
@@ -712,7 +726,6 @@ export class ModelPickerWidget extends Disposable {
 			: setupRequired
 				? localize('chat.modelPicker.ariaLabelSetupRequired', "Models, sign in to use Copilot")
 				: localize('chat.modelPicker.ariaLabel', "Models, {0}", modelLabel);
-		this._domNode.ariaLabel = ariaLabel;
 		this._nameButton.ariaLabel = ariaLabel;
 	}
 

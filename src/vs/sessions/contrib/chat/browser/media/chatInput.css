@@ -185,6 +185,12 @@
 }
 
 /* Voice mode controls (mic / stop / settings / disconnect) */
+.sessions-chat-voice-input-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
 .sessions-chat-voice-toolbar {
 	display: flex;
 	align-items: center;
@@ -204,6 +210,12 @@
 	justify-content: center;
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .sessions-chat-toolbar.sessions-chat-voice-input-actions-multiple .sessions-chat-voice-toolbar .monaco-action-bar .action-item > .action-label,
@@ -254,6 +266,10 @@
 	align-items: center;
 	min-width: 30px;
 	overflow: hidden;
+}
+
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.model-picker-item {
+	overflow: visible;
 }
 
 /* Prevent the mode picker from shrinking so the model picker label
@@ -455,17 +471,31 @@
 	outline: none;
 }
 
-.sessions-chat-attach-button:hover {
+.sessions-chat-config-toolbar .monaco-action-bar .action-item.sessions-chat-attach-action-item {
+	flex: 0 0 22px;
+	min-width: 22px;
+	width: 22px;
+	overflow: visible;
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .monaco-action-bar .action-item.sessions-chat-attach-action-item > .sessions-chat-attach-button {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-icon-foreground);
+}
+
+.monaco-workbench .sessions-chat-config-toolbar .monaco-action-bar .action-item.sessions-chat-attach-action-item > .sessions-chat-attach-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-attach-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
-}
-
-.monaco-workbench .sessions-chat-attach-button .codicon[class*='codicon-'] {
-	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* Dictation (speech-to-text) mic button. Same ringed circle as the voice
@@ -496,9 +526,10 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.sessions-chat-stt-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.monaco-workbench .sessions-chat-stt-button:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .sessions-chat-stt-button.recording {

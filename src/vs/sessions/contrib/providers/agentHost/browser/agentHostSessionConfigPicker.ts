@@ -9,10 +9,10 @@ import { Gesture, EventType as TouchEventType } from '../../../../../base/browse
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -58,6 +58,7 @@ import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -288,8 +289,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private readonly _isolationCheckbox = this._register(new MutableDisposable<IsolationCheckboxControl>());
+	private readonly _actionBarFocusElements: HTMLElement[] = [];
+	private readonly _onDidChangeActionBarFocusElements = this._register(new Emitter<void>());
+	readonly onDidChangeActionBarFocusElements = this._onDidChangeActionBarFocusElements.event;
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
+
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._actionBarFocusElements;
+	}
 
 	/**
 	 * Session/property-scoped value→label cache for `enumDynamic`
@@ -371,6 +379,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		this._renderDisposables.clear();
+		this._actionBarFocusElements.length = 0;
 		const isolationSlot = this._isolationCheckbox.value?.slot;
 		for (const child of Array.from(this._container.children)) {
 			if (child !== isolationSlot) {
@@ -384,6 +393,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
 			this._isolationCheckbox.clear();
+			this._onDidChangeActionBarFocusElements.fire();
 			return;
 		}
 
@@ -466,6 +476,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// the trigger's appearance. The click handler bails when resolving
 			// in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			if (!isReadOnly) {
+				trigger.tabIndex = -1;
+				this._actionBarFocusElements.push(trigger);
+			}
 			// The read-only Branch chip skips the hover: it just mirrors the
 			// current/default branch name (already visible as the label),
 			// and the schema description reads awkwardly as a hover for a
@@ -485,6 +499,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (!renderedIsolationCheckbox) {
 			this._isolationCheckbox.clear();
 		}
+		this._onDidChangeActionBarFocusElements.fire();
 	}
 
 	private _isPickable(schema: SessionConfigPropertySchema): boolean {
@@ -981,28 +996,6 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		);
 		trigger.setAttribute('aria-expanded', 'false');
 		trigger.focus();
-	}
-}
-
-interface IConfigPickerWidget extends IDisposable {
-	render(container: HTMLElement): void;
-}
-
-export class PickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly _picker: IConfigPickerWidget, disposable?: IDisposable) {
-		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
-		if (disposable) {
-			this._register(disposable);
-		}
-	}
-
-	override render(container: HTMLElement): void {
-		this._picker.render(container);
-	}
-
-	override dispose(): void {
-		this._picker.dispose();
-		super.dispose();
 	}
 }
 
