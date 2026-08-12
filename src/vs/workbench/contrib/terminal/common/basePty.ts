@@ -10,6 +10,7 @@ import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ProcessPropertyType, type IProcessDataEvent, type IProcessProperty, type IProcessPropertyMap, type IProcessReadyEvent, type ITerminalChildProcess } from '../../../../platform/terminal/common/terminal.js';
+import { ensureSgrMouseEncodingOnReplay, stripMouseTrackingEnableFromData } from '../../../../platform/terminal/common/terminalMouseModeReset.js';
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process
@@ -89,6 +90,9 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 	}
 	async handleReplay(e: IPtyHostProcessReplayEvent) {
 		mark(`code/terminal/willHandleReplay/${this.id}`);
+		// Conditional strip: only when pty host says so (dead root / Windows
+		// childless shell). Live full-screen TUIs keep mouse from verbatim replay.
+		const stripMouse = e.shouldStripMouseTrackingEnables === true;
 		try {
 			this._inReplay = true;
 			for (const innerEvent of e.events) {
@@ -96,7 +100,12 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 					// never override with 0x0 as that is a marker for an unknown initial size
 					this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: { cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true } });
 				}
-				const e: IProcessDataEvent = { data: innerEvent.data, trackCommit: true };
+				// Live TUI: keep mouse enables and re-add SGR encoding if the
+				// serializer only restored tracking (?1002h) without ?1006h.
+				const data = stripMouse
+					? stripMouseTrackingEnableFromData(innerEvent.data)
+					: ensureSgrMouseEncodingOnReplay(innerEvent.data);
+				const e: IProcessDataEvent = { data, trackCommit: true };
 				this._onProcessData.fire(e);
 				await e.writePromise;
 			}

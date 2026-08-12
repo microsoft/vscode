@@ -29,7 +29,14 @@ export const ignoreProcessNames: string[] = [];
  * calls into the monitor.
  */
 export class ChildProcessMonitor extends Disposable {
-	private _hasChildProcesses: boolean = false;
+	/**
+	 * Default **true** (fail-open). A failed process-tree lookup must not report
+	 * "no children" — that incorrectly makes {@link shouldStripMouseTrackingOnReplay}
+	 * strip mouse enables on Windows when `@vscode/windows-process-tree` cannot see
+	 * the shell pid (`Root process N not found`), killing sticky mouse for live
+	 * nested TUIs. Only a *successful* scan may set this to false.
+	 */
+	private _hasChildProcesses: boolean = true;
 	private set hasChildProcesses(value: boolean) {
 		if (this._hasChildProcesses !== value) {
 			this._hasChildProcesses = value;
@@ -86,7 +93,8 @@ export class ChildProcessMonitor extends Disposable {
 			const processItem = await listProcesses(this._pid);
 			this.hasChildProcesses = this._processContainsChildren(processItem);
 		} catch (e) {
-			this._logService.debug('ChildProcessMonitor: Fetching process tree failed', e);
+			// Do not force false — keep previous (default true). See field comment.
+			this._logService.debug('ChildProcessMonitor: Fetching process tree failed (keeping previous hasChildProcesses)', e);
 		}
 	}
 

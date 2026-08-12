@@ -368,4 +368,11 @@ export interface ISerializedCommandDetectionCapability {
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];
 	commands: ISerializedCommandDetectionCapability;
+	/**
+	 * When true, the renderer strips mouse-tracking *enable* CSI from replay
+	 * data (dead root process, or Windows shell with no console children).
+	 * When false/omitted, replay is verbatim so a live full-screen TUI keeps
+	 * mouse modes without needing FocusGained reassert.
+	 */
+	shouldStripMouseTrackingEnables?: boolean;
 }

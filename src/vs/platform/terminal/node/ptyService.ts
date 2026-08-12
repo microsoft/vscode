@@ -26,6 +26,7 @@ import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js';
 import { formatMessageForTerminal } from '../common/terminalStrings.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
+import { shouldStripMouseTrackingOnReplay } from '../common/terminalMouseModeReset.js';
 import { IProductService } from '../../product/common/productService.js';
 import { join } from '../../../base/common/path.js';
 import { memoize } from '../../../base/common/decorators.js';
@@ -946,11 +947,25 @@ class PersistentTerminalProcess extends Disposable {
 			this._interactionState.setValue(InteractionState.ReplayOnly, 'triggerReplay');
 		}
 		const ev = await this._serializer.generateReplayEvent();
+		// Liveness at generation: strip only for dead root or Windows childless shell
+		// (nested TUI gone). Live full-screen root TUIs keep mouse from verbatim replay.
+		const shellHint = this._terminalProcess.shellType
+			?? this._terminalProcess.currentTitle
+			?? this._title;
+		ev.shouldStripMouseTrackingEnables = shouldStripMouseTrackingOnReplay({
+			processAlive: !this._terminalProcess.hasExited,
+			hasChildProcesses: this.hasChildProcesses,
+			shellTypeOrTitle: shellHint ? String(shellHint) : undefined,
+			isWindows,
+		});
 		let dataLength = 0;
 		for (const e of ev.events) {
 			dataLength += e.data.length;
 		}
-		this._logService.info(`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events`);
+		this._logService.info(
+			`Persistent process "${this._persistentProcessId}": Replaying ${dataLength} chars and ${ev.events.length} size events` +
+			` (stripMouse=${ev.shouldStripMouseTrackingEnables})`
+		);
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 		this._onPersistentProcessReady.fire();
