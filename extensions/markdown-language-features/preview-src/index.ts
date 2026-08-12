@@ -266,7 +266,9 @@ function addCodeBlockCopyButtons() {
 					}
 				}
 			});
-			pre.appendChild(button);
+			// Must come before the code so that the sticky button starts at the top of the code block
+			pre.prepend(button);
+			pre.classList.add('has-code-block-copy-button');
 		}
 	}
 }
@@ -541,8 +543,10 @@ function addModificationGutterBar(element: HTMLElement, indicator?: MarkdownPrev
 		gutter.appendChild(tooltip);
 	}
 
-	element.style.position = 'relative';
-	element.appendChild(gutter);
+	// The `<code>` of a fenced code block scrolls and would clip the gutter, so it goes on the `<pre>` instead
+	const host = element.tagName === 'CODE' && element.parentElement?.tagName === 'PRE' ? element.parentElement : element;
+	host.style.position = 'relative';
+	host.appendChild(gutter);
 }
 
 function createDiffTooltip(indicator: MarkdownPreviewChangeIndicator): HTMLDivElement {
