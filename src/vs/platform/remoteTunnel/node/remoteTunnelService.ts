@@ -144,7 +144,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 	getTunnelName(): Promise<string | undefined> {
-		return Promise.resolve(this.tunnelProcessCoordinator.getStatus().tunnelName);
+		return Promise.resolve(this.tunnelProcessCoordinator.getIntendedTunnelName());
 	}
 
 	private setMode(mode: TunnelMode): void {

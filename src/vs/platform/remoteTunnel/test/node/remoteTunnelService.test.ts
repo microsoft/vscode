@@ -31,8 +31,17 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	readonly onDidMachineStatus = this._onDidMachineStatus.event;
 	private _status: ITunnelProcessStatus = { mode: 'remoteAccess', tunnelName: 'test_host', connectionState: 'connecting', serviceInstallFailed: false };
 
+	/** Models the coordinator having no tunnel running, where `getStatus().tunnelName` is undefined. */
+	setIdle(): void {
+		this._status = { mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
+	}
+
 	getStatus(): ITunnelProcessStatus {
 		return this._status;
+	}
+
+	getIntendedTunnelName(): string {
+		return 'test_host';
 	}
 
 	setRemoteAccess(_mode: TunnelMode, _logLevel: LogLevel): Promise<void> {
@@ -139,6 +148,34 @@ suite('Remote tunnel', () => {
 		} finally {
 			tokenFailureListener.dispose();
 			publicLog2.restore();
+			service.dispose();
+			coordinator.dispose();
+			loggerService.dispose();
+			storageService.dispose();
+		}
+	});
+
+	test('reports the intended tunnel name while access is inactive', async () => {
+		const coordinator = new TestTunnelProcessCoordinator();
+		const loggerService = new NullLoggerService();
+		const storageService = new InMemoryStorageService();
+		const service = new RemoteTunnelService(
+			NullTelemetryService,
+			{ tunnelApplicationName: 'code-tunnel' } as IProductService,
+			{ appRoot: 'installation', isBuilt: true, logsHome: URI.file('logs'), userDataPath: 'custom-user-data' } as INativeEnvironmentService,
+			loggerService,
+			{ _serviceBrand: undefined, onWillShutdown: Event.None } as ISharedProcessLifecycleService,
+			new TestConfigurationService(),
+			storageService,
+			coordinator,
+		);
+		try {
+			coordinator.setIdle();
+			// The remote-extension recommendation compares the name this machine
+			// would use against a previously used one, and asks while no tunnel
+			// is running.
+			assert.strictEqual(await service.getTunnelName(), 'test_host');
+		} finally {
 			service.dispose();
 			coordinator.dispose();
 			loggerService.dispose();

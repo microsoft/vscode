@@ -61,6 +61,8 @@ const CONTROL_INSTRUCTIONS_INTERACTIVE: &str = concatcp!(
 /// Serves a client singleton. Returns true if the process should exit after
 /// this returns, instead of trying to start a tunnel.
 pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
+	machine_status::set_stdout_enabled(args.machine_status_enabled);
+
 	let mut rpc = new_json_rpc();
 	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
 	let exit_entirely = Arc::new(AtomicBool::new(false));
@@ -96,7 +98,6 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 	}
 
 	let caller = rpc.get_caller(msg_tx);
-	let machine_status_enabled = args.machine_status_enabled;
 	let has_editor_link = args.has_editor_link;
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: args.log.clone(),
@@ -131,9 +132,7 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 			if let Ok(Ok(s)) = res.await {
 				if let Some(name) = s.name {
 					print_listening(&c.log, &name, has_editor_link);
-					if machine_status_enabled {
-						machine_status::emit_connected(&name, true, has_editor_link);
-					}
+					machine_status::emit_connected(&name, true, has_editor_link);
 				}
 			}
 
@@ -148,6 +147,16 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 				Some(level) => c.log.emit(level, &format!("{}{}", log.prefix, log.message)),
 				None => c.log.result(format!("{}{}", log.prefix, log.message)),
 			}
+			Ok(())
+		},
+	);
+
+	rpc.register_sync(
+		protocol::singleton::METHOD_MACHINE_STATUS,
+		|status: machine_status::MachineStatus, _| {
+			// A server connection event can race the synthetic attached event;
+			// it still describes a distinct, real tunnel transition.
+			machine_status::emit(status);
 			Ok(())
 		},
 	);

@@ -25,6 +25,7 @@ export type TunnelProcessConnectionState = 'disconnected' | 'connecting' | 'conn
 /** The requested agent-host-only sharing session. */
 export interface IAgentHostSharingRequest {
 	readonly token: string;
+	readonly authProvider: 'github' | 'microsoft';
 	readonly logLevel: LogLevel;
 }
 
@@ -66,6 +67,7 @@ export interface ITunnelProcessCoordinator {
 	readonly onDidOutput: Event<ITunnelProcessOutput>;
 	readonly onDidMachineStatus: Event<ITunnelProcessMachineStatus>;
 	getStatus(): ITunnelProcessStatus;
+	getIntendedTunnelName(): string;
 	setRemoteAccess(mode: TunnelMode, logLevel: LogLevel): Promise<void>;
 	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void>;
 	restart(): Promise<void>;
@@ -106,6 +108,12 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	private _currentProcess: ICodeTunnelCliRun | undefined;
 	private _queue: Promise<void> = Promise.resolve();
 	private _generation = 0;
+	/**
+	 * Survives across generations: a newer request can preempt the reconcile
+	 * that was going to uninstall the service, and that newer request has no
+	 * idea an uninstall was owed. Cleared only once an uninstall succeeds.
+	 */
+	private _uninstallServicePending = false;
 	private _status: ITunnelProcessStatus = { mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
 
 	constructor(
@@ -125,6 +133,16 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 	getStatus(): ITunnelProcessStatus {
 		return this._status;
+	}
+
+	/**
+	 * The name a tunnel would be given right now, from configuration or the
+	 * hostname. Unlike {@link getStatus}'s `tunnelName` this is defined even
+	 * when no tunnel process is running, so callers can compare the intended
+	 * name against a previously used one.
+	 */
+	getIntendedTunnelName(): string {
+		return this._getTunnelName();
 	}
 
 	setRemoteAccess(mode: TunnelMode, logLevel: LogLevel): Promise<void> {
@@ -151,21 +169,25 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	private _schedule(uninstallService: boolean, forceRestart = false): Promise<void> {
+		this._uninstallServicePending ||= uninstallService;
 		const generation = ++this._generation;
 		void this._currentProcess?.stop();
-		const operation = this._queue.then(() => this._reconcile(generation, uninstallService, forceRestart));
+		const operation = this._queue.then(() => this._reconcile(generation, forceRestart));
 		this._queue = operation.catch(() => { });
 		return operation;
 	}
 
-	private async _reconcile(generation: number, uninstallService: boolean, forceRestart: boolean): Promise<void> {
+	private async _reconcile(generation: number, forceRestart: boolean): Promise<void> {
 		await this._stopCurrentProcess();
 		if (generation !== this._generation) {
 			return;
 		}
 
-		if (uninstallService) {
-			await this._runTransient('serviceUninstall', ['tunnel', 'service', 'uninstall'], 'none', generation);
+		if (this._uninstallServicePending) {
+			const exitCode = await this._runTransient('serviceUninstall', ['tunnel', 'service', 'uninstall'], 'none', generation);
+			if (exitCode === 0) {
+				this._uninstallServicePending = false;
+			}
 			if (generation !== this._generation) {
 				return;
 			}
@@ -250,7 +272,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (this._agentHostSharing) {
 			return {
 				mode: resolveTunnelProcessMode(true, this._remoteAccess.mode),
-				login: { providerId: 'github', token: this._agentHostSharing.token },
+				login: { providerId: this._agentHostSharing.authProvider, token: this._agentHostSharing.token },
 				logLevel: this._agentHostSharing.logLevel,
 			};
 		}

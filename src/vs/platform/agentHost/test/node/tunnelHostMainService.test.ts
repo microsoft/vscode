@@ -24,15 +24,22 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	constructor(private _status: ITunnelProcessStatus) {
 	}
 
+	lastSharingRequest: IAgentHostSharingRequest | undefined;
+
 	getStatus(): ITunnelProcessStatus {
 		return this._status;
+	}
+
+	getIntendedTunnelName(): string {
+		return this._status.tunnelName ?? 'test_host';
 	}
 
 	setRemoteAccess(_mode: TunnelMode, _logLevel: LogLevel): Promise<void> {
 		return Promise.resolve();
 	}
 
-	setAgentHostSharing(_request: IAgentHostSharingRequest | undefined): Promise<void> {
+	setAgentHostSharing(request: IAgentHostSharingRequest | undefined): Promise<void> {
+		this.lastSharingRequest = request;
 		return Promise.resolve();
 	}
 
@@ -68,6 +75,29 @@ suite('TunnelHostMainService', () => {
 			const startHosting = service.startHosting('token', 'github');
 			coordinator.setStatus({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'connected', serviceInstallFailed: false });
 			assert.deepStrictEqual(await startHosting, { tunnelName: 'agent' });
+		} finally {
+			service.dispose();
+			coordinator.dispose();
+			loggerService.dispose();
+		}
+	});
+
+	test('forwards the auth provider so Microsoft accounts can host', async () => {
+		const coordinator = new TestTunnelProcessCoordinator({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'connecting', serviceInstallFailed: false });
+		const loggerService = new NullLoggerService();
+		const service = new TunnelHostMainService(
+			loggerService,
+			{ logsHome: URI.file('logs') } as INativeEnvironmentService,
+			coordinator,
+		);
+		try {
+			const startHosting = service.startHosting('token', 'microsoft');
+			coordinator.setStatus({ mode: 'agentHost', tunnelName: 'agent', connectionState: 'connected', serviceInstallFailed: false });
+			await startHosting;
+			assert.deepStrictEqual(
+				{ token: coordinator.lastSharingRequest?.token, authProvider: coordinator.lastSharingRequest?.authProvider },
+				{ token: 'token', authProvider: 'microsoft' },
+			);
 		} finally {
 			service.dispose();
 			coordinator.dispose();

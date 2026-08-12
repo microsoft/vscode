@@ -3326,10 +3326,12 @@ mod tests {
 	/// `AGENT_HOST_GATEWAY_SELECT_PATH`.
 	#[tokio::test]
 	async fn direct_tunnel_select_route_dispatches_gateway_and_returns_inventory() {
-		assert!(
-			crate::constants::PROTOCOL_VERSION >= 6,
-			"the gateway selection route requires protocol v6+"
-		);
+		const {
+			assert!(
+				crate::constants::PROTOCOL_VERSION >= 6,
+				"the gateway selection route requires protocol v6+"
+			);
+		};
 
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");

@@ -59,7 +59,7 @@ function activeMode(asService = false): ActiveTunnelMode {
 }
 
 function agentRequest(): IAgentHostSharingRequest {
-	return { token: 'agent-token', logLevel: LogLevel.Info };
+	return { token: 'agent-token', authProvider: 'github', logLevel: LogLevel.Info };
 }
 
 function createCoordinator(exitOnKill = true, ordering?: string[]) {
@@ -208,6 +208,30 @@ suite('TunnelProcessCoordinator', () => {
 			await new Promise<void>(resolve => setImmediate(resolve));
 			session.coordinator.dispose();
 			service.coordinator.dispose();
+		}
+	});
+
+	test('uninstalls the service even when a sharing update preempts the reconcile', async () => {
+		const { coordinator, processes } = createCoordinator();
+		try {
+			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
+			// Turning the service off owes an uninstall. Starting agent host
+			// sharing in the same tick bumps the generation and preempts the
+			// reconcile that would have run it, so the requirement has to
+			// survive into the replacement generation.
+			const stopService = coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
+			const share = coordinator.setAgentHostSharing(agentRequest());
+			await Promise.all([stopService, share]);
+
+			assert.deepStrictEqual({
+				uninstalled: processes.some(process => process.args.includes('uninstall')),
+				agentHostStarted: processes.some(process => process.args.includes('--agent-host-only')),
+			}, {
+				uninstalled: true,
+				agentHostStarted: true,
+			});
+		} finally {
+			coordinator.dispose();
 		}
 	});
 

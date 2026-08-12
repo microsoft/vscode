@@ -47,13 +47,9 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 	}
 
 	async startHosting(token: string, authProvider: 'github' | 'microsoft'): Promise<ITunnelHostInfo> {
-		if (authProvider !== 'github') {
-			throw new Error(localize('tunnelHost.githubRequired', "Agent host sharing requires GitHub authentication."));
-		}
-
 		this._request = { token };
 		const ready = this._waitForActiveStatus();
-		await this.tunnelProcessCoordinator.setAgentHostSharing({ token, logLevel: this._logger.getLevel() });
+		await this.tunnelProcessCoordinator.setAgentHostSharing({ token, authProvider, logLevel: this._logger.getLevel() });
 		const status = await ready;
 		return status.info;
 	}

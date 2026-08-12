@@ -22,7 +22,7 @@ use crate::{
 	rpc::{RpcCaller, RpcDispatcher},
 	singleton::SingletonServer,
 	state::LauncherPaths,
-	tunnels::code_server::print_listening,
+	tunnels::{code_server::print_listening, machine_status},
 	update_service::Platform,
 	util::{
 		errors::{AnyError, CodeError},
@@ -47,7 +47,6 @@ pub struct SingletonServerArgs<'a> {
 	pub user_data_dir: Option<String>,
 	pub agent_host_only: bool,
 	pub delegate_to_editor: bool,
-	pub machine_status_enabled: bool,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub log_broadcast: &'a BroadcastLogSink,
 }
@@ -149,6 +148,15 @@ pub fn make_singleton_server(
 pub async fn start_singleton_server(
 	args: SingletonServerArgs<'_>,
 ) -> Result<ServerTermination, AnyError> {
+	let broadcast_tx = args.log_broadcast.get_brocaster();
+	machine_status::install_sink(move |status| {
+		let _ = broadcast_tx.send(RpcCaller::serialize_notify(
+			&JsonRpcSerializer {},
+			protocol::singleton::METHOD_MACHINE_STATUS,
+			status,
+		));
+	});
+
 	let shutdown_rx = ShutdownRequest::create_rx([
 		ShutdownRequest::Derived(Box::new(args.server.shutdown_broadcast.subscribe())),
 		ShutdownRequest::Derived(Box::new(args.shutdown.clone())),
@@ -173,7 +181,6 @@ pub async fn start_singleton_server(
 			user_data_dir: args.user_data_dir,
 			agent_host_only: args.agent_host_only,
 			delegate_to_editor: args.delegate_to_editor,
-			machine_status_enabled: args.machine_status_enabled,
 		},
 		shutdown_rx,
 	);

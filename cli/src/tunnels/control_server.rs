@@ -210,8 +210,6 @@ pub struct AgentHostServeOptions {
 	pub agent_host_only: bool,
 	/// Pins the selection gateway to the live editor agent host.
 	pub delegate_to_editor: bool,
-	/// Emits machine-readable status lines for the parent process.
-	pub machine_status_enabled: bool,
 }
 
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
@@ -230,7 +228,6 @@ pub async fn serve(
 		user_data_dir,
 		agent_host_only,
 		delegate_to_editor,
-		machine_status_enabled,
 	} = agent_host_options;
 	let mut port = if agent_host_only {
 		None
@@ -291,9 +288,7 @@ pub async fn serve(
 		});
 	}
 
-	if machine_status_enabled {
-		machine_status::emit_connected(&tunnel.name, false, !agent_host_only);
-	}
+	machine_status::emit_connected(&tunnel.name, false, !agent_host_only);
 
 	loop {
 		tokio::select! {

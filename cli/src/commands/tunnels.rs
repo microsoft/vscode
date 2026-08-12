@@ -41,7 +41,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		legal, local_forwarding,
+		legal, local_forwarding, machine_status,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -595,6 +595,8 @@ async fn serve_with_csa(
 	mut csa: CodeServerArgs,
 	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
+	machine_status::set_stdout_enabled(gateway_args.machine_status);
+
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
@@ -668,7 +670,7 @@ async fn serve_with_csa(
 	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
-	let auth = Auth::new(&paths, log.clone()).with_machine_status(gateway_args.machine_status);
+	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&log, auth, &paths);
 	loop {
 		let tunnel = if let Some(t) =
@@ -698,7 +700,6 @@ async fn serve_with_csa(
 			user_data_dir: gateway_args.user_data_dir.clone(),
 			agent_host_only: gateway_args.agent_host_only,
 			delegate_to_editor: gateway_args.delegate_to_editor,
-			machine_status_enabled: gateway_args.machine_status,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,
