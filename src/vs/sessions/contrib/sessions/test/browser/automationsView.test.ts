@@ -50,6 +50,10 @@ function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
 }
 
+function quickChatTarget(): AutomationTarget {
+	return { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' };
+}
+
 function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
 	return {
 		id: AUTOMATION_ID,
@@ -376,6 +380,22 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			schedule: `Daily at ${scheduleTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })}`,
 			runLabel: `Daily review, workspace, Completed, ${runTime}, Unread`,
+		});
+	});
+
+	test('labels quick chat runs in history', () => {
+		const { automationService, widget } = setup();
+		const completedRun = run();
+		automationService.setAutomations([automation({ target: quickChatTarget() })]);
+		automationService.setRuns([completedRun]);
+		const runTime = new Date(completedRun.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+		assert.deepStrictEqual({
+			target: widget.element.querySelector('.automations-run-card-name-workspace')?.textContent,
+			runLabel: widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label'),
+		}, {
+			target: ' · Quick Chat',
+			runLabel: `Daily review, Quick Chat, Completed, ${runTime}, Unread`,
 		});
 	});
 
