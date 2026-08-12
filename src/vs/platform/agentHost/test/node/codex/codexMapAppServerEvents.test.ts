@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
@@ -67,6 +68,43 @@ suite('codexMapAppServerEvents', () => {
 			},
 		}, 'the prompt');
 		assert.strictEqual((actions[0] as { message: { text: string } }).message.text, 'the prompt');
+	});
+
+	test('turn/started exposes a delegated prompt without its private envelope', () => {
+		const actions = mapTurnStarted(createCodexSessionMapState(), {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_delegated',
+				items: [{
+					type: 'userMessage',
+					id: 'item_user',
+					clientId: null,
+					content: [{
+						type: 'text',
+						text: '<codex_delegation><source_thread_id>source-thread</source_thread_id><input>Review &lt;this&gt;</input></codex_delegation>',
+						text_elements: [],
+					}],
+				}],
+				itemsView: { type: 'full' } as never,
+				status: 'inProgress' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			},
+		}, '');
+		const action = actions[0];
+		assert.strictEqual(action.type, ActionType.ChatTurnStarted);
+		if (action.type !== ActionType.ChatTurnStarted) {
+			return;
+		}
+		assert.deepStrictEqual({
+			text: action.message.text,
+			delegation: readAgentMessageDelegationMeta(action.message),
+		}, {
+			text: 'Review <this>',
+			delegation: { sourceThreadId: 'source-thread' },
+		});
 	});
 
 	test('turn/started uses a current timestamp when Codex omits startedAt', () => {

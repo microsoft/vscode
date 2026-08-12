@@ -11,6 +11,8 @@ import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallCont
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
+import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { parseCodexDelegation } from './codexDelegation.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
@@ -413,12 +415,17 @@ export function mapTurnStarted(
 			userText = collected;
 		}
 	}
+	const delegation = parseCodexDelegation(userText);
 	return [
 		{
 			type: ActionType.ChatTurnStarted,
 			turnId: params.turn.id,
 			startedAt: typeof params.turn.startedAt === 'number' ? new Date(params.turn.startedAt * 1000).toISOString() : new Date().toISOString(),
-			message: { text: userText, origin: { kind: MessageKind.User } },
+			message: {
+				text: delegation?.input ?? userText,
+				origin: { kind: MessageKind.User },
+				...(delegation ? { _meta: toAgentMessageDelegationMeta({ sourceThreadId: delegation.sourceThreadId }) } : {}),
+			},
 		},
 	];
 }

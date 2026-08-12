@@ -7,6 +7,7 @@ import { StringDecoder } from 'string_decoder';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
+import { getCodexRolloutThreadCoordinationCall, type ICodexThreadCoordinationCall } from './codexThreadCoordination.js';
 
 export interface ICodexRolloutModel {
 	readonly modelProvider: string;
@@ -18,6 +19,7 @@ export interface ICodexRolloutMetadata {
 	readonly originModelProvider?: string;
 	readonly selectedModel?: ICodexRolloutModel;
 	readonly modelsByTurnId: ReadonlyMap<string, ICodexRolloutModel>;
+	readonly threadCoordinationByTurnId: ReadonlyMap<string, readonly ICodexThreadCoordinationCall[]>;
 }
 
 interface ICodexRolloutRecord {
@@ -32,6 +34,16 @@ interface ICodexRolloutRecord {
 			readonly model?: string;
 			readonly model_provider_id?: string;
 		};
+		readonly call_id?: string;
+		readonly name?: string;
+		readonly input?: string;
+		readonly output?: string | readonly {
+			readonly type?: string;
+			readonly text?: string;
+		}[];
+		readonly internal_chat_message_metadata_passthrough?: {
+			readonly turn_id?: string;
+		};
 	};
 }
 
@@ -41,13 +53,15 @@ export async function readCodexRolloutMetadata(fileService: IFileService, path: 
 	return new Promise<ICodexRolloutMetadata>((resolve, reject) => {
 		const decoder = new StringDecoder('utf8');
 		const modelsByTurnId = new Map<string, ICodexRolloutModel>();
+		const threadCoordinationByTurnId = new Map<string, ICodexThreadCoordinationCall[]>();
+		const pendingThreadCoordination = new Map<string, { readonly turnId: string; readonly input: string }>();
 		let remainder = '';
 		let isDesktop = false;
 		let originModelProvider: string | undefined;
 		let currentModel: ICodexRolloutModel | undefined;
 
 		const acceptLine = (line: string) => {
-			if (!line.includes('"session_meta"') && !line.includes('"turn_context"') && !line.includes('"thread_settings_applied"') && !line.includes('"task_started"')) {
+			if (!line.includes('"session_meta"') && !line.includes('"turn_context"') && !line.includes('"thread_settings_applied"') && !line.includes('"task_started"') && !line.includes('custom_tool_call')) {
 				return;
 			}
 			let record: ICodexRolloutRecord;
@@ -58,6 +72,32 @@ export async function readCodexRolloutMetadata(fileService: IFileService, path: 
 			}
 			const payload = record.payload;
 			if (!payload) {
+				return;
+			}
+			if (record.type === 'response_item') {
+				if (payload.type === 'custom_tool_call' && payload.call_id && payload.input) {
+					const turnId = payload.internal_chat_message_metadata_passthrough?.turn_id;
+					if (turnId) {
+						pendingThreadCoordination.set(payload.call_id, { turnId, input: payload.input });
+					}
+				} else if (payload.type === 'custom_tool_call_output' && payload.call_id) {
+					const pending = pendingThreadCoordination.get(payload.call_id);
+					pendingThreadCoordination.delete(payload.call_id);
+					if (pending) {
+						const output = typeof payload.output === 'string'
+							? [payload.output]
+							: payload.output?.flatMap(item => item.type === 'input_text' && typeof item.text === 'string' ? [item.text] : []) ?? [];
+						const coordination = getCodexRolloutThreadCoordinationCall(pending.input, output);
+						if (coordination) {
+							const calls = threadCoordinationByTurnId.get(pending.turnId);
+							if (calls) {
+								calls.push(coordination);
+							} else {
+								threadCoordinationByTurnId.set(pending.turnId, [coordination]);
+							}
+						}
+					}
+				}
 				return;
 			}
 			if (record.type === 'session_meta') {
@@ -111,6 +151,7 @@ export async function readCodexRolloutMetadata(fileService: IFileService, path: 
 					originModelProvider,
 					selectedModel: currentModel,
 					modelsByTurnId,
+					threadCoordinationByTurnId,
 				});
 			},
 		});
