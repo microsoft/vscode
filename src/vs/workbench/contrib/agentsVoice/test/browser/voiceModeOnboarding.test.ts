@@ -51,9 +51,13 @@ suite('Voice Mode onboarding', () => {
 	}
 
 	function register(service: VoiceModeOnboardingService, host: ITestHost) {
-		return service.registerHost(host.container, host.root, () => {
-			host.focused++;
-			host.root.focus();
+		return service.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => {
+				host.focused++;
+				host.root.focus();
+			},
 		});
 	}
 
@@ -357,7 +361,7 @@ suite('Voice Mode onboarding', () => {
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
 	});
 
-	test('the settings link opens Voice Mode settings', () => {
+	test('the description links open Voice Mode settings and instructions', () => {
 		const executed: string[] = [];
 		const service = createService(disposables, executed);
 		const host = createHost(disposables);
@@ -372,8 +376,8 @@ suite('Voice Mode onboarding', () => {
 		assert.deepStrictEqual(
 			{ labels: links.map(link => link.textContent), executed },
 			{
-				labels: ['settings'],
-				executed: ['agentsVoice.openSettings'],
+				labels: ['settings', 'how it\'s written'],
+				executed: ['agentsVoice.openSettings', 'workbench.action.chat.configureVoiceInstructions'],
 			});
 	});
 

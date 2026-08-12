@@ -41,6 +41,32 @@ suite('GitHubRepositoryResolver', () => {
 		});
 	});
 
+	test('uses the configured GitHub Enterprise host exclusively', () => {
+		assert.deepStrictEqual({
+			https: getGitHubRepositoryFromRemoteUrl('https://ghe.example.com/owner/project.git', ['ghe.example.com']),
+			ssh: getGitHubRepositoryFromRemoteUrl('git@ghe.example.com:owner/project.git', ['ghe.example.com']),
+			lookalike: getGitHubRepositoryFromRemoteUrl('https://evil-ghe.example.com/owner/project.git', ['ghe.example.com']),
+			githubDotCom: getGitHubRepositoryFromRemoteUrl('https://github.com/owner/project.git', ['ghe.example.com']),
+			unconfigured: getGitHubRepositoryFromRemoteUrl('https://ghe.example.com/owner/project.git'),
+		}, {
+			https: { owner: 'owner', repo: 'project' },
+			ssh: { owner: 'owner', repo: 'project' },
+			lookalike: undefined,
+			githubDotCom: undefined,
+			unconfigured: undefined,
+		});
+	});
+
+	test('resolves the configured GitHub Enterprise origin from git config', () => {
+		assert.deepStrictEqual(parseGitHubRepositoryFromGitConfig(`
+			[remote "origin"]
+				url = https://ghe.example.com/owner/project.git
+		`, ['ghe.example.com']), {
+			owner: 'owner',
+			repo: 'project',
+		});
+	});
+
 	test('finds git config above a nested selected workspace folder', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const provider = disposables.add(new InMemoryFileSystemProvider());

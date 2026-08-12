@@ -12,7 +12,7 @@ import { TestStorageService } from '../../../common/workbenchTestServices.js';
 import { TestLayoutService } from '../../workbenchTestServices.js';
 import { ActivitybarPart } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { FLOATING_PANEL_INNER_MARGIN, LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { LayoutSettings, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
@@ -194,14 +194,14 @@ suite('ActivitybarPart', () => {
 		);
 	});
 
-	test('floating panels reserves inner padding and both gutters on the right', () => {
+	test('floating panels reserves a 4px inner gap and both gutters on the right', () => {
 		const { part } = createActivitybarPart(false, true, Position.RIGHT);
 
 		assert.deepStrictEqual(
 			{ min: part.minimumWidth, max: part.maximumWidth },
 			{
-				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
-				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 2 + FLOATING_PANEL_INNER_MARGIN,
+				min: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
+				max: ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH + ActivitybarPart.FLOATING_MARGIN * 3,
 			}
 		);
 	});
@@ -399,10 +399,10 @@ suite('ActivitybarPart', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: 300 - margin * 2,
+			titleAndStatusBarVisible: 300 - margin,
 			titleBarHidden: 300 - margin * 2 - margin,
-			bannerInsteadOfTitleBar: 300 - margin * 2,
-			statusBarHidden: 300 - margin - margin * 2,
+			bannerInsteadOfTitleBar: 300 - margin,
+			statusBarHidden: 300 - margin * 2,
 			bothEdgesExposed: 300 - margin * 2 - margin * 2,
 			floatingPanelsDisabled: 300,
 		});
