@@ -32,6 +32,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -58,6 +59,7 @@ import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCus
 import { getByokLmAgentModelId } from '../../common/agentHostByokLm.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -653,6 +655,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
@@ -666,6 +669,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 	) {
 		super();
+		this._lastManagedSettingsPermissions = this._managedSettingsService.permissions;
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this._configurationService.publishRootTransientValues?.({ [CopilotCliVSCodeAssignmentContextKey]: undefined });
@@ -702,6 +706,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._restartClientIfStartupConfigChanged().catch(err =>
 				this._logService.error('[Copilot] Failed to apply root config change', err)
+			);
+		}));
+		this._register(this._managedSettingsService.onDidChange(() => {
+			this._restartClientIfStartupConfigChanged().catch(err =>
+				this._logService.error('[Copilot] Failed to apply managed settings change', err)
 			);
 		}));
 
@@ -761,6 +770,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastCopilotSdkLogLevelSetting: CopilotSdkLogLevelSetting = this._getCopilotSdkLogLevelSetting();
 	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
 	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
+	private _lastManagedSettingsPermissions: IAgentHostManagedSettingsPermissions;
 	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
@@ -819,7 +829,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const copilotSdkLogLevelSetting = this._getCopilotSdkLogLevelSetting();
 		const enterpriseHost = this._getEnterpriseHost();
 		const systemProxyEnabled = this._isSystemProxyEnabled();
-		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled) {
+		const managedSettingsPermissions = this._managedSettingsService.permissions;
+		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled && equals(this._lastManagedSettingsPermissions, managedSettingsPermissions)) {
 			return;
 		}
 		const changed = [
@@ -828,12 +839,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._lastCopilotSdkLogLevelSetting !== copilotSdkLogLevelSetting ? `copilotSdkLogLevel=${copilotSdkLogLevelSetting}` : undefined,
 			this._lastEnterpriseHost !== enterpriseHost ? `enterpriseHost=${enterpriseHost}` : undefined,
 			this._lastSystemProxyEnabled !== systemProxyEnabled ? `systemProxy=${systemProxyEnabled}` : undefined,
+			!equals(this._lastManagedSettingsPermissions, managedSettingsPermissions) ? 'managedSettingsPermissions' : undefined,
 		].filter((v): v is string => v !== undefined).join(', ');
 		this._lastSessionSyncEnabled = sessionSync;
 		this._lastRubberDuckEnabled = rubberDuck;
 		this._lastCopilotSdkLogLevelSetting = copilotSdkLogLevelSetting;
 		this._lastEnterpriseHost = enterpriseHost;
 		this._lastSystemProxyEnabled = systemProxyEnabled;
+		this._lastManagedSettingsPermissions = managedSettingsPermissions;
 		await this._requestClientRestart(`startup config changed: ${changed}`);
 	}
 

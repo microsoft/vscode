@@ -15,6 +15,7 @@ import '../../../../platform/agentHost/common/agentHostStarter.config.contributi
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -1530,6 +1531,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
+		[AgentHostMapLegacySettingsToManagedSettingsSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.copilot.mapLegacySettingsToManagedSettings', "When enabled, maps supported legacy VS Code settings to equivalent Copilot SDK managed settings for local Agent Host sessions. This compatibility bridge is temporary and is not used for new settings."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			tags: ['experimental', 'advanced'],
+		},
 		[AgentHostOpus48PromptEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
@@ -1572,7 +1580,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostAllowSignedOutWhenUsableSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, the Agents window opens without forcing GitHub sign-in. Agents usable without GitHub (for example Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub still prompt for sign-in when selected. When disabled (the default), GitHub sign-in is required before the window opens."),
+			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, Agent Host sessions remain available while signed out. The Agents window opens without forcing GitHub sign-in, and editor chat lets you select the Copilot harness. Agents usable without GitHub (for example Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub prompt you to add a model or sign in. When disabled (the default), GitHub sign-in is required before the Agents window opens."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

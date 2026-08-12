@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { untildify } from '../../../../base/common/labels.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../base/common/path.js';
@@ -63,6 +64,18 @@ export function mcpDefaultCwdToFsPath(resource: URI, os: OperatingSystem): strin
 	return value;
 }
 
+export function resolveMcpServerSandboxWorkingDirectory(cwd: string | undefined, defaultCwd: URI | undefined, userHome: URI | undefined, os: OperatingSystem): string | undefined {
+	const targetDefaultCwd = defaultCwd ? mcpDefaultCwdToFsPath(defaultCwd, os) : undefined;
+	if (!cwd) {
+		return targetDefaultCwd;
+	}
+	const targetUserHome = userHome ? mcpDefaultCwdToFsPath(userHome, os) : undefined;
+	const expandedCwd = targetUserHome ? untildify(cwd, targetUserHome) : cwd;
+	const path = os === OperatingSystem.Windows ? win32 : posix;
+	const base = targetDefaultCwd ?? targetUserHome;
+	return base && !path.isAbsolute(expandedCwd) ? path.join(base, expandedCwd) : expandedCwd;
+}
+
 export class McpSandboxService extends Disposable implements IMcpSandboxService {
 	readonly _serviceBrand: undefined;
 
@@ -99,7 +112,12 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
-			const launchCwd = launch.cwd ?? await this._targetFsPath(serverDef.defaultCwd, remoteAuthority);
+			const launchCwd = resolveMcpServerSandboxWorkingDirectory(
+				launch.cwd,
+				serverDef.defaultCwd,
+				await this._getUserHome(remoteAuthority),
+				await this._getOperatingSystem(remoteAuthority),
+			);
 			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launchCwd);
 			const quotedCommand = this._quoteShellArgument(launch.command);
 			const quotedArgs = launch.args.map(arg => this._quoteShellArgument(arg));
@@ -130,13 +148,6 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			this._logService.debug(`McpSandboxService: launch details for server ${serverDef.label} - command: ${launch.command}, args: ${launch.args.join(' ')}`);
 		}
 		return launch;
-	}
-
-	private async _targetFsPath(resource: URI | undefined, remoteAuthority: string | undefined): Promise<string | undefined> {
-		if (!resource) {
-			return undefined;
-		}
-		return mcpDefaultCwdToFsPath(resource, await this._getOperatingSystem(remoteAuthority));
 	}
 
 	public getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined {
@@ -331,6 +342,15 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 			return null;
 		}
 		return this._remoteEnvDetailsPromise;
+	}
+
+	private async _getUserHome(remoteAuthority?: string): Promise<URI | undefined> {
+		const remoteEnv = await this._getRemoteEnv(remoteAuthority);
+		if (remoteEnv) {
+			return remoteEnv.userHome;
+		}
+		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
+		return nativeEnv.userHome;
 	}
 
 	private async _getOperatingSystem(remoteAuthority?: string): Promise<OperatingSystem> {

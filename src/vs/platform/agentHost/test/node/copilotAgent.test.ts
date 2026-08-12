@@ -44,6 +44,7 @@ import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSe
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -540,6 +541,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -548,7 +550,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, managedSettingsService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -572,6 +574,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -580,7 +583,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, managedSettingsService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -631,15 +634,17 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
+	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
@@ -678,7 +683,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const agent = options?.copilotClient
 		? instantiationService.createInstance(options.useRealResumePath ? ResumePathCopilotAgent : TestableCopilotAgent, options.copilotClient)
 		: instantiationService.createInstance(CopilotAgent);
-	return { agent, instantiationService, configurationService: configService, fileService, stateManager };
+	return { agent, instantiationService, configurationService: configService, managedSettingsService, fileService, stateManager };
 }
 
 function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry }): CopilotAgent {
@@ -2167,6 +2172,28 @@ suite('CopilotAgent', () => {
 					stopCount: 1,
 					logLevel: 'all',
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts sessions when managed permission contributions change or are removed', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, managedSettingsService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				const restricted = { disableBypassPermissionsMode: 'disable' as const };
+				managedSettingsService.setClientPermissions('client', restricted);
+				await Promise.resolve();
+				await agent.listSessions();
+				managedSettingsService.setClientPermissions('client', restricted);
+				await Promise.resolve();
+				managedSettingsService.removeClientPermissions('client');
+				await Promise.resolve();
+
+				assert.strictEqual(client.stopCount, 2);
 			} finally {
 				await disposeAgent(agent);
 			}
