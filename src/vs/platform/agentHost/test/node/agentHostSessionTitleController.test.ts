@@ -169,15 +169,14 @@ suite('AgentHostSessionTitleController', () => {
 		const { controller, session, db, titleActions } = setup(copilotApiService, '', undefined, undefined, undefined, undefined, undefined, true);
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
-		const prompt = await controller.preparePromptForAgent(session.toString(), buildDefaultChatUri(session), 'Continue');
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		assert.ok(prompt.includes('<system_notification>'));
-		assert.ok(prompt.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_session` tool exactly once'));
-		assert.ok(prompt.includes('before your final response'));
-		assert.ok(prompt.includes('Do not rename prematurely when inspecting referenced issues, pull requests, files, or other context would produce a better title.'));
-		assert.ok(prompt.includes('If the user explicitly asks to rename the session, call the tool immediately.'));
+		assert.ok(instruction?.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_session` tool exactly once'));
+		assert.ok(instruction?.includes('before your final response'));
+		assert.ok(instruction?.includes('Do not rename prematurely when inspecting referenced issues, pull requests, files, or other context would produce a better title.'));
+		assert.ok(instruction?.includes('If the user explicitly asks to rename the session, call the tool immediately.'));
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -210,7 +209,7 @@ suite('AgentHostSessionTitleController', () => {
 		const { controller, session } = setup();
 		controller.seedTitleFromFirstMessage(session.toString(), 'Explain title generation');
 
-		assert.strictEqual(await controller.preparePromptForAgent(session.toString(), buildDefaultChatUri(session), 'Continue'), 'Continue');
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
 	});
 
 	test('materialized server tools override later root setting changes', async () => {
@@ -228,8 +227,8 @@ suite('AgentHostSessionTitleController', () => {
 		});
 		disabled.controller.seedTitleFromFirstMessage(disabled.session.toString(), 'Do not use missing rename tool');
 
-		assert.ok((await enabled.controller.preparePromptForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session), 'Continue')).includes('`rename_session`'));
-		assert.strictEqual(await disabled.controller.preparePromptForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session), 'Continue'), 'Continue');
+		assert.ok((await enabled.controller.prepareInstructionForAgent(enabled.session.toString(), buildDefaultChatUri(enabled.session)))?.includes('`rename_session`'));
+		assert.strictEqual(await disabled.controller.prepareInstructionForAgent(disabled.session.toString(), buildDefaultChatUri(disabled.session)), undefined);
 		assert.strictEqual(disabled.copilotApiService.utilityCalls.length, 1);
 	});
 
@@ -240,15 +239,66 @@ suite('AgentHostSessionTitleController', () => {
 		stateManager.addChat(session.toString(), chat, {});
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
-		const prompt = await controller.preparePromptForAgent(session.toString(), chat, 'Continue');
-		assert.ok(prompt.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_chat` tool exactly once'));
-		assert.ok(prompt.includes('If the user explicitly asks to rename the chat, call the tool immediately.'));
-		assert.ok(!prompt.includes('`rename_session`'));
+		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
+		assert.ok(instruction?.includes('During this first request, gather enough context to understand the actual work scope, then call the `rename_chat` tool exactly once'));
+		assert.ok(instruction?.includes('If the user explicitly asks to rename the chat, call the tool immediately.'));
+		assert.ok(!instruction?.includes('`rename_session`'));
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'fork auto provenance should be persisted');
 		await waitForCondition(async () => await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO, 'peer auto provenance should be persisted');
+	});
+
+	test('clearSession releases session and peer-chat rename state', async () => {
+		const { controller, stateManager, session, db } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+		const chat = buildChatUri(session.toString(), 'peer-clear');
+		stateManager.addChat(session.toString(), chat, {});
+		controller.markTitleAuto(session.toString(), undefined, 'Session fallback');
+		controller.markTitleAuto(session.toString(), chat, 'Chat fallback');
+		await waitForCondition(async () =>
+			await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO
+			&& await db.getMetadata(customChatTitleSourceMetadataKey(chat)) === AGENT_HOST_TITLE_SOURCE_AUTO,
+			'auto provenance should be persisted');
+		controller.markTitleRenamed(session.toString());
+		controller.markTitleRenamed(session.toString(), chat);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)), undefined);
+		assert.strictEqual(await controller.prepareInstructionForAgent(session.toString(), chat), undefined);
+
+		controller.clearSession(session.toString(), [chat]);
+
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('`rename_session`'));
+		assert.ok((await controller.prepareInstructionForAgent(session.toString(), chat))?.includes('`rename_chat`'));
+	});
+
+	test('clearSession cancels generation and clears every title-state collection', () => {
+		const copilotApiService = new TestCopilotApiService();
+		copilotApiService.responsePromise = new Promise(() => { });
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const provisionalChat = buildChatUri(session.toString(), 'peer-provisional');
+		const renamedChat = buildChatUri(session.toString(), 'peer-renamed');
+		stateManager.addChat(session.toString(), provisionalChat, {});
+		stateManager.addChat(session.toString(), renamedChat, {});
+		controller.seedTitleFromFirstMessage(session.toString(), 'Generate a title');
+		controller.seedProvisionalTitle(session.toString(), 'Provisional', provisionalChat);
+		controller.markTitleAuto(session.toString(), renamedChat, 'Automatic');
+		controller.markTitleRenamed(session.toString(), renamedChat);
+
+		controller.clearSession(session.toString(), [provisionalChat, renamedChat]);
+
+		assert.deepStrictEqual({
+			cancellations: controller['_titleGenerationCancellationSources'].size,
+			lastApplied: controller['_lastAppliedTitle'].size,
+			provisional: controller['_provisionalTitles'].size,
+			auto: controller['_autoTitles'].size,
+			renamed: controller['_renamedTitles'].size,
+		}, {
+			cancellations: 0,
+			lastApplied: 0,
+			provisional: 0,
+			auto: 0,
+			renamed: 0,
+		});
 	});
 
 	test('seedTitleFromFirstMessage applies fallback and persists generated title', async () => {

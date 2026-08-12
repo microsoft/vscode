@@ -86,8 +86,8 @@ suite('SessionServerTools', () => {
 			{ name: SessionServerToolName.RenameChat, required: ['title'] },
 		]);
 		assert.deepStrictEqual(sessionServerToolDefinitions.slice(4, 6).map(def => def.inputSchema?.properties?.title), [
-			{ type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.' },
-			{ type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.' },
+			{ type: 'string', maxLength: 200, description: 'Short, descriptive session title, ideally 1-4 words.' },
+			{ type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
 		]);
 	});
 
@@ -501,7 +501,7 @@ suite('SessionServerTools', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)];
 		const current = getRenameSessionArgs({ title: '  Meaningful   Title  ' }, sessions, URI.parse('copilot:/s1'));
 		const link = getRenameSessionArgs({ session: 'agent-host-session://copilot/s2', title: 'Next' }, sessions);
-		assert.deepStrictEqual({ session: current.session.toString(), title: current.title }, { session: 'copilot:/s1', title: 'Meaningful title' });
+		assert.deepStrictEqual({ session: current.session.toString(), title: current.title }, { session: 'copilot:/s1', title: 'Meaningful Title' });
 		assert.deepStrictEqual({ session: link.session.toString(), title: link.title }, { session: 'copilot:/s2', title: 'Next' });
 		assert.throws(() => getRenameSessionArgs({ title: '   ' }, sessions, URI.parse('copilot:/s1')), /title/);
 		assert.throws(() => getRenameSessionArgs({ session: 'copilot:/nope', title: 'X' }, sessions), /known session/);
@@ -517,13 +517,25 @@ suite('SessionServerTools', () => {
 			generalChat: getRenameSessionArgs({ title: 'Fix &amp;   ship IT' }, [generalChatSession], generalChatSession.session).title,
 			chat: getRenameChatArgs({ chat: 'agent-host-session://copilot/project?chat=peer', title: 'Don&#39;t   panic' }, [projectSession]).title,
 			complete: getRenameSessionArgs({ title: 'Review PR #330289 session overlap coordination' }, [projectSession], projectSession.session).title,
+			casing: getRenameSessionArgs({ title: 'GitHub TypeScript AppKit OAuth' }, [projectSession], projectSession.session).title,
 		}, {
-			project: 'Fix input flicker',
-			acronym: 'Adding JWT auth',
+			project: 'fix input flicker',
+			acronym: 'ADDING JWT AUTH',
 			generalChat: 'Fix & ship IT',
 			chat: 'Don\'t panic',
 			complete: 'Review PR #330289 session overlap coordination',
+			casing: 'GitHub TypeScript AppKit OAuth',
 		});
+	});
+
+	test('rename titles accept 200 Unicode code points and reject 201', () => {
+		const session = sessionMeta('s1', SessionStatus.Idle, workspace);
+		const accepted = '😀'.repeat(200);
+		const rejected = '😀'.repeat(201);
+		assert.strictEqual(getRenameSessionArgs({ title: accepted }, [session], session.session).title, accepted);
+		assert.strictEqual(getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: accepted }, [session]).title, accepted);
+		assert.throws(() => getRenameSessionArgs({ title: rejected }, [session], session.session), /must not exceed 200 characters/);
+		assert.throws(() => getRenameChatArgs({ chat: 'agent-host-session://copilot/s1?chat=peer', title: rejected }, [session]), /must not exceed 200 characters/);
 	});
 
 	test('rename_session always applies the requested title and forwards the current session', async () => {
@@ -532,10 +544,10 @@ suite('SessionServerTools', () => {
 			listSessions: async () => [sessionMeta('s1', SessionStatus.Idle, workspace), sessionMeta('s2', SessionStatus.Idle, workspace)],
 			onRenameSession: (session, title) => { renamed = { session, title }; },
 		});
-		assert.strictEqual(await applyRenameSessionTool(accessor, { title: 'Focused Work' }, URI.parse('copilot:/s1')), 'Renamed session to "Focused work".');
-		assert.deepStrictEqual({ session: renamed?.session.toString(), title: renamed?.title }, { session: 'copilot:/s1', title: 'Focused work' });
-		assert.strictEqual(await applyRenameSessionTool(accessor, { session: 'agent-host-session://copilot/s2', title: 'Updated Scope' }), 'Renamed session to "Updated scope".');
-		assert.deepStrictEqual({ session: renamed?.session.toString(), title: renamed?.title }, { session: 'copilot:/s2', title: 'Updated scope' });
+		assert.strictEqual(await applyRenameSessionTool(accessor, { title: 'Focused Work' }, URI.parse('copilot:/s1')), 'Renamed session to "Focused Work".');
+		assert.deepStrictEqual({ session: renamed?.session.toString(), title: renamed?.title }, { session: 'copilot:/s1', title: 'Focused Work' });
+		assert.strictEqual(await applyRenameSessionTool(accessor, { session: 'agent-host-session://copilot/s2', title: 'Updated Scope' }), 'Renamed session to "Updated Scope".');
+		assert.deepStrictEqual({ session: renamed?.session.toString(), title: renamed?.title }, { session: 'copilot:/s2', title: 'Updated Scope' });
 	});
 
 	test('getRenameChatArgs validates explicit chat links and current peer-chat defaults', () => {
@@ -579,8 +591,8 @@ suite('SessionServerTools', () => {
 		const first = await applyRenameSessionTool(accessor, { session: 'copilot:/s1', title: 'Named Once' });
 		const second = await applyRenameSessionTool(accessor, { session: 'copilot:/s1', title: 'Renamed Again' });
 		assert.deepStrictEqual({ first, second, renameCalls }, {
-			first: 'Renamed session to "Named once".',
-			second: 'Renamed session to "Renamed again".',
+			first: 'Renamed session to "Named Once".',
+			second: 'Renamed session to "Renamed Again".',
 			renameCalls: 2,
 		});
 	});

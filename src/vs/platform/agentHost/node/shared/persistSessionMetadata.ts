@@ -53,7 +53,7 @@ export function persistSessionMetadata(sessionDataService: ISessionDataService, 
 export async function persistSessionMetadataValues(sessionDataService: ISessionDataService, session: string, values: Readonly<Record<string, string>>): Promise<void> {
 	const ref = sessionDataService.openDatabase(URI.parse(session));
 	try {
-		await Promise.all(Object.entries(values).map(([key, value]) => ref.object.setMetadata(key, value)));
+		await ref.object.setMetadataValues(values);
 	} finally {
 		ref.dispose();
 	}

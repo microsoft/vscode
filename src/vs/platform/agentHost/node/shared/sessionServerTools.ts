@@ -89,7 +89,7 @@ const renameSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
 		session: { type: 'string', description: 'Optional session to rename: a session URI from `list_sessions` or an `agent-host-session://` link. Defaults to the current session when omitted.' },
-		title: { type: 'string', description: 'Short, descriptive session title, ideally 1-4 words.' },
+		title: { type: 'string', maxLength: 200, description: 'Short, descriptive session title, ideally 1-4 words.' },
 	},
 	required: ['title'],
 };
@@ -99,7 +99,7 @@ const renameChatInputSchema: ToolDefinition['inputSchema'] = {
 	properties: {
 		session: { type: 'string', description: 'Optional owning session: a session URI from `list_sessions` or an `agent-host-session://` link. When provided with `chat`, it must match that chat\'s session.' },
 		chat: { type: 'string', description: 'The chat to rename: pass the `agent-host-session://` link returned by `create_chat`. Omit only when this tool is already running inside that non-default chat.' },
-		title: { type: 'string', description: 'Short, descriptive chat title, ideally 1-4 words.' },
+		title: { type: 'string', maxLength: 200, description: 'Short, descriptive chat title, ideally 1-4 words.' },
 	},
 	required: ['title'],
 };
@@ -356,13 +356,13 @@ function normalizeProjectSessionTitle(title: string): string {
 	const humanized = !/\s/.test(trimmed) && /[/_-]/.test(trimmed)
 		? trimmed.replace(/[/_\-\s]+/g, ' ')
 		: trimmed;
-	return humanized.replace(/\s+/g, ' ').trim().split(/\s+/).map((word, index) => {
-		if (/^[A-Z]{2,3}$/.test(word)) {
-			return word;
-		}
-		const lower = word.toLowerCase();
-		return index === 0 ? lower.charAt(0).toUpperCase() + lower.slice(1) : lower;
-	}).join(' ');
+	return humanized.replace(/\s+/g, ' ').trim();
+}
+
+export function validateRenameTitle(title: string, toolName: SessionServerToolName.RenameSession | SessionServerToolName.RenameChat): void {
+	if (Array.from(title).length > 200) {
+		throw new Error(`Invalid ${toolName} input: title must not exceed 200 characters.`);
+	}
 }
 
 function parseWorkspaceUri(workspace: string): URI | undefined {
@@ -817,6 +817,7 @@ export function getRenameSessionArgs(rawArgs: unknown, sessions: readonly IAgent
 	if (!title) {
 		throw new Error(`Invalid ${SessionServerToolName.RenameSession} input: title must contain non-whitespace characters.`);
 	}
+	validateRenameTitle(title, SessionServerToolName.RenameSession);
 	return { session, title };
 }
 
@@ -857,6 +858,7 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	if (!title) {
 		throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: title must contain non-whitespace characters.`);
 	}
+	validateRenameTitle(title, SessionServerToolName.RenameChat);
 	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.RenameChat);
 	const chatInput = getOptionalString(args.chat, 'chat', SessionServerToolName.RenameChat);
 

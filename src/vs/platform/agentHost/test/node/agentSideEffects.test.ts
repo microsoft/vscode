@@ -1174,6 +1174,29 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Continue');
 		});
 
+		test('automatic rename guidance is transient context and never changes the user prompt', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-guidance',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Keep GitHub casing', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
+			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_session`'));
+		});
+
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
 			setupSession();
 			const renameSideEffects = createRenameSideEffects();

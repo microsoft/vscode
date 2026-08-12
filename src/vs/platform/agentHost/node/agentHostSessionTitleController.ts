@@ -412,6 +412,16 @@ export class AgentHostSessionTitleController extends Disposable {
 		this._cancelTitleGeneration(session);
 	}
 
+	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void {
+		for (const key of [session, ...chatChannels]) {
+			this._cancelTitleGeneration(key);
+			this._lastAppliedTitle.delete(key);
+			this._provisionalTitles.delete(key);
+			this._autoTitles.delete(key);
+			this._renamedTitles.delete(key);
+		}
+	}
+
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {
 		const additionalChat = this._additionalChatChannel(chatChannel);
 		const key = additionalChat ?? channel;
@@ -429,27 +439,26 @@ export class AgentHostSessionTitleController extends Disposable {
 		this._renamedTitles.add(key);
 	}
 
-	async preparePromptForAgent(channel: ProtocolURI, chatChannel: ProtocolURI, prompt: string): Promise<string> {
+	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {
 		if (!this._isActiveAgentTitleGenerationEnabled(channel)) {
-			return prompt;
+			return undefined;
 		}
 		const additionalChat = this._additionalChatChannel(chatChannel);
 		const key = additionalChat ?? channel;
 		if (this._renamedTitles.has(key)) {
-			return prompt;
+			return undefined;
 		}
 		const sourceKey = additionalChat ? customChatTitleSourceMetadataKey(additionalChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
 		const source = await this._readPersistedTitleSource(channel, sourceKey);
 		if (source === AGENT_HOST_TITLE_SOURCE_USER || source === AGENT_HOST_TITLE_SOURCE_AGENT) {
 			this.markTitleRenamed(channel, additionalChat);
-			return prompt;
+			return undefined;
 		}
 		if (source !== AGENT_HOST_TITLE_SOURCE_AUTO && !this._autoTitles.has(key)) {
-			return prompt;
+			return undefined;
 		}
 
-		const reminder = additionalChat ? CHAT_RENAME_REMINDER : SESSION_RENAME_REMINDER;
-		return `${prompt}\n\n<system_notification>\n${reminder}\n</system_notification>`;
+		return additionalChat ? CHAT_RENAME_REMINDER : SESSION_RENAME_REMINDER;
 	}
 
 	private _generateTitleSoon(

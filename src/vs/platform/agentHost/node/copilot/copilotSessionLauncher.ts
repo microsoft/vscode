@@ -117,6 +117,7 @@ export interface ICopilotSessionRuntime {
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<void>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
+	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -643,6 +644,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
+				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
 			mcpServers: { ...toSdkMcpServersFromConfigMap(plan.snapshot.mcpServers), ...toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)) },
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),

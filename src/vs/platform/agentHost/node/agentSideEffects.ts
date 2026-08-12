@@ -1716,6 +1716,10 @@ export class AgentSideEffects extends Disposable {
 		this._titleController.cancelTitleGeneration(session);
 	}
 
+	clearSessionTitleState(session: ProtocolURI, chats: readonly ProtocolURI[]): void {
+		this._titleController.clearSession(session, chats);
+	}
+
 	clearQueuedMessageSenders(chat: ProtocolURI): void {
 		this._queuedMessageSenders.deleteAll(chat);
 	}
@@ -2026,14 +2030,15 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
-			const agentPrompt = await this._titleController.preparePromptForAgent(sessionChannel, chat, message.text);
+			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
+			const sendContext = renameInstruction ? { ...chatContext, hostInstructions: [renameInstruction] } : chatContext;
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
 				return;
 			}
-			await agent.chats.sendMessage(chatUri, agentPrompt, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, chatContext);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, sendContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;

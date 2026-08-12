@@ -58,7 +58,7 @@ import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
-import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
+import { type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, type ISessionServerToolAccessor, validateRenameTitle } from './shared/sessionServerTools.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadataValues, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
@@ -1025,18 +1025,20 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _renameSessionFromTool(session: URI, title: string): Promise<IRenameTitleResult> {
-		if (this._stateManager.getSessionState(session.toString())?.title !== title) {
-			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
-		}
+		validateRenameTitle(title, SessionServerToolName.RenameSession);
 		await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
 			[SESSION_CUSTOM_TITLE_KEY]: title,
 			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AGENT,
 		});
+		if (this._stateManager.getSessionState(session.toString())?.title !== title) {
+			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title });
+		}
 		this._sideEffects.markTitleRenamed(session.toString());
 		return { title };
 	}
 
 	private async _renameChatFromTool(session: URI, chat: URI, title: string): Promise<IRenameTitleResult> {
+		validateRenameTitle(title, SessionServerToolName.RenameChat);
 		if (isDefaultChatUri(chat.toString())) {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must target a non-default chat.`);
 		}
@@ -1045,13 +1047,13 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Invalid ${SessionServerToolName.RenameChat} input: chat must match a known non-default chat.`);
 		}
 
-		if (this._stateManager.getSessionState(session.toString())) {
-			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
-		}
 		await persistSessionMetadataValues(this._sessionDataService, session.toString(), {
 			[customChatTitleMetadataKey(chat.toString())]: title,
 			[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AGENT,
 		});
+		if (this._stateManager.getSessionState(session.toString())) {
+			this._stateManager.updateChatTitle(session.toString(), chat.toString(), title);
+		}
 		this._sideEffects.markTitleRenamed(session.toString(), chat.toString());
 		return { title };
 	}
@@ -2789,7 +2791,8 @@ export class AgentService extends Disposable implements IAgentService {
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		this._stateManager.invalidateSessionChatResolutions(session.toString());
-		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
+		const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
+		for (const chat of sessionChats) {
 			this._sideEffects.clearChannelTelemetry(chat.resource);
 		}
 		this._sideEffects.clearChannelTelemetry(session.toString());
@@ -2813,6 +2816,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 			this._clearDownloadProgressInterest(session.toString());
 		}
+		this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
+		await this._whenSessionDataIdle(session);
 		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
 		// performed by the provider above. No-op when the directory does not exist.
 		//
@@ -2824,7 +2829,6 @@ export class AgentService extends Disposable implements IAgentService {
 		await this._sessionDataService.deleteSessionData(session, workingDirectories);
 		await this._worktree?.removeSessionWorktree(sessionId, worktree);
 		this._changesetCoordinator.onSessionDisposed(session.toString());
-		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		for (const chat of this._stateManager.getSessionState(session.toString())?.chats ?? []) {
 			this._sideEffects.clearQueuedMessageSenders(chat.resource);
 		}
@@ -2832,6 +2836,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
+	}
+
+	private async _whenSessionDataIdle(session: URI): Promise<void> {
+		const ref = this._sessionDataService.openDatabase(session);
+		try {
+			await ref.object.whenIdle();
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
@@ -3010,7 +3023,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// provider runtime. A zero grace releases on the next tick.
 		this._pendingSessionRelease.set(resource, disposableTimeout(() => {
 			this._pendingSessionRelease.deleteAndDispose(resource);
-			this._maybeEvictIdleSession(resource);
+			void this._maybeEvictIdleSession(resource).catch(err => {
+				this._logService.error(err, `[AgentService] Failed to evict idle session ${resource.toString()}`);
+			});
 		}, SESSION_RELEASE_GRACE_MS));
 	}
 
@@ -3104,7 +3119,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * session entry because the parent owns the materialized turn tree. Durable
 	 * data stays intact; the next subscribe restores the session on demand.
 	 */
-	private _maybeEvictIdleSession(resource: URI): void {
+	private async _maybeEvictIdleSession(resource: URI): Promise<void> {
 		const key = resource.toString();
 		if (this._resourceSubscribers.has(resource)) {
 			return;
@@ -3139,6 +3154,19 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const chats = this._getSessionChatsInTeardownOrder(evictionTarget);
+		await this._whenSessionDataIdle(evictionTarget);
+		if (this._resourceSubscribers.has(evictionTarget) || this._restoreSessionInFlight.has(evictionTargetKey)) {
+			return;
+		}
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
+				return;
+			}
+		}
+		const settledState = this._stateManager.getSessionState(evictionTargetKey);
+		if (!settledState || settledState.activeTurn !== undefined) {
+			return;
+		}
 		this._logService.info(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
 		// Also evict any sibling subagent entries cached under the parent: their
 		// authoritative state is the parent's turn tree, and dropping the parent
@@ -3147,6 +3175,7 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
 			this._stateManager.removeSession(cachedKey);
 		}
+		this._sideEffects.clearSessionTitleState(evictionTargetKey, settledState.chats.map(chat => chat.resource));
 		this._stateManager.removeSession(evictionTargetKey);
 		// Release the provider's in-memory SDK session in lockstep with the
 		// cached state. Non-destructive: durable data is preserved so the

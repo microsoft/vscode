@@ -8353,13 +8353,13 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('rename tool reports a failure when title persistence fails', async () => {
+		test('rename failures preserve live state and both persisted metadata values', async () => {
 			class FailingTitleDatabase extends TestSessionDatabase {
-				override async setMetadata(key: string, value: string): Promise<void> {
-					if (key === 'customTitle' || key === 'customTitleSource') {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (Object.keys(values).some(key => key.startsWith('customTitle') || key.startsWith('customChatTitle'))) {
 						throw new Error('title persistence failed');
 					}
-					return super.setMetadata(key, value);
+					return super.setMetadataValues(values);
 				}
 			}
 			class ServerToolAgent extends MockAgent {
@@ -8376,11 +8376,41 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			localService.registerProvider(agent);
 			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const peerChat = buildChatUri(sessionUri, 'peer-failure');
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Original session' });
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
+			await db.setMetadata('customTitle', 'Original session');
+			await db.setMetadata('customTitleSource', 'user');
+			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
+			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
 
 			await assert.rejects(
 				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Will fail' }),
 				/title persistence failed/,
 			);
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
+					chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
+					title: 'Chat will fail',
+				}),
+				/title persistence failed/,
+			);
+			assert.deepStrictEqual({
+				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
+				sessionTitle: await db.getMetadata('customTitle'),
+				sessionSource: await db.getMetadata('customTitleSource'),
+				liveChat: localService.stateManager.getChatState(peerChat)?.title,
+				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
+				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+			}, {
+				liveSession: 'Original session',
+				sessionTitle: 'Original session',
+				sessionSource: 'user',
+				liveChat: 'Original chat',
+				chatTitle: 'Original chat',
+				chatSource: 'user',
+			});
 		});
 	});
 

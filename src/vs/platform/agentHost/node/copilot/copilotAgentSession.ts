@@ -617,6 +617,7 @@ class CopilotTurn {
  * database reference, pending permissions).
  */
 export class CopilotAgentSession extends Disposable {
+	private _hostInstructions: readonly string[] | undefined;
 	readonly sessionId: string;
 	readonly resourceUri: URI;
 	private readonly _ownerSessionUri: URI;
@@ -1840,6 +1841,7 @@ export class CopilotAgentSession extends Disposable {
 			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
+			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
 		};
 	}
 
@@ -2008,7 +2010,7 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[]): Promise<void> {
 		this._resetAbortToken();
 		if (turnId && this._currentTurn?.id !== turnId) {
 			// Establish the `pending` turn for this message. Callers normally
@@ -2020,6 +2022,7 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.messageCharLen = prompt.length;
 		}
 		const turn = this._currentTurn;
+		this._hostInstructions = hostInstructions;
 		try {
 			await this._send(prompt, attachments, mode);
 		} catch (err) {
@@ -2033,7 +2036,14 @@ export class CopilotAgentSession extends Disposable {
 				this._clearActiveTurn();
 			}
 			throw err;
+		} finally {
+			this._hostInstructions = undefined;
 		}
+	}
+
+	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {
+		const additionalContext = this._hostInstructions?.join('\n\n');
+		return additionalContext ? { additionalContext } : undefined;
 	}
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
