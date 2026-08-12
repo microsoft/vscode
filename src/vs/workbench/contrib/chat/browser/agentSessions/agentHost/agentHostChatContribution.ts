@@ -15,7 +15,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentInfo, type RootState, type SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -25,6 +25,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -34,7 +35,7 @@ import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
-import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
+import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel, filterAgentHostModelsAvailableWithoutCopilotAccount } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -121,12 +122,15 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private _initialized = false;
 	private _didStartInitialAuthentication = false;
 	private _promptCacheNotification: AgentHostPromptCacheNotification | undefined;
+	private _defaultAccountResolved = false;
+	private _hasDefaultAccount = false;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -170,6 +174,25 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._authTokenCache.clear(notification.resource);
 			this._authenticateWithServer(this._getRootAgents())
 				.catch(() => { /* best-effort */ });
+		}));
+
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(account => {
+			this._updateDefaultAccount(account !== null);
+		}));
+		this._defaultAccountService.getDefaultAccount().then(account => {
+			if (!this._store.isDisposed) {
+				this._updateDefaultAccount(account !== null);
+			}
+		});
+		this._register(this._chatEntitlementService.onDidChangeAnonymous(() => {
+			if (this._defaultAccountResolved) {
+				this._refreshModelProviders();
+			}
+		}));
+		this._register(this._languageModelsService.onDidChangeLanguageModels(vendor => {
+			if (this._defaultAccountResolved && !this._hasDefaultAccount && !this._chatEntitlementService.anonymous && !vendor.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
+				this._refreshModelProviders();
+			}
 		}));
 
 		// Surface the agent host's lazy, first-use SDK download as a progress
@@ -234,7 +257,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			} else {
 				// Push updated models to existing model provider
 				const modelProvider = this._modelProviders.get(agent.provider);
-				modelProvider?.updateModels(agent.models);
+				modelProvider?.updateModels(this._getModelsAvailableForAccount(agent));
 			}
 		}
 	}
@@ -330,17 +353,42 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
-		modelProvider.updateModels(agent.models);
+		modelProvider.updateModels(this._getModelsAvailableForAccount(agent));
 
-		// Re-authenticate when credentials change
-		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
-			const agents = this._getRootAgents();
-			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
-		}));
 		store.add(this._authenticationService.onDidChangeSessions(() => {
 			const agents = this._getRootAgents();
 			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
 		}));
+	}
+
+	private _updateDefaultAccount(hasDefaultAccount: boolean): void {
+		const signedOut = this._defaultAccountResolved && this._hasDefaultAccount && !hasDefaultAccount && !this._chatEntitlementService.anonymous;
+		this._defaultAccountResolved = true;
+		this._hasDefaultAccount = hasDefaultAccount;
+		this._authTokenCache.clear();
+		this._refreshModelProviders();
+		if (signedOut) {
+			void this._agentHostService.restartAgentHost().catch(error => this._logService.error('[AgentHost] Failed to restart after sign-out', error));
+		} else {
+			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
+		}
+	}
+
+	private _refreshModelProviders(): void {
+		for (const agent of this._getRootAgents()) {
+			this._modelProviders.get(agent.provider)?.updateModels(this._getModelsAvailableForAccount(agent));
+		}
+	}
+
+	private _getModelsAvailableForAccount(agent: AgentInfo): readonly SessionModelInfo[] {
+		if (!this._defaultAccountResolved || this._hasDefaultAccount || this._chatEntitlementService.anonymous) {
+			return agent.models;
+		}
+		return filterAgentHostModelsAvailableWithoutCopilotAccount(
+			agent.models,
+			protectedResourcesRequireGitHubCopilotSignIn(agent.protectedResources ?? []),
+			identifier => this._languageModelsService.lookupLanguageModel(identifier)?.isBYOK === true,
+		);
 	}
 
 	private _getRootAgents(): readonly AgentInfo[] {

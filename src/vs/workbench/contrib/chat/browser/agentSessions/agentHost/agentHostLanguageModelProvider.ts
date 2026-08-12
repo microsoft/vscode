@@ -34,6 +34,21 @@ export function agentHostProviderSupportsAutoModel(provider: string): boolean {
 	return provider === 'copilotcli';
 }
 
+/** Filters a harness catalog after sign-out, retaining only copies of validated BYOK models. */
+export function filterAgentHostModelsAvailableWithoutCopilotAccount(
+	models: readonly SessionModelInfo[],
+	requiresCopilotSignIn: boolean,
+	isByokModel: (identifier: string) => boolean,
+): readonly SessionModelInfo[] {
+	if (!requiresCopilotSignIn) {
+		return models;
+	}
+	return models.filter(model => {
+		const identifier = readAgentModelByokIdentifier(model);
+		return identifier !== undefined && isByokModel(identifier);
+	});
+}
+
 /**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
