@@ -22,7 +22,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
@@ -38,7 +38,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
-	instantiationService.stub(IAgentHostStateManager, disposables.add(new AgentHostStateManager(logService)));
+	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
@@ -101,11 +101,11 @@ suite('codexSessionConfigKeys', () => {
 		});
 	});
 
-	test('resolveSessionConfig exposes a single permissions-preset chip', async () => {
+	test('resolveChatConfig exposes a single permissions-preset chip', async () => {
 		const agent = createAgent(disposables);
 
-		const defaulted = await agent.resolveSessionConfig({ config: {} });
-		const fullAccess = await agent.resolveSessionConfig({ config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
+		const defaulted = await agent.resolveChatConfig({ config: {} });
+		const fullAccess = await agent.resolveChatConfig({ config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
 
 		assert.deepStrictEqual({
 			// The visible schema is reduced to Mode + one permissions preset + Permissions.
@@ -165,13 +165,13 @@ suite('codexSessionConfigKeys', () => {
 		});
 	});
 
-	test('resolveSessionConfig preserves legacy read-only permissions on restore', async () => {
+	test('resolveChatConfig preserves legacy read-only permissions on restore', async () => {
 		const agent = createAgent(disposables);
 		const legacyDefaults = { approvalPolicy: 'on-request' as const, sandboxMode: 'workspace-write' as const };
 
 		// A pre-preset session persisted only the individual axes (read-only)
 		// plus an unrelated non-permission setting.
-		const legacy = await agent.resolveSessionConfig({
+		const legacy = await agent.resolveChatConfig({
 			config: {
 				[CodexSessionConfigKey.SandboxMode]: 'read-only',
 				[CodexSessionConfigKey.ApprovalPolicy]: 'on-request',
@@ -179,7 +179,7 @@ suite('codexSessionConfigKeys', () => {
 			},
 		});
 		// A legacy session whose axes map exactly onto a preset is migrated to it.
-		const migratable = await agent.resolveSessionConfig({
+		const migratable = await agent.resolveChatConfig({
 			config: {
 				[CodexSessionConfigKey.SandboxMode]: 'danger-full-access',
 				[CodexSessionConfigKey.ApprovalPolicy]: 'never',
