@@ -161,7 +161,7 @@ export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
 /** Approval values exposed by the `chat.defaultConfiguration` setting. */
 export enum ChatDefaultPermissionLevel {
-	Default = 'default',
+	Manual = 'manual',
 	Assisted = 'assisted',
 	AllowAll = 'allowAll',
 }
@@ -169,14 +169,15 @@ export enum ChatDefaultPermissionLevel {
 export interface IChatDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
 	readonly mode?: AgentSessionMode;
-	/** Starting approval level: `default` / `assisted` / `allowAll`. */
+	/** Starting approval level: `manual` / `assisted` / `allowAll`. */
 	readonly approvals?: ChatDefaultPermissionLevel;
 }
 
 /** Maps a default-configuration value to the internal Agent Host permission level. */
 export function getChatPermissionLevelFromDefaultConfiguration(value: unknown): ChatPermissionLevel | undefined {
 	switch (value) {
-		case ChatDefaultPermissionLevel.Default:
+		case ChatDefaultPermissionLevel.Manual:
+		case ChatPermissionLevel.Default:
 			return ChatPermissionLevel.Default;
 		case ChatDefaultPermissionLevel.Assisted:
 			return ChatPermissionLevel.Assisted;

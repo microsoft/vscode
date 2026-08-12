@@ -126,7 +126,7 @@ Legacy migration also isolates failures by Automation and removes a source copy 
 
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
 
-Permission picker labels and descriptions use provider-neutral language and stay aligned across Copilot Chat and Agent Host providers. Agent Host mode and running-session permission pickers use provider-specific list options in both the workbench and Agents window so their descriptive text has a consistent minimum width. `chat.defaultConfiguration.approvals` sets the initial permission level for new sessions using `default`, `assisted`, or `allowAll`; the live session config continues to use the Agent Host protocol's `autoApprove` value.
+Permission picker descriptions use provider-neutral language across Copilot Chat and Agent Host providers. Agent Host pickers call the base approval level Manual permissions, while local Copilot Chat retains Default permissions. Agent Host mode and running-session permission pickers use provider-specific list options in both the workbench and Agents window so their descriptive text has a consistent minimum width. `chat.defaultConfiguration.approvals` sets the initial permission level for new sessions using `manual`, `assisted`, or `allowAll`; the live session config continues to use the Agent Host protocol's `default`, `assisted`, or `autoApprove` value.
 
 The sessions-layer `AgentHostCustomizationService` adapts the workbench customization service contract to `IAgentHostSessionsProvider`. It reads session MCP servers through the owning provider, including optional start/stop lifecycle actions, and writes root MCP server definitions by merging the provider's current root `mcpServers` config map before calling `setRootConfigValue`, so additions preserve existing host-level servers.
 
@@ -1002,7 +1002,7 @@ accessible name) keeps its configured `aria-label` untouched across
 placeholder changes.
 
 Agent-host approval levels map to the Copilot SDK allow-all modes before each
-turn: Default permissions uses `off`, Allow all uses `on`, and Assisted permissions
+turn: Manual permissions uses `off`, Allow all uses `on`, and Assisted permissions
 uses `auto`. Assisted permissions only skips a prompt when the SDK's
 model recommendation is `approve`; every other recommendation follows the normal
 confirmation flow. Judge rationale can arrive asynchronously: the confirmation
@@ -1019,8 +1019,8 @@ unless a pre-tool-use hook explicitly requests confirmation.
 `chat.experimental.autoApprovals.enabled` controls whether Assisted permissions is
 offered in approval pickers and defaults on outside Stable builds. Enterprise
 policy still leaves Approve When Safe and Allow All visible, but disables both with an
-administrator-directed explanation and normalizes either value back to Ask When Needed.
-The agent mode axis is independent: Autopilot with Ask When Needed still uses
+administrator-directed explanation and normalizes either value back to Manual permissions.
+The agent mode axis is independent: Autopilot with Manual permissions still uses
 SDK permission mode `off` and preserves the configured sandbox policy.
 
 Subagents are modelled as additional chats on the parent session, not as separate
