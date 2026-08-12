@@ -74,7 +74,7 @@ const server = http.createServer((req, res) => {
 		if (endpoint) {
 			res.setHeader('Access-Control-Allow-Origin', '*');
 			res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version');
+			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
 			if (req.method === 'OPTIONS') {
 				res.writeHead(204);
 				res.end();
