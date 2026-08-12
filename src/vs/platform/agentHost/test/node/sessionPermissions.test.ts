@@ -9,11 +9,11 @@ import { homedir, tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -107,12 +107,47 @@ suite('SessionPermissionManager', () => {
 	});
 
 	test('requires confirmation for protected files inside the working directory', async () => {
-		const files = ['.env', 'package.json', join('.git', 'config'), 'deps.lock', join('.vscode', 'settings.json')];
+		const files = [
+			'.env',
+			'package.json',
+			'Cargo.toml',
+			'build.gradle',
+			'build.gradle.kts',
+			'gradle.properties',
+			join('ruby_lsp', 'example', 'addon'),
+			join('.git', 'config'),
+			'deps.lock',
+			join('.vscode', 'settings.json'),
+		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
 		}
 		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	if (!isLinux) {
+		test('requires confirmation for protected files with non-canonical casing', async () => {
+			const files = ['.ENV', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
+			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
+			assert.deepStrictEqual(results, files.map(() => undefined));
+		});
+	}
+
+	test('respects forwarded edit auto-approve patterns', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': false,
+				'**/*.ts': true,
+				'**/.github/hooks/**': true,
+			},
+		});
+
+		assert.deepStrictEqual([
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'README.md')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'hooks', 'pre-tool.json')), sessionUri),
+		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined]);
 	});
 
 	test('requires confirmation for files that can register lifecycle hooks', async () => {
