@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -5847,7 +5847,7 @@ suite('CopilotAgentSession', () => {
 					failureKind: 'transport',
 					source: 'subagent',
 					transport: 'websocket',
-					apiEndpoint: new TelemetryTrustedValue('/chat/completions'),
+					apiEndpoint: 'chatCompletions',
 					statusCode: 502,
 					durationMs: 42,
 					model: 'byokModel',
