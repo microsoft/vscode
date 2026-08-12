@@ -171,14 +171,14 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.RenameSession,
 		title: 'Rename Session',
-		description: 'Rename a session so it is easy to find later. For project sessions, use a short, human-friendly session name in sentence case (1-4 words, e.g. "Adding JWT auth"). Never use kebab-case, snake_case, or raw git branch names. Use this once the work scope is clear, typically soon after `create_session` or early in a fresh session. Do not call again if the session already has a meaningful non-provisional title; this tool reports whether it renamed or skipped.',
+		description: 'Rename a session so it is easy to find later. For project sessions, use a short, human-friendly session name in sentence case (1-4 words, e.g. "Adding JWT auth"). Never use kebab-case, snake_case, or raw git branch names. Name a fresh session once its work scope is clear, typically soon after `create_session` or early in the session. Call this tool again whenever the user explicitly asks to rename the session; every invocation replaces the current title.',
 		inputSchema: renameSessionInputSchema,
 		annotations: { readOnlyHint: false },
 	},
 	{
 		name: SessionServerToolName.RenameChat,
 		title: 'Rename Chat',
-		description: 'Rename one specific non-default chat so it is easy to find later. Use a short, human-friendly chat name in sentence case (1-4 words). Pass the `agent-host-session://` link returned by `create_chat`, or omit `chat` only when this tool is running inside that peer chat already. Use this once the scope is clear, typically soon after `create_chat` or early in that chat. Do not call again if the chat already has a meaningful non-provisional title; this tool reports whether it renamed or skipped.',
+		description: 'Rename one specific non-default chat so it is easy to find later. Use a short, human-friendly chat name in sentence case (1-4 words). Pass the `agent-host-session://` link returned by `create_chat`, or omit `chat` only when this tool is running inside that peer chat already. Name a fresh chat once its scope is clear, typically soon after `create_chat` or early in that chat. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
 		inputSchema: renameChatInputSchema,
 		annotations: { readOnlyHint: false },
 	},
@@ -244,7 +244,6 @@ export interface ISessionServerToolAccessor {
 }
 
 export interface IRenameTitleResult {
-	readonly outcome: 'renamed' | 'skippedUser' | 'skippedMeaningful' | 'skippedAgent';
 	readonly title: string;
 }
 
@@ -833,16 +832,7 @@ export async function applyRenameSessionTool(accessor: ISessionServerToolAccesso
 	const sessions = await accessor.listSessions();
 	const { session, title } = getRenameSessionArgs(rawArgs, sessions, currentSession);
 	const result = await accessor.renameSession(session, title);
-	switch (result.outcome) {
-		case 'renamed':
-			return `Renamed session to "${result.title}".`;
-		case 'skippedUser':
-			return 'Skipped renaming session because it already has a user-set title.';
-		case 'skippedAgent':
-			return 'Skipped renaming session because it was already renamed earlier.';
-		default:
-			return 'Skipped renaming session because it already has a meaningful title.';
-	}
+	return `Renamed session to "${result.title}".`;
 }
 
 interface IRenameChatArgs {
@@ -921,16 +911,7 @@ export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, 
 	const sessions = await accessor.listSessions();
 	const { session, chat, title } = getRenameChatArgs(rawArgs, sessions, currentChannel);
 	const result = await accessor.renameChat(session, chat, title);
-	switch (result.outcome) {
-		case 'renamed':
-			return `Renamed chat to "${result.title}".`;
-		case 'skippedUser':
-			return 'Skipped renaming chat because it already has a user-set title.';
-		case 'skippedAgent':
-			return 'Skipped renaming chat because it was already renamed earlier.';
-		default:
-			return 'Skipped renaming chat because it already has a meaningful title.';
-	}
+	return `Renamed chat to "${result.title}".`;
 }
 
 interface ISendMessageArgs {

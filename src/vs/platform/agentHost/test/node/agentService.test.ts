@@ -1560,8 +1560,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 
 			const title = svc.stateManager.getSessionState(session.toString())?.title;
-			assert.ok(title);
-			assert.ok(title.length <= 40);
+			assert.strictEqual(title, 'Explain active agent title generation active...');
 			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'active-agent fallback provenance should be persisted');
 
