@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
@@ -33,10 +34,10 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -69,6 +70,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
 	private readonly _isSessionsWindow: boolean;
+	private _automationSessionResources = new ResourceSet();
 
 	override get order(): number {
 		return -1;
@@ -106,6 +108,13 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		// started and the first `listSessions()` round-trip (gated on
 		// authentication settling below) reconciles them.
 		this._enableSessionCachePersistence(LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY, LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY);
+		this._register(autorun(reader => {
+			this._automationSessionResources = new ResourceSet(this.automations.runs.read(reader).flatMap(run => run.sessionResource ? [run.sessionResource] : []));
+			const changed = this.syncAutomationSessionMarkers(this._sessionCache.values());
+			if (changed.length > 0) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed });
+			}
+		}));
 
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
@@ -154,6 +163,27 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 			}
 		}));
+	}
+
+	override getSessions(): ISession[] {
+		const sessions = super.getSessions();
+		this.syncAutomationSessionMarkers(sessions);
+		return sessions;
+	}
+
+	private syncAutomationSessionMarkers(sessions: Iterable<ISession>): ISession[] {
+		const changed: ISession[] = [];
+		for (const session of sessions) {
+			if (!(session instanceof AgentHostSessionAdapter)) {
+				continue;
+			}
+			const isAutomation = this._automationSessionResources.has(session.resource);
+			if (session.isAutomation.get() !== isAutomation) {
+				session.setIsAutomation(isAutomation);
+				changed.push(session);
+			}
+		}
+		return changed;
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------

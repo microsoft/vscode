@@ -113,8 +113,7 @@ enum LayoutClasses {
 	FLOATING_PANELS = 'floating-panels',
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
-	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
-	// the 32px vs 35px part title height in `PartLayout`).
+	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
 	STYLE_OVERRIDE = 'style-override',
 	// Module-specific gate shared with the Agents workbench.
 	MODERN_UI_TABS = 'modern-ui-tabs'
