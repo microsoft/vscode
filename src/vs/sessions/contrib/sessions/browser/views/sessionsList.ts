@@ -370,6 +370,7 @@ export interface ISessionCIFixModel {
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-inset-row';
 
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
@@ -408,7 +409,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
 
-		container.closest('.monaco-list-row')?.classList.add('session-list-inset-row');
 		container.classList.add('session-item');
 
 		const iconContainer = DOM.append(container, $('.session-icon'));
@@ -1252,9 +1252,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, HTMLElement> {
 	static readonly TEMPLATE_ID = 'session-show-more';
 	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-inset-row';
 
 	renderTemplate(container: HTMLElement): HTMLElement {
-		container.closest('.monaco-list-row')?.classList.add('session-list-inset-row');
 		container.classList.add('session-show-more');
 		return DOM.append(container, $('span.session-show-more-label'));
 	}
