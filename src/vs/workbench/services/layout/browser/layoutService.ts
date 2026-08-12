@@ -293,14 +293,15 @@ export function getFloatingPaneCompositeVerticalMargins(
 	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
 	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
 	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
+	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
 	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP;
 	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
 	const atWindowBottom = !facesEditorBelow && !facesPanelBelow;
 	const statusBarVisible = layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow);
 
 	return {
-		top: facesPanelAbove ? FLOATING_PANEL_MARGIN
-			: topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+		top: facesPanelAbove || facesEditorAbove ? FLOATING_PANEL_MARGIN
+			: topEdgeExposed ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
 		bottom: atWindowBottom
 			? statusBarVisible ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 			: FLOATING_PANEL_INNER_MARGIN
@@ -326,7 +327,7 @@ export function getFloatingEditorVerticalMargins(
 
 	return {
 		top: panelAtTop ? FLOATING_PANEL_MARGIN
-			: isFloatingTopEdgeExposed(layoutService, targetWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+			: isFloatingTopEdgeExposed(layoutService, targetWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
 		bottom: panelAtBottom ? FLOATING_PANEL_INNER_MARGIN
 			: layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 	};
