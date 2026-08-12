@@ -14,11 +14,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
+import { createSessionDataService } from '../common/sessionTestHelpers.js';
 
 suite('SessionPermissionManager', () => {
 
@@ -26,6 +28,7 @@ suite('SessionPermissionManager', () => {
 	let manager: AgentHostStateManager;
 	let configService: AgentConfigurationService;
 	let permissions: SessionPermissionManager;
+	let sessionDataService: ISessionDataService;
 
 	// Real (symlink-resolved) temp directories so that the symlink-resolution
 	// checks compare like-for-like (e.g. macOS `/var` -> `/private/var`).
@@ -81,7 +84,13 @@ suite('SessionPermissionManager', () => {
 
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		configService = disposables.add(new AgentConfigurationService(manager, new NullLogService()));
-		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService()));
+		const baseSessionDataService = createSessionDataService();
+		const sessionDataRoot = URI.file(join(outsideDir, 'session-data'));
+		sessionDataService = {
+			...baseSessionDataService,
+			getSessionDataDir: session => URI.joinPath(sessionDataRoot, session.path.slice(1)),
+		};
+		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService));
 		await permissions.initialize();
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
@@ -99,6 +108,29 @@ suite('SessionPermissionManager', () => {
 	test('auto-approves a normal file inside the working directory', async () => {
 		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri);
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('auto-approves an owning-session attachment for a peer chat but not another session attachment', async () => {
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		const attachmentPath = URI.joinPath(
+			sessionDataService.getSessionDataDir(URI.parse(sessionUri)),
+			SESSION_ATTACHMENTS_DIRNAME,
+			'attachment-id',
+			'Pasted text #1.txt',
+		).fsPath;
+		const otherAttachmentPath = URI.joinPath(
+			sessionDataService.getSessionDataDir(URI.from({ scheme: 'copilot', path: '/other' })),
+			SESSION_ATTACHMENTS_DIRNAME,
+			'attachment-id',
+			'other.txt',
+		).fsPath;
+
+		const results = await Promise.all([
+			permissions.getAutoApproval(readEvent(attachmentPath, peerChat), peerChat),
+			permissions.getAutoApproval(readEvent(otherAttachmentPath, peerChat), peerChat),
+		]);
+
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
 	test('requires confirmation for writes outside the working directory', async () => {
@@ -244,7 +276,7 @@ suite('SessionPermissionManager', () => {
 					error.code = code;
 					throw error;
 				},
-			}, configService, new NullLogService()));
+			}, configService, new NullLogService(), sessionDataService));
 			await deniedPermissions.initialize();
 			results.push(await deniedPermissions.getAutoApproval(readEvent(join(workDir, 'secret.txt')), sessionUri));
 		}

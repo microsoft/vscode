@@ -38,7 +38,6 @@ export interface IClaudeCanUseToolDeps {
 	readonly configurationService: IAgentConfigurationService;
 	readonly configurationResource: URI;
 	readonly serverToolHost: IAgentServerToolHost | undefined;
-	readonly isSessionAttachmentPath: (filePath: string) => boolean;
 }
 
 /**
@@ -148,9 +147,6 @@ async function dispatchCanUseTool(
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
 	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
-	if (permissionKind === 'read' && permissionPath && deps.isSessionAttachmentPath(permissionPath)) {
-		return { behavior: 'allow', updatedInput: input };
-	}
 	const toolInputString = getClaudeToolInputString(toolName, input);
 	const meta = buildClaudeToolMeta(toolName);
 	const state: ToolCallPendingConfirmationState = {

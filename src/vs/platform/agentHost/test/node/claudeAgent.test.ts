@@ -51,7 +51,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
-import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -6408,13 +6408,13 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 	 * `createSession` does NOT touch state — that's the AgentService
 	 * layer's job, which we don't run here).
 	 */
-	async function materialize(seedConfig?: { permissionMode?: string }, serverToolHost?: IAgentServerToolHost, sessionDataService?: ISessionDataService): Promise<{
+	async function materialize(seedConfig?: { permissionMode?: string }, serverToolHost?: IAgentServerToolHost): Promise<{
 		ctx: ITestContext;
 		canUseTool: NonNullable<Options['canUseTool']>;
 		sessionUri: URI;
 		sessionId: string;
 	}> {
-		const ctx = createTestContext(disposables, { sessionDataService });
+		const ctx = createTestContext(disposables);
 		if (serverToolHost) {
 			ctx.agent.setServerToolHost(serverToolHost);
 		}
@@ -6481,33 +6481,6 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		const result = await promise;
 
 		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
-	});
-
-	test('session attachment reads are allowed without prompting', async () => {
-		const baseSessionDataService = createSessionDataService();
-		const sessionDataService: ISessionDataService = {
-			...baseSessionDataService,
-			getSessionDataDir: session => URI.file(`/session-data${session.path}`),
-		};
-		const { ctx, canUseTool, sessionUri } = await materialize(undefined, undefined, sessionDataService);
-		const signals: AgentSignal[] = [];
-		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
-		const attachmentPath = URI.joinPath(
-			sessionDataService.getSessionDataDir(sessionUri),
-			SESSION_ATTACHMENTS_DIRNAME,
-			'attachment-id',
-			'Pasted text #1.txt',
-		).fsPath;
-
-		const result = await canUseTool('Read', { file_path: attachmentPath }, makeOptions('tu_session_attachment'));
-
-		assert.deepStrictEqual({
-			result,
-			pendingConfirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
-		}, {
-			result: { behavior: 'allow', updatedInput: { file_path: attachmentPath } },
-			pendingConfirmations: 0,
-		});
 	});
 
 	test('server tool with nothing to confirm is allowed without prompting', async () => {
