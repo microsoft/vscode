@@ -28,13 +28,17 @@ import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.c
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
 	readonly isNewChat: boolean;
+	readonly totalAttachementCount: number;
+	readonly attachmentKinds: string;
 }
 
 function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry {
 	return typeof data === 'object'
 		&& data !== null
 		&& typeof Reflect.get(data, 'isNewSession') === 'boolean'
-		&& typeof Reflect.get(data, 'isNewChat') === 'boolean';
+		&& typeof Reflect.get(data, 'isNewChat') === 'boolean'
+		&& typeof Reflect.get(data, 'totalAttachementCount') === 'number'
+		&& typeof Reflect.get(data, 'attachmentKinds') === 'string';
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -45,6 +49,8 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 			this.requestSentEvents.push({
 				isNewSession: data.isNewSession,
 				isNewChat: data.isNewChat,
+				totalAttachementCount: data.totalAttachementCount,
+				attachmentKinds: data.attachmentKinds,
 			});
 		}
 	}
@@ -153,13 +159,22 @@ suite('SessionsTelemetryContribution', () => {
 
 		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'new session' } });
 		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: true, options: { query: 'new chat' } });
-		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'follow up' } });
+		onDidSendRequest.fire({
+			session,
+			chat,
+			isNewSession: false,
+			isNewChat: false,
+			options: {
+				query: 'follow up',
+				attachedContext: [{ kind: 'generic', id: 'context', name: 'Context', value: 'value' }],
+			},
+		});
 		await Promise.resolve();
 
 		assert.deepStrictEqual(telemetryService.requestSentEvents, [
-			{ isNewSession: true, isNewChat: true },
-			{ isNewSession: false, isNewChat: true },
-			{ isNewSession: false, isNewChat: false },
+			{ isNewSession: true, isNewChat: true, totalAttachementCount: 0, attachmentKinds: '{}' },
+			{ isNewSession: false, isNewChat: true, totalAttachementCount: 0, attachmentKinds: '{}' },
+			{ isNewSession: false, isNewChat: false, totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
 		]);
 	});
 });

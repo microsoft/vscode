@@ -387,7 +387,9 @@ below.
 Every `onDidSendRequest` also emits `agents/requestSent`. The event distinguishes
 the first message in a new session (`isNewSession: true`, `isNewChat: true`), the
 first message in an additional chat (`false`, `true`), and a follow-up message in
-an existing chat (`false`, `false`).
+an existing chat (`false`, `false`). The shared chat submit event carries the
+submitted attachment context so mirrored follow-up telemetry retains the same
+attachment counts and kinds as requests sent through the sessions service.
 
 When fixing transient picker state during chat loading, keep the fallback in
 `ChatView`'s reactive session-type delegate; it announces the destination as
