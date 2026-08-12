@@ -931,17 +931,14 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 		return undefined;
 	}
 	const variables: IChatRequestVariableEntry[] = [];
-	// Agent feedback is sent as one annotations attachment per comment; restore
-	// them into a single aggregated agentFeedback entry so history shows one
-	// "N comments" chip rather than one chip per comment.
-	const aggregatedFeedback = aggregateAgentFeedbackAnnotationAttachments(attachments, connectionAuthority);
+	const aggregatedFeedback = aggregateAgentFeedbackAttachments(attachments, connectionAuthority);
 	if (aggregatedFeedback) {
 		variables.push(aggregatedFeedback);
 	}
 	const consumedAttachments = new Set<MessageAttachment>();
 	for (const a of attachments) {
-		if (isAgentFeedbackAnnotationsAttachment(a) || consumedAttachments.has(a)) {
-			continue; // handled by the aggregation above
+		if ((aggregatedFeedback && isAgentFeedbackMessageAttachment(a)) || consumedAttachments.has(a)) {
+			continue;
 		}
 		const element = restoreElementVariableEntry(a, a.type === MessageAttachmentKind.Simple ? a.modelRepresentation : undefined);
 		if (element) {
@@ -966,23 +963,29 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 	return variables.length > 0 ? { variables } : undefined;
 }
 
-function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly MessageAttachment[], connectionAuthority: string): IAgentFeedbackVariableEntry | undefined {
-	const feedbackAttachments = attachments.filter(isAgentFeedbackAnnotationsAttachment);
-	if (feedbackAttachments.length === 0) {
+function isAgentFeedbackMessageAttachment(attachment: MessageAttachment): boolean {
+	return isAgentFeedbackAnnotationsAttachment(attachment) || isAgentFeedbackAttachment(attachment);
+}
+
+function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachment[], connectionAuthority: string): IChatRequestVariableEntry | undefined {
+	const feedbackAttachments = attachments.filter(isAgentFeedbackMessageAttachment);
+	if (feedbackAttachments.length === 0 || (feedbackAttachments.length === 1 && isAgentFeedbackAttachment(feedbackAttachments[0]))) {
 		return undefined;
 	}
 	let sessionResource: string | undefined;
 	let annotationsResource: string | undefined;
-	const feedbackItems: IAgentFeedbackVariableEntry['feedbackItems'][number][] = [];
+	const feedbackItems = new Map<string, IAgentFeedbackVariableEntry['feedbackItems'][number]>();
 	for (const attachment of feedbackAttachments) {
-		annotationsResource ??= attachment.resource;
+		if (attachment.type === MessageAttachmentKind.Annotations) {
+			annotationsResource ??= attachment.resource;
+		}
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (!metadata) {
 			continue;
 		}
 		sessionResource ??= metadata.sessionResource;
 		for (const item of metadata.feedbackItems) {
-			feedbackItems.push({
+			feedbackItems.set(item.id, {
 				id: item.id,
 				text: item.text,
 				resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
@@ -991,19 +994,31 @@ function aggregateAgentFeedbackAnnotationAttachments(attachments: readonly Messa
 			});
 		}
 	}
-	if (feedbackItems.length === 0 || !sessionResource) {
-		return undefined;
+	const firstAttachment = feedbackAttachments[0];
+	if (feedbackItems.size === 0 || !sessionResource) {
+		return {
+			kind: 'generic',
+			id: generateUuid(),
+			name: firstAttachment.label,
+			value: firstAttachment.type === MessageAttachmentKind.Simple
+				? firstAttachment.modelRepresentation || firstAttachment.label
+				: firstAttachment.label,
+			_meta: firstAttachment._meta,
+		};
 	}
 	return {
 		kind: 'agentFeedback',
 		id: generateUuid(),
-		name: feedbackItems.length === 1
+		name: feedbackItems.size === 1
 			? localize('agentFeedback.one', "1 comment")
-			: localize('agentFeedback.many', "{0} comments", feedbackItems.length),
-		value: feedbackAttachments[0].label,
+			: localize('agentFeedback.many', "{0} comments", feedbackItems.size),
+		value: firstAttachment.type === MessageAttachmentKind.Simple
+			? firstAttachment.modelRepresentation || firstAttachment.label
+			: firstAttachment.label,
 		sessionResource: URI.parse(sessionResource),
 		annotationsResource: annotationsResource ? URI.parse(annotationsResource) : undefined,
-		feedbackItems,
+		feedbackItems: [...feedbackItems.values()],
+		_meta: firstAttachment._meta,
 	};
 }
 
