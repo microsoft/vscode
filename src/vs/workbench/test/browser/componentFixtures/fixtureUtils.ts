@@ -1013,11 +1013,22 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						stylesheetOrderOverride.value = overrideStylesheetOrder(option);
 					}
 				};
-				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
-				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
-				context.watchInput('enableAnimations', value => {
-					container.classList.toggle('disable-animations', !value);
-				});
+				// `watchInput` only ships in newer @vscode/component-explorer builds, so it is absent
+				// from the published `RenderContext` type. Reach it through a narrow optional shape,
+				// and fall back to a one-shot read when the host does not provide it.
+				const host = context as {
+					readonly watchInput?: (key: string, callback: (value: unknown, input: unknown) => void) => void;
+				};
+				if (host.watchInput) {
+					host.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
+					host.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
+					host.watchInput('enableAnimations', value => {
+						container.classList.toggle('disable-animations', !value);
+					});
+				} else {
+					updateStylesheetOrder(context.input);
+					container.classList.add('disable-animations');
+				}
 
 				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
