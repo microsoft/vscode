@@ -118,10 +118,12 @@ export class AgentAutomationService extends Disposable {
 		super();
 		this._ready = this._load();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => this._onEnvelope(envelope)));
-		void this._ready.then(() => {
-			void this._tick();
-			this._scheduler.schedule(TICK_INTERVAL);
-		});
+		if (this._resource) {
+			void this._ready.then(() => {
+				void this._tick();
+				this._scheduler.schedule(TICK_INTERVAL);
+			});
+		}
 	}
 
 	async list(params: ListAutomationsParams): Promise<ListAutomationsResult> {
