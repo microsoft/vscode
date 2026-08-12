@@ -40,7 +40,6 @@
 
 .chat-pet-button.dragging,
 .chat-pet-button.falling,
-.chat-pet-revive-sign,
 .chat-pet-respawn-effect {
 	z-index: 1;
 }
@@ -140,6 +139,10 @@
 	transform: scaleX(-1);
 }
 
+.chat-pet-button[data-facing='left'][data-state='sing'] .chat-pet-sprite > .chat-pet-canvas {
+	transform: none;
+}
+
 .chat-pet-canvas {
 	display: block;
 	height: 48px;
@@ -149,25 +152,6 @@
 
 .chat-pet-spritesheet {
 	display: none;
-}
-
-.chat-pet-revive-sign {
-	position: absolute;
-	width: 48px;
-	height: 48px;
-	pointer-events: none;
-}
-
-.chat-pet-revive-sign.hidden {
-	display: none;
-}
-
-.chat-pet-revive-image {
-	display: block;
-	width: 48px;
-	height: 48px;
-	image-rendering: pixelated;
-	pointer-events: none;
 }
 
 .chat-pet-respawn-effect {
@@ -261,12 +245,17 @@
 	pointer-events: none;
 }
 
-.chat-pet-eyes.tracking {
+.chat-pet-eyes.tracking,
+.chat-pet-eyes.blinking {
 	visibility: visible;
 }
 
 .chat-pet-eyes.animated {
 	animation: chat-pet-eye-bob 2s steps(1, end) infinite;
+}
+
+.chat-pet-eyes.animated.blinking {
+	animation: none;
 }
 
 .chat-pet-eye {
@@ -305,15 +294,28 @@
 .chat-pet-button[data-state='idle'] .chat-pet-eye,
 .chat-pet-button[data-state='rendering'] .chat-pet-eye,
 .chat-pet-button[data-state='clapping'] .chat-pet-eye,
-.chat-pet-button[data-state='yapping'] .chat-pet-eye {
+.chat-pet-button[data-state='yapping'] .chat-pet-eye,
+.chat-pet-button[data-state='typing'] .chat-pet-eye,
+.chat-pet-button[data-state='buttonPress'] .chat-pet-eye {
 	height: 12px;
 }
 
 .chat-pet-button[data-state='idle'] .chat-pet-pupil,
 .chat-pet-button[data-state='rendering'] .chat-pet-pupil,
 .chat-pet-button[data-state='clapping'] .chat-pet-pupil,
-.chat-pet-button[data-state='yapping'] .chat-pet-pupil {
+.chat-pet-button[data-state='yapping'] .chat-pet-pupil,
+.chat-pet-button[data-state='typing'] .chat-pet-pupil,
+.chat-pet-button[data-state='buttonPress'] .chat-pet-pupil {
 	height: 8px;
+}
+
+.chat-pet-button[data-state='love'] .chat-pet-eye {
+	top: 31px;
+	height: 11px;
+}
+
+.chat-pet-button[data-state='love'] .chat-pet-pupil {
+	height: 7px;
 }
 
 .chat-pet-eyes.animated .chat-pet-pupil {
@@ -323,8 +325,15 @@
 .chat-pet-button[data-state='idle'] .chat-pet-eyes.animated .chat-pet-pupil,
 .chat-pet-button[data-state='rendering'] .chat-pet-eyes.animated .chat-pet-pupil,
 .chat-pet-button[data-state='clapping'] .chat-pet-eyes.animated .chat-pet-pupil,
-.chat-pet-button[data-state='yapping'] .chat-pet-eyes.animated .chat-pet-pupil {
+.chat-pet-button[data-state='yapping'] .chat-pet-eyes.animated .chat-pet-pupil,
+.chat-pet-button[data-state='typing'] .chat-pet-eyes.animated .chat-pet-pupil,
+.chat-pet-button[data-state='buttonPress'] .chat-pet-eyes.animated .chat-pet-pupil,
+.chat-pet-button[data-state='love'] .chat-pet-eyes.animated .chat-pet-pupil {
 	animation-name: chat-pet-tall-eye-blink;
+}
+
+.chat-pet-button[data-state='love'] .chat-pet-eyes.animated .chat-pet-pupil {
+	animation-duration: 1.4s;
 }
 
 .chat-pet-button.dragging .chat-pet-pupil {
