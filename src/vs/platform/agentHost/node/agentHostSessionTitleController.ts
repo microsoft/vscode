@@ -180,8 +180,14 @@ export class AgentHostSessionTitleController extends Disposable {
 			return normalized;
 		}
 		const limited = characters.slice(0, MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH).join('');
-		const lastWordBoundary = limited.lastIndexOf(' ');
-		return lastWordBoundary > 0 ? limited.slice(0, lastWordBoundary) : limited;
+		if (!limited.includes(' ')) {
+			return limited;
+		}
+		const remaining = characters.slice(MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH).join('');
+		const nextWordBoundary = remaining.indexOf(' ');
+		return nextWordBoundary >= 0
+			? `${limited}${remaining.slice(0, nextWordBoundary)}`
+			: normalized;
 	}
 
 	/**
