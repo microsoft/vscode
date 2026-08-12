@@ -259,6 +259,17 @@
 	overflow: visible;
 }
 
+.style-override.monaco-workbench .part.basepanel > .composite.title > .title-actions {
+	min-width: 0;
+}
+
+.style-override.monaco-workbench .part.basepanel > .composite.title > .global-actions {
+	position: relative;
+	z-index: 1;
+	flex: 0 0 auto;
+	background-color: var(--vscode-panel-background);
+}
+
 .style-override.monaco-workbench .quick-input-titlebar {
 	padding: var(--vscode-spacing-size20) 0 0;
 }

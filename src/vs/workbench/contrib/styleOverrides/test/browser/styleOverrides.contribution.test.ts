@@ -376,4 +376,32 @@ suite('StyleOverridesContribution', () => {
 			borderColor: 'rgb(18, 52, 86)',
 		});
 	});
+
+	test('keeps panel global actions above overflowing title actions', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override';
+		root.style.setProperty('--vscode-panel-background', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part basepanel bottom');
+		const title = appendElement(panel, 'composite title');
+		const titleActions = appendElement(title, 'title-actions');
+		const globalActions = appendElement(title, 'global-actions');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			titleActionsMinWidth: targetWindow.getComputedStyle(titleActions).minWidth,
+			globalActionsPosition: targetWindow.getComputedStyle(globalActions).position,
+			globalActionsZIndex: targetWindow.getComputedStyle(globalActions).zIndex,
+			globalActionsFlexShrink: targetWindow.getComputedStyle(globalActions).flexShrink,
+			globalActionsBackground: targetWindow.getComputedStyle(globalActions).backgroundColor,
+		}, {
+			titleActionsMinWidth: '0px',
+			globalActionsPosition: 'relative',
+			globalActionsZIndex: '1',
+			globalActionsFlexShrink: '0',
+			globalActionsBackground: 'rgb(18, 52, 86)',
+		});
+	});
 });
