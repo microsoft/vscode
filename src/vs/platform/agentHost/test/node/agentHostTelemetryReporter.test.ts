@@ -8,11 +8,13 @@ import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -313,6 +315,94 @@ suite('AgentHostTelemetryReporter', () => {
 				confirmationNotNeededReason: undefined,
 				sandboxWrapped: undefined,
 				requestUnsandboxedExecution: undefined,
+			},
+		}]);
+	});
+
+	test('turnHung emits bounded last activity categories', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.turnHung({
+			provider: 'copilot',
+			session,
+			turnId: 'turn-1',
+			hangReason: 'stalledAfterProgress',
+			hadAnyProgress: true,
+			lastActivityKind: ActionType.ChatToolCallDelta,
+			blockedOn: undefined,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+			quietTimeMs: 1000,
+			turnElapsedMs: 2000,
+			model: undefined,
+			modelTelemetryKind: undefined,
+			modelSelectionKind: 'default',
+			permissionLevel: undefined,
+		});
+		reporter.turnHung({
+			provider: 'copilot',
+			session,
+			turnId: 'turn-2',
+			hangReason: 'stalledAfterProgress',
+			hadAnyProgress: true,
+			lastActivityKind: 'custom/path/value',
+			blockedOn: undefined,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+			quietTimeMs: 1000,
+			turnElapsedMs: 2000,
+			model: undefined,
+			modelTelemetryKind: undefined,
+			modelSelectionKind: 'default',
+			permissionLevel: undefined,
+		});
+
+		assert.deepStrictEqual(service.standardEvents, [{
+			eventName: 'agentHost.turnHung',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				chatSessionId: getTelemetryChatSessionId(session),
+				isSubagentSession: false,
+				turnId: 'turn-1',
+				hangReason: 'stalledAfterProgress',
+				isExpected: false,
+				hadAnyProgress: true,
+				lastActivityKind: 'chat.toolCallDelta',
+				blockedOn: undefined,
+				toolId: undefined,
+				toolSourceKind: undefined,
+				inFlightToolCallCount: 0,
+				quietTimeMs: 1000,
+				turnElapsedMs: 2000,
+				model: undefined,
+				modelSelectionKind: 'default',
+				permissionLevel: undefined,
+			},
+		}, {
+			eventName: 'agentHost.turnHung',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				chatSessionId: getTelemetryChatSessionId(session),
+				isSubagentSession: false,
+				turnId: 'turn-2',
+				hangReason: 'stalledAfterProgress',
+				isExpected: false,
+				hadAnyProgress: true,
+				lastActivityKind: 'other',
+				blockedOn: undefined,
+				toolId: undefined,
+				toolSourceKind: undefined,
+				inFlightToolCallCount: 0,
+				quietTimeMs: 1000,
+				turnElapsedMs: 2000,
+				model: undefined,
+				modelSelectionKind: 'default',
+				permissionLevel: undefined,
 			},
 		}]);
 	});
