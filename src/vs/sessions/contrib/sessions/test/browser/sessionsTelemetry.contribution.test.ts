@@ -30,18 +30,18 @@ interface IRequestSentTelemetry {
 	readonly isNewChat: boolean;
 }
 
+function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry {
+	return typeof data === 'object'
+		&& data !== null
+		&& typeof Reflect.get(data, 'isNewSession') === 'boolean'
+		&& typeof Reflect.get(data, 'isNewChat') === 'boolean';
+}
+
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly requestSentEvents: IRequestSentTelemetry[] = [];
 
-	override publicLog2(eventName?: string, data?: object): void {
-		if (
-			eventName === 'agents/requestSent'
-			&& data
-			&& 'isNewSession' in data
-			&& typeof data.isNewSession === 'boolean'
-			&& 'isNewChat' in data
-			&& typeof data.isNewChat === 'boolean'
-		) {
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName === 'agents/requestSent' && isRequestSentTelemetry(data)) {
 			this.requestSentEvents.push({
 				isNewSession: data.isNewSession,
 				isNewChat: data.isNewChat,
