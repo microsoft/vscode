@@ -267,7 +267,6 @@
 	position: relative;
 	z-index: 1;
 	flex: 0 0 auto;
-	background-color: var(--vscode-panel-background);
 }
 
 .style-override.monaco-workbench .quick-input-titlebar {
