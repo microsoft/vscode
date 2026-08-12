@@ -8,7 +8,7 @@ import { derived, observableValue, transaction, type IObservable, type ITransact
 import { URI } from '../../../../base/common/uri.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
+import { CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import type { SessionAction } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -46,20 +46,6 @@ export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'cha
 export { DEFAULT_MCP_APP_CAPABILITIES, DEFAULT_MCP_APP };
 
 /**
- * Lookup callback the controller uses to find an existing child MCP
- * customization id by server name. The agent's plugin layer publishes
- * MCP customizations with provider-defined ids
- * (e.g. `pluginParsers.makeMcpServerCustomization` uses
- * `buildChildId(definitionUri, 'mcp=' + encodeURIComponent(name))`), so
- * we resolve them by name at action-dispatch time rather than trying to
- * reconstruct the id.
- *
- * Returns `undefined` when no existing entry matches — in that case the
- * controller surfaces a bare top-level customization for the server.
- */
-export type IMcpChildIdResolver = (serverName: string) => string | undefined;
-
-/**
  * Options for {@link McpCustomizationController}.
  */
 export interface IMcpCustomizationControllerOptions {
@@ -69,13 +55,12 @@ export interface IMcpCustomizationControllerOptions {
 	readonly sessionId: string;
 	/** Canonical session URI used to resolve persisted customization state. */
 	readonly sessionUri: URI;
-	/**
-	 * Resolves an existing child customization id for a given server
-	 * name. See {@link IMcpChildIdResolver}.
-	 */
-	readonly resolveChildId: IMcpChildIdResolver;
 	/** Emits a {@link SessionAction} into the session's action stream. */
 	readonly emit: (action: SessionAction) => void;
+	/** Durable plugin source URIs for plugin-provided MCP servers in the launch snapshot. */
+	readonly pluginMcpServerSources?: ReadonlyMap<string, string>;
+	/** Resolves the scoped enablement to publish for a temporarily top-level server. */
+	readonly resolveEnablement?: (server: McpServerCustomization) => readonly CustomizationEnablement[] | undefined;
 	/**
 	 * MCP App capabilities to advertise on every ready server. Defaults
 	 * to {@link DEFAULT_MCP_APP_CAPABILITIES}.
@@ -130,8 +115,8 @@ export class McpCustomizationController extends Disposable {
 	/**
 	 * Snapshot of every live server's runtime {@link IMcpServerRuntimeState},
 	 * keyed by the customization id under which it is published (the
-	 * minted top-level id, or the plugin-derived child id resolved via
-	 * {@link IMcpChildIdResolver}). Derived from {@link _live}. Callers mirror
+	 * minted top-level id, or the plugin-derived child id resolved from session
+	 * state). Derived from {@link _live}. Callers mirror
 	 * this into their own published customizations so a wholesale republish
 	 * preserves live MCP status. Servers whose child id cannot currently be
 	 * resolved are omitted.
@@ -146,7 +131,7 @@ export class McpCustomizationController extends Disposable {
 		this.runtimeStates = derived(this, reader => {
 			const out = new Map<string, IMcpServerRuntimeState>();
 			for (const entry of this._live.read(reader).values()) {
-				const id = entry.topLevelId ?? this._options.resolveChildId(entry.serverName);
+				const id = entry.topLevelId ?? this._resolveChildId(entry.serverName);
 				if (id === undefined) {
 					continue;
 				}
@@ -193,8 +178,8 @@ export class McpCustomizationController extends Disposable {
 	 * Returns the customization id currently associated with the MCP
 	 * server named `serverName`, or `undefined` when no customization
 	 * exists. Top-level entries return the minted top-level id; child
-	 * entries return whatever {@link IMcpChildIdResolver} resolves to
-	 * for that server. Used by providers to tag
+	 * entries return the child id published in session state for that server.
+	 * Used by providers to tag
 	 * {@link ToolCallMcpContributor.customizationId | tool-call contributors}
 	 * so clients can correlate MCP tool calls with the originating
 	 * server customization.
@@ -204,13 +189,14 @@ export class McpCustomizationController extends Disposable {
 		if (live?.topLevelId !== undefined) {
 			return live.topLevelId;
 		}
-		return this._options.resolveChildId(serverName);
+		const published = this._findPublishedMcpCustomization(serverName);
+		return published?.topLevelId ?? published?.childId;
 	}
 
 	/** Returns the live server name associated with a customization id. */
 	serverNameForCustomizationId(id: string): string | undefined {
 		for (const entry of this._live.get().values()) {
-			const entryId = entry.topLevelId ?? this._options.resolveChildId(entry.serverName);
+			const entryId = entry.topLevelId ?? this._resolveChildId(entry.serverName);
 			if (entryId === id) {
 				return entry.serverName;
 			}
@@ -227,7 +213,7 @@ export class McpCustomizationController extends Disposable {
 	serverEnablement(): readonly { readonly serverName: string; readonly customizationId: string; readonly enabled: boolean }[] {
 		const result: { serverName: string; customizationId: string; enabled: boolean }[] = [];
 		for (const entry of this._live.get().values()) {
-			const customizationId = entry.topLevelId ?? this._options.resolveChildId(entry.serverName);
+			const customizationId = entry.topLevelId ?? this._resolveChildId(entry.serverName);
 			if (customizationId !== undefined) {
 				result.push({ serverName: entry.serverName, customizationId, enabled: entry.enabled });
 			}
@@ -286,7 +272,8 @@ export class McpCustomizationController extends Disposable {
 		// previously-published top-level id.
 		let topLevelId = previous?.topLevelId;
 		if (topLevelId === undefined) {
-			const childId = this._options.resolveChildId(server.name);
+			const published = this._findPublishedMcpCustomization(server.name);
+			const childId = published?.childId;
 			if (childId !== undefined) {
 				this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId: undefined }, tx);
 				this._options.emit({
@@ -297,7 +284,7 @@ export class McpCustomizationController extends Disposable {
 				});
 				return;
 			}
-			topLevelId = this._mintTopLevelId(server.name);
+			topLevelId = published?.topLevelId ?? this._mintTopLevelId(server.name);
 		}
 		this._setLiveEntry(server.name, { serverName: server.name, state, enabled, topLevelId }, tx);
 		this._options.emit({
@@ -335,7 +322,7 @@ export class McpCustomizationController extends Disposable {
 			});
 			return;
 		}
-		const childId = this._options.resolveChildId(serverName);
+		const childId = this._resolveChildId(serverName);
 		if (childId === undefined) {
 			return;
 		}
@@ -377,6 +364,20 @@ export class McpCustomizationController extends Disposable {
 		return buildMcpTopLevelCustomizationId(this._options.providerId, this._options.sessionId, serverName);
 	}
 
+	private _resolveChildId(serverName: string): string | undefined {
+		return this._findPublishedMcpCustomization(serverName)?.childId;
+	}
+
+	private _findPublishedMcpCustomization(serverName: string): { readonly topLevelId?: string; readonly childId?: string } | undefined {
+		const customizations = this._stateManager.getSessionState(this._options.sessionUri.toString())?.customizations ?? [];
+		const topLevel = customizations.find(customization => customization.type === CustomizationType.McpServer && customization.name === serverName);
+		if (topLevel?.type === CustomizationType.McpServer) {
+			return { topLevelId: topLevel.id };
+		}
+		const childId = findMcpChildId(customizations, serverName);
+		return childId === undefined ? undefined : { childId };
+	}
+
 	private _buildChannel(serverName: string, state: McpServerState): string | undefined {
 		if (state.kind !== McpServerStatus.Ready) {
 			return undefined;
@@ -386,6 +387,7 @@ export class McpCustomizationController extends Disposable {
 
 	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean): McpServerCustomization {
 		const channel = this._buildChannel(serverName, state);
+		const owningPluginUri = this._options.pluginMcpServerSources?.get(serverName);
 		// Per AHP spec, `mcpApp` is a static capability declaration —
 		// "SHOULD be present whenever the server can host Apps". We
 		// proxy every MCP server uniformly, so advertise the host's
@@ -396,29 +398,25 @@ export class McpCustomizationController extends Disposable {
 			: DEFAULT_MCP_APP;
 		const existing = getMcpServerCustomizations(this._stateManager.getSessionState(this._options.sessionUri.toString())?.customizations ?? [])
 			.find(customization => customization.id === id);
-		const enablement = existing?.enablement ?? (enabled ? undefined : [
-			// TODO: Step 2 persists SDK-derived enablement at the appropriate scope.
-			{ kind: CustomizationEnablementKind.Global, enabled: false },
-		]);
-		return {
+		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,
 			uri: this._mintTopLevelId(serverName),
 			name: serverName,
-			...(enablement ? { enablement } : {}),
+			...(owningPluginUri ? { owningPluginUri } : {}),
 			state,
 			channel,
 			mcpApp,
 		};
+		const enablement = this._options.resolveEnablement?.(customization) ?? existing?.enablement;
+		return enablement?.length ? { ...customization, enablement: [...enablement] } : customization;
 	}
 }
 
 /**
  * Convenience helper: given a flat list of {@link Customization}
  * entries, returns the id of the first MCP child customization whose
- * name matches `serverName`. Used by providers to wire up
- * {@link IMcpCustomizationControllerOptions.resolveChildId} without
- * each provider having to walk the customization tree itself.
+ * name matches `serverName`.
  */
 export function findMcpChildId(customizations: readonly Customization[], serverName: string): string | undefined {
 	return getMcpServerCustomizations(customizations).find(server => server.name === serverName)?.id;
@@ -488,6 +486,9 @@ function applyMcpEnablement(customization: McpServerCustomization, desiredById: 
 		return customization;
 	}
 	const enablement = desiredById.get(customization.id);
+	if (enablement === undefined) {
+		return customization;
+	}
 	if (enablement?.length) {
 		return { ...customization, enablement: [...enablement] };
 	}

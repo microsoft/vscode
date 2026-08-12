@@ -21,6 +21,8 @@ import {
 	AgentHostMcpServer,
 	authenticateMcpServer,
 	createBuiltinActiveSessionMcpEntries,
+	getActiveSessionServerLifecycleAction,
+	getActiveSessionServerPresentation,
 	getBuiltinMcpServerEnablementActions,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
@@ -117,6 +119,61 @@ suite('mcpListWidget', () => {
 			'Running',
 			'Disabled',
 		]);
+	});
+
+	test('uses the current active-session server enablement for rows and lifecycle actions', () => {
+		const disabledServer = createAgentHostServer({ enabled: false });
+		const enabledServer = createAgentHostServer({ enabled: true });
+		const disabledLifecycleAction = getActiveSessionServerLifecycleAction(disabledServer);
+		const enabledLifecycleAction = getActiveSessionServerLifecycleAction(enabledServer);
+		if (disabledLifecycleAction) {
+			disposables.add(disabledLifecycleAction);
+		}
+		if (enabledLifecycleAction) {
+			disposables.add(enabledLifecycleAction);
+		}
+
+		assert.deepStrictEqual([
+			{
+				renderedDisabled: getActiveSessionServerPresentation(disabledServer).status === 'disabled',
+				hasLifecycleAction: disabledLifecycleAction !== undefined,
+			},
+			{
+				renderedDisabled: getActiveSessionServerPresentation(enabledServer).status === 'disabled',
+				hasLifecycleAction: enabledLifecycleAction !== undefined,
+			},
+		], [
+			{ renderedDisabled: true, hasLifecycleAction: false },
+			{ renderedDisabled: false, hasLifecycleAction: true },
+		]);
+	});
+
+	test('uses active-session enablement for both the row and built-in context menu', () => {
+		const sessionResource = URI.parse('vscode-agent-session:///session-1');
+		const server = createAgentHostServer({
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+		});
+		const { service: mcpService } = createMcpService(ContributionEnablementState.EnabledProfile);
+		const { service: agentHostService } = createAgentHostCustomizations();
+
+		const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(
+			mcpService,
+			'server-def-id',
+			false,
+			agentHostService,
+			createAgentPluginService(),
+			sessionResource,
+			server,
+		));
+
+		assert.deepStrictEqual({
+			renderedStatus: getActiveSessionServerPresentation(server).status,
+			contextMenuActions: actions.map(action => action.label),
+		}, {
+			renderedStatus: 'disabled',
+			contextMenuActions: ['Enable', 'Enable (Workspace)', 'Enable (Session)'],
+		});
 	});
 
 	suite('getAgentHostMcpServerEnablementActions', () => {
@@ -291,7 +348,7 @@ suite('mcpListWidget', () => {
 				});
 				const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, 'server-def-id', false, agentHostService, createAgentPluginService(), sessionResource, server));
 
-				assert.deepStrictEqual(actions.map(action => action.label), ['Disable', 'Enable (Workspace)', 'Enable (Session)']);
+				assert.deepStrictEqual(actions.map(action => action.label), ['Enable', 'Enable (Workspace)', 'Enable (Session)']);
 				runAction(actions[0]);
 				runAction(actions[1]);
 				runAction(actions[2]);
@@ -299,7 +356,7 @@ suite('mcpListWidget', () => {
 					localCalls,
 					agentHostCalls,
 				}, {
-					localCalls: [['server-def-id', ContributionEnablementState.DisabledProfile]],
+					localCalls: [['server-def-id', ContributionEnablementState.EnabledProfile]],
 					agentHostCalls: [
 						[sessionResource, server.id, server.enablement, CustomizationEnablementKind.Workspace, true],
 						[sessionResource, server.id, server.enablement, CustomizationEnablementKind.Session, true],
@@ -307,12 +364,13 @@ suite('mcpListWidget', () => {
 				});
 			});
 
-			test('routes global plugin MCP enablement through the host when the plugin is host-discovered', () => {
+			test('routes global enablement through the host for a client-forwarded plugin child', () => {
 				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
 				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
 				const server = createAgentHostServer({
 					id: 'azure',
 					isPluginProvided: true,
+					owningPluginClientId: 'forwarded-plugin-client',
 				});
 				const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, 'azure', false, agentHostService, createAgentPluginService(), sessionResource, server));
 
@@ -326,6 +384,75 @@ suite('mcpListWidget', () => {
 					labels: ['Disable', 'Disable (Workspace)', 'Disable (Session)'],
 					agentHostCalls: [[sessionResource, 'azure', undefined, CustomizationEnablementKind.Global, false]],
 					localCalls: [],
+				});
+			});
+
+			test('routes global enablement locally for a client-bundled plugin child', () => {
+				const { service: mcpService, calls: localCalls } = createMcpService(ContributionEnablementState.EnabledProfile);
+				const { service: agentHostService, calls: agentHostCalls } = createAgentHostCustomizations();
+				const server = createAgentHostServer({
+					id: 'azure',
+					isPluginProvided: true,
+					isClientBundled: true,
+					owningPluginClientId: 'forwarded-plugin-client',
+				});
+				const actions = trackActions(disposables, getBuiltinMcpServerEnablementActions(mcpService, 'azure', false, agentHostService, createAgentPluginService(), sessionResource, server));
+
+				runAction(actions[0]);
+
+				assert.deepStrictEqual({
+					labels: actions.map(action => action.label),
+					agentHostCalls,
+					localCalls,
+				}, {
+					labels: ['Disable', 'Disable (Workspace)', 'Disable (Session)'],
+					agentHostCalls: [],
+					localCalls: [['azure', ContributionEnablementState.DisabledProfile]],
+				});
+			});
+
+			test('keeps the client-bundled row presentation and menu in sync after a global change', () => {
+				const { service: enabledMcpService } = createMcpService(ContributionEnablementState.EnabledProfile);
+				const { service: disabledMcpService } = createMcpService(ContributionEnablementState.DisabledProfile);
+				const { service: agentHostService } = createAgentHostCustomizations();
+				const enabledServer = createAgentHostServer({ isClientBundled: true });
+				const disabledServer = createAgentHostServer({
+					isClientBundled: true,
+					enabled: false,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				});
+
+				const enabledActions = trackActions(disposables, getBuiltinMcpServerEnablementActions(
+					enabledMcpService,
+					'server-def-id',
+					false,
+					agentHostService,
+					createAgentPluginService(),
+					sessionResource,
+					enabledServer,
+				));
+				const disabledActions = trackActions(disposables, getBuiltinMcpServerEnablementActions(
+					disabledMcpService,
+					'server-def-id',
+					false,
+					agentHostService,
+					createAgentPluginService(),
+					sessionResource,
+					disabledServer,
+				));
+
+				assert.deepStrictEqual({
+					enabled: {
+						status: getActiveSessionServerPresentation(enabledServer).status,
+						menu: enabledActions[0].label,
+					},
+					disabled: {
+						status: getActiveSessionServerPresentation(disabledServer).status,
+						menu: disabledActions[0].label,
+					},
+				}, {
+					enabled: { status: McpServerStatus.Ready, menu: 'Disable' },
+					disabled: { status: 'disabled', menu: 'Enable' },
 				});
 			});
 

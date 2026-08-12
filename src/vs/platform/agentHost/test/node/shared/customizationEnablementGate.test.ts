@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
-import { isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
 
 class TestEnablementService implements IAgentHostCustomizationEnablementService {
 	declare readonly _serviceBrand: undefined;
@@ -147,20 +147,37 @@ suite('CustomizationEnablementGate', () => {
 	test('does not fabricate enablement while a resolution is pending and excludes it from the SDK', () => {
 		const service = new TestEnablementService();
 		service.setPending('session');
-		const customization = plugin();
+		const customization = plugin([server()]);
 		const resolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [customization]);
+		const child = (resolved.customizations[0] as PluginCustomization).children?.[0];
 
 		assert.deepStrictEqual({
 			pending: resolved.pending,
 			pendingCustomizationIds: [...resolved.pendingCustomizationIds],
 			published: resolved.customizations,
 			sdkEligible: isCustomizationSdkEligible(resolved, customization),
+			childSdkEligible: child && isCustomizationSdkEligible(resolved, child),
 		}, {
 			pending: true,
-			pendingCustomizationIds: ['plugin-id'],
-			published: [customization],
+			pendingCustomizationIds: ['plugin-id', 'server-id'],
+			published: [{
+				...customization,
+				children: [{
+					...server(),
+					owningPluginUri: 'file:///plugins/example',
+				}],
+			}],
 			sdkEligible: false,
+			childSdkEligible: false,
 		});
+	});
+
+	test('fails closed when deriving MCP server enablement for a pending resolution', () => {
+		const service = new TestEnablementService();
+		service.setPending('session');
+		const resolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/session-1'), [plugin([server()])]);
+
+		assert.deepStrictEqual([...getSdkMcpServerEnablement(resolved)], [['server-id', false]]);
 	});
 
 	test('removes stale enablement when an empty resolution settles', () => {
@@ -204,6 +221,7 @@ suite('CustomizationEnablementGate', () => {
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 			children: [{
 				...server(),
+				owningPluginUri: parsedPlugin.uri,
 				enablement: [
 					{ kind: CustomizationEnablementKind.Session, enabled: false },
 					{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
@@ -245,6 +263,47 @@ suite('CustomizationEnablementGate', () => {
 		});
 	});
 
+	test('publishes a global decision for a materialized plugin MCP child in a newly created session', () => {
+		const service = new TestEnablementService();
+		const pluginUri = 'file:///plugins/azure-skills';
+		const globalEnablement = [{ kind: CustomizationEnablementKind.Global, enabled: false }] as const;
+		service.setEnablementForDurableKey(`${pluginUri}#mcp=azure`, globalEnablement);
+		const parsedPlugin: PluginCustomization = {
+			...plugin([{ ...server(), name: 'azure' }]),
+			uri: pluginUri,
+		};
+
+		const resolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/new-session'), [parsedPlugin]);
+
+		assert.deepStrictEqual(firstChildEnablement(resolved.customizations), globalEnablement);
+	});
+
+	test('resolves a plugin MCP server to the same durable identity while nested or top-level', () => {
+		const service = new TestEnablementService();
+		const pluginUri = 'file:///plugins/azure-skills';
+		const enablement = [{ kind: CustomizationEnablementKind.Global, enabled: false }] as const;
+		service.setEnablementForDurableKey(`${pluginUri}#mcp=azure`, enablement);
+		const nested = plugin([{ ...server(), name: 'azure' }]);
+		const topLevel: McpServerCustomization = {
+			...server(),
+			id: 'mcp-top-level:copilot:new-session:azure',
+			uri: 'mcp-top-level:copilot:new-session:azure',
+			name: 'azure',
+			owningPluginUri: pluginUri,
+		};
+
+		const nestedResolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/new-session'), [{ ...nested, uri: pluginUri }]);
+		const topLevelResolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/new-session'), [topLevel]);
+
+		assert.deepStrictEqual({
+			nested: firstChildEnablement(nestedResolved.customizations),
+			topLevel: (topLevelResolved.customizations[0] as McpServerCustomization).enablement,
+		}, {
+			nested: enablement,
+			topLevel: enablement,
+		});
+	});
+
 	test('retains a plugin child global decision when its client republish has no opinion', () => {
 		const service = new TestEnablementService();
 		service.setEnablementFor('server-id', [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
@@ -261,7 +320,14 @@ suite('CustomizationEnablementGate', () => {
 			new Map([[parsedPlugin.uri, { ...parsedPlugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }]]),
 		);
 
-		assert.deepStrictEqual(firstChildEnablement(resolved.customizations), [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		const resolvedChild = (resolved.customizations[0] as PluginCustomization).children?.[0] as McpServerCustomization;
+		assert.deepStrictEqual({
+			enablement: resolvedChild.enablement,
+			isClientBundled: resolvedChild.isClientBundled,
+		}, {
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			isClientBundled: true,
+		});
 	});
 
 	test('masks a child when its plugin is disabled without erasing the child decision', () => {

@@ -41,7 +41,7 @@ import { McpCustomizationController } from '../shared/mcpCustomizationController
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfigFromPlugins, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
-import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
+import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
 import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
@@ -1725,9 +1725,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * header so codex connects authenticated.
 	 */
 	private _buildSessionMcpServers(session: ICodexSession): Record<string, ICodexMcpServerConfigJson> {
-		const root = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
+		const root = Object.fromEntries(
+			Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
+				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
+		);
 		const clientPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
 		return injectCodexMcpAuthTokens({ ...root, ...clientPlugins }, this._mcpAuthTokens);
+	}
+
+	private _isMcpServerEnabledForSdk(session: ICodexSession, name: string): boolean {
+		const resolution = this._customizationEnablementService?.resolve(session.sessionUri.toString(), targetForUnownedMcpServer(name));
+		return resolution?.kind === 'resolved' && resolution.enabled;
 	}
 
 	/**
@@ -3273,6 +3281,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed) {
 			return;
 		}
+		await this._customizationEnablementService?.initializeSession(session.sessionUri.toString());
 		if (!session.workingDirectory) {
 			// No working directory was supplied (e.g. an editor window with no
 			// workspace folder open). Codex requires one, so create a managed
@@ -4250,6 +4259,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		await this._customizationEnablementService?.initializeSession(sessionUri.toString());
 		const synced = await this._pluginManager.syncCustomizations(
 			clientId,
 			[...customizations],
@@ -4521,7 +4531,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				providerId: this.id,
 				sessionId: session.sessionId,
 				sessionUri: session.sessionUri,
-				resolveChildId: () => undefined,
 				emit: action => this._fire(session.sessionUri, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
 			});

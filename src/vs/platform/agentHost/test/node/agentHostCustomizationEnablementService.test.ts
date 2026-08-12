@@ -179,6 +179,47 @@ suite('AgentHostCustomizationEnablementService', () => {
 		}
 	});
 
+	test('resolves a workspace decision for a newly registered session', async () => {
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+		const newSession = 'ahp://copilot/session-2';
+		state.createSession(makeSummary(newSession, [workspace.toString()]));
+		await service.initializeSession(newSession);
+
+		const resolved = service.resolve(newSession, plugin);
+
+		assert.deepStrictEqual(serializableResolution(resolved), {
+			kind: 'resolved',
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+			workingDirectory: { kind: 'directory', uri: workspace.toString() },
+		});
+	});
+
+	test('resolves a global decision for a newly registered plugin MCP child', async () => {
+		const server: ICustomizationEnablementTarget = {
+			id: 'mcp-materialized-hash-one',
+			type: CustomizationType.McpServer,
+			name: 'azure',
+			source: URI.file('/agentPlugins/example/hash-one/.mcp.json'),
+			owningPluginSource: plugin.source,
+		};
+		service.setEnablement(session, server, CustomizationEnablementKind.Global, false);
+		const newSession = 'ahp://copilot/session-2';
+		state.createSession(makeSummary(newSession, [workspace.toString()]));
+		await service.initializeSession(newSession);
+
+		assert.deepStrictEqual(serializableResolution(service.resolve(newSession, {
+			...server,
+			id: 'mcp-materialized-hash-two',
+			source: URI.file('/agentPlugins/example/hash-two/.mcp.json'),
+		})), {
+			kind: 'resolved',
+			enabled: false,
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			workingDirectory: { kind: 'directory', uri: workspace.toString() },
+		});
+	});
+
 	test('resolves the complete global, workspace, and session matrix with sorted explicit decisions', () => {
 		const values: Array<boolean | undefined> = [undefined, true, false];
 		const cases = values.flatMap(global => values.flatMap(workspaceDecision => values.map(sessionDecision => {
@@ -223,12 +264,13 @@ suite('AgentHostCustomizationEnablementService', () => {
 	});
 
 
-	test('applies a client global decision without replacing workspace or session decisions', () => {
-		service.setEnablement(session, plugin, CustomizationEnablementKind.Global, false);
-		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, true);
-		service.setEnablement(session, plugin, CustomizationEnablementKind.Session, false);
+	test('keeps host decisions above a client global base', () => {
+		const clientPlugin = { ...plugin, isClientBundled: true };
+		service.setEnablement(session, clientPlugin, CustomizationEnablementKind.Global, false);
+		service.setEnablement(session, clientPlugin, CustomizationEnablementKind.Workspace, true);
+		service.setEnablement(session, clientPlugin, CustomizationEnablementKind.Session, false);
 
-		const resolution = service.applyClientGlobalEnablement(session, plugin, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+		const resolution = service.applyClientGlobalEnablement(session, clientPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
 
 		assert.strictEqual(resolution.kind, 'resolved');
 		if (resolution.kind === 'resolved') {
@@ -239,11 +281,159 @@ suite('AgentHostCustomizationEnablementService', () => {
 				enablement: [
 					{ kind: CustomizationEnablementKind.Session, enabled: false },
 					{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
-					{ kind: CustomizationEnablementKind.Global, enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: false },
 				],
 				enabled: false,
 			});
 		}
+	});
+
+	test('keeps a host global decision through a stale client republish', () => {
+		const clientPlugin = { ...plugin, isClientBundled: true };
+
+		service.replaceEnablement(session, clientPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		const resolution = service.applyClientGlobalEnablement(session, clientPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+
+		assert.deepStrictEqual({
+			resolution: serializableResolution(resolution),
+			persisted: storage.get('customizationEnablement'),
+		}, {
+			resolution: {
+				kind: 'resolved',
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			},
+			persisted: {
+				global: { 'file:///plugins/example': false },
+			},
+		});
+	});
+
+	test('uses a client global base when the host has no decision', () => {
+		const clientPlugin = { ...plugin, isClientBundled: true };
+		const disabled = service.applyClientGlobalEnablement(session, clientPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		const enabled = service.applyClientGlobalEnablement(session, clientPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+
+		assert.deepStrictEqual({
+			disabled: serializableResolution(disabled),
+			enabled: serializableResolution(enabled),
+			persisted: storage.get('customizationEnablement'),
+		}, {
+			disabled: {
+				kind: 'resolved',
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			},
+			enabled: {
+				kind: 'resolved',
+				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			},
+			persisted: undefined,
+		});
+	});
+
+	test('retains and clears host decisions relative to the client base', () => {
+		const clientPlugin = { ...plugin, isClientBundled: true };
+		service.applyClientGlobalEnablement(session, clientPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: false }]);
+		service.setEnablement(session, clientPlugin, CustomizationEnablementKind.Global, true);
+		const hostOverride = structuredClone(storage.get('customizationEnablement'));
+		service.setEnablement(session, clientPlugin, CustomizationEnablementKind.Workspace, false);
+		service.setEnablement(session, clientPlugin, CustomizationEnablementKind.Global, false);
+
+		assert.deepStrictEqual({
+			hostOverride,
+			afterInheritingClientBase: {
+				resolution: serializableResolution(service.resolve(session, clientPlugin)),
+				persisted: storage.get('customizationEnablement'),
+			},
+		}, {
+			hostOverride: {
+				global: { 'file:///plugins/example': true },
+			},
+			afterInheritingClientBase: {
+				resolution: {
+					kind: 'resolved',
+					enabled: false,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					workingDirectory: { kind: 'directory', uri: workspace.toString() },
+				},
+				persisted: undefined,
+			},
+		});
+	});
+
+	test('retains host-owned MCP decisions when an unbundled client republish asserts enabled', async () => {
+		const pluginSource = URI.parse('file:///Users/connor/.vscode-oss-dev-dev/agent-plugins/github.com/microsoft/azure-skills/.github/plugins/azure-skills');
+		const azureSkillsPlugin: ICustomizationEnablementTarget = {
+			id: 'azure-skills-plugin',
+			type: CustomizationType.Plugin,
+			name: 'azure-skills',
+			source: pluginSource,
+			isClientBundled: true,
+		};
+		const azure: ICustomizationEnablementTarget = {
+			id: 'file:///Users/connor/.vscode-oss-dev/agentPlugins/file-azure-skills/19ff2ac36f2/.mcp.json#mcp=azure',
+			type: CustomizationType.McpServer,
+			name: 'azure',
+			source: URI.parse('file:///Users/connor/.vscode-oss-dev/agentPlugins/file-azure-skills/19ff2ac36f2/.mcp.json'),
+			owningPluginSource: pluginSource,
+			isClientBundled: false,
+		};
+		service.setEnablement(session, azure, CustomizationEnablementKind.Global, false);
+		service.applyClientGlobalEnablement(session, azureSkillsPlugin, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+		const afterGlobalRepublish = service.resolve(session, azure);
+
+		service.setEnablement(session, azure, CustomizationEnablementKind.Workspace, true);
+		const afterWorkspaceRepublish = service.applyClientGlobalEnablement(session, azure, [{ kind: CustomizationEnablementKind.Global, enabled: true }]);
+		const newSession = 'ahp://copilot/session-azure';
+		state.createSession(makeSummary(newSession, [workspace.toString()]));
+		await service.initializeSession(newSession);
+
+		assert.deepStrictEqual({
+			afterGlobalRepublish: serializableResolution(afterGlobalRepublish),
+			afterWorkspaceRepublish: serializableResolution(afterWorkspaceRepublish),
+			newSession: serializableResolution(service.resolve(newSession, azure)),
+			persisted: storage.get('customizationEnablement'),
+		}, {
+			afterGlobalRepublish: {
+				kind: 'resolved',
+				enabled: false,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			},
+			afterWorkspaceRepublish: {
+				kind: 'resolved',
+				enabled: true,
+				enablement: [
+					{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: false },
+				],
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			},
+			newSession: {
+				kind: 'resolved',
+				enabled: true,
+				enablement: [
+					{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: true },
+					{ kind: CustomizationEnablementKind.Global, enabled: false },
+				],
+				workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			},
+			persisted: {
+				global: {
+					'file:///Users/connor/.vscode-oss-dev-dev/agent-plugins/github.com/microsoft/azure-skills/.github/plugins/azure-skills#mcp=azure': false,
+				},
+				workingDirectories: {
+					'file:///repo': {
+						'file:///Users/connor/.vscode-oss-dev-dev/agent-plugins/github.com/microsoft/azure-skills/.github/plugins/azure-skills#mcp=azure': true,
+					},
+				},
+			},
+		});
 	});
 
 	test('clears entries that match inherited decisions through set, change, clear, and re-set transitions', () => {

@@ -34,6 +34,7 @@ export interface IAgentHostMcpServer {
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
+	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;

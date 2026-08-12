@@ -38,7 +38,7 @@ import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
 import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
 import { ClaudeCustomizationWatcher, buildDiscoveredCustomizations, resolveClaudeAgentName } from './customizations/claudeSessionCustomizationDiscovery.js';
-import { applyMcpServerEnablement, findMcpChildId, findMcpServerName, getEffectiveMcpServerCustomizations } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, findMcpChildId, findMcpServerName } from '../shared/mcpCustomizationController.js';
 import { scanClaudeHooks } from './customizations/scan/claudeHookScan.js';
 import { scanClaudeMcpServers } from './customizations/scan/claudeMcpScan.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -52,7 +52,7 @@ import type { ClaudeTransport } from './claudeProxyService.js';
 import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
-import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 
 // Re-export for callers that import IRematerializer from the session.
 export type { IRematerializer } from './claudeSdkPipeline.js';
@@ -520,6 +520,7 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._pipeline) {
 			throw new Error('ClaudeAgentSession is already materialized');
 		}
+		await this._customizationEnablementService?.initializeSession(this.sessionUri.toString());
 		// Adopt the host-resolved working directory (e.g. an isolated worktree)
 		// before it's read below; falls back to the session's `workspace` when the
 		// host didn't resolve a dedicated directory. The plural
@@ -1344,7 +1345,23 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	private _getDesiredMcpServerEnablement(): Map<string, boolean> {
-		return new Map(getEffectiveMcpServerCustomizations(this._sessionCustomizations).map(({ server, enabled }) => [server.name, enabled]));
+		const resolved = resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			this.sessionUri,
+			this._sessionCustomizations,
+			this._clientChildEnablement,
+			this._clientPluginEnablement,
+		);
+		const enabledById = getSdkMcpServerEnablement(resolved);
+		return new Map(resolved.customizations.flatMap(customization => {
+			if (customization.type === CustomizationType.McpServer) {
+				return [[customization.name, enabledById.get(customization.id) ?? false] as const];
+			}
+			return (customization.children ?? []).flatMap(child =>
+				child.type === CustomizationType.McpServer
+					? [[child.name, enabledById.get(child.id) ?? false] as const]
+					: []);
+		}));
 	}
 
 	private _isMcpEnablementUnchanged(desired: ReadonlyMap<string, boolean>): boolean {

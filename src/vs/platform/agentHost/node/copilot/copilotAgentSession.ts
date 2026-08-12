@@ -66,11 +66,13 @@ import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
-import { getEffectiveMcpServerCustomizations, McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
 import { addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
@@ -392,14 +394,6 @@ export interface ICopilotAgentSessionOptions {
 	readonly customizationDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
-	/**
-	 * Looks up the AHP id of an existing child MCP customization by
-	 * server name, so SDK MCP state events can target plugin-derived
-	 * entries narrowly. Returns `undefined` for SDK servers that have
-	 * no corresponding plugin entry — the session surfaces those as
-	 * bare top-level customizations via {@link CopilotAgentSession.topLevelMcpCustomizations}.
-	 */
-	readonly resolveMcpChildId: (serverName: string) => string | undefined;
 	/**
 	 * Live registry of every active client's tool contributions, shared by
 	 * reference with the agent's per-session {@link ActiveClient}. Read at
@@ -894,6 +888,7 @@ export class CopilotAgentSession extends Disposable {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
@@ -949,8 +944,15 @@ export class CopilotAgentSession extends Disposable {
 			providerId: this.sessionUri.scheme,
 			sessionId: this.sessionId,
 			sessionUri: this.sessionUri,
-			resolveChildId: options.resolveMcpChildId,
 			emit: action => this._emitAction(action),
+			pluginMcpServerSources: new Map((options.clientSnapshot?.plugins ?? []).flatMap(plugin => {
+				const sourceUri = plugin.sourceUri;
+				return sourceUri === undefined ? [] : plugin.mcpServers.map(server => [server.name, sourceUri.toString()] as const);
+			})),
+			resolveEnablement: server => {
+				const resolution = this._customizationEnablementService.resolve(this.sessionUri.toString(), targetForMcpServer(server));
+				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
+			},
 		}));
 
 		this._register(toDisposable(() => this._cancelAllPendingInteractions()));
@@ -1771,6 +1773,7 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
+		await this._customizationEnablementService.initializeSession(this.sessionUri.toString());
 		const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
 		// The session may have been disposed while we were awaiting the
 		// launcher. If so, dispose the freshly-created wrapper and
@@ -2570,14 +2573,18 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _doReconcileMcpServerEnablement(): Promise<void> {
 		const desiredCustomizations = this._stateManager.getSessionState(this.sessionUri.toString())?.customizations ?? [];
-		const desiredServers = getEffectiveMcpServerCustomizations(desiredCustomizations);
-		if (desiredServers.length === 0) {
+		const desiredEnablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			this.sessionUri,
+			desiredCustomizations,
+		));
+		if (desiredEnablement.size === 0) {
 			return;
 		}
 		await this._refreshMcpServersFromRpc();
 		let changed = false;
 		for (const server of this._mcpCustomizations.serverEnablement()) {
-			const desired = desiredServers.find(({ server: customization }) => customization.id === server.customizationId)?.enabled;
+			const desired = desiredEnablement.get(server.customizationId);
 			if (desired === undefined || desired === server.enabled) {
 				continue;
 			}

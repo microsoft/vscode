@@ -10,7 +10,7 @@ import assert from 'assert';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -43,6 +43,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../node/agentHostCustomizationEnablementService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
@@ -579,10 +580,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	sessionCustomizations?: () => readonly Customization[];
+	resolveCustomizationEnablement?: (target: ICustomizationEnablementTarget) => CustomizationEnablementResolution;
 	initialSessionMeta?: Record<string, unknown>;
 	sessionUri?: URI;
 	chatChannelUri?: URI;
-	resolveMcpChildId?: (serverName: string) => string | undefined;
 	/** Optional server-tool host wired into the session. */
 	serverToolHost?: IAgentServerToolHost;
 	/** Platform used to compute the SDK sandbox policy. Defaults to `'linux'` so sandbox tests are deterministic. */
@@ -597,6 +598,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	onTurnEnded?: () => void;
 	modelId?: string;
 	resume?: boolean;
+	initializeEnablementSession?: (session: string) => Promise<void>;
+	beforeLaunch?: () => void;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: TestCopilotSessionRuntime;
@@ -672,6 +675,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	let launchedRuntime: ICopilotSessionRuntime | undefined;
 	const sessionLauncher: ICopilotSessionLauncher = {
 		launch: async (_plan, runtime) => {
+			options?.beforeLaunch?.();
 			launchedRuntime = runtime;
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
@@ -787,6 +791,27 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		}
 	}(new NullLogService()));
 	services.set(IAgentHostStateManager, stateManager);
+	services.set(IAgentHostCustomizationEnablementService, {
+		onDidChange: Event.None,
+		initializeSession: session => options?.initializeEnablementSession?.(session) ?? Promise.resolve(),
+		resolve: (_session: string, target: ICustomizationEnablementTarget) => {
+			if (options?.resolveCustomizationEnablement) {
+				return options.resolveCustomizationEnablement(target);
+			}
+			const customizations = options?.sessionCustomizations?.() ?? [];
+			const customization = customizations.find(item => item.id === target.id)
+				?? customizations.flatMap(item => item.type === CustomizationType.McpServer ? [] : item.children ?? []).find(item => item.id === target.id);
+			const enablement = customization?.type === CustomizationType.McpServer || customization?.type === CustomizationType.Plugin
+				? customization.enablement ?? []
+				: [];
+			return {
+				kind: 'resolved',
+				enablement,
+				enabled: isCustomizationEnabled({ enablement }),
+				workingDirectory: { kind: 'workspaceless' },
+			};
+		},
+	} as IAgentHostCustomizationEnablementService);
 	const environmentService = {
 		_serviceBrand: undefined,
 		userHome: URI.file('/mock-home'),
@@ -811,7 +836,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
 			activeClientToolSet: options?.activeClientToolSet,
-			resolveMcpChildId: options?.resolveMcpChildId ?? (() => undefined),
 			workingDirectory: options?.workingDirectory,
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
@@ -855,6 +879,17 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('initializes customization enablement before launching the SDK session', async () => {
+		let initialized = false;
+		await createAgentSession(disposables, {
+			initializeEnablementSession: async session => {
+				assert.strictEqual(session, AgentSession.uri('copilot', 'test-session-1').toString());
+				initialized = true;
+			},
+			beforeLaunch: () => assert.strictEqual(initialized, true),
+		});
+	});
 
 	suite('CopilotSessionWrapper', () => {
 		test('fires unhandled events when no wrapped listener is registered', () => {
@@ -4704,7 +4739,13 @@ suite('CopilotAgentSession', () => {
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				sessionUri: AgentSession.uri('copilotcli', 'test-session-1'),
-				resolveMcpChildId: serverName => serverName === 'database' ? 'database-customization' : undefined,
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id: 'database-customization',
+					uri: 'file:///plugin/.mcp.json',
+					name: 'database',
+					state: { kind: McpServerStatus.Starting },
+				}],
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -8482,6 +8523,83 @@ suite('CopilotAgentSession', () => {
 
 	suite('MCP server inventory', () => {
 
+		test('does not enable a server while its customization resolution is pending', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({ kind: 'pending', reason: 'session' }),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+
+			await session.send('keep Azure disabled while the decision loads');
+
+			assert.deepStrictEqual(mockSession.mcpEnableCalls, []);
+		});
+
+		test('does not enable a server resolved as disabled when the SDK reports it disabled', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					enabled: false,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+
+			await session.send('keep Azure disabled');
+
+			assert.deepStrictEqual(mockSession.mcpEnableCalls, []);
+		});
+
+		test('enables a server resolved as enabled when the SDK reports it disabled', async () => {
+			const serverName = 'azure';
+			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer,
+					id,
+					uri: id,
+					name: serverName,
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+					state: { kind: McpServerStatus.Starting },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [],
+					enabled: true,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+
+			await session.send('enable Azure');
+
+			assert.deepStrictEqual(mockSession.mcpEnableCalls, [{ serverName }]);
+		});
+
 		test('session MCP desired enablement reconciles runtime drift', async () => {
 			const serverName = 'slack';
 			const id = 'mcp-top-level:copilot:test-session-1:slack';
@@ -8742,7 +8860,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('nested MCP desired enablement uses its own decision', async () => {
+		test('keeps a disabled plugin MCP child disabled after a runtime reconfiguration', async () => {
 			const serverName = 'slack';
 			const serverId = 'plugin-1/mcp/slack';
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -8764,12 +8882,19 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
 				},
-				resolveMcpChildId: name => name === serverName ? serverId : undefined,
 			});
 
 			await session.send('keep MCP server disabled');
+			mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: 'not_configured' }] });
+			await session.send('keep MCP server disabled after reconfiguration');
 
-			assert.deepStrictEqual(mockSession.mcpDisableCalls, [{ serverName }]);
+			assert.deepStrictEqual({
+				disableCalls: mockSession.mcpDisableCalls,
+				enableCalls: mockSession.mcpEnableCalls,
+			}, {
+				disableCalls: [{ serverName }],
+				enableCalls: [],
+			});
 		});
 
 		test('reconciles a workspace-disabled plugin child when customizations are republished', async () => {
@@ -8797,7 +8922,6 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
 				},
-				resolveMcpChildId: name => name === serverName ? serverId : undefined,
 			});
 
 			pluginEnabled = false;

@@ -86,7 +86,7 @@ import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
-import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
+import { targetForMcpServer, targetForPlugin, withOwningPluginUri } from './shared/customizationEnablementGate.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -155,7 +155,6 @@ interface ISubagentSessionRef {
 
 interface ICustomizationEnablementCandidate {
 	readonly customization: PluginCustomization | McpServerCustomization;
-	readonly owningPlugin: PluginCustomization | undefined;
 }
 
 const MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES = 3;
@@ -164,20 +163,20 @@ function getCustomizationEnablementCandidates(customizations: readonly Customiza
 	const candidates: ICustomizationEnablementCandidate[] = [];
 	for (const customization of customizations ?? []) {
 		if (customization.type === CustomizationType.Plugin) {
-			candidates.push({ customization, owningPlugin: undefined });
+			candidates.push({ customization });
 			for (const child of customization.children ?? []) {
 				if (child.type === CustomizationType.McpServer) {
-					candidates.push({ customization: child, owningPlugin: customization });
+					candidates.push({ customization: withOwningPluginUri(child, customization) });
 				}
 			}
 		} else if (customization.type === CustomizationType.McpServer) {
-			candidates.push({ customization, owningPlugin: undefined });
+			candidates.push({ customization });
 		} else if (customization.type === CustomizationType.Directory) {
 			for (const child of customization.children ?? []) {
 				if (child.type === CustomizationType.McpServer) {
 					// Directory containers do not own durable plugin keys. Their
 					// MCP children therefore use the unowned `mcpServers#<name>` key.
-					candidates.push({ customization: child, owningPlugin: undefined });
+					candidates.push({ customization: child });
 				}
 			}
 		}
@@ -1745,7 +1744,7 @@ export class AgentSideEffects extends Disposable {
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
 		const target = candidate.customization.type === CustomizationType.Plugin
 			? targetForPlugin(candidate.customization)
-			: targetForMcpServer(candidate.customization, candidate.owningPlugin);
+			: targetForMcpServer(candidate.customization);
 		this._customizationEnablementService.replaceEnablement(session, target, enablement);
 	}
 

@@ -1038,6 +1038,15 @@ export interface HookCustomization extends ChildCustomizationBase {
 export interface McpServerCustomization extends CustomizationBase {
 	type: CustomizationType.McpServer;
 	/**
+	 * Source URI of the plugin that contributes this server. A plugin-provided
+	 * server keeps this durable identity while temporarily published top-level;
+	 * its durable enablement key is derived from this URI.
+	 *
+	 * Absent means this is an unowned server, whose durable key is
+	 * `mcpServers#<name>`.
+	 */
+	owningPluginUri?: URI;
+	/**
 	 * Explicit enablement decisions for this customization, one entry per scope
 	 * that has one. This is a wire contract: producers MUST publish entries
 	 * sorted by descending specificity (Session, Workspace, then Global).
@@ -1055,6 +1064,11 @@ export interface McpServerCustomization extends CustomizationBase {
 	 * the effective enabled value from that set.
 	 */
 	enablement?: CustomizationEnablement[];
+	/**
+	 * Whether the client explicitly bundled this server and owns its Global
+	 * enablement decision.
+	 */
+	isClientBundled?: boolean;
 	/**
 	 * Current lifecycle state of the MCP server.
 	 */

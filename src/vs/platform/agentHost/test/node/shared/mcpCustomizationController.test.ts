@@ -10,12 +10,17 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agentService.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
-import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
+import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
-function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: readonly Customization[]; desiredEnabled?: boolean } = {}) {
+function harness(store: Pick<DisposableStore, 'add'>, opts: {
+	customizations?: readonly Customization[];
+	desiredEnabled?: boolean;
+	pluginMcpServerSources?: ReadonlyMap<string, string>;
+	resolveEnablement?: (server: McpServerCustomization) => readonly CustomizationEnablement[] | undefined;
+} = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
 	const sessionUri = AgentSession.uri('copilot', 'session-1');
@@ -28,10 +33,10 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 		createdAt: new Date().toISOString(),
 		modifiedAt: new Date().toISOString(),
 	});
-	if (opts.desiredEnabled !== undefined) {
+	if (opts.desiredEnabled !== undefined || opts.customizations !== undefined) {
 		stateManager.dispatchServerAction(session, {
 			type: ActionType.SessionCustomizationsChanged,
-			customizations: [{
+			customizations: opts.customizations ? [...opts.customizations] : [{
 				type: CustomizationType.McpServer,
 				id: 'mcp-top-level:copilot:session-1:search',
 				uri: 'mcp-top-level:copilot:session-1:search',
@@ -45,8 +50,9 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: { customizations?: r
 		providerId: 'copilot',
 		sessionId: 'session-1',
 		sessionUri,
-		resolveChildId: name => findMcpChildId(opts.customizations ?? [], name),
 		emit: a => actions.push(a),
+		pluginMcpServerSources: opts.pluginMcpServerSources,
+		resolveEnablement: opts.resolveEnablement,
 	}, stateManager);
 	return { controller, actions };
 }
@@ -168,6 +174,50 @@ suite('McpCustomizationController', () => {
 				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
 			},
 		]);
+	});
+
+	test('retains a plugin MCP server source when it is temporarily surfaced top-level', () => {
+		const { controller, actions } = harness(store, {
+			pluginMcpServerSources: new Map([['azure', 'file:///plugins/azure-skills']]),
+		});
+		store.add(controller);
+
+		controller.applyOne(server('azure', ready()));
+
+		const action = actions[0] as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
+		assert.strictEqual(action.customization.type, CustomizationType.McpServer);
+		if (action.customization.type === CustomizationType.McpServer) {
+			assert.deepStrictEqual(action.customization.owningPluginUri, 'file:///plugins/azure-skills');
+		}
+	});
+
+	test('uses the resolved global and workspace enablement for a plugin server temporarily surfaced top-level', () => {
+		const enablement = [
+			{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false },
+			{ kind: CustomizationEnablementKind.Global, enabled: false },
+		] as const;
+		const { controller, actions } = harness(store, {
+			pluginMcpServerSources: new Map([['azure', 'file:///plugins/azure-skills']]),
+			resolveEnablement: () => enablement,
+		});
+		store.add(controller);
+
+		controller.applyOne(server('azure', stopped()));
+
+		assert.deepStrictEqual(actions, [{
+			type: ActionType.SessionCustomizationUpdated,
+			customization: {
+				type: CustomizationType.McpServer,
+				id: 'mcp-top-level:copilot:session-1:azure',
+				uri: 'mcp-top-level:copilot:session-1:azure',
+				name: 'azure',
+				owningPluginUri: 'file:///plugins/azure-skills',
+				enablement,
+				state: { kind: McpServerStatus.Stopped },
+				channel: undefined,
+				mcpApp: { capabilities: { serverTools: { listChanged: true }, serverResources: {}, sampling: {} } },
+			},
+		}]);
 	});
 
 	test('non-ready bare server has no channel but still advertises mcpApp (static capability)', () => {

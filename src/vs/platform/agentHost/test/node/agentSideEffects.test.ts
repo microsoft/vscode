@@ -47,6 +47,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -455,6 +456,63 @@ suite('AgentSideEffects', () => {
 			})), [{
 				session: sessionUri.toString(),
 				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }],
+			}]);
+		});
+
+		test('republishes a settled MCP decision that an earlier pending publication omitted', async () => {
+			setupSession('file:///workspace');
+			const database = new TestSessionDatabase();
+			let resolveMetadata!: (value: string | undefined) => void;
+			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
+			const server = {
+				type: CustomizationType.McpServer,
+				id: 'azure',
+				uri: 'file:///plugin/mcp.json',
+				name: 'azure',
+				state: { kind: McpServerStatus.Stopped },
+			} as const;
+			const pluginWithServer: PluginCustomization = { ...plugin, children: [server] };
+			const serverTarget = {
+				id: server.id,
+				type: server.type,
+				name: server.name,
+				source: URI.parse(server.uri),
+				owningPluginSource: URI.parse(plugin.uri),
+			};
+			enablementService.setEnablement(sessionUri.toString(), serverTarget, CustomizationEnablementKind.Global, false);
+			agent.getSessionCustomizations = async session => {
+				const resolution = enablementService.resolve(session.toString(), serverTarget);
+				const customizations = [{
+					...pluginWithServer,
+					children: [{
+						...server,
+						...(resolution.kind === 'resolved' && resolution.enablement.length > 0 ? { enablement: [...resolution.enablement] } : {}),
+					}],
+				}];
+				return applyMcpServerEnablement(customizations, stateManager.getSessionState(session.toString())?.customizations ?? []);
+			};
+			await publishInitialCustomizations([sessionUri]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			const load = enablementService.initializeSession(sessionUri.toString());
+			resolveMetadata(undefined);
+			await load;
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{
+					...plugin,
+					children: [{
+						...server,
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					}],
+				}],
 			}]);
 		});
 

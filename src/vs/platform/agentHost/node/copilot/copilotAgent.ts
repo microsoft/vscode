@@ -62,10 +62,10 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, findMcpChildId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
-import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
@@ -192,6 +192,7 @@ async function resolveCopilotCliPath(nodeModulesUri: URI): Promise<string> {
 
 export type ICopilotPluginInfo = IParsedPlugin & {
 	readonly pluginDir?: URI;
+	readonly sourceUri?: URI;
 	readonly disabledMcpServers?: readonly string[];
 };
 
@@ -1124,7 +1125,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
 		const sessionId = AgentSession.id(session);
 		const entry = this._findAnySession(sessionId);
-		const topLevelMcp = entry?.topLevelMcpCustomizations() ?? [];
+		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(entry?.topLevelMcpCustomizations() ?? []);
 		const customizations = [...fromPlugins, ...topLevelMcp];
 		const desired = this._stateManager.getSessionState(session.toString())?.customizations ?? [];
 		return applyMcpServerEnablement(customizations, desired);
@@ -3792,7 +3793,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
 				activeClientToolSet: launchPlan.activeClientToolSet,
-				resolveMcpChildId: name => findMcpChildId(activeClient.pluginController.getCustomizations(), name),
 				serverToolHost: this._serverToolHost,
 				isLaunchTokenCurrent: () => this._githubToken === launchPlan.githubToken,
 				onTurnEnded: () => this._onChatTurnEnded(),
@@ -4767,6 +4767,7 @@ class SessionPluginController extends Disposable {
 	private readonly _onDidPublish = this._register(new Emitter<SessionAction>());
 	/** Per-session action stream (reset + per-item updates). */
 	readonly onDidPublish = this._onDidPublish.event;
+	private readonly _enablementReady: Promise<void>;
 
 	private readonly _previousDirectories: URI[] = [];
 	private _indexedDesiredCustomizations: readonly Customization[] | undefined;
@@ -4810,6 +4811,7 @@ class SessionPluginController extends Disposable {
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
+		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString());
 	}
 
 	public get directory(): URI | undefined {
@@ -4870,6 +4872,10 @@ class SessionPluginController extends Disposable {
 		return this._resolveCustomizationEnablement().customizations;
 	}
 
+	public resolveTopLevelMcpCustomizations(customizations: readonly Customization[]): readonly Customization[] {
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations).customizations;
+	}
+
 	private _resolveCustomizationEnablement() {
 		const result: Customization[] = [
 			...this._parent.hostCustomizations().map(item => this._projectForPublish(item.customization)),
@@ -4913,6 +4919,7 @@ class SessionPluginController extends Disposable {
 	 * kicks off its `_refresh()` without anyone awaiting it.
 	 */
 	public async getCustomizationsSettled(): Promise<readonly Customization[]> {
+		await this._enablementReady;
 		const entry = this._discoveredEntry();
 		await Promise.all([
 			this._parent.hostSync().catch(err => this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err)),
@@ -4924,6 +4931,7 @@ class SessionPluginController extends Disposable {
 
 	/** Returns the parsed plugins currently enabled for this session, awaiting any pending sync. */
 	public async getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> {
+		await this._customizationEnablementService.initializeSession(this._session.toString());
 		const entry = this._discoveredEntry();
 		const [host] = await Promise.all([
 			this._parent.hostSync().catch(err => {
@@ -4939,26 +4947,27 @@ class SessionPluginController extends Disposable {
 
 		const resolved = this._resolveCustomizationEnablement();
 		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
-		const isEnabled = (customization: Customization) => {
+		const mcpEnablement = getSdkMcpServerEnablement(resolved);
+		const isEnabledForSdk = (customization: Customization) => {
 			const desired = desiredByUri.get(customization.uri) ?? customization;
 			return isCustomizationSdkEligible(resolved, desired) && (desired.type === CustomizationType.Directory ? desired.enabled : isCustomizationEnabled(desired));
 		};
 		const disabledChildren = (customization: Customization): readonly string[] | undefined => {
 			const desired = desiredByUri.get(customization.uri);
 			const children = desired && desired.type !== CustomizationType.McpServer
-				? desired.children?.filter(child => child.type === CustomizationType.McpServer && !isCustomizationEnabled(child)).map(child => child.name)
+				? desired.children?.filter(child => child.type === CustomizationType.McpServer && !mcpEnablement.get(child.id)).map(child => child.name)
 				: undefined;
 			return children?.length ? children : undefined;
 		};
 		const discovered = entry?.currentCustomizations() ?? [];
-		const sessionPlugin = discovered.some(isEnabled) ? mapToParsedPlugin(discovered) : undefined;
+		const sessionPlugin = discovered.some(isEnabledForSdk) ? mapToParsedPlugin(discovered) : undefined;
 		const sessionPlugins: IParsedPlugin[] = sessionPlugin ? [sessionPlugin] : [];
 
 		return [
-			...host.filter(item => !!item.plugin && isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
-			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabled(item.customization))
-				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+			...host.filter(item => !!item.plugin && isEnabledForSdk(item.customization))
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
+			...this._flattenClientCustomizations().filter(item => !!item.plugin && isEnabledForSdk(item.customization))
+				.map(item => ({ ...item.plugin!, pluginDir: item.pluginDir, sourceUri: URI.parse(item.customization.uri), ...(disabledChildren(item.customization) ? { disabledMcpServers: disabledChildren(item.customization) } : {}) })),
 			...sessionPlugins,
 		];
 	}
@@ -4974,7 +4983,8 @@ class SessionPluginController extends Disposable {
 	 *   session listener yet; the session-state snapshot picks up the
 	 *   final view directly when the session materializes.
 	 */
-	public sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }) {
+	public async sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }) {
+		await this._enablementReady;
 		const quiet = options?.quiet === true;
 		let client = this._clients.get(clientId);
 		if (!client) {
@@ -5003,10 +5013,10 @@ class SessionPluginController extends Disposable {
 			input: customization,
 		}));
 		if (!quiet) {
-			this._onDidPublish.fire({
+			this._publish(() => ({
 				type: ActionType.SessionCustomizationsChanged,
 				customizations: [...this.getCustomizations()],
-			});
+			}));
 		}
 		const published = new Map<string, Customization>();
 		for (const customization of client.customizations) {
@@ -5020,10 +5030,10 @@ class SessionPluginController extends Disposable {
 			}
 			published.set(customization.uri, customization);
 			if (!quiet) {
-				this._onDidPublish.fire({
+				this._publish(() => ({
 					type: ActionType.SessionCustomizationUpdated,
 					customization,
-				});
+				}));
 			}
 		};
 
@@ -5074,10 +5084,10 @@ class SessionPluginController extends Disposable {
 		// customizations.
 		client.revision++;
 		this._clients.delete(clientId);
-		this._onDidPublish.fire({
+		this._publish(() => ({
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: [...this.getCustomizations()],
-		});
+		}));
 	}
 
 	/** The raw input customizations last synced for `clientId` (empty when absent). */
@@ -5120,13 +5130,21 @@ class SessionPluginController extends Disposable {
 				[this._directory, ...this._additionalDirectories],
 				this._parent.getUserHome(),
 				() => this._parent.getClient(),
-				() => this._onDidPublish.fire({
+				() => this._publish(() => ({
 					type: ActionType.SessionCustomizationsChanged,
 					customizations: [...this.getCustomizations()],
-				})
+				}))
 			);
 		}
 		return this._sessionDiscovered.value;
+	}
+
+	private _publish(action: () => SessionAction): void {
+		void this._enablementReady.then(() => {
+			if (!this._store.isDisposed) {
+				this._onDidPublish.fire(action());
+			}
+		}).catch(error => this._logService.error('[Copilot:SessionPluginController] Failed to initialize customization enablement', error));
 	}
 
 	private _clientChildEnablement(): ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>> {

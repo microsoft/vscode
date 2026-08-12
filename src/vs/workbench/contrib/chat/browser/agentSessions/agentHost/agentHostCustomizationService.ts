@@ -189,6 +189,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 				enablement: server.enablement,
 				isPluginProvided: plugin !== undefined,
+				isClientBundled: server.isClientBundled,
 				owningPluginClientId: plugin?.clientId,
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
