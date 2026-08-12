@@ -7,11 +7,12 @@ import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEv
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
-import { AgentSession } from '../common/agentService.js';
+import { AgentSession } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
 import type { ErrorInfo, MessageAttachment, SessionInputRequestKind, ToolDefinition } from '../common/state/protocol/state.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
@@ -261,6 +262,50 @@ export interface IAgentHostTurnCompletedReport {
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
 
+const turnActivityKindsByActionType = {
+	[ActionType.ChatTurnStarted]: 'chat.turnStarted',
+	[ActionType.ChatDelta]: 'chat.delta',
+	[ActionType.ChatResponsePart]: 'chat.responsePart',
+	[ActionType.ChatToolCallStart]: 'chat.toolCallStart',
+	[ActionType.ChatToolCallDelta]: 'chat.toolCallDelta',
+	[ActionType.ChatToolCallReady]: 'chat.toolCallReady',
+	[ActionType.ChatToolCallConfirmed]: 'chat.toolCallConfirmed',
+	[ActionType.ChatToolCallComplete]: 'chat.toolCallComplete',
+	[ActionType.ChatToolCallResultConfirmed]: 'chat.toolCallResultConfirmed',
+	[ActionType.ChatToolCallContentChanged]: 'chat.toolCallContentChanged',
+	[ActionType.ChatToolCallAuthRequired]: 'chat.toolCallAuthRequired',
+	[ActionType.ChatToolCallAuthResolved]: 'chat.toolCallAuthResolved',
+	[ActionType.ChatTurnComplete]: 'chat.turnComplete',
+	[ActionType.ChatTurnCancelled]: 'chat.turnCancelled',
+	[ActionType.ChatError]: 'chat.error',
+	[ActionType.ChatActivityChanged]: 'chat.activityChanged',
+	[ActionType.ChatWorkingDirectorySet]: 'chat.workingDirectorySet',
+	[ActionType.ChatWorkingDirectoryRemoved]: 'chat.workingDirectoryRemoved',
+	[ActionType.ChatUsage]: 'chat.usage',
+	[ActionType.ChatReasoning]: 'chat.reasoning',
+	[ActionType.ChatPendingMessageSet]: 'chat.pendingMessageSet',
+	[ActionType.ChatPendingMessageRemoved]: 'chat.pendingMessageRemoved',
+	[ActionType.ChatQueuedMessagesReordered]: 'chat.queuedMessagesReordered',
+	[ActionType.ChatDraftChanged]: 'chat.draftChanged',
+	[ActionType.ChatInputRequested]: 'chat.inputRequested',
+	[ActionType.ChatInputAnswerChanged]: 'chat.inputAnswerChanged',
+	[ActionType.ChatInputCompleted]: 'chat.inputCompleted',
+	[ActionType.ChatTruncated]: 'chat.truncated',
+	[ActionType.ChatTurnsLoaded]: 'chat.turnsLoaded',
+	[ActionType.SessionInputNeededSet]: 'session.inputNeededSet',
+	[ActionType.SessionInputNeededRemoved]: 'session.inputNeededRemoved',
+} as const;
+
+export type AgentHostTurnActivityTelemetryKind = 'none' | 'other' | typeof turnActivityKindsByActionType[keyof typeof turnActivityKindsByActionType];
+
+function normalizeTurnActivityKind(activityKind: string): AgentHostTurnActivityTelemetryKind {
+	if (activityKind === 'none') {
+		return 'none';
+	}
+
+	return turnActivityKindsByActionType[activityKind as keyof typeof turnActivityKindsByActionType] ?? 'other';
+}
+
 export interface IAgentHostTurnHungEvent {
 	provider: string;
 	agentSessionId: string;
@@ -270,7 +315,7 @@ export interface IAgentHostTurnHungEvent {
 	hangReason: AgentHostTurnHangReason;
 	isExpected: boolean;
 	hadAnyProgress: boolean;
-	lastActivityKind: string;
+	lastActivityKind: AgentHostTurnActivityTelemetryKind;
 	blockedOn: SessionInputRequestKind | undefined;
 	toolId: string | undefined;
 	toolSourceKind: string | undefined;
@@ -291,7 +336,7 @@ export type IAgentHostTurnHungClassification = {
 	hangReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded state the turn was quiet in: noProgress, stalledAfterProgress, waitingOnUser, or runningTool.' };
 	isExpected: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the quiet period is explained by a legitimate wait (blocked on the user or running a tool) rather than an unexplained hang.' };
 	hadAnyProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether any turn activity at all was observed before the watchdog fired.' };
-	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The protocol action type of the last observed turn activity, or none when the turn never produced any.' };
+	lastActivityKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A bounded category for the last observed turn activity, preserving the AHP action namespace and action name without slash-like syntax. Values are none, other, or categories such as chat.delta and chat.toolCallReady.' };
 	blockedOn: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of outstanding user-blocking session input request, when there is one. Client tool execution is not counted, since it is delegated work rather than a prompt.' };
 	toolId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the tool the turn appears to be stuck on. When hangReason is waitingOnUser this is the tool gated by the blocking request, which is exact; when it is runningTool this is the longest-running in-flight tool call, which is a best guess when several are running. Undefined when no tool explains the hang.' };
 	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the stuck tool is provided by the agent host, an MCP server, or a client.' };
@@ -1076,7 +1121,7 @@ export class AgentHostTelemetryReporter {
 			hangReason: report.hangReason,
 			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
 			hadAnyProgress: report.hadAnyProgress,
-			lastActivityKind: report.lastActivityKind,
+			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			blockedOn: report.blockedOn,
 			toolId: report.toolId,
 			toolSourceKind: report.toolSourceKind,
