@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, observableSignalFromEvent, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, observableSignalFromEvent, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
@@ -12,8 +12,9 @@ import { normalizeFileEdit } from '../../../../../platform/agentHost/common/file
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { createRetainedChangesetFilesObs } from '../../../../../platform/agentHost/common/state/changesetFiles.js';
 import { createActiveAgentHostSubscriptionObs } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { type ChangesetFile, ChangesetState, ChangesetStatus, SessionState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetState, SessionState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { isIChatSessionFileChange2 } from '../../common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
@@ -93,19 +94,7 @@ export class AgentSessionChangesMultiDiffSourceResolver extends Disposable imple
 			changesetResource,
 			AgentSessionChangesMultiDiffSourceResolver.SUBSCRIPTION_OWNER,
 		);
-		const changesetFiles = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const state = changesetStateObs.read(reader).read(reader);
-			if (state === null || state instanceof Error) {
-				return [];
-			}
-			if (state === undefined) {
-				return lastValue;
-			}
-			if (state.status !== ChangesetStatus.Ready && lastValue !== undefined) {
-				return lastValue;
-			}
-			return state.files;
-		});
+		const changesetFiles = createRetainedChangesetFilesObs(this, changesetStateObs);
 
 		return derived(this, reader => {
 			const resolved = resolution.read(reader);

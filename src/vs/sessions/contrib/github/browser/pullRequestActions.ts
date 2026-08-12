@@ -22,6 +22,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../workbench/services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionHeaderMetaActionViewItem } from '../../../../workbench/browser/parts/sessionHeaderMetaActionViewItem.js';
@@ -35,7 +36,6 @@ import { computePullRequestIcon, GitHubPullRequestState, type IGitHubPullRequest
 import { IGitHubService } from './githubService.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from './githubReferenceList.js';
 import { createPullRequestHoverElement } from './pullRequestHover.js';
-import { IPullRequestIconCache } from './pullRequestIconCache.js';
 import { computePullRequestIconStatus } from './pullRequestIconStatus.js';
 
 interface IResolvedSessionPullRequest {
@@ -153,7 +153,7 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
-		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
+		@IAgentSessionPullRequestIconCache private readonly _pullRequestIconCache: IAgentSessionPullRequestIconCache,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {

@@ -14,6 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { getDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { createRetainedChangesetFilesObs } from '../../../../../platform/agentHost/common/state/changesetFiles.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createActiveAgentHostSubscriptionObs } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -242,28 +243,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		const mapDiffUri = this._options.mapDiffUri;
 
-		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
-		// files keep their reference across reducer updates, enabling the
-		// per-file cache below to skip rebuilding them.
-		this._changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			if (changesetState === null || changesetState instanceof Error) {
-				return [];
-			}
-
-			if (changesetState === undefined) {
-				return lastValue;
-			}
-
-			// Render `state.files` when the changeset is `Ready`, or on the very
-			// first arrival (the initial snapshot contains the file list persisted
-			// from the previous session).
-			if (changesetState.status !== ChangesetStatus.Ready && lastValue !== undefined) {
-				return lastValue;
-			}
-
-			return changesetState.files;
-		});
+		const changesetStateObs = derived(this, reader => this.changesetStateObs.read(reader));
+		this._changesetFilesObs = createRetainedChangesetFilesObs(this, changesetStateObs);
 
 		// Build one change per file, reusing the cached result for files whose
 		// `ChangesetFile` reference is unchanged so only changed files are

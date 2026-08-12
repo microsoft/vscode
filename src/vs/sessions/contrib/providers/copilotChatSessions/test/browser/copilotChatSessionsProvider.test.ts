@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../../../workbench/services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -47,7 +48,6 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../../github/browser/models/githubPullRequestModel.js';
-import { IPullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { computePullRequestIcon, GitHubPullRequestState, IGitHubPullRequest } from '../../../../github/common/types.js';
 
 // ---- Helpers ----------------------------------------------------------------
@@ -149,14 +149,14 @@ interface ICreateProviderOptions {
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
 	readonly gitHubService?: IGitHubService;
-	readonly pullRequestIconCache?: IPullRequestIconCache;
+	readonly pullRequestIconCache?: IAgentSessionPullRequestIconCache;
 }
 
 function isCommandSessionItem(item: unknown): item is { readonly resource: URI; readonly label?: string } {
 	return typeof item === 'object' && item !== null && 'resource' in item && URI.isUri(item.resource);
 }
 
-class TestPullRequestIconCache implements IPullRequestIconCache {
+class TestPullRequestIconCache implements IAgentSessionPullRequestIconCache {
 
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChange = Event.None;
@@ -305,7 +305,7 @@ function createProviderWithConfig(
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(IGitHubService, opts?.gitHubService ?? new TestGitHubService());
-	instantiationService.stub(IPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
+	instantiationService.stub(IAgentSessionPullRequestIconCache, opts?.pullRequestIconCache ?? new TestPullRequestIconCache());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService, agentHostEnabled };
@@ -381,7 +381,7 @@ function createProviderForSendTests(
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(opts?.agentHostEnabled ?? true) });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IGitHubService, new TestGitHubService());
-	instantiationService.stub(IPullRequestIconCache, new TestPullRequestIconCache());
+	instantiationService.stub(IAgentSessionPullRequestIconCache, new TestPullRequestIconCache());
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }

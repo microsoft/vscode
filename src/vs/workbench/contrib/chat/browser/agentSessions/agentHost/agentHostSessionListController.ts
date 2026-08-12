@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { parseGitHubPullRequestReferences } from '../../../../../../platform/agentHost/common/githubPullRequestReferences.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubState, SESSION_META_EHCLI_ADOPTABLE_KEY, SessionStatus, type SessionMeta, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -263,9 +264,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 		if (pullRequestUrl) {
 			result.pullRequestUrl = pullRequestUrl;
-			const match = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(?<number>\d+)\/?$/.exec(pullRequestUrl);
-			if (match?.groups) {
-				result.pullRequestNumber = Number(match.groups['number']);
+			const [pullRequest] = parseGitHubPullRequestReferences(pullRequestUrl);
+			if (pullRequest) {
+				result.pullRequestNumber = pullRequest.number;
 			}
 		}
 		return Object.keys(result).length > 0 ? result : undefined;

@@ -20,6 +20,7 @@ import { getAgentSessionPullRequestUri, IAgentSession } from '../../../../../wor
 import { getRepositoryName } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsViewer.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../../workbench/services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -47,7 +48,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
-import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
@@ -306,7 +306,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IGitService private readonly gitService: IGitService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
-		@IPullRequestIconCache private readonly pullRequestIconCache: IPullRequestIconCache,
+		@IAgentSessionPullRequestIconCache private readonly pullRequestIconCache: IAgentSessionPullRequestIconCache,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
@@ -893,7 +893,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		session: IAgentSession,
 		providerId: string,
 		private readonly _gitHubService: IGitHubService,
-		private readonly _pullRequestIconCache: IPullRequestIconCache,
+		private readonly _pullRequestIconCache: IAgentSessionPullRequestIconCache,
 	) {
 		this.sessionId = toSessionId(providerId, session.resource);
 		this.resource = session.resource;
@@ -1404,7 +1404,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
-		@IPullRequestIconCache private readonly pullRequestIconCache: IPullRequestIconCache,
+		@IAgentSessionPullRequestIconCache private readonly pullRequestIconCache: IAgentSessionPullRequestIconCache,
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
