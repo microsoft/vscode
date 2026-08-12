@@ -143,6 +143,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 			}
 			return localize('tunnelHost.hover.enabled', "Remote session access is enabled");
 		}
-		return localize('tunnelHost.hover.idle.ariaLabel', "Allow connections from other machines and vscode.dev/agents");
+		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : 'vscode.dev/agents';
+		return localize('tunnelHost.hover.idle.ariaLabel', "Allow connections from other machines and {0}", agentsUrl);
 	}
 }
