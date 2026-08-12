@@ -173,7 +173,8 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		assert.ok(prompt.includes('<system_notification>'));
-		assert.ok(prompt.includes('`rename_session`'));
+		assert.ok(prompt.includes('Before doing any other work or responding to the user, you MUST call the `rename_session` tool exactly once'));
+		assert.ok(prompt.includes('Do not skip this call even if the current name already seems descriptive.'));
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -208,7 +209,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const prompt = await controller.preparePromptForAgent(session.toString(), chat, 'Continue');
-		assert.ok(prompt.includes('`rename_chat`'));
+		assert.ok(prompt.includes('Before doing any other work or responding to the user, you MUST call the `rename_chat` tool exactly once'));
 		assert.ok(!prompt.includes('`rename_session`'));
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
