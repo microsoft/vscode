@@ -23,6 +23,8 @@ import {
 	fileChangeOutput,
 	mapCodexTurnError,
 	turnStateFromStatus,
+	webSearchInvocationMessage,
+	webSearchPastTenseMessage,
 } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import type { Thread } from './protocol/generated/v2/Thread.js';
@@ -210,7 +212,6 @@ function shellToolCallPart(item: CommandExecutionItem, command: string): ToolCal
 
 function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>): ToolCallResponsePart {
 	const query = describeWebSearch(item.query, item.action);
-	const invocationMessage = `Searching the web for ${query}`;
 	return {
 		kind: ResponsePartKind.ToolCall,
 		toolCall: {
@@ -219,11 +220,11 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 			toolName: 'web_search',
 			displayName: 'Web search',
 			_meta: toToolCallMeta({ toolKind: 'search' }),
-			invocationMessage,
+			invocationMessage: webSearchInvocationMessage(query),
 			toolInput: query,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: true,
-			pastTenseMessage: `Searched the web for ${query}`,
+			pastTenseMessage: webSearchPastTenseMessage(query),
 		},
 	};
 }

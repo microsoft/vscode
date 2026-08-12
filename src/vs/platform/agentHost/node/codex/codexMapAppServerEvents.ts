@@ -275,6 +275,14 @@ export function describeWebSearch(query: string, action: WebSearchAction | null)
 	return query;
 }
 
+export function webSearchInvocationMessage(query: string): string {
+	return localize('codex.webSearch.inProgress', "Searching the web for {0}", query);
+}
+
+export function webSearchPastTenseMessage(query: string): string {
+	return localize('codex.webSearch.completed', "Searched the web for {0}", query);
+}
+
 export function describeFileChange(changes: readonly FileUpdateChange[]): string {
 	return changes.map(change => {
 		const kind = change.kind.type === 'update' && change.kind.move_path
@@ -589,7 +597,6 @@ function mapItemStartedBody(
 			output: '',
 		});
 		const query = describeWebSearch(params.item.query, params.item.action);
-		const message = `Searching the web for ${query}`;
 		return [
 			{
 				type: ActionType.ChatToolCallStart,
@@ -609,7 +616,7 @@ function mapItemStartedBody(
 				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
-				invocationMessage: message,
+				invocationMessage: webSearchInvocationMessage(query),
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta({ toolKind: 'search' }),
@@ -1018,7 +1025,7 @@ export function mapItemCompleted(
 			toolCallId: entry.toolCallId,
 			result: {
 				success: true,
-				pastTenseMessage: `Searched the web for ${query}`,
+				pastTenseMessage: webSearchPastTenseMessage(query),
 			},
 		}];
 	}

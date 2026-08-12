@@ -10,7 +10,7 @@ import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
 /**
  * Result of a server tool, passed to {@link IServerToolGroup.getDisplay} so the
- * owning group can tailor its completion message to what the tool returned.
+ * owning group can tailor its past-tense message to what the tool returned.
  * Absent while the tool is still running.
  */
 export interface IServerToolDisplayResult {
@@ -32,7 +32,7 @@ export interface IServerToolDisplay {
 	readonly displayName?: string;
 	/** Message shown while the tool runs (e.g. "List comments"). */
 	readonly invocationMessage?: StringOrMarkdown;
-	/** Message shown once the tool completes; fast tools should reuse the invocation message. */
+	/** Past-tense message shown once the tool completes. When omitted, the provider reuses `invocationMessage`. */
 	readonly pastTenseMessage?: StringOrMarkdown;
 }
 
