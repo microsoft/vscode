@@ -99,8 +99,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		// Suppress the context key during the transient `policyNotResolved` state
 		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
 		const isRestricted = this.isGateRestricted(info);
-		this.contextKey.set(isRestricted);
-		this.updateForceHidden();
+		this.updatePolicyGateState();
 		this.logService.info(`[AccountPolicyGate] apply: state=${info.state}, reason=${info.reason}, isRestricted=${isRestricted}`);
 
 		if (stateChanged) {
@@ -211,14 +210,14 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 	}
 
-	private updateForceHidden(): void {
-		this.chatEntitlementService.setForceHidden(
-			this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null
-		);
+	private updatePolicyGateState(): void {
+		const blocked = this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null;
+		this.contextKey.set(blocked);
+		this.chatEntitlementService.setForceHidden(blocked);
 	}
 
 	private updateManagedSettingsCompatibilityState(error: IManagedSettingsCompatibilityError | null): void {
-		this.updateForceHidden();
+		this.updatePolicyGateState();
 		if (!error) {
 			this.compatibilityNotificationHandle.clear();
 			return;

@@ -18,7 +18,7 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
 import { AccountPolicyGateContribution } from '../../browser/accountPolicyGateContribution.js';
-import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, ChatAccountPolicyGateActiveContext, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../common/accountPolicyService.js';
 
 class TestAccountPolicyGateService extends mock<IAccountPolicyGateService>() {
 	private _gateInfo: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Inactive };
@@ -58,7 +58,7 @@ class TestDefaultAccountService extends mock<IDefaultAccountService>() {
 
 class TestChatEntitlementService extends mock<IChatEntitlementService>() {
 	readonly forceHiddenValues: boolean[] = [];
-	private forceHidden: boolean | undefined;
+	forceHidden: boolean | undefined;
 
 	override setForceHidden(hidden: boolean): void {
 		if (this.forceHidden !== hidden) {
@@ -75,6 +75,7 @@ suite('AccountPolicyGateContribution', () => {
 		const gateService = disposables.add(new TestAccountPolicyGateService());
 		const defaultAccountService = disposables.add(new TestDefaultAccountService());
 		const chatEntitlementService = new TestChatEntitlementService();
+		const contextKeyService = new MockContextKeyService();
 		const storageService = disposables.add(new InMemoryStorageService());
 		const productService = new class extends mock<IProductService>() {
 			override readonly nameShort = 'Code';
@@ -82,7 +83,7 @@ suite('AccountPolicyGateContribution', () => {
 
 		disposables.add(new AccountPolicyGateContribution(
 			gateService,
-			new MockContextKeyService(),
+			contextKeyService,
 			chatEntitlementService,
 			defaultAccountService,
 			new NullLogService(),
@@ -94,16 +95,43 @@ suite('AccountPolicyGateContribution', () => {
 			NullTelemetryService,
 		));
 
+		const states: { context: boolean | undefined; hidden: boolean | undefined }[] = [];
+		const captureState = () => states.push({
+			context: ChatAccountPolicyGateActiveContext.getValue(contextKeyService),
+			hidden: chatEntitlementService.forceHidden,
+		});
+
+		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError({ errorCode: 'client_update_required' });
+		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
+		captureState();
 		gateService.setGateInfo({
 			state: AccountPolicyGateState.Restricted,
 			reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved,
 		});
+		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError({ errorCode: 'client_update_required' });
+		captureState();
 		gateService.setGateInfo({ state: AccountPolicyGateState.Inactive });
+		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
+		captureState();
 
-		assert.deepStrictEqual(chatEntitlementService.forceHiddenValues, [false, true, false, true, false]);
+		assert.deepStrictEqual({
+			states,
+			forceHiddenValues: chatEntitlementService.forceHiddenValues,
+		}, {
+			states: [
+				{ context: false, hidden: false },
+				{ context: true, hidden: true },
+				{ context: false, hidden: false },
+				{ context: true, hidden: true },
+				{ context: true, hidden: true },
+				{ context: true, hidden: true },
+				{ context: false, hidden: false },
+			],
+			forceHiddenValues: [false, true, false, true, false],
+		});
 	});
 });
