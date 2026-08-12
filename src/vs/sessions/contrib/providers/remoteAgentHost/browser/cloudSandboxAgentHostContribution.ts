@@ -25,7 +25,7 @@ import {
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxDiscoveryResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';

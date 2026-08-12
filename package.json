@@ -76,7 +76,7 @@
     "watch-web": "npm run gulp watch-web",
     "watch-cli": "npm run gulp watch-cli",
     "mock-policy-server": "node --experimental-strip-types scripts/mock-policy-server/server.ts",
-    "eslint": "node build/eslint.ts",
+    "eslint": "node --max-old-space-size=8192 build/eslint.ts",
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
     "compile-build": "npm run gulp compile-build-with-mangling",
