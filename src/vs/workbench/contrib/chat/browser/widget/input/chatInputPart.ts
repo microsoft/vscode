@@ -64,6 +64,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../plat
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
@@ -595,6 +596,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _modelSelectionController: ChatInputModelSelectionController;
 	private readonly _currentLanguageModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	private readonly _modelSelectionRuntime: IChatInputModelSelectionRuntime;
+	private defaultAccountResolved = false;
 
 	/**
 	 * Per-editor store of each model's configuration (e.g. context size, thinking
@@ -776,6 +778,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
@@ -1021,8 +1024,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// lost, its models).
 			this._updateInputContentContextKeys();
 		};
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => updateAfterModelListChange(false)));
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+			if (this.defaultAccountResolved && this.defaultAccountService.currentDefaultAccount === null && !this.entitlementService.anonymous) {
+				this._modelSelectionController.revalidateForSessionType(() => { });
+			}
+			updateAfterModelListChange(false);
+		}));
 		this._register(this.languageModelsService.onDidChangeModelVisibility(() => updateAfterModelListChange(true)));
+		const updateAfterCopilotAccountStateChange = (hasDefaultAccount: boolean) => {
+			this.defaultAccountResolved = true;
+			if (!hasDefaultAccount && !this.entitlementService.anonymous) {
+				this._modelSelectionController.revalidateForSessionType(() => { });
+				updateAfterModelListChange(false);
+			} else {
+				updateAfterModelListChange(true);
+			}
+		};
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => updateAfterCopilotAccountStateChange(account !== null)));
+		this.defaultAccountService.getDefaultAccount().then(account => {
+			if (!this._store.isDisposed) {
+				updateAfterCopilotAccountStateChange(account !== null);
+			}
+		});
 
 		this._register(this.onDidChangeCurrentChatMode(() => {
 			this.accessibilityService.alert(this._currentModeObservable.get().label.get());

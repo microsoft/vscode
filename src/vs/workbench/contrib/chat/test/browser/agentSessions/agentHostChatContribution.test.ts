@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -53,7 +54,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSession, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
-import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata, type ILanguageModelChatProvider } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -258,7 +259,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async disposeSession(session: URI): Promise<void> { this.disposedSessions.push(session); }
 	async shutdown(): Promise<void> { }
-	override async restartAgentHost(): Promise<void> { }
+	public restartAgentHostCalls = 0;
+	override async restartAgentHost(): Promise<void> { this.restartAgentHostCalls++; }
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
@@ -653,7 +655,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = []) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = [], defaultAccountServiceOverride?: Partial<IDefaultAccountService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -680,7 +682,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
+	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {}, anonymous: false, onDidChangeAnonymous: Event.None } as Partial<IChatEntitlementService> as IChatEntitlementService);
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
@@ -728,11 +730,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		resolveEvent: async () => undefined,
 		...chatDebugServiceOverride,
 	});
-	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
+	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null, ...defaultAccountServiceOverride });
 	const commandService = new MockCommandService();
 	instantiationService.stub(ICommandService, commandService);
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
 	instantiationService.stub(ILanguageModelsService, {
+		onDidChangeLanguageModels: Event.None,
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
@@ -968,8 +971,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[] }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; defaultAccountServiceOverride?: Partial<IDefaultAccountService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders, opts?.defaultAccountServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -11379,6 +11382,64 @@ suite('AgentHostChatContribution', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+		});
+
+		test('withdraws Copilot models and restarts the agent host on live sign-out', async () => {
+			const account = upcastPartial<IDefaultAccount>({
+				authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				accountName: 'test',
+				sessionId: 'session',
+				enterprise: false,
+			});
+			const accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
+			let registeredProvider: ILanguageModelChatProvider | undefined;
+			const byokIdentifier = 'azure/Azure/gpt-5';
+			const { agentHostService } = createContribution(disposables, {
+				defaultAccountServiceOverride: {
+					onDidChangeDefaultAccount: accountChanged.event,
+					getDefaultAccount: async () => account,
+				},
+				languageModelsServiceOverride: {
+					registerLanguageModelProvider: (_vendor, provider) => {
+						registeredProvider = provider;
+						return toDisposable(() => { });
+					},
+					lookupLanguageModel: identifier => identifier === byokIdentifier
+						? upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt-5', name: 'GPT-5', vendor: 'azure', isBYOK: true })
+						: undefined,
+				},
+			});
+			await timeout(0);
+			agentHostService.setRootState({
+				agents: [{
+					...protectedAgents()[0],
+					models: [
+						{ provider: 'copilot', id: 'claude-opus-5', name: 'Claude Opus 5' },
+						{ provider: 'copilot', id: 'azure/gpt-5', name: 'Azure GPT-5', _meta: { byokModelIdentifier: byokIdentifier } },
+					],
+				}],
+				activeSessions: 0,
+			});
+			await timeout(0);
+			const signedInModels = await registeredProvider!.provideLanguageModelChatInfo({ silent: true }, CancellationToken.None);
+			let providerChanges = 0;
+			disposables.add(registeredProvider!.onDidChange(() => providerChanges++));
+
+			accountChanged.fire(null);
+			await timeout(0);
+			const signedOutModels = await registeredProvider!.provideLanguageModelChatInfo({ silent: true }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				signedInModels: signedInModels.map(model => model.metadata.name),
+				signedOutModels: signedOutModels.map(model => model.metadata.name),
+				providerChanges,
+				restartAgentHostCalls: agentHostService.restartAgentHostCalls,
+			}, {
+				signedInModels: ['Claude Opus 5', 'Azure GPT-5'],
+				signedOutModels: ['Azure GPT-5'],
+				providerChanges: 1,
+				restartAgentHostCalls: 1,
+			});
 		});
 
 		test('propagates interactive authentication errors for eager-created sessions', async () => {
