@@ -518,6 +518,8 @@ export class ProtocolServerHandler extends Disposable {
 							} else if (isAutomationRunAction(untrusted) && !isClientDispatchable(untrusted)) {
 								// Automation-run channels are host-owned: only the cancellation request
 								// may originate from a client, never lifecycle, session, or artifact state.
+								// Keep this check in addition to the action union narrowing above so
+								// newly generated server-only actions cannot be forged by clients.
 								this._logService.warn(`[ProtocolServer] rejecting server-only client action: ${untrusted.type}`);
 								this._stateManager.rejectClientAction(
 									channel,
