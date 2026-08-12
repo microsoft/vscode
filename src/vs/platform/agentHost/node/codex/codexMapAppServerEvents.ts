@@ -296,6 +296,16 @@ export function codexCompactionLabels(): { readonly displayName: string; readonl
 	};
 }
 
+export function codexImageGenerationLabels(status?: string): { readonly displayName: string; readonly invocationMessage: string; readonly pastTenseMessage: string; readonly failedMessage: string; readonly errorMessage: string } {
+	return {
+		displayName: localize('codex.imageGeneration.displayName', "Generate image"),
+		invocationMessage: localize('codex.imageGeneration.inProgress', "Generating image"),
+		pastTenseMessage: localize('codex.imageGeneration.completed', "Generated image"),
+		failedMessage: localize('codex.imageGeneration.failed', "Failed to generate image"),
+		errorMessage: localize('codex.imageGeneration.error', "Image generation {0}", status ?? ''),
+	};
+}
+
 function jsonValueToText(value: JsonValue): string {
 	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
@@ -324,11 +334,11 @@ function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string):
  * Human labels for a Codex collab-agent (subagent) tool call, mirroring the
  * reference client's phrasing. Codex surfaces subagent orchestration as
  * `collabAgentToolCall` items on the parent thread, but each spawned agent
- * ALSO runs as its own child thread that emits a full `turn/*` + `item/*`
+ * also runs as its own child thread that emits a full `turn/*` + `item/*`
  * event stream. The host ({@link CodexAgent}) renders that child stream in a
- * read-only peer chat and attaches a discovery block to the parent
+ * read-only child conversation and attaches a discovery block to the parent
  * `spawnAgent` tool call; the lifecycle collab tools (`wait`, `closeAgent`,
- * `sendInput`, …) render as plain tool calls in the parent chat.
+ * `sendInput`, …) render as plain tool calls in the parent conversation.
  */
 function collabAgentToolLabels(tool: CollabAgentTool): { readonly displayName: string; readonly present: string; readonly past: string } {
 	switch (tool) {
@@ -615,6 +625,33 @@ function mapItemStartedBody(
 			},
 		];
 	}
+	if (params.item.type === 'imageGeneration') {
+		const toolCallId = generateUuid();
+		const labels = codexImageGenerationLabels();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'image_gen.imagegen',
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: labels.displayName,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: labels.invocationMessage,
+				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? labels.displayName }),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		];
+	}
 	if (params.item.type === 'fileChange') {
 		const toolCallId = generateUuid();
 		const output = fileChangeOutput(params.item.changes);
@@ -749,13 +786,13 @@ function mapItemStartedBody(
 			toolName,
 			output: '',
 		});
-		// `spawnAgent` opens a read-only peer chat for the child thread (the
-		// host attaches the subagent-discovery block to THIS tool call on
+		// `spawnAgent` opens a read-only child conversation for the child thread
+		// (the host attaches the subagent-discovery block to THIS tool call on
 		// `subagent_started`), so we deliberately do NOT dump the raw prompt
-		// into the tool box — it would duplicate the child chat's first user
-		// message and blow out the tool-call width. The other collab tools
-		// (`sendInput`, `wait`, `closeAgent`, …) are lifecycle ops with no peer
-		// chat, so they keep a compact prompt/model summary.
+		// into the tool box — it would duplicate the child conversation's first
+		// user message and blow out the tool-call width. The other collab tools
+		// (`sendInput`, `wait`, `closeAgent`, …) are lifecycle ops with no child
+		// conversation, so they keep a compact prompt/model summary.
 		if (params.item.tool === 'spawnAgent') {
 			return [
 				{
@@ -1018,6 +1055,25 @@ export function mapItemCompleted(
 			result: {
 				success: true,
 				pastTenseMessage: `Searched ${query}`,
+			},
+		}];
+	}
+	if (params.item.type === 'imageGeneration') {
+		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const labels = codexImageGenerationLabels(params.item.status);
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
+				content: success ? [{
+					type: ToolResultContentType.EmbeddedResource,
+					data: params.item.result,
+					contentType: 'image/png',
+				}] : undefined,
+				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
 		}];
 	}

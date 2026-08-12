@@ -2424,6 +2424,42 @@ suite('PromptsService', () => {
 			}
 		});
 
+		test('Canceled provider listing stops without logging an error', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let secondProviderCalled = false;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					cancellationTokenSource.cancel();
+					throw new CancellationError();
+				}
+			}));
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					secondProviderCalled = true;
+					return [];
+				}
+			}));
+			const errorSpy = sinon.spy(logService, 'error');
+
+			try {
+				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+
+				assert.deepStrictEqual({
+					secondProviderCalled,
+					errorCount: errorSpy.callCount,
+				}, {
+					secondProviderCalled: false,
+					errorCount: 0,
+				});
+			} finally {
+				errorSpy.restore();
+			}
+		});
+
 		test('Contributed agent file that does not exist should not crash', async () => {
 			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
 			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { localize } from '../../../nls.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID } from '../common/agentService.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import type { URI } from '../common/state/protocol/common/state.js';

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -410,6 +410,25 @@ suite('mapSessionEvents — history replay', () => {
 				label: 'example.ts',
 			}],
 		});
+	});
+
+	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'session.start', data: { selectedModel: 'opus-5' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'hello' } },
+			{ type: 'user.message', data: { interactionId: 'm3', content: 'again' } },
+			{ type: 'session.model_change', data: { newModel: 'gpt-5' } },
+			{ type: 'user.message', data: { interactionId: 'm4', content: 'switched' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(t => t.message.model), [
+			{ id: 'opus-5' },
+			{ id: 'opus-5' },
+			{ id: 'gpt-5' },
+		]);
 	});
 
 	test('uses top-level user messages as turn boundaries', async () => {
