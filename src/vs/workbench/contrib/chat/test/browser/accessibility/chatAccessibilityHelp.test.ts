@@ -25,6 +25,20 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes long pasted text attachments', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+		}, {
+			agentView: true,
+			inlineChat: true,
+		});
+	});
+
 	test('describes the VS Code pet context menu', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -123,6 +137,28 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+	});
+
+	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			chatInputWindow: getAccessibilityHelpText('chatInputWindow', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			quickChat: false,
+			inlineChat: false,
+			chatInputWindow: false,
 		});
 	});
 });
