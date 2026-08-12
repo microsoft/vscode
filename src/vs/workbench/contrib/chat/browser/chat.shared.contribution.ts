@@ -2250,7 +2250,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: {
 			type: 'boolean',
 			tags: ['experimental'],
-			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor shows the prompt file migration affordances for agent-host harnesses. When disabled, the migration card and sidebar shortcut are hidden."),
+			description: nls.localize('chat.customizations.promptMigration.enabled', "Controls whether the Chat Customizations editor shows the migration affordances for agent-host harnesses: converting prompt files to skills, and moving User Data agents and instructions to the active harness. When disabled, the migration cards and sidebar shortcuts are hidden."),
 			default: false,
 		}
 	}

@@ -1852,6 +1852,10 @@ suite('PromptsService', () => {
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, {
+				[PROMPT_DEFAULT_SOURCE_FOLDER]: true,
+				'~/.copilot/prompts': true,
+			});
 
 			const userPromptsFolder = '/user-data/prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolder);
@@ -1872,7 +1876,7 @@ suite('PromptsService', () => {
 			service.dispose();
 			const testService = disposables.add(instaService.createInstance(PromptsService));
 
-			// Create prompt files in both workspace and user data folder
+			// Create prompt files in workspace, User Data, and a configured personal folder.
 			await mockFiles(fileService, [
 				// Workspace prompt
 				{
@@ -1893,21 +1897,45 @@ suite('PromptsService', () => {
 						'---',
 						'I am a user data prompt.',
 					]
+				},
+				{
+					path: '/home/user/.copilot/prompts/personal.prompt.md',
+					contents: [
+						'---',
+						'description: \'Personal prompt.\'',
+						'---',
+						'I am a personal prompt.',
+					]
 				}
 			]);
 
-			const result = await testService.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+			const [allPrompts, userPrompts, workspacePrompts] = await Promise.all([
+				testService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.user, CancellationToken.None),
+				testService.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None),
+			]);
+			const summarize = (prompts: readonly IPromptPath[]) => prompts
+				.map(prompt => ({ file: basename(prompt.uri), storage: prompt.storage, source: prompt.source }))
+				.sort((a, b) => a.file.localeCompare(b.file));
 
-			// Should find prompts from both workspace and user data
-			assert.strictEqual(result.length, 2, 'Should find 2 prompts (1 workspace + 1 user data)');
-
-			const workspacePrompt = result.find(p => p.storage === PromptsStorage.local);
-			assert.ok(workspacePrompt, 'Should find workspace prompt');
-			assert.ok(workspacePrompt.uri.path.includes('workspace-prompt.prompt.md'));
-
-			const userPrompt = result.find(p => p.storage === PromptsStorage.user);
-			assert.ok(userPrompt, 'Should find user data prompt');
-			assert.ok(userPrompt.uri.path.includes('user-prompt.prompt.md'));
+			assert.deepStrictEqual({
+				allPrompts: summarize(allPrompts),
+				userPrompts: summarize(userPrompts),
+				workspacePrompts: summarize(workspacePrompts),
+			}, {
+				allPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+				userPrompts: [
+					{ file: 'personal.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal },
+					{ file: 'user-prompt.prompt.md', storage: PromptsStorage.user, source: PromptFileSource.UserData },
+				],
+				workspacePrompts: [
+					{ file: 'workspace-prompt.prompt.md', storage: PromptsStorage.local, source: PromptFileSource.GitHubWorkspace },
+				],
+			});
 		});
 	});
 
