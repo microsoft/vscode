@@ -25,13 +25,15 @@ jobs:
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
-          azureSubscription: vscode
-          KeyVaultName: vscode-build-secrets
-          SecretsFilter: "github-distro-mixin-password"
+          azureSubscription: vscode-oss-build-secrets
+          KeyVaultName: vscode-oss-build-secrets
+          SecretsFilter: "github-token-code-oss"
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
+
+      - template: ../common/apply-sdk-canary.yml@self
 
       - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts alpine $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
@@ -88,11 +90,20 @@ jobs:
           mkdir -p .build/nodejs-musl
           NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
           BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
-          gh release download "v${NODE_VERSION}-${BUILD_ID}" -R microsoft/vscode-node -p "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" --dir .build/nodejs-musl --clobber
+          az extension add --name azure-devops --upgrade --only-show-errors
+          az artifacts universal download \
+            --organization "https://dev.azure.com/monacotools" \
+            --project "Monaco" \
+            --scope project \
+            --feed "vscode-node" \
+            --name "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar" \
+            --version "${NODE_VERSION}-${BUILD_ID}" \
+            --path .build/nodejs-musl \
+            --only-show-errors
           tar -xzf ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" -C ".build/nodejs-musl" --strip-components=1
           rm ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz"
         env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          AZURE_DEVOPS_EXT_PAT: "$(System.AccessToken)"
         displayName: Download NodeJS MUSL
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -111,7 +122,7 @@ jobs:
           npm_config_arch: $(NPM_ARCH)
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
           VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)

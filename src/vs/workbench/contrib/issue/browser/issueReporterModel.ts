@@ -5,7 +5,7 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { isRemoteDiagnosticError, SystemInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
-import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from '../common/issue.js';
+import { ISettingSearchResult, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
 
 interface VersionInfo {
 	vscodeVersion: string;
@@ -14,6 +14,7 @@ interface VersionInfo {
 
 export interface IssueReporterData {
 	issueType: IssueType;
+	issueSource?: IssueSource;
 	issueDescription?: string;
 	issueTitle?: string;
 	extensionData?: string;
@@ -44,7 +45,7 @@ export interface IssueReporterData {
 	filterResultCount?: number;
 	experimentInfo?: string;
 	restrictedMode?: boolean;
-	isUnsupported?: boolean;
+	isInstallationPure?: boolean;
 	isSessionsWindow?: boolean;
 }
 
@@ -88,7 +89,7 @@ export class IssueReporterModel {
 		if (this._data.restrictedMode) {
 			modes.push('Restricted');
 		}
-		if (this._data.isUnsupported) {
+		if (this._data.isInstallationPure === false) {
 			modes.push('Unsupported');
 		}
 		return `
@@ -146,20 +147,12 @@ ${this.getInfos()}
 			return info;
 		}
 
-		const isBugOrPerformanceIssue = this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue;
+		if (this._data.includeExtensionData && this._data.extensionData) {
+			info += this.getExtensionData();
+		}
 
-		if (isBugOrPerformanceIssue) {
-			if (this._data.includeExtensionData && this._data.extensionData) {
-				info += this.getExtensionData();
-			}
-
-			if (this._data.includeSystemInfo && this._data.systemInfo) {
-				info += this.generateSystemInfoMd();
-			}
-
-			if (this._data.includeSystemInfo && this._data.systemInfoWeb) {
-				info += 'System Info: ' + this._data.systemInfoWeb;
-			}
+		if (this._data.includeSystemInfo && this._data.systemInfo) {
+			info += this.generateSystemInfoMd();
 		}
 
 		if (this._data.issueType === IssueType.PerformanceIssue) {
@@ -172,14 +165,12 @@ ${this.getInfos()}
 			}
 		}
 
-		if (isBugOrPerformanceIssue) {
-			if (!this._data.fileOnExtension && this._data.includeExtensions) {
-				info += this.generateExtensionsMd();
-			}
+		if (!this._data.fileOnExtension && this._data.includeExtensions) {
+			info += this.generateExtensionsMd();
+		}
 
-			if (this._data.includeExperiments && this._data.experimentInfo) {
-				info += this.generateExperimentsInfoMd();
-			}
+		if (this._data.includeExperiments && this._data.experimentInfo) {
+			info += this.generateExperimentsInfoMd();
 		}
 
 		return info;
@@ -206,6 +197,10 @@ ${this.getInfos()}
 |Process Argv|${this._data.systemInfo.processArgs.replace(/\\/g, '\\\\')}|
 |Screen Reader|${this._data.systemInfo.screenReader}|
 |VM|${this._data.systemInfo.vmHint}|`;
+
+			if (this._data.systemInfoWeb) {
+				md += `\n|User Agent|${this._data.systemInfoWeb}|`;
+			}
 
 			if (this._data.systemInfo.linuxEnv) {
 				md += `\n|DESKTOP_SESSION|${this._data.systemInfo.linuxEnv.desktopSession}|
@@ -277,24 +272,29 @@ ${this._data.experimentInfo}
 			return 'Extensions disabled';
 		}
 
-		const themeExclusionStr = this._data.numberOfThemeExtesions ? `\n(${this._data.numberOfThemeExtesions} theme extensions excluded)` : '';
-
-		if (!this._data.enabledNonThemeExtesions) {
-			return 'Extensions: none' + themeExclusionStr;
+		if (!this._data.enabledNonThemeExtesions || this._data.enabledNonThemeExtesions.length === 0) {
+			if (!this._data.numberOfThemeExtesions) {
+				return 'Extensions: none';
+			}
 		}
 
-		const tableHeader = `Extension|Author (truncated)|Version
----|---|---`;
-		const table = this._data.enabledNonThemeExtesions.map(e => {
-			return `${e.name}|${e.publisher?.substr(0, 3) ?? 'N/A'}|${e.version}`;
-		}).join('\n');
+		let md = '';
+		const tableHeader = `Name|Identifier|Author|Version
+---|---|---|---`;
 
-		return `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>
+		if (this._data.enabledNonThemeExtesions && this._data.enabledNonThemeExtesions.length > 0) {
+			const table = this._data.enabledNonThemeExtesions.map(e => {
+				return `${e.displayName || e.name}|${e.id}|${e.publisher ?? 'N/A'}|${e.version}`;
+			}).join('\n');
+
+			md += `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>
 
 ${tableHeader}
 ${table}
-${themeExclusionStr}
 
 </details>`;
+		}
+
+		return md;
 	}
 }

@@ -7,6 +7,7 @@ import { generateUuid } from './util/uuid';
 import { MermaidWebviewManager } from './webviewManager';
 import { escapeHtmlText } from './util/html';
 import { Disposable } from './util/dispose';
+import { renderMermaidConfigSpan } from './markdownMermaid/config';
 
 export const mermaidEditorViewType = 'vscode.mermaid-markdown-features.preview';
 
@@ -222,7 +223,7 @@ class MermaidPreview extends Disposable {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Mermaid Diagram</title>
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; font-src data:;" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'nonce-${nonce}'; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; font-src data:;" />
 				<link rel="stylesheet" type="text/css" href="${codiconsUri}">
 				<style>
 					html, body {
@@ -276,6 +277,7 @@ class MermaidPreview extends Disposable {
 				</style>
 			</head>
 			<body data-vscode-context='${JSON.stringify({ preventDefaultContextMenuItems: true, mermaidWebviewId: this.diagramId })}' data-vscode-mermaid-webview-id="${this.diagramId}">
+				${renderMermaidConfigSpan()}
 				<div class="zoom-controls">
 					<button class="pan-mode-btn" title="${togglePanModeLabel}" aria-label="${togglePanModeLabel}" aria-pressed="false"><i class="codicon codicon-move" aria-hidden="true"></i></button>
 					<button class="zoom-out-btn" title="${zoomOutLabel}" aria-label="${zoomOutLabel}"><i class="codicon codicon-zoom-out" aria-hidden="true"></i></button>

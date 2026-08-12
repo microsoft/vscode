@@ -19,14 +19,13 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ISearchService, QueryType, resultIsMatch } from '../../../../services/search/common/search.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
-import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
+import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveSymbolToolFileUri } from './toolHelpers.js';
 
 export const UsagesToolId = 'vscode_listCodeUsages';
 
@@ -80,7 +79,6 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			userDescription,
 			modelDescription,
 			source: ToolDataSource.Internal,
-			when: ContextKeyExpr.has('config.chat.tools.usagesTool.enabled'),
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -117,7 +115,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as ISymbolToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
+		const uri = resolveSymbolToolFileUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}

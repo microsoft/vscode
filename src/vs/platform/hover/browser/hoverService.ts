@@ -422,6 +422,18 @@ export class HoverService extends Disposable implements IHoverService {
 		// Set up layout handling
 		store.add(hover.onRequestLayout(() => contextView.layout()));
 
+		// Re-layout when the window resizes so the hover tracks its anchor.
+		// Only for focused/sticky hovers that persist long enough for a resize
+		// to matter; transient hovers dismiss on mouse movement anyway.
+		if (focus || options.persistence?.sticky) {
+			const targetWindow = getWindow(container);
+			store.add(addDisposableListener(targetWindow, EventType.RESIZE, () => contextView.layout()));
+		}
+
+		if (options.onDidHide) {
+			const onDidHide = options.onDidHide;
+			store.add(toDisposable(() => onDidHide()));
+		}
 		options.onDidShow?.();
 	}
 

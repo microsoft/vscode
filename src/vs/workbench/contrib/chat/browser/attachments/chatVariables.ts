@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChatVariablesService, IDynamicVariable } from '../../common/attachments/chatVariables.js';
-import { IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
+import { ToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../base/common/uri.js';
-
 export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray<IDynamicVariable> {
-	if (!widget.viewModel || !widget.supportsFileReferences) {
+	if (!widget.viewModel) {
 		return [];
 	}
 
 	const model = widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
 	if (!model) {
 		return [];
+	}
+	if (!widget.supportsFileReferences) {
+		return model.variables.filter(variable => variable.isAttachmentReference);
 	}
 
 	// track for editing state
@@ -67,7 +69,7 @@ export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray
 	return model.variables;
 }
 
-export function getSelectedToolAndToolSetsForWidget(widget: IChatWidget): IToolAndToolSetEnablementMap {
+export function getSelectedToolAndToolSetsForWidget(widget: IChatWidget): ToolAndToolSetEnablementMap {
 	return widget.input.selectedToolsModel.entriesMap.get();
 }
 
@@ -86,10 +88,10 @@ export class ChatVariablesService implements IChatVariablesService {
 		return getDynamicVariablesForWidget(widget);
 	}
 
-	getSelectedToolAndToolSets(sessionResource: URI): IToolAndToolSetEnablementMap {
+	getSelectedToolAndToolSets(sessionResource: URI): ToolAndToolSetEnablementMap {
 		const widget = this.chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
-			return new Map();
+			return ToolAndToolSetEnablementMap.fromEntries([]);
 		}
 		return getSelectedToolAndToolSetsForWidget(widget);
 	}

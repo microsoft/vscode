@@ -70,6 +70,7 @@ interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableColle
 export interface ITerminalInternalOptions {
 	cwd?: string | URI;
 	isFeatureTerminal?: boolean;
+	isRemoteResolverTerminal?: boolean;
 	forceShellIntegration?: boolean;
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
@@ -190,6 +191,7 @@ export class ExtHostTerminal extends Disposable {
 			hideFromUser: options.hideFromUser ?? undefined,
 			forceShellIntegration: internalOptions?.forceShellIntegration ?? undefined,
 			isFeatureTerminal: internalOptions?.isFeatureTerminal ?? undefined,
+			isRemoteResolverTerminal: internalOptions?.isRemoteResolverTerminal ?? undefined,
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: internalOptions?.useShellEnvironment ?? undefined,
 			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier),
@@ -611,6 +613,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): Promise<void> {
+		// Release any cached terminal links and cancel in-flight link providers for this terminal
+		this._terminalLinkCache.delete(id);
+		const cancellationSource = this._terminalLinkCancellationSource.get(id);
+		if (cancellationSource) {
+			this._terminalLinkCancellationSource.delete(id);
+			cancellationSource.dispose(true);
+		}
+
 		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			const terminal = this._terminals.splice(index, 1)[0];
@@ -919,10 +929,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 		for (const provider of this._linkProviders) {
 			promises.push(Promises.withAsyncBody(async r => {
-				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
-				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
-				if (!cancellationSource.token.isCancellationRequested) {
-					r({ provider, links });
+				const cancelSubscription = cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
+				try {
+					const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
+					if (!cancellationSource.token.isCancellationRequested) {
+						r({ provider, links });
+					}
+				} finally {
+					cancelSubscription.dispose();
 				}
 			}));
 		}

@@ -12,7 +12,7 @@ import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
 import { Tag } from '../../base/tag';
-import { MathIntegrationRules } from '../../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, McpToolInstructions, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructions } from '../fileLinkificationInstructions';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
@@ -102,7 +102,7 @@ export class Gpt54Prompt extends PromptElement<DefaultAgentPromptProps> {
 				- Unless the user explicitly asks for a plan, asks a question about the code, is brainstorming potential solutions, or some other intent that makes it clear that code should not be written, assume the user wants you to make code changes or run tools to solve the user's problem. In these cases, it's bad to output your proposed solution in a message, you should go ahead and actually implement the change. If you encounter challenges or blockers, you should attempt to resolve them yourself.<br />
 			</Tag>
 			<Tag name='special_formatting'>
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
 			<ToolSearchToolPromptOptimized availableTools={this.props.availableTools} />

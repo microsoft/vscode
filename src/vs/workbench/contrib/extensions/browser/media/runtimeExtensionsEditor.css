@@ -9,17 +9,17 @@
 
 .runtime-extensions-editor .extension {
 	display: flex;
-	padding-left: 20px;
-	padding-right: 20px;
+	padding: 0 var(--vscode-spacing-size200);
+	height: 100%;
 }
 
 .runtime-extensions-editor .extension .desc {
 	flex: 1;
-	padding: 4px 0;
+	padding: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size80) 0;
 }
 
 .runtime-extensions-editor .extension .desc .name {
-	font-weight: bold;
+	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .runtime-extensions-editor .extension .desc .msg .codicon {
@@ -27,14 +27,16 @@
 }
 
 .runtime-extensions-editor .extension .time {
-	padding: 4px;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size40);
 	text-align: right;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
 }
 
 .runtime-extensions-editor .extension .desc > .msg > span:not(:last-child)::after {
 	content: '\2022';
-	padding: 0 4px;
-	opacity: .8;
+	padding: 0 var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
 }
 
 .runtime-extensions-editor .monaco-action-bar  {
@@ -49,8 +51,14 @@
 	position: relative;
 }
 
+.runtime-extensions-editor .extension > .icon-container > .extension-icon {
+	height: 100%;
+	display: flex;
+	align-items: center;
+}
+
 .runtime-extensions-editor .extension > .icon-container > .extension-icon .icon {
-	padding: 10px 14px 10px 0;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size100) var(--vscode-spacing-size100) 0;
 }
 
 .runtime-extensions-editor .extension > .icon-container .extension-icon-badge .codicon {
@@ -72,15 +80,15 @@
 }
 
 .runtime-extensions-editor .extension > .desc > .header-container > .header > .name {
-	font-weight: bold;
+	font-weight: var(--vscode-fontWeight-semiBold);
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
 .runtime-extensions-editor .extension > .desc > .header-container > .header > .version {
-	opacity: 0.85;
-	font-size: 80%;
-	padding-left: 6px;
+	font-size: var(--vscode-fontSize-label3);
+	color: var(--vscode-descriptionForeground);
+	padding-left: var(--vscode-spacing-size80);
 	min-width: fit-content;
 }

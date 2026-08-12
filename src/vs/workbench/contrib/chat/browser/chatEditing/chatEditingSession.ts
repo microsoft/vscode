@@ -1037,7 +1037,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return new class implements IModifiedEntryTelemetryInfo {
 			get agentId() { return responseModel.agent?.id; }
 			get modelId() { return responseModel.request?.modelId; }
-			get modeId() { return responseModel.request?.modeInfo?.modeId; }
+			get modeId() { return responseModel.request?.modeInfo?.telemetryModeId; }
 			get command() { return responseModel.slashCommand?.name; }
 			get sessionResource() { return responseModel.session.sessionResource; }
 			get requestId() { return responseModel.requestId; }

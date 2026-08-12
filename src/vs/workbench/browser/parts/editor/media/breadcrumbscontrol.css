@@ -11,6 +11,48 @@
 	display: none;
 }
 
+.monaco-workbench .breadcrumbs-control.with-editor-type {
+	display: flex;
+	flex-direction: row;
+	align-items: stretch;
+}
+
+.monaco-workbench .breadcrumbs-control.with-editor-type > .monaco-scrollable-element {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	max-width: 40%;
+	padding: 0 4px 0 8px;
+	cursor: pointer;
+	font-size: 11px;
+	background: var(--vscode-breadcrumb-background);
+	color: var(--vscode-breadcrumb-foreground);
+}
+
+.monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type.hidden {
+	display: none;
+}
+
+.monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type:hover {
+	color: var(--vscode-breadcrumb-focusForeground);
+}
+
+.monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type > .label {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .breadcrumbs-control.with-editor-type > .breadcrumbs-editor-type > .codicon {
+	font-size: 13px;
+	margin-left: 2px;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
 .monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
 	text-decoration-line: underline;

@@ -15,7 +15,7 @@
 	box-sizing: border-box;
 	width: 100%;
 	height: 100%;
-	padding: 0 0 0 16px;
+	padding: 0 0 0 var(--vscode-spacing-size160);
 	overflow: hidden;
 	display: flex;
 }
@@ -56,10 +56,10 @@
 }
 
 .extension-list-item > .details > .header-container {
-	height: 19px;
+	height: 20px;
 	display: flex;
 	overflow: hidden;
-	padding-right: 11px;
+	padding-right: 10px;
 }
 
 .extension-list-item > .details > .header-container > .header {
@@ -72,7 +72,7 @@
 }
 
 .extension-list-item > .details > .header-container > .header > .name {
-	font-weight: bold;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -127,11 +127,6 @@
 	margin-left: 2px;
 }
 
-.extension-list-item > .details > .header-container > .header > .activation-status .activationTime,
-.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) .codicon {
-	margin-right: 2px;
-}
-
 .extension-list-item > .details > .header-container > .header .codicon {
 	margin-right: 2px;
 	-webkit-mask: inherit;
@@ -170,7 +165,7 @@
 }
 
 .extension-list-item > .details > .description {
-	padding-right: 11px;
+	padding-right: 8px;
 	line-height: normal;
 	color: var(--vscode-descriptionForeground);
 }
@@ -187,7 +182,8 @@
 .extension-list-item > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
-	padding-right: 7px;
+	padding-right: 2px;
+	padding-top: 2px;
 	height: 24px;
 	overflow: hidden;
 	align-items: center;
@@ -204,9 +200,9 @@
 }
 
 .extension-list-item > .details > .footer .publisher > .publisher-name {
-	font-size: 90%;
+	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .monaco-list-row.selected .extension-list-item > .details > .footer .publisher > .publisher-name{
@@ -255,10 +251,6 @@
 .monaco-list-row.disabled:not(.selected) .extension-list-item .details .header .name,
 .monaco-list-row.disabled:not(.selected) .extension-list-item .details .description {
 	color: unset;
-}
-
-.extension-list-item .monaco-action-bar .action-label.icon {
-	padding: 1px 2px;
 }
 
 .hc-black .extension-list-item .monaco-action-bar .action-label.icon,
