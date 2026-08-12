@@ -541,7 +541,7 @@
 		"editorIndentGuide.background": "#aaaaaa60",
 		"editorIndentGuide.activeBackground": "#777777b0",
 		// modern ui
-		"surface.border": "#00000000",
+		"surface.border": "#00000000"
 	},
 	"semanticHighlighting": true
 }

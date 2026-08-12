@@ -28,8 +28,24 @@
 	background-color: var(--vscode-modernActivityBar-activeBackground);
 }
 
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.codicon {
+	color: var(--vscode-modernActivityBar-activeForeground) !important;
+}
+
+.style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .action-label.uri-icon {
+	background-color: var(--vscode-modernActivityBar-activeForeground) !important;
+}
+
 .style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .active-item-indicator {
 	background-color: var(--vscode-modernActivityBar-hoverBackground);
+}
+
+.style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .action-label.codicon {
+	color: var(--vscode-modernActivityBar-hoverForeground) !important;
+}
+
+.style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .action-label.uri-icon {
+	background-color: var(--vscode-modernActivityBar-hoverForeground) !important;
 }
 
 /* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
@@ -109,6 +125,14 @@
 	transform: translateY(-50%);
 }
 
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon {
+	color: var(--vscode-modernActivityBar-activeForeground) !important;
+}
+
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon {
+	background-color: var(--vscode-modernActivityBar-activeForeground) !important;
+}
+
 /*
  * Hover item: identical rounded box. Skipped on the active item (which already
  * shows the box) and while dragging (the action-item `::before`/`::after` are
@@ -123,6 +147,14 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-modernActivityBar-hoverBackground);
 	transform: translateY(-50%);
+}
+
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .action-label.codicon {
+	color: var(--vscode-modernActivityBar-hoverForeground) !important;
+}
+
+.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .action-label.uri-icon {
+	background-color: var(--vscode-modernActivityBar-hoverForeground) !important;
 }
 
 .style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon::before,
