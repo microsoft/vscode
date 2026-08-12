@@ -42,6 +42,7 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn identifier active when the model response was forwarded." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
@@ -80,15 +81,27 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"comment": "Reports performance and usage details for failed Copilot CLI model responses forwarded by the Copilot SDK.",
 		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
 		"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Type of response failure." },
+		"reason": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Sanitized model response failure message on restricted telemetry rows." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
 		"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the request." },
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn identifier active when the model failure was forwarded." },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
+		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
 		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
-		"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Transport used for the request." }
+		"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Transport used for the request." },
+		"totalTokenMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective maximum number of prompt tokens.", "isMeasurement": true },
+		"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Requested maximum number of output tokens.", "isMeasurement": true },
+		"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether bring-your-own-key authentication was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether automatic model selection was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"issuedTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the failed request was issued.", "isMeasurement": true },
+		"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of images included in the failed request.", "isMeasurement": true },
+		"isVisionRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the failed request included an image, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of images without a known media type in the failed request.", "isMeasurement": true },
+		"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time until the request failed.", "isMeasurement": true }
 	}
 */
 
@@ -163,7 +176,7 @@ export class CopilotGitHubTelemetryForwarder {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
-	forward(notification: GitHubTelemetryNotification): void {
+	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string): void {
 		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
 			return;
 		}
@@ -182,6 +195,13 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 		};
+		if (event.kind === 'response.success' || event.kind === 'response.error') {
+			if (agentHostTurnId) {
+				data.turnId = agentHostTurnId;
+			} else {
+				delete data.turnId;
+			}
+		}
 
 		// VS Code's TAS assignment context, scoped to forwarded Copilot CLI
 		// events only — deliberately not a telemetry-service-wide experiment
