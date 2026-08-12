@@ -244,7 +244,7 @@ class TestSessionsPartService extends mock<ISessionsPartService>() {
 function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsService {
 	instantiationService.stub(ISessionsManagementService, service);
 	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
-	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService())));
+	instantiationService.stub(ICustomViewService, disposables.add(new CustomViewService(new NullLogService(), disposables.add(new InMemoryStorageService()))));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	return disposables.add(instantiationService.createInstance(SessionsService));
 }
