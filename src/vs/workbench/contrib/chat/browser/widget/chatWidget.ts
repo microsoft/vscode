@@ -307,6 +307,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
+	private readonly _onDidLayout = this._register(new Emitter<{ width: number; height: number }>());
+	readonly onDidLayout = this._onDidLayout.event;
+
 	private _onDidChangeEmptyState = this._register(new Emitter<void>());
 	readonly onDidChangeEmptyState = this._onDidChangeEmptyState.event;
 
@@ -3371,6 +3374,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.layout(width);
 
 		this._layoutListForInputHeight();
+		this._onDidLayout.fire({ width, height });
 	}
 
 	/**
