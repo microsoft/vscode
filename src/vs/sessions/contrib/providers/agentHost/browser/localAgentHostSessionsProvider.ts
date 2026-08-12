@@ -109,6 +109,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		const connectionListeners = this._register(new DisposableStore());
 		const bindConnection = () => {
 			connectionListeners.clear();
+			this._setAdapterConnection(this._agentHostService);
 			this._attachConnectionListeners(this._agentHostService, connectionListeners);
 
 			const rootState = this._agentHostService.rootState;

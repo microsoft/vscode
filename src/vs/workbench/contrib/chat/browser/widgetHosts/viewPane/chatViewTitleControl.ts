@@ -19,7 +19,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -30,11 +30,10 @@ import { computePullRequestIcon, GitHubPullRequestState } from '../../../../../s
 import { IAgentSessionPullRequestIconCache } from '../../../../../services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
-import { createAgentSessionChangesEditorInput, getAgentChangesSummary, getAgentSessionPullRequestUri, hasValidDiff, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
+import { canOpenAgentSessionChanges, createAgentSessionChangesEditorInput, getAgentChangesSummary, getAgentSessionPullRequestUri, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 
-const VIEW_ALL_AGENT_SESSION_CHANGES_COMMAND_ID = 'chatEditing.viewAllSessionChanges';
 const VIEW_AGENT_SESSION_CHANGES_ACTION_ID = 'workbench.action.chat.viewAgentSessionChanges';
 const OPEN_AGENT_SESSION_PULL_REQUEST_ACTION_ID = 'workbench.action.chat.openAgentSessionPullRequest';
 
@@ -183,7 +182,7 @@ export class ChatViewTitleControl extends Disposable {
 				return item;
 			},
 		}));
-		const hasSessionChanges = derived(this, reader => hasValidDiff(this.session.read(reader)?.changes));
+		const hasSessionChanges = derived(this, reader => canOpenAgentSessionChanges(this.session.read(reader)));
 		const hasSessionPullRequest = derived(this, reader => {
 			const session = this.session.read(reader);
 			return !!session && !!getAgentSessionPullRequestUri(session);
@@ -354,24 +353,22 @@ class ViewAgentSessionChangesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, context?: IChatViewTitleActionContext): Promise<void> {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const notificationService = accessor.get(INotificationService);
+		const editorService = accessor.get(IEditorService);
 		const resource = context?.sessionResource;
-		const session = resource && accessor.get(IAgentSessionsService).getSession(resource);
+		const session = resource && agentSessionsService.getSession(resource);
 		if (!resource || !session) {
-			accessor.get(INotificationService).warn(localize('chat.agentSessionChangesUnavailable', "The chat session changes are no longer available."));
-			return;
-		}
-
-		if (CommandsRegistry.getCommand(VIEW_ALL_AGENT_SESSION_CHANGES_COMMAND_ID)) {
-			await accessor.get(ICommandService).executeCommand(VIEW_ALL_AGENT_SESSION_CHANGES_COMMAND_ID, resource, session.metadata);
+			notificationService.warn(localize('chat.agentSessionChangesUnavailable', "The chat session changes are no longer available."));
 			return;
 		}
 
 		const editorInput = createAgentSessionChangesEditorInput(session);
 		if (!editorInput) {
-			accessor.get(INotificationService).warn(localize('chat.agentSessionChangesCannotOpen', "The chat session did not provide file changes that can be opened."));
+			notificationService.warn(localize('chat.agentSessionChangesCannotOpen', "The chat session did not provide file changes that can be opened."));
 			return;
 		}
-		await accessor.get(IEditorService).openEditor(editorInput);
+		await editorService.openEditor(editorInput);
 	}
 }
 registerAction2(ViewAgentSessionChangesAction);

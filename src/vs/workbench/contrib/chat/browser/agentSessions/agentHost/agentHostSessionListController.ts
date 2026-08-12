@@ -12,7 +12,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubState, SESSION_META_EHCLI_ADOPTABLE_KEY, SessionStatus, type SessionMeta, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemMetadata, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
@@ -250,7 +250,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return URI.from({ scheme: this._sessionType, path: `/${rawId}` });
 	}
 
-	private _buildMetadata(workingDirectory: URI | undefined, pullRequestUrl: string | undefined): { readonly [key: string]: unknown } | undefined {
+	private _buildMetadata(workingDirectory: URI | undefined, pullRequestUrl: string | undefined): IChatSessionItemMetadata | undefined {
 		if (!this._description && !workingDirectory && !pullRequestUrl) {
 			return undefined;
 		}
@@ -263,10 +263,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 		if (pullRequestUrl) {
 			result.pullRequestUrl = pullRequestUrl;
-			const match = /^https:\/\/github\.com\/(?<owner>[^/]+)\/(?<name>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(pullRequestUrl);
+			const match = /^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(?<number>\d+)\/?$/.exec(pullRequestUrl);
 			if (match?.groups) {
-				result.owner = match.groups['owner'];
-				result.name = match.groups['name'];
 				result.pullRequestNumber = Number(match.groups['number']);
 			}
 		}

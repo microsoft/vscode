@@ -9150,12 +9150,14 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const controller = createSessionListController(disposables, instantiationService, agentHostService);
 			const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/229';
+			const workingDirectory = URI.file('/Users/user/Projects/local-checkout');
 
 			agentHostService.addSession({
 				session: AgentSession.uri('copilot', 'sess-pr'),
 				startTime: 1000,
 				modifiedTime: 2000,
 				summary: 'With PR',
+				workingDirectories: [workingDirectory],
 				_meta: {
 					github: {
 						owner: 'microsoft',
@@ -9165,11 +9167,9 @@ suite('AgentHostChatContribution', () => {
 				},
 			});
 			await controller.refresh(CancellationToken.None);
-
 			assert.deepStrictEqual(controller.items[0].metadata, {
+				workingDirectoryPath: workingDirectory.fsPath,
 				pullRequestUrl,
-				owner: 'microsoft',
-				name: 'vscode',
 				pullRequestNumber: 229,
 			});
 		});

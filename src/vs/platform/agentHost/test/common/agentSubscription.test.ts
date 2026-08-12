@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../common/agentService.js';
@@ -111,7 +111,7 @@ suite('createActiveAgentHostSubscriptionObs', () => {
 		const enabled = observableValue('enabled', true);
 		const observed = createActiveAgentHostSubscriptionObs<{ value: number }>(
 			{},
-			() => connection,
+			constObservable(connection),
 			enabled,
 			StateComponents.Changeset,
 			constObservable(URI.parse('ahp-session:/test/changeset/branch')),
@@ -161,17 +161,13 @@ suite('createActiveAgentHostSubscriptionObs', () => {
 				};
 			},
 		} as IAgentConnection;
-		const connected = observableValue('connected', false);
-		const resource = derived(reader => {
-			connected.read(reader);
-			return URI.parse('ahp-session:/test/changeset/branch');
-		});
+		const connectionObs = observableValue<IAgentConnection | undefined>('connection', undefined);
 		const observed = createActiveAgentHostSubscriptionObs<{ value: number }>(
 			{},
-			() => connected.get() ? connection : undefined,
+			connectionObs,
 			constObservable(true),
 			StateComponents.Changeset,
-			resource,
+			constObservable(URI.parse('ahp-session:/test/changeset/branch')),
 			'test',
 		);
 		const observedValues: Array<number | null | undefined> = [];
@@ -180,7 +176,7 @@ suite('createActiveAgentHostSubscriptionObs', () => {
 			observedValues.push(state === null ? null : state instanceof Error ? undefined : state?.value);
 		}));
 
-		connected.set(true, undefined);
+		connectionObs.set(connection, undefined);
 		observer.dispose();
 
 		assert.deepStrictEqual({
@@ -191,6 +187,49 @@ suite('createActiveAgentHostSubscriptionObs', () => {
 			observedValues: [null, 42],
 			acquired: 1,
 			released: 1,
+		});
+	});
+
+	test('reacquires when the connection changes', () => {
+		const acquired: number[] = [];
+		const released: number[] = [];
+		const createConnection = (value: number): IAgentConnection => ({
+			getSubscription: <T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> => {
+				acquired.push(value);
+				return {
+					object: {
+						value: { value },
+						verifiedValue: { value },
+						onDidChange: Event.None,
+						onWillApplyAction: Event.None,
+						onDidApplyAction: Event.None,
+					} as unknown as IAgentSubscription<ComponentToState[T]>,
+					dispose: () => released.push(value),
+				};
+			},
+		} as IAgentConnection);
+		const connectionObs = observableValue<IAgentConnection | undefined>('connection', createConnection(1));
+		const observed = createActiveAgentHostSubscriptionObs<{ value: number }>(
+			{},
+			connectionObs,
+			constObservable(true),
+			StateComponents.Changeset,
+			constObservable(URI.parse('ahp-session:/test/changeset/branch')),
+			'test',
+		);
+		const observedValues: Array<number | null | undefined> = [];
+		const observer = disposables.add(autorun(reader => {
+			const state = observed.read(reader).read(reader);
+			observedValues.push(state === null ? null : state instanceof Error ? undefined : state?.value);
+		}));
+
+		connectionObs.set(createConnection(2), undefined);
+		observer.dispose();
+
+		assert.deepStrictEqual({ observedValues, acquired, released }, {
+			observedValues: [1, 2],
+			acquired: [1, 2],
+			released: [1, 2],
 		});
 	});
 });

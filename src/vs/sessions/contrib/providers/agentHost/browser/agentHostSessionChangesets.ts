@@ -118,7 +118,7 @@ export function createActiveSessionSubscriptionObs<T>(
 ): IObservable<IObservable<T | Error | undefined | null>> {
 	return createActiveAgentHostSubscriptionObs(
 		options,
-		options.getConnection,
+		options.connection,
 		isActiveSessionObs,
 		component,
 		resourceObs,
@@ -310,7 +310,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	}
 
 	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
-		const connection = this._options.getConnection();
+		const connection = this._options.connection.get();
 		if (!connection) {
 			return;
 		}
@@ -354,7 +354,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return;
 		}
 
-		const connection = this._options.getConnection();
+		const connection = this._options.connection.get();
 		const channel = this.channelUriObs.get();
 		if (!connection || !channel) {
 			return;
@@ -410,7 +410,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 		this.changesetStateObs = createActiveAgentHostSubscriptionObs<ChangesetState>(
 			this,
-			options.getConnection,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Changeset,
 			this.channelUriObs,
@@ -461,7 +461,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		// session's "last turn".
 		const sessionStateObs = createActiveAgentHostSubscriptionObs<SessionState>(
 			this,
-			options.getConnection,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Session,
 			constObservable(sessionUri),
@@ -485,7 +485,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 		const chatStateObs = createActiveAgentHostSubscriptionObs<ChatState>(
 			this,
-			options.getConnection,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Chat,
 			mostRecentChatUriObs,
@@ -517,7 +517,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		// Subscribe to last turn changes
 		this.changesetStateObs = createActiveAgentHostSubscriptionObs<ChangesetState>(
 			this,
-			options.getConnection,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Changeset,
 			this.channelUriObs,

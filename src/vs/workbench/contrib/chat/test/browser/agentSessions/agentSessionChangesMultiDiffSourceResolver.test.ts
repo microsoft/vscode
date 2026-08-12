@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -185,6 +185,91 @@ suite('AgentSessionChangesMultiDiffSourceResolver', () => {
 			original: toAgentHostUri(URI.parse('agenthost-content:/before/file.ts'), 'test').toString(),
 			modified: toAgentHostUri(URI.file('/workspace/file.ts'), 'test').toString(),
 			goToFile: toAgentHostUri(URI.file('/workspace/file.ts'), 'test').toString(),
+		});
+	});
+
+	test('reacquires Branch Changes after the connection changes', async () => {
+		const sessionResource = URI.parse('remote-test-copilot:/1');
+		const backendSession = URI.parse('copilot:/1');
+		const branchChangeset = URI.parse('copilot:/1/changeset/branch');
+		const sessionState: SessionState = {
+			provider: 'copilot',
+			title: 'Fix issue',
+			status: SessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			changesets: [{
+				label: 'Branch Changes',
+				changeKind: 'branch',
+				uriTemplate: branchChangeset.toString(),
+			}],
+		};
+		const requested: string[] = [];
+		let generation = 'first';
+		const connection = {
+			getSubscription: <T extends StateComponents>(kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> => {
+				requested.push(`${generation}:${kind}`);
+				const file = URI.file(`/workspace/${generation}.ts`);
+				const subscription = kind === StateComponents.Session
+					? createSubscription(sessionState)
+					: createSubscription<ChangesetState>({
+						status: ChangesetStatus.Ready,
+						files: [{
+							id: file.toString(),
+							edit: {
+								after: {
+									uri: file.toString(),
+									content: { uri: file.toString() },
+								},
+							},
+						}],
+					});
+				return {
+					object: subscription as unknown as IAgentSubscription<ComponentToState[T]>,
+					dispose() { },
+				};
+			},
+		} as IAgentConnection;
+		const connectionChanged = disposables.add(new Emitter<void>());
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			declare readonly _serviceBrand: undefined;
+			override readonly onDidChangeConnections = connectionChanged.event;
+			override get connections() {
+				return [{
+					authority: 'test',
+					address: 'test',
+					name: 'Test',
+					isAmbient: false,
+					connection,
+				}];
+			}
+			override resolveSessionResource() { return { connection, backendSession }; }
+		};
+		const session = createSession('remote-test-copilot', sessionResource, { files: 1, insertions: 1, deletions: 0 });
+		const resolver = disposables.add(createResolver(session, connectionsService));
+		const input = createAgentSessionChangesEditorInput(session);
+		assert.ok(input?.multiDiffSource);
+		const source = await resolver.resolveDiffSource(input.multiDiffSource);
+		const first = source.resources.value[0].goToFileUri;
+
+		generation = 'second';
+		connectionChanged.fire();
+		const second = source.resources.value[0].goToFileUri;
+
+		assert.deepStrictEqual({
+			requested,
+			first: first?.toString(),
+			second: second?.toString(),
+		}, {
+			requested: [
+				`first:${StateComponents.Session}`,
+				`first:${StateComponents.Changeset}`,
+				`second:${StateComponents.Session}`,
+				`second:${StateComponents.Changeset}`,
+			],
+			first: toAgentHostUri(URI.file('/workspace/first.ts'), 'test').toString(),
+			second: toAgentHostUri(URI.file('/workspace/second.ts'), 'test').toString(),
 		});
 	});
 

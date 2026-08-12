@@ -836,6 +836,27 @@ suite('AgentSessionsDataSource', () => {
 			]);
 		});
 
+		test('linked pull request metadata does not replace the local repository group', () => {
+			const sessions = [
+				createMockSession({
+					id: '1',
+					metadata: {
+						workingDirectoryPath: '/Users/user/Projects/local-checkout',
+						pullRequestUrl: 'https://github.com/microsoft/vscode/pull/229',
+						pullRequestNumber: 229,
+					},
+				}),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Repository });
+			const dataSource = disposables.add(new AgentSessionsDataSource(filter, createMockSorter()));
+			const result = getSectionsFromResult(dataSource.getChildren(createMockModel(sessions)));
+
+			assert.deepStrictEqual(sortedGroups(result), [
+				{ label: 'local-checkout', count: 1 },
+			]);
+		});
+
 		test('resolves worktree paths to parent repo name', () => {
 			const sessions = [
 				createMockSession({ id: '1', metadata: { workingDirectoryPath: '/Users/user/Projects/vscode.worktrees/copilot-branch' } }),

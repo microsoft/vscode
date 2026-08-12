@@ -11,6 +11,7 @@ import { getDefaultChangeset } from '../../../../../platform/agentHost/common/ch
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { createActiveAgentHostSubscriptionObs } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { type ChangesetFile, ChangesetState, ChangesetStatus, SessionState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -65,10 +66,12 @@ export class AgentSessionChangesMultiDiffSourceResolver extends Disposable imple
 			this.connectionChanges.read(reader);
 			return this.agentHostConnectionsService.resolveSessionResource(sessionResource);
 		});
-		const getConnection = () => resolution.get()?.connection;
+		const connection = derivedOpts<IAgentConnection | undefined>({ owner: this, equalsFn: () => false }, reader => {
+			return resolution.read(reader)?.connection;
+		});
 		const sessionStateObs = createActiveAgentHostSubscriptionObs<SessionState>(
 			this,
-			getConnection,
+			connection,
 			constObservable(true),
 			StateComponents.Session,
 			resolution.map(resolution => resolution?.backendSession),
@@ -84,7 +87,7 @@ export class AgentSessionChangesMultiDiffSourceResolver extends Disposable imple
 		});
 		const changesetStateObs = createActiveAgentHostSubscriptionObs<ChangesetState>(
 			this,
-			getConnection,
+			connection,
 			constObservable(true),
 			StateComponents.Changeset,
 			changesetResource,

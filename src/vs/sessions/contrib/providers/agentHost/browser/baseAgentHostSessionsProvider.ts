@@ -389,10 +389,8 @@ export interface IAgentHostAdapterOptions {
 	 * host that no longer exists.
 	 */
 	readonly readOnly?: IObservable<boolean>;
-	/**
-	 * Returns the agent connection for the session, if it exists.
-	 */
-	readonly getConnection: () => IAgentConnection | undefined;
+	/** Current agent connection for the session. */
+	readonly connection: IObservable<IAgentConnection | undefined>;
 	/** Agent capability lookup shared by every adapter owned by this provider. */
 	readonly agentCapabilities: IObservable<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>;
 	/**
@@ -2087,6 +2085,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _lastAgents: readonly AgentInfo[] | undefined;
 	private readonly _agentCapabilities = observableValue<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>(this, undefined);
+	private readonly _adapterConnection = observableValueOpts<IAgentConnection | undefined>({ owner: this, equalsFn: () => false }, undefined);
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -2348,6 +2347,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
 
+	protected _setAdapterConnection(connection: IAgentConnection | undefined): void {
+		this._adapterConnection.set(connection, undefined);
+	}
+
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
 
@@ -2398,7 +2401,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mapDiffUri: this._diffUriMapper(),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
-			getConnection: () => this.connection,
+			connection: this._adapterConnection,
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
 			...this._adapterOptions(),
@@ -2730,7 +2733,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mapDiffUri: this._diffUriMapper(),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
-			getConnection: () => this.connection,
+			connection: this._adapterConnection,
 			agentCapabilities: this._agentCapabilities,
 			...this._adapterOptions(),
 		} satisfies IAgentHostAdapterOptions);

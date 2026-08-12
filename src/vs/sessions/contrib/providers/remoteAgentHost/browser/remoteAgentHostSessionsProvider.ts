@@ -395,6 +395,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
+		this._setAdapterConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
 
@@ -428,6 +429,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._setAdapterConnection(undefined);
 		this._defaultDirectory = undefined;
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);

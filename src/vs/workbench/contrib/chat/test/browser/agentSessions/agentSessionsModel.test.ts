@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionStatus, AgentSessionsCache, createAgentSessionChangesEditorInput } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, AgentSessionsCache, canOpenAgentSessionChanges, createAgentSessionChangesEditorInput } from '../../../browser/agentSessions/agentSessionsModel.js';
 
 suite('AgentSessionsCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -138,11 +138,18 @@ suite('Agent session changes editor input', () => {
 	});
 
 	test('returns undefined for aggregate-only non-agent-host changes', () => {
-		assert.strictEqual(createAgentSessionChangesEditorInput({
+		const session = {
 			providerType: 'test-session',
 			resource: URI.parse('test-session:/1'),
 			label: 'Fix issue',
 			changes: { files: 2, insertions: 4, deletions: 2 },
-		}), undefined);
+		};
+		assert.deepStrictEqual({
+			canOpen: canOpenAgentSessionChanges(session),
+			editorInput: createAgentSessionChangesEditorInput(session),
+		}, {
+			canOpen: false,
+			editorInput: undefined,
+		});
 	});
 });

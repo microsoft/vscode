@@ -1206,7 +1206,7 @@ export function observableFromSubscription<T>(owner: object | undefined, sub: IA
  */
 export function createActiveAgentHostSubscriptionObs<T>(
 	owner: object,
-	getConnection: () => IAgentConnection | undefined,
+	connectionObs: IObservable<IAgentConnection | undefined>,
 	isActiveObs: IObservable<boolean>,
 	component: StateComponents,
 	resourceObs: IObservable<URI | undefined>,
@@ -1215,7 +1215,7 @@ export function createActiveAgentHostSubscriptionObs<T>(
 	return derived(owner, reader => {
 		const resource = resourceObs.read(reader);
 		const isActive = isActiveObs.read(reader);
-		const connection = getConnection();
+		const connection = connectionObs.read(reader);
 		if (!connection || !resource || !isActive) {
 			return constObservable(null);
 		}

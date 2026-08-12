@@ -126,9 +126,14 @@ export function getAgentChangesSummary(changes: IAgentSession['changes']) {
 
 export const AGENT_SESSION_CHANGES_SCHEME = 'agent-session-changes';
 
+/** Returns whether the session has enough information to open its complete change list. */
+export function canOpenAgentSessionChanges(session: Pick<IAgentSession, 'changes' | 'providerType'> | undefined): boolean {
+	return !!session && hasValidDiff(session.changes) && (Array.isArray(session.changes) || isAgentHostTarget(session.providerType));
+}
+
 /** Creates a multi-diff input backed by the agent session's complete change list. */
 export function createAgentSessionChangesEditorInput(session: Pick<IAgentSession, 'changes' | 'label' | 'providerType' | 'resource'>): IResourceMultiDiffEditorInput | undefined {
-	if (!hasValidDiff(session.changes) || (!Array.isArray(session.changes) && !isAgentHostTarget(session.providerType))) {
+	if (!canOpenAgentSessionChanges(session)) {
 		return undefined;
 	}
 
