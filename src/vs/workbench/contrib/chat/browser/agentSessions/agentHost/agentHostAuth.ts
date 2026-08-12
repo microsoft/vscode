@@ -226,6 +226,7 @@ export async function resolveTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
+	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
 	readonly token: string;
 }
 
