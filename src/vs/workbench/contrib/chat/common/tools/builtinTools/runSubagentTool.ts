@@ -9,7 +9,7 @@ import { Emitter, type Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import type { URI } from '../../../../../../base/common/uri.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -237,7 +237,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// uses in the renderer (see PR #302863), and the subagent grouping matches on toolCallId.
 			const subAgentInvocationId = invocation.chatStreamToolCallId ?? invocation.callId ?? `subagent-${generateUuid()}`;
 
-			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
 					// Usage events carry the subagent's running credit total; keep the
@@ -250,24 +249,23 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					}
 					// Write certain parts immediately to the model
 					if (part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
-						if (part.kind === 'codeblockUri' && !inEdit) {
-							inEdit = true;
-							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
-						}
 						// Attach subAgentInvocationId to codeblockUri parts so they can be routed to the subagent content part
 						if (part.kind === 'codeblockUri') {
+							const editBaseUri = URI.from({ scheme: 'vscode-subagent-edit', path: `/${subAgentInvocationId}/${generateUuid()}` });
+							const openingFence = new MarkdownString('```\n');
+							openingFence.baseUri = editBaseUri;
+							const closingFence = new MarkdownString('\n```\n\n');
+							closingFence.baseUri = editBaseUri;
+
+							model.acceptResponseProgress(request, { kind: 'markdownContent', content: openingFence });
 							model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
+							model.acceptResponseProgress(request, { kind: 'markdownContent', content: closingFence });
 						} else {
 							model.acceptResponseProgress(request, part);
 						}
 					} else if (part.kind === 'hook') {
 						model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
 					} else if (part.kind === 'markdownContent') {
-						if (inEdit) {
-							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n') });
-							inEdit = false;
-						}
-
 						// Collect markdown content for the tool result
 						markdownParts.push(part.content.value);
 					}
