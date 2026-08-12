@@ -6889,6 +6889,68 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('preserves reconstructed task descriptions over generic migrated subagent titles', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'migrated-subagent-history');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-subagent');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [{
+					resource: childChatUri,
+					title: 'Subagent',
+					status: SessionStatus.Idle,
+					modifiedAt: new Date().toISOString(),
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tc-subagent' },
+					interactivity: ChatInteractivity.ReadOnly,
+				}],
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'summarize the service', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							status: ToolCallStatus.Completed,
+							toolCallId: 'tc-subagent',
+							toolName: 'task',
+							displayName: 'Delegate Task',
+							invocationMessage: 'Delegating task',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							success: true,
+							content: [],
+							_meta: { toolKind: 'subagent', subagentDescription: 'Summarize agent service', subagentAgentName: 'explore' },
+						},
+					}],
+					usage: undefined,
+				}],
+			} as SessionState);
+			agentHostService.sessionStates.set(childChatUri, {
+				...createSessionState({ ...summary, resource: childChatUri, title: 'Subagent' }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			} as SessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/migrated-subagent-history' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const response = chatSession.history.find(item => item.type === 'response');
+			const toolPart = response?.type === 'response'
+				? response.parts.find((part): part is IChatToolInvocationSerialized => part.kind === 'toolInvocationSerialized' && part.toolCallId === 'tc-subagent')
+				: undefined;
+
+			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
+				description: toolPart.toolSpecificData.description,
+				chatResource: toolPart.toolSpecificData.chatResource,
+			} : undefined, {
+				description: 'Summarize agent service',
+				chatResource: childChatUri,
+			});
+		});
+
 		test('opens a subagent editor from its exact chat URI before the chat catalog hydrates', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionUri = AgentSession.uri('copilot', 'direct-subagent');

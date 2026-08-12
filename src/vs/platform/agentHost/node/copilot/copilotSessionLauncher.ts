@@ -12,7 +12,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -220,7 +220,7 @@ function getErrorMessage(err: unknown): string {
 /**
  * Messages from a failed Copilot SDK `session.resume` that positively indicate
  * the session has no events on disk, so there is no history to lose. Includes
- * the post-"Start Over" case, where `truncateSession` leaves zero events.
+ * the post-"Start Over" case, where `truncateChat` leaves zero events.
  */
 const RESUMABLE_HISTORY_ABSENT_PATTERNS = [
 	/\bSession not found\b/i,
