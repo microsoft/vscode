@@ -110,8 +110,8 @@ suite('AgentHostConfigurationSync', () => {
 			inspectValue(malformedUserFallsBack, ALL_HOSTS_SETTING),
 			inspectValue(defaultOnly, ALL_HOSTS_SETTING),
 		], [
-			{ value: false, source: 'policy' },
-			{ value: false, source: 'application' },
+			[false, 'policyValue'],
+			[false, 'applicationValue'],
 			undefined,
 		]);
 	});
