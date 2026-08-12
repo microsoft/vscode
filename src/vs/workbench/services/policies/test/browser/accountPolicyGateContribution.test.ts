@@ -68,6 +68,15 @@ class TestChatEntitlementService extends mock<IChatEntitlementService>() {
 	}
 }
 
+class RecordingNotificationService extends TestNotificationService {
+	readonly messages: string[] = [];
+
+	override prompt(...args: Parameters<TestNotificationService['prompt']>): ReturnType<TestNotificationService['prompt']> {
+		this.messages.push(args[1]);
+		return super.prompt(...args);
+	}
+}
+
 suite('AccountPolicyGateContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -77,6 +86,7 @@ suite('AccountPolicyGateContribution', () => {
 		const chatEntitlementService = new TestChatEntitlementService();
 		const contextKeyService = new MockContextKeyService();
 		const storageService = disposables.add(new InMemoryStorageService());
+		const notificationService = new RecordingNotificationService();
 		const productService = new class extends mock<IProductService>() {
 			override readonly nameShort = 'Code';
 		}();
@@ -87,7 +97,7 @@ suite('AccountPolicyGateContribution', () => {
 			chatEntitlementService,
 			defaultAccountService,
 			new NullLogService(),
-			new TestNotificationService(),
+			notificationService,
 			new class extends mock<ICommandService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
 			productService,
@@ -102,7 +112,10 @@ suite('AccountPolicyGateContribution', () => {
 		});
 
 		captureState();
-		defaultAccountService.setManagedSettingsCompatibilityError({ errorCode: 'client_update_required' });
+		defaultAccountService.setManagedSettingsCompatibilityError({
+			errorCode: 'client_update_required',
+			minimumClientVersion: '1.135.0',
+		});
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
@@ -121,6 +134,8 @@ suite('AccountPolicyGateContribution', () => {
 		assert.deepStrictEqual({
 			states,
 			forceHiddenValues: chatEntitlementService.forceHiddenValues,
+			compatibilityMessage: notificationService.messages[0],
+			fallbackCompatibilityMessage: notificationService.messages[2],
 		}, {
 			states: [
 				{ context: false, hidden: false },
@@ -132,6 +147,8 @@ suite('AccountPolicyGateContribution', () => {
 				{ context: false, hidden: false },
 			],
 			forceHiddenValues: [false, true, false, true, false],
+			compatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
+			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
 		});
 	});
 });

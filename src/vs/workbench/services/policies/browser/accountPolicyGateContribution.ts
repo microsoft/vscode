@@ -226,11 +226,18 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const message = localize(
-			'managedSettingsUpdate.notification',
-			"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
-			this.productService.nameShort
-		);
+		const message = error.minimumClientVersion
+			? localize(
+				'managedSettingsUpdate.notificationWithMinimumVersion',
+				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to version {1} or later to continue using AI features.",
+				this.productService.nameShort,
+				error.minimumClientVersion
+			)
+			: localize(
+				'managedSettingsUpdate.notification',
+				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
+				this.productService.nameShort
+			);
 		const handleDisposables = new DisposableStore();
 		const handle = this.notificationService.prompt(
 			Severity.Warning,
