@@ -258,7 +258,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async disposeSession(session: URI): Promise<void> { this.disposedSessions.push(session); }
 	async shutdown(): Promise<void> { }
-	override async restartAgentHost(): Promise<void> { }
+
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
@@ -712,7 +712,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
 		registerChatSessionContribution: contribution => {
 			chatSessionContributions.push(contribution);
-			return toDisposable(() => { });
+			return toDisposable(() => {
+				const index = chatSessionContributions.indexOf(contribution);
+				if (index >= 0) {
+					chatSessionContributions.splice(index, 1);
+				}
+			});
 		},
 		getOrCreateChatSession: async sessionResource => upcastPartial<IChatSession>({
 			sessionResource,
@@ -8633,6 +8638,36 @@ suite('AgentHostChatContribution', () => {
 				{ type: 'agent-host-copilot', supportsImageAttachments: true },
 			]);
 			assert.deepStrictEqual(chatSessionItemControllers.map(c => c.type), []);
+		});
+
+		test('Agent Host registrations follow enablement in both directions', () => {
+			const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+			const enabled = observableValue('agentHostEnabled', true);
+			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled });
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', models: [] }],
+				activeSessions: 0,
+			});
+			const beforeDisablement = chatSessionContributions.map(c => c.type);
+
+			enabled.set(false, undefined);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot' as const, displayName: 'Updated Agent Host - Copilot', description: 'test', models: [] }],
+				activeSessions: 0,
+			});
+			const whileDisabled = chatSessionContributions.map(c => c.type);
+			enabled.set(true, undefined);
+
+			assert.deepStrictEqual({
+				beforeDisablement,
+				whileDisabled,
+				afterReenablement: chatSessionContributions.map(c => c.type),
+			}, {
+				beforeDisablement: ['agent-host-copilot'],
+				whileDisabled: [],
+				afterReenablement: ['agent-host-copilot'],
+			});
 		});
 
 		test('session list contribution registers item controller in editor window', () => {

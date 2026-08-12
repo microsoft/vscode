@@ -109,7 +109,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					return;
 				}
 
-				const willRestart = this._restartCount <= Constants.MaxRestarts;
+				const willRestart = this._restartCount < Constants.MaxRestarts;
 				reportAgentHostProcessError(this._telemetryService, {
 					hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 					kind: 'startFailed',
@@ -172,7 +172,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._connectionCount = 0;
 		this._lifetimeToken.clear();
 
-		const willRestart = this._restartCount <= Constants.MaxRestarts;
+		const willRestart = this._restartCount < Constants.MaxRestarts;
 		reportAgentHostProcessError(this._telemetryService, {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 			kind: 'unexpectedExit',

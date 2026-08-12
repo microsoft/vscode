@@ -11,7 +11,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -75,15 +75,9 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	) {
 		super();
 
-		const enabled = agentHostEnablementService.enabled.get();
 		const connection = this._remoteAgentService.getConnection();
-		this._logService.info(`${LOG_PREFIX} Initializing (enabled=${enabled}, remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
+		this._logService.info(`${LOG_PREFIX} Initializing (remoteAuthority=${connection?.remoteAuthority ?? 'none'})`);
 
-		if (!enabled) {
-			this._logService.info(`${LOG_PREFIX} Disabled via configuration, policy, or runtime availability. Not connecting.`);
-			this.setAuthenticationPending(false);
-			return;
-		}
 		if (!connection) {
 			this._logService.warn(`${LOG_PREFIX} No remote agent connection available. Not connecting.`);
 			this.setAuthenticationPending(false);
@@ -102,10 +96,11 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			this._onAgentHostExit.fire(0);
 		}));
 
-		// Kick off the connect in the background. Failures are logged; callers
-		// that need a connected client (e.g. session creation) will see the
-		// failure surface as a rejected promise from the protocol client.
-		this._connect().catch(err => this._logService.warn(`${LOG_PREFIX} Connect failed`, err));
+		this._register(autorun(reader => {
+			if (agentHostEnablementService.enabled.read(reader)) {
+				this.startAgentHost();
+			}
+		}));
 	}
 
 	private async _connect(): Promise<void> {

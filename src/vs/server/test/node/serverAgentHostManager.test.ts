@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
@@ -54,8 +55,8 @@ class MockChannel implements IChannel {
 class MockAgentHostStarter implements IAgentHostStarter {
 	private readonly _onDidProcessExit = new Emitter<{ code: number; signal: string }>();
 	private _startError: Error | undefined;
-	startCount = 0;
 	readonly connectionStores: DisposableStore[] = [];
+	startCount = 0;
 
 	readonly agentHostChannel = new MockChannel();
 	readonly loggerChannel: MockChannel;
@@ -94,6 +95,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 			client,
 			store,
 			onDidProcessExit: this._onDidProcessExit.event,
+			shutdown: async () => { },
 		};
 	}
 
@@ -138,6 +140,13 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 			this.errorEvents.push({ eventName, data });
 		}
 	}
+}
+
+function readWillRestart(data: unknown): boolean | undefined {
+	if (hasKey(data, 'willRestart') && typeof data.willRestart === 'boolean') {
+		return data.willRestart;
+	}
+	return undefined;
 }
 
 suite('ServerAgentHostManager', () => {
@@ -373,5 +382,29 @@ suite('ServerAgentHostManager', () => {
 		await start;
 
 		assert.strictEqual(starter.startCount, 2);
+	});
+
+	test('stops after five restarts and disposes every exited connection', async () => {
+		const manager = createManager();
+		await waitForStart(manager);
+
+		for (let restartCount = 0; restartCount < 5; restartCount++) {
+			starter.fireProcessExit(17);
+			await waitForStart(manager);
+		}
+
+		// The next crash exhausts the restart budget, so no automatic restart follows.
+		starter.fireProcessExit(17);
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			startCount: starter.startCount,
+			allConnectionsDisposed: starter.connectionStores.every(store => store.isDisposed),
+			willRestart: telemetryService.errorEvents.map(event => readWillRestart(event.data)),
+		}, {
+			startCount: 6,
+			allConnectionsDisposed: true,
+			willRestart: [true, true, true, true, true, false],
+		});
 	});
 });

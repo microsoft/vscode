@@ -255,7 +255,7 @@ suite('ChatConfiguration defaults', () => {
 		const storageService = disposables.add(new TestStorageService());
 
 		assert.deepStrictEqual({
-			withoutRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: SessionType.AgentHostCopilot }),
+			withoutRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
 			withoutRemembered: SessionType.AgentHostCopilot,
 		});
@@ -263,7 +263,7 @@ suite('ChatConfiguration defaults', () => {
 		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, false);
 
 		assert.deepStrictEqual({
-			withRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: SessionType.AgentHostCopilot }),
+			withRemembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: SessionType.AgentHostCopilot }),
 		}, {
 			withRemembered: SessionType.AgentHostClaude,
 		});
@@ -492,6 +492,23 @@ suite('ChatConfiguration defaults', () => {
 			agentHost: true,
 			agentHostCurrent: { sessionType: SessionType.AgentHostClaude },
 			extensionContributed: false,
+		});
+	});
+
+	test('disabled Agent Host is not inherited from remembered or current session types', () => {
+		const configurationService = new TestConfigurationService();
+		const chatSessionsService = createChatSessionsService();
+		const storageService = disposables.add(new TestStorageService());
+		recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, true);
+
+		assert.deepStrictEqual({
+			usable: isNewChatSessionTypeUsable(SessionType.AgentHostClaude, configurationService, chatSessionsService, localWorkspace, false),
+			remembered: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false),
+			current: resolveSessionType(configurationService, chatSessionsService, storageService, localWorkspace, false, { currentSessionType: SessionType.AgentHostClaude }),
+		}, {
+			usable: false,
+			remembered: localChatSessionType,
+			current: { sessionType: localChatSessionType },
 		});
 	});
 

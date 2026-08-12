@@ -8,7 +8,7 @@ import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -75,7 +75,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('waits for the remote environment before connecting to Agent Host', async () => {
+	test('waits for enablement and the remote environment before connecting to Agent Host', async () => {
 		const channel: IChannel = {
 			call: <T>() => Promise.resolve(undefined as T),
 			listen: () => Event.None,
@@ -100,9 +100,10 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			},
 			dispose: () => { },
 		};
+		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
-			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) }],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
 		)));
@@ -112,6 +113,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
 		const started = Event.toPromise(service.onAgentHostStart);
+		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
 
 		remoteAgentService.environmentReady.complete(null);

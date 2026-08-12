@@ -1133,8 +1133,7 @@ export interface IAgentConnection {
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
 
 /**
- * The local wrapper around the agent host process (manages lifecycle, restart,
- * exposes the proxied service). Consumed by the main process and workbench.
+ * The ambient Agent Host connection used by workbench surfaces.
  */
 export interface IAgentHostService extends IAgentConnection {
 
@@ -1161,6 +1160,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;
 
+	/** Restart the agent host process, if this connection owns its lifecycle. */
 	restartAgentHost(): Promise<void>;
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo>;

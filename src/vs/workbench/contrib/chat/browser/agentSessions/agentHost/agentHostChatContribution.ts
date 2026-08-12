@@ -136,16 +136,24 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
-		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
-			const enabled = agentHostEnablementService.enabled.read(reader);
+			const enabled = this._agentHostEnablementService.enabled.read(reader);
 			if (enabled) {
+				const wasInitialized = this._initialized;
 				this._initialize();
+				const current = this._agentHostService.rootState.value;
+				if (wasInitialized && current && !(current instanceof Error)) {
+					this._handleRootStateChange(current);
+				}
+			} else {
+				this._agentRegistrations.clearAndDisposeAll();
+				this._modelProviders.clear();
 			}
 		}));
 	}
@@ -209,6 +217,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
+		if (!this._agentHostEnablementService.enabled.get()) {
+			return;
+		}
 		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
 		const incoming = new Set(allowed.map(a => a.provider));
 
