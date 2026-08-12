@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
@@ -68,25 +70,18 @@ class TestChatEntitlementService extends mock<IChatEntitlementService>() {
 	}
 }
 
-class RecordingNotificationService extends TestNotificationService {
-	readonly messages: string[] = [];
-
-	override prompt(...args: Parameters<TestNotificationService['prompt']>): ReturnType<TestNotificationService['prompt']> {
-		this.messages.push(args[1]);
-		return super.prompt(...args);
-	}
-}
-
 suite('AccountPolicyGateContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
-	test('composes account gate and managed settings compatibility into the standard hidden state', () => {
+	test('composes account gate and managed settings compatibility into the standard hidden state', async () => {
 		const gateService = disposables.add(new TestAccountPolicyGateService());
 		const defaultAccountService = disposables.add(new TestDefaultAccountService());
 		const chatEntitlementService = new TestChatEntitlementService();
 		const contextKeyService = new MockContextKeyService();
 		const storageService = disposables.add(new InMemoryStorageService());
-		const notificationService = new RecordingNotificationService();
+		const dialogService = new TestDialogService();
+		const promptStub = sinon.stub(dialogService, 'prompt').resolves({});
 		const productService = new class extends mock<IProductService>() {
 			override readonly nameShort = 'Code';
 		}();
@@ -97,7 +92,8 @@ suite('AccountPolicyGateContribution', () => {
 			chatEntitlementService,
 			defaultAccountService,
 			new NullLogService(),
-			notificationService,
+			new TestNotificationService(),
+			dialogService,
 			new class extends mock<ICommandService>() { }(),
 			new class extends mock<IOpenerService>() { }(),
 			productService,
@@ -116,6 +112,8 @@ suite('AccountPolicyGateContribution', () => {
 			errorCode: 'client_update_required',
 			minimumClientVersion: '1.135.0',
 		});
+		await Promise.resolve();
+		await Promise.resolve();
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
@@ -125,17 +123,27 @@ suite('AccountPolicyGateContribution', () => {
 		});
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError({ errorCode: 'client_update_required' });
+		await Promise.resolve();
+		await Promise.resolve();
 		captureState();
 		gateService.setGateInfo({ state: AccountPolicyGateState.Inactive });
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
 
+		const compatibilityDialog = promptStub.firstCall.args[0];
+		const fallbackCompatibilityDialog = promptStub.secondCall.args[0];
 		assert.deepStrictEqual({
 			states,
 			forceHiddenValues: chatEntitlementService.forceHiddenValues,
-			compatibilityMessage: notificationService.messages[0],
-			fallbackCompatibilityMessage: notificationService.messages[2],
+			compatibilityDialog: {
+				title: compatibilityDialog.title,
+				message: compatibilityDialog.message,
+				custom: compatibilityDialog.custom,
+				buttons: compatibilityDialog.buttons?.map(button => button.label),
+				cancelButton: compatibilityDialog.cancelButton,
+			},
+			fallbackCompatibilityMessage: fallbackCompatibilityDialog.message,
 		}, {
 			states: [
 				{ context: false, hidden: false },
@@ -147,7 +155,13 @@ suite('AccountPolicyGateContribution', () => {
 				{ context: false, hidden: false },
 			],
 			forceHiddenValues: [false, true, false, true, false],
-			compatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
+			compatibilityDialog: {
+				title: 'Update Required',
+				message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
+				custom: true,
+				buttons: ['Check for Updates', 'Learn More'],
+				cancelButton: 'Close',
+			},
 			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
 		});
 	});

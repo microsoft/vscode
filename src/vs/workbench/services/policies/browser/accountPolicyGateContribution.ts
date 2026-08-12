@@ -10,6 +10,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -50,7 +51,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
-	private readonly compatibilityNotificationHandle = this._register(new MutableDisposable());
+	private compatibilityDialogVisible = false;
 	private dismissedKey: string | undefined;
 
 	private initialised = false;
@@ -62,6 +63,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
@@ -218,14 +220,15 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 	private updateManagedSettingsCompatibilityState(error: IManagedSettingsCompatibilityError | null): void {
 		this.updatePolicyGateState();
-		if (!error) {
-			this.compatibilityNotificationHandle.clear();
-			return;
-		}
-		if (this.compatibilityNotificationHandle.value) {
+		if (!error || this.compatibilityDialogVisible) {
 			return;
 		}
 
+		this.compatibilityDialogVisible = true;
+		void this.showManagedSettingsCompatibilityDialog(error).finally(() => this.compatibilityDialogVisible = false);
+	}
+
+	private async showManagedSettingsCompatibilityDialog(error: IManagedSettingsCompatibilityError): Promise<void> {
 		const message = error.minimumClientVersion
 			? localize(
 				'managedSettingsUpdate.notificationWithMinimumVersion',
@@ -238,26 +241,22 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
 				this.productService.nameShort
 			);
-		const handleDisposables = new DisposableStore();
-		const handle = this.notificationService.prompt(
-			Severity.Warning,
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			title: localize('managedSettingsUpdate.dialog.title', "Update Required"),
 			message,
-			[
+			custom: true,
+			buttons: [
 				{
-					label: localize('managedSettingsUpdate.notification.update', "Check for Updates"),
+					label: localize('managedSettingsUpdate.dialog.update', "Check for Updates"),
 					run: () => this.commandService.executeCommand('update.checkForUpdate'),
 				},
 				{
-					label: localize('managedSettingsUpdate.notification.learnMore', "Learn More"),
+					label: localize('managedSettingsUpdate.dialog.learnMore', "Learn More"),
 					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview')),
 				},
 			],
-			{ sticky: true }
-		);
-		handleDisposables.add(handle.onDidClose(() => {
-			this.compatibilityNotificationHandle.clear();
-		}));
-		handleDisposables.add({ dispose: () => handle.close() });
-		this.compatibilityNotificationHandle.value = handleDisposables;
+			cancelButton: localize('managedSettingsUpdate.dialog.close', "Close"),
+		});
 	}
 }
