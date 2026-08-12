@@ -318,6 +318,20 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('pane composite overflow uses the icon foreground', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.style.setProperty('--vscode-icon-foreground', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const overflow = createCompositeAction(root, 40, false, true);
+		overflow.actionLabel.classList.add('codicon', 'codicon-more');
+		overflow.actionLabel.style.color = 'rgba(231, 231, 231, 0.6)';
+
+		assert.strictEqual(getWindow(overflow.actionLabel).getComputedStyle(overflow.actionLabel).color, 'rgb(18, 52, 86)');
+	});
+
 	test('preserves Modern UI activity badges and horizontal pane dividers', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override modern-ui-tabs';
@@ -374,6 +388,34 @@ suite('StyleOverridesContribution', () => {
 		}, {
 			registeredDefault: SURFACE_BORDER,
 			borderColor: 'rgb(18, 52, 86)',
+		});
+	});
+
+	test('keeps panel global actions above overflowing title actions', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override';
+		root.style.setProperty('--vscode-panel-background', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part basepanel bottom');
+		const title = appendElement(panel, 'composite title');
+		const titleActions = appendElement(title, 'title-actions');
+		const globalActions = appendElement(title, 'global-actions');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			titleActionsMinWidth: targetWindow.getComputedStyle(titleActions).minWidth,
+			globalActionsPosition: targetWindow.getComputedStyle(globalActions).position,
+			globalActionsZIndex: targetWindow.getComputedStyle(globalActions).zIndex,
+			globalActionsFlexShrink: targetWindow.getComputedStyle(globalActions).flexShrink,
+			globalActionsBackground: targetWindow.getComputedStyle(globalActions).backgroundColor,
+		}, {
+			titleActionsMinWidth: '0px',
+			globalActionsPosition: 'relative',
+			globalActionsZIndex: '1',
+			globalActionsFlexShrink: '0',
+			globalActionsBackground: 'rgb(18, 52, 86)',
 		});
 	});
 });

@@ -185,10 +185,11 @@
  * square so it matches the other 24px composite controls. `box-sizing` keeps the
  * 16px glyph centered within the box.
  */
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more {
+.style-override.monaco-workbench .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more {
 	box-sizing: border-box;
 	width: 24px;
 	height: 24px;
+	color: var(--vscode-icon-foreground) !important;
 }
 
 /*

@@ -10,14 +10,23 @@ import { buildCodexLaunchConfig, buildCodexResumeParams } from '../../../node/co
 suite('CodexLaunchConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('adds the Copilot proxy without selecting it globally', () => {
-		const config = buildCodexLaunchConfig({ PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug']);
+	test('adds the Copilot proxy and enforces telemetry overrides after extra arguments', () => {
+		const config = buildCodexLaunchConfig({ PATH: '/bin', OPENAI_API_KEY: 'personal' }, { baseUrl: 'http://127.0.0.1:1234', nonce: 'nonce' }, ['--log-level=debug', '-c', 'analytics.enabled=true']);
 		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce', AI_AGENT: 'github_copilot_vscode_agent' });
 		assert.ok(config.args.includes('model_providers.vscode-proxy.name="VS Code Proxy"'));
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
 		assert.ok(config.args.includes('features.image_generation=false'));
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
-		assert.strictEqual(config.args.at(-1), '--log-level=debug');
+		assert.ok(config.args.includes('--log-level=debug'));
+		assert.ok(config.args.indexOf('analytics.enabled=true') < config.args.lastIndexOf('analytics.enabled=false'));
+		assert.deepStrictEqual(config.args.slice(-12), [
+			'-c', 'analytics.enabled=false',
+			'-c', 'feedback.enabled=false',
+			'-c', 'otel.log_user_prompt=false',
+			'-c', 'otel.trace_exporter="none"',
+			'-c', 'otel.exporter="none"',
+			'-c', 'otel.metrics_exporter="none"',
+		]);
 	});
 
 	test('routes traces to loopback and logs/metrics directly to the external sink', () => {
@@ -29,6 +38,8 @@ suite('CodexLaunchConfig', () => {
 		});
 		assert.strictEqual(config.env.OTEL_SERVICE_NAME, undefined);
 		assert.strictEqual(config.env.OTEL_RESOURCE_ATTRIBUTES, 'service.namespace=vscode.agent-host,region=west%20us');
+		assert.ok(config.args.includes('analytics.enabled=false'));
+		assert.ok(config.args.includes('feedback.enabled=false'));
 		assert.ok(config.args.includes('otel.log_user_prompt=false'));
 		assert.ok(config.args.includes('otel.trace_exporter={ otlp-http = { endpoint = "http://127.0.0.1:4567/v1/traces", protocol = "json" } }'));
 		assert.ok(config.args.includes('otel.exporter={ otlp-http = { endpoint = "http://collector:4318/v1/logs", protocol = "binary", headers = { "authorization" = "Bearer test" } } }'));
