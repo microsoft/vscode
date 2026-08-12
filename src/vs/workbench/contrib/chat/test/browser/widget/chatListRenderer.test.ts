@@ -23,7 +23,7 @@ import { ChatSubagentContentPart } from '../../../browser/widget/chatContentPart
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatRequestQueueKind, IChatAutoModeResolutionPart, IChatMarkdownContent, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, getChatAutoModeExplainability, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -476,6 +476,34 @@ suite('ChatListRenderer', () => {
 
 		test('reports no Auto routing explanation for turns Auto did not route', () => {
 			assert.strictEqual(formatResponseAutoModeResolution(undefined), undefined);
+		});
+
+		test('names the routed model when the router reported no classification', () => {
+			// Auto v2 returns a pick with no label or confidence, so the detail line is
+			// dropped rather than the whole explanation.
+			const resolution = formatResponseAutoModeResolution({
+				kind: 'autoModeResolution',
+				resolvedModel: 'gpt-5.6-luna',
+				resolvedModelName: 'GPT-5.6 Luna',
+			});
+			const description = 'Auto routes based on your task and real-time system health and model performance.';
+
+			assert.deepStrictEqual({ markdown: resolution?.markdown.value, ariaLabel: resolution?.ariaLabel }, {
+				markdown: `**Routed to GPT-5.6 Luna**\n\n${description}\n\n`,
+				ariaLabel: `Routed to GPT-5.6 Luna. ${description}`,
+			});
+		});
+
+		test('selects the Auto explainability arm from the experiment-controlled setting', () => {
+			const arm = (value: unknown) => {
+				const configurationService = new TestConfigurationService();
+				configurationService.setUserConfiguration(ChatConfiguration.AutoModeExplainability, value);
+				return getChatAutoModeExplainability(configurationService);
+			};
+
+			// Anything but an explicit `footer` keeps the control presentation, so a
+			// stale or malformed treatment value cannot hide the inline explanation.
+			assert.deepStrictEqual([arm('footer'), arm('inline'), arm(undefined), arm('bogus')], ['footer', 'inline', 'inline', 'inline']);
 		});
 
 		test('finds the Auto routing result that served the turn', () => {

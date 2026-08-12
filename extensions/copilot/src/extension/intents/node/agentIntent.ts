@@ -451,7 +451,15 @@ export class AgentIntent extends EditCodeIntent {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}
 
-		// Report auto-mode routing decision if one was made during endpoint resolution
+		// Resolve the endpoint first so the routing decision belongs to this turn:
+		// `invoke()` otherwise resolves it only after this point, leaving the
+		// previous turn's decision (or none, on the first turn) to be reported.
+		// Resolution is cached per conversation, so `invoke()` reuses this result.
+		try {
+			await this.endpointProvider.getChatEndpoint(request);
+		} catch {
+			// Leave the failure to `invoke()`, which surfaces it as a chat error.
+		}
 		const routingDecision = this._automodeService.consumeLastRoutingDecision();
 		if (routingDecision) {
 			stream.push(new ChatResponseAutoModeResolutionPart(routingDecision.resolvedModel, routingDecision.resolvedModelName, routingDecision.predictedLabel, routingDecision.confidence));

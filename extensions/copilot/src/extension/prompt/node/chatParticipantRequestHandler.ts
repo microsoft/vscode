@@ -10,6 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { getChatParticipantNameFromId } from '../../../platform/chat/common/chatAgents';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { CanceledMessage, ChatLocation } from '../../../platform/chat/common/commonTypes';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -52,6 +53,9 @@ export interface IChatAgentArgs {
 	intentId?: string;
 }
 
+/** Core setting selecting the Auto explainability arm, owned by `ChatConfiguration.AutoModeExplainability`. */
+const AutoModeExplainabilitySettingId = 'chat.experimental.autoModeExplainability';
+
 /**
  * Handles a single chat request:
  * 1) selects intent
@@ -88,6 +92,7 @@ export class ChatParticipantRequestHandler {
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this.location = this.getLocation(request);
 
@@ -260,10 +265,12 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				// Auto reports the user's choice ("Auto") rather than the model it
-				// picked: the resolved model and the routing rationale are surfaced in
-				// the footer's hover, via the auto-mode resolution part pushed above.
-				if (isAutoModel(endpoint) === 1) {
+				// In the `footer` arm Auto reports the user's choice rather than the model
+				// it picked, because the pick and the routing rationale are surfaced on the
+				// footer's hover instead. Read from core so a single experiment drives both
+				// this label and whether the routing part renders in the response body.
+				const explainability = this._configurationService.getNonExtensionConfig<string>(AutoModeExplainabilitySettingId);
+				if (isAutoModel(endpoint) === 1 && explainability === 'footer') {
 					result.details = formatAutoModeDetails(creditsUsed, endpoint.multiplier);
 				} else if (this._authService.copilotToken?.isNoAuthUser) {
 					result.details = endpoint.name;

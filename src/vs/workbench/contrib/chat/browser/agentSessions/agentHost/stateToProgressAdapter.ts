@@ -44,6 +44,8 @@ import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import { formatChatAutoModeName } from '../../../common/chatProgressFormatting.js';
+import { ChatAutoModeExplainability } from '../../../common/constants.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
@@ -501,17 +503,20 @@ export interface ITurnResponseModel {
  * Formats a turn's response footer: the model display name plus usage metadata (credits or pricing).
  * `model` is the resolved model; `billedModelId` is the turn's `usage.model` when it didn't resolve to a
  * registered model (e.g. an "Auto" pick billed as `raptor-mini`), shown inline as `Auto (raptor-mini)`.
- * Returns `undefined` when the model is unknown.
+ * In the `footer` explainability arm a routed turn reports `Auto` instead, since the pick is explained
+ * on the footer's hover. Returns `undefined` when the model is unknown.
  */
 export function formatTurnResponseDetails(
 	model: ITurnResponseModel | undefined,
 	billedModelId: string | undefined,
 	usage: UsageInfo | undefined,
+	explainability: ChatAutoModeExplainability = 'inline',
 ): string | undefined {
 	if (!model) {
 		return undefined;
 	}
-	const displayName = formatTurnModelName(model, billedModelId);
+	const autoRouted = explainability === 'footer' && !!readUsageInfoMeta(usage).autoModeResolved;
+	const displayName = autoRouted ? formatChatAutoModeName() : formatTurnModelName(model, billedModelId);
 	const credits = usageInfoToChatUsage(usage)?.copilotCredits;
 	if (credits !== undefined) {
 		const formatted = formatCopilotCredits(credits);

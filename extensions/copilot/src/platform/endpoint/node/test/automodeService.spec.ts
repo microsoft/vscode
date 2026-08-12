@@ -1364,6 +1364,33 @@ describe('AutomodeService', () => {
 			expect(decision?.resolvedModel).toBe(result.model);
 		});
 
+		it('should report the serving model on turns the router does not run for', async () => {
+			enableRouter();
+			const miniEndpoint = createEndpoint('gpt-5.4-mini', 'OpenAI', { name: 'GPT-5.4 mini' });
+			mockRouterResponse(
+				['gpt-5.4-mini'],
+				{ chosen_model: 'gpt-5.4-mini', candidate_models: ['gpt-5.4-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest = (prompt: string): Partial<ChatRequest> => ({
+				location: ChatLocation.Panel,
+				prompt,
+				sessionId: 'session-router-skipped'
+			});
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest('refactor this function') as ChatRequest, [miniEndpoint]);
+			automodeService.consumeLastRoutingDecision();
+			// The router is skipped after the first turn, but the turn is still served by
+			// a model the UI has to be able to name, with no classification to report.
+			await automodeService.resolveAutoModeEndpoint(chatRequest('now add a test') as ChatRequest, [miniEndpoint]);
+
+			expect(automodeService.consumeLastRoutingDecision()).toEqual({
+				resolvedModel: 'gpt-5.4-mini',
+				resolvedModelName: 'GPT-5.4 mini',
+			});
+		});
+
 		it('should fall back to first known endpoint when all available_models are unknown', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');

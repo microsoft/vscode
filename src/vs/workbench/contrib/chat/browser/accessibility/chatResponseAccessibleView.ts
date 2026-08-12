@@ -396,7 +396,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					break;
 				}
 				case 'autoModeResolution': {
-					if (part.predictedLabel === 'fallback') {
+					if (part.predictedLabel === undefined || part.confidence === undefined) {
+						contentParts.push(localize('autoModeResolutionA11yModelOnly', "Routed to {0}.", part.resolvedModelName));
+					} else if (part.predictedLabel === 'fallback') {
 						contentParts.push(localize('autoModeResolutionA11yFallback', "Routed to {0}. Unable to resolve.", part.resolvedModelName));
 					} else {
 						const label = part.predictedLabel === 'needs_reasoning'

@@ -63,8 +63,8 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
-import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, getChatAutoModeExplainability, ThinkingDisplayMode } from '../../common/constants.js';
+import { formatChatAutoModeName, formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
@@ -78,6 +78,7 @@ import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
+import { ChatAutoModeResolutionContentPart } from './chatContentParts/chatAutoModeResolutionContentPart.js';
 import { ChatCheckpointFileChangesSummaryContentPart } from './chatContentParts/chatChangesSummaryPart.js';
 import { ChatTurnPillsContentPart } from './chatContentParts/chatTurnPillsPart.js';
 import { ChatTurnStatusPillsSetting, isChatTurnStatusPillsEnabled } from './chatTurnPills.js';
@@ -367,22 +368,27 @@ export function formatResponseAutoModeResolution(resolution: IChatAutoModeResolu
 
 	const title = localize('chat.responseAutoMode.title', "Routed to {0}", resolution.resolvedModelName);
 	const description = ILanguageModelChatMetadata.getAutoModelDescription(undefined, { includeLearnMore: false });
-	// `fallback` means the router could not classify the turn, so there is no
-	// meaningful label or confidence to report.
-	const detail = resolution.predictedLabel === 'fallback'
-		? localize('chat.responseAutoMode.fallback', "Unable to resolve")
-		: localize('chat.responseAutoMode.detail', "{0} - Confidence {1}%",
-			resolution.predictedLabel === 'needs_reasoning'
-				? localize('chat.responseAutoMode.reasoning', "Reasoning")
-				: localize('chat.responseAutoMode.nonReasoning', "Non-reasoning"),
-			(resolution.confidence * 100).toFixed(0));
+	// Routers that report no classification (Auto v2) still name their pick, so the
+	// detail line is dropped rather than the whole section. `fallback` means the
+	// router ran but could not classify the turn.
+	const detail = resolution.predictedLabel === undefined || resolution.confidence === undefined
+		? undefined
+		: resolution.predictedLabel === 'fallback'
+			? localize('chat.responseAutoMode.fallback', "Unable to resolve")
+			: localize('chat.responseAutoMode.detail', "{0} - Confidence {1}%",
+				resolution.predictedLabel === 'needs_reasoning'
+					? localize('chat.responseAutoMode.reasoning', "Reasoning")
+					: localize('chat.responseAutoMode.nonReasoning', "Non-reasoning"),
+				(resolution.confidence * 100).toFixed(0));
 
 	const markdown = new MarkdownString();
 	markdown.appendMarkdown(`**${escapeMarkdownSyntaxTokens(title)}**\n\n`);
 	markdown.appendMarkdown(`${description}\n\n`);
-	markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(detail)}\n\n`);
+	if (detail) {
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(detail)}\n\n`);
+	}
 
-	const ariaLabel = joinAriaSentences([title, description, detail]);
+	const ariaLabel = joinAriaSentences([title, description, ...(detail ? [detail] : [])]);
 	return { markdown, markdownNotSupportedFallback: ariaLabel, ariaLabel };
 }
 
@@ -1318,7 +1324,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const responseTimingListeners = templateData.elementDisposables.add(new MutableDisposable());
 		const updateResponseDetails = () => {
-			const details = isResponseVM(element) ? element.result?.details : undefined;
+			const reportedDetails = isResponseVM(element) ? element.result?.details : undefined;
 			// Providers report usage asynchronously, often after the footer has already
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
@@ -1328,9 +1334,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Turns served by Auto explain the routing decision alongside the cost, so
 			// the "Auto" the user is pointing at can say which model actually ran.
 			const autoModeResolution = isResponseVM(element)
-				? formatResponseAutoModeResolution(findAutoModeResolution(element.response.value))
+				? findAutoModeResolution(element.response.value)
 				: undefined;
-			const footerHover = formatResponseFooterHover([autoModeResolution, tokenStats]);
+			const footerHover = formatResponseFooterHover([formatResponseAutoModeResolution(autoModeResolution), tokenStats]);
+			// In the `footer` arm the hover is the only explanation of the routing
+			// decision, so the footer needs a visible, focusable label to carry it even
+			// when the participant reported no details of its own.
+			const details = reportedDetails ?? (autoModeResolution && getChatAutoModeExplainability(this.configService) === 'footer'
+				? formatChatAutoModeName()
+				: undefined);
 			const completedAtElement = renderChatResponseDetails(
 				templateData.footerDetailsContainer,
 				details,
@@ -3262,9 +3274,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'externalEdit') {
 				return this.renderExternalEdit(content, context, templateData);
 			} else if (content.kind === 'autoModeResolution') {
-				// Routing is explained on the response footer's hover rather than in the
-				// response body, so the part carries data but renders nothing inline.
-				return this.renderNoContent(other => content.kind === other.kind);
+				// In the `footer` arm the routing decision is explained on the response
+				// footer's hover instead, so the part contributes data but nothing inline.
+				if (getChatAutoModeExplainability(this.configService) === 'footer') {
+					return this.renderNoContent(other => content.kind === other.kind);
+				}
+				return this.instantiationService.createInstance(ChatAutoModeResolutionContentPart, content, context, this.chatContentMarkdownRenderer);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);

@@ -144,8 +144,9 @@ export interface IAutoModeRoutingRequest {
 export interface AutoModeRoutingDecision {
 	resolvedModel: string;
 	resolvedModelName: string;
-	predictedLabel: 'needs_reasoning' | 'no_reasoning' | 'fallback';
-	confidence: number;
+	/** Absent on the Auto v2 path, whose `/auto` response carries no classification. */
+	predictedLabel?: 'needs_reasoning' | 'no_reasoning' | 'fallback';
+	confidence?: number;
 }
 
 export const IAutomodeService = createServiceIdentifier<IAutomodeService>('IAutomodeService');
@@ -386,14 +387,15 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		selectedModel = this._applyVisionFallback(chatRequest, selectedModel, token.available_models, knownEndpoints);
 
-		// Store routing decision for the UI to consume (update resolved model to the final one after all overrides)
-		if (routerResult.routingDecision) {
-			this._lastRoutingDecision = {
-				...routerResult.routingDecision,
-				resolvedModel: selectedModel.model,
-				resolvedModelName: selectedModel.name,
-			};
-		}
+		// Store routing decision for the UI to consume (update resolved model to the final one after all overrides).
+		// Reported even when the router did not run for this turn - it is skipped after the first turn, gated off
+		// outside panel chat, and bypassed when it falls back - because the UI still has to be able to say which
+		// model Auto is serving the turn with. Such a decision carries no label or confidence.
+		this._lastRoutingDecision = {
+			...routerResult.routingDecision,
+			resolvedModel: selectedModel.model,
+			resolvedModelName: selectedModel.name,
+		};
 
 		// Emit the final model selection alongside the router's recommendation
 		// so analysts can detect overrides without fragile telemetry joins
@@ -553,6 +555,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			&& entry.tier === tier
 			&& (!hasImage(chatRequest) || entry.endpoint.supportsVision);
 		if (cacheUsable) {
+			// Later turns reuse the pick rather than re-routing, but the UI still has
+			// to be able to say which model is serving them.
+			this._lastRoutingDecision = {
+				resolvedModel: entry.endpoint.model,
+				resolvedModelName: entry.endpoint.name,
+			};
 			return entry.endpoint;
 		}
 
@@ -607,6 +615,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				turnCount: (entry?.turnCount ?? 0) + (entry?.lastRoutedPrompt === prompt ? 0 : 1),
 				needsReEval: false,
 			});
+			// `/auto` reports no label or confidence, so the decision carries only the
+			// pick — enough for the UI to say which model served the turn.
+			this._lastRoutingDecision = {
+				resolvedModel: selectedModel.model,
+				resolvedModelName: selectedModel.name,
+			};
 			return endpoint;
 		} catch (e) {
 			const reason = this._classifyAutoV2Failure(e);
@@ -620,6 +634,10 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			// Prefer the last known good endpoint over the legacy round-trips, but
 			// only when it still reflects the tier and vision needs of this turn.
 			if (entry && entry.tier === tier && !entry.needsReEval && !this._isAutoV2SessionExpired(entry) && (!hasImage(chatRequest) || entry.endpoint.supportsVision)) {
+				this._lastRoutingDecision = {
+					resolvedModel: entry.endpoint.model,
+					resolvedModelName: entry.endpoint.name,
+				};
 				return entry.endpoint;
 			}
 			return undefined;
