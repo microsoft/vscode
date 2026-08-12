@@ -26,6 +26,7 @@ function createSession(id: string, opts: {
 	updatedAt?: Date;
 	isArchived?: boolean;
 	isRead?: boolean;
+	isAutomation?: boolean;
 	resource?: URI;
 }): ISession {
 	const createdAt = opts.createdAt ?? new Date();
@@ -46,6 +47,7 @@ function createSession(id: string, opts: {
 			isVirtualWorkspace: false,
 		} : undefined),
 		isQuickChat: observableValue(`isQuickChat-${id}`, opts.workspaceLabel === undefined),
+		isAutomation: observableValue(`isAutomation-${id}`, opts.isAutomation === true),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
@@ -507,6 +509,28 @@ suite('Sessions - SessionsList', () => {
 			assert.strictEqual(sections[0].id, 'pinned');
 			assert.strictEqual(sections[1].id, 'quickchats');
 			assert.deepStrictEqual(sections[1].sessions.map(s => s.sessionId), ['quick']);
+		});
+
+		test('excludes automation sessions from every section', () => {
+			const sessions = [
+				createSession('workspace-automation', { workspaceLabel: 'Alpha', isAutomation: true }),
+				createSession('quick-automation', { isAutomation: true }),
+				createSession('archived-automation', { workspaceLabel: 'Beta', isArchived: true, isAutomation: true }),
+				createSession('visible', { workspaceLabel: 'Gamma' }),
+			];
+			const sections = groupSessionsForList(
+				sessions,
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				session => session.sessionId === 'workspace-automation',
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({
+				id: section.id,
+				sessions: section.sessions.map(session => session.sessionId),
+			})), [
+				{ id: 'workspace:Gamma', sessions: ['visible'] },
+			]);
 		});
 	});
 

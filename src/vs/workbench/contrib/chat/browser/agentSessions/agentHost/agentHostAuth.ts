@@ -226,6 +226,7 @@ export async function resolveTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
+	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
 	readonly token: string;
 }
 
@@ -293,17 +294,14 @@ export async function authenticateProtectedResources(
 				logService,
 				options.logPrefix,
 			);
-			if (!token) {
-				logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
-				continue;
-			}
-
-			const authenticated = await forwardAuthenticationToken(options, resource.resource, scopes, token);
+			const authenticated = await forwardAuthenticationToken(options, resource.resource, scopes, token ?? '');
 			if (!authenticated) {
-				logService.trace(`${options.logPrefix} Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
+				logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
 				continue;
 			}
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+			logService.info(token
+				? `${options.logPrefix} Authenticating for resource: ${resource.resource}`
+				: `${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
 		}
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ILogService } from '../../log/common/log.js';
-import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agentService.js';
+import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 
 interface IStoredAuthToken {
 	readonly resource: string;
@@ -67,11 +67,16 @@ export class AgentHostAuthenticationService {
 			}
 		}
 		const scopes = this._normalizeScopes(params.scopes);
+		const key = this._key(params.resource, scopes);
 		if (!authenticated && !rejected) {
-			authenticated = this._tokens.get(this._key(params.resource, scopes))?.token === params.token;
+			authenticated = this._tokens.get(key)?.token === params.token;
 		}
-		if (authenticated) {
-			this._tokens.set(this._key(params.resource, scopes), { resource: params.resource, scopes, token: params.token });
+		if (!params.token) {
+			// Revocation must never remain replayable, even when a provider rejects
+			// while clearing its own live state.
+			this._tokens.delete(key);
+		} else if (authenticated) {
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
 		}
 		return { authenticated };
 	}
