@@ -535,7 +535,7 @@ suite('StyleOverridesContribution', () => {
 			globalActionsPosition: 'relative',
 			globalActionsZIndex: '1',
 			globalActionsFlexShrink: '0',
-			globalActionsBackground: 'rgb(18, 52, 86)',
+			globalActionsBackground: 'rgba(0, 0, 0, 0)',
 		});
 	});
 });
