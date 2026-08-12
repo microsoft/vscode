@@ -210,8 +210,8 @@ function createPipeline(
 	const pipeline = disposables.add(inst.createInstance(
 		ClaudeSdkPipeline,
 		'sess-1',
-		URI.parse('claude:/sess-1'),
 		URI.parse(buildDefaultChatUri('claude:/sess-1')),
+		URI.parse('claude:/sess-1'),
 		warm,
 		controller,
 		dbRef,
@@ -282,8 +282,8 @@ suite('ClaudeSdkPipeline', () => {
 			const pipeline = disposables.add(inst.createInstance(
 				ClaudeSdkPipeline,
 				'sess-2',
-				URI.parse('claude:/sess-2'),
 				URI.parse(buildDefaultChatUri('claude:/sess-2')),
+				URI.parse('claude:/sess-2'),
 				warm,
 				controller,
 				dbRef,

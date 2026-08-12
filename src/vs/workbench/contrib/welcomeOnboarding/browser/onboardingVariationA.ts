@@ -90,7 +90,6 @@ const defaultChat = product.defaultChatAgent;
  * Steps:
  * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
  * 2. Personalize — Theme selection grid + keymap pills
- * 3. Agent Sessions — Feature cards showcasing AI capabilities
  */
 export class OnboardingVariationA extends Disposable implements IOnboardingService {
 
@@ -240,6 +239,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}));
 		this.disposables.add(addDisposableListener(this.nextButton, EventType.CLICK, () => {
 			if (this._isLastStep()) {
+				this._applyStepSelections(this.steps[this.currentStepIndex]);
 				this._logAction('complete');
 				this._dismiss('complete');
 			} else if (this.currentStepIndex === 0) {
@@ -319,15 +319,23 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				this.enterpriseInstanceValue = '';
 				this.enterpriseSignInWatch = undefined;
 			}
-			if (leavingStep === OnboardingStepId.Personalize) {
-				this._applyKeymap(this.selectedKeymapId);
-			}
+			this._applyStepSelections(leavingStep);
 			this.currentStepIndex++;
 			this._renderStep();
 			this._renderProgress();
 			this._updateButtonStates();
 			this._focusCurrentStepElement();
 			this._logStepView();
+		}
+	}
+
+	/**
+	 * Applies the selections made on a step once the user moves past it, either
+	 * by continuing to the next step or by completing the onboarding.
+	 */
+	private _applyStepSelections(stepId: OnboardingStepId): void {
+		if (stepId === OnboardingStepId.Personalize) {
+			this._applyKeymap(this.selectedKeymapId);
 		}
 	}
 
@@ -384,9 +392,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.titleEl.style.display = useSignInHero ? 'none' : '';
 		this.subtitleEl.style.display = useSignInHero ? 'none' : '';
 		this.titleEl.textContent = getOnboardingStepTitle(stepId);
-		if (stepId === OnboardingStepId.AgentSessions) {
-			this._renderAgentSessionsSubtitle(this.subtitleEl);
-		} else if (stepId === OnboardingStepId.Personalize) {
+		if (stepId === OnboardingStepId.Personalize) {
 			this._renderPersonalizeSubtitle(this.subtitleEl);
 		} else {
 			this.subtitleEl.textContent = getOnboardingStepSubtitle(stepId);
@@ -403,9 +409,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				break;
 			case OnboardingStepId.AiPreference:
 				this._renderAiPreferenceStep(this.contentEl);
-				break;
-			case OnboardingStepId.AgentSessions:
-				this._renderAgentSessionsStep(this.contentEl);
 				break;
 		}
 
@@ -1106,95 +1109,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 	}
 
-	// =====================================================================
-	// Step: Agent Sessions
-	// =====================================================================
-
-	private _renderAgentSessionsSubtitle(el: HTMLElement): void {
-		clearNode(el);
-		const keys = isMacintosh
-			? ['\u2318', '\u2303', 'I']  // Cmd+Control+I
-			: ['Ctrl', 'Alt', 'I'];
-		const shortcut = keys.map(k => this._createKbd(k));
-		el.append(localize('onboarding.step.agentSessions.subtitle.before', "Open Chat anytime with "));
-		for (let i = 0; i < shortcut.length; i++) {
-			if (i > 0) {
-				el.append('+');
-			}
-			el.append(shortcut[i]);
-		}
-	}
-
-	private _renderAgentSessionsStep(container: HTMLElement): void {
-		const wrapper = append(container, $('.onboarding-a-sessions'));
-
-		const features = append(wrapper, $('.onboarding-a-sessions-features'));
-
-		// Group 1: Chat modes — Plan / Agent
-		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
-		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
-		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Agents made for the task");
-		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
-
-		this._createFeatureCard(chatGrid, Codicon.listOrdered,
-			localize('onboarding.sessions.planMode', "Plan"),
-			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an agent to execute."));
-
-		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
-			localize('onboarding.sessions.agentMode', "Agent"),
-			localize('onboarding.sessions.agentMode.desc', "Describe a goal. The agent plans the approach, edits files, runs commands, and self-corrects. You review and approve along the way."));
-
-		// Group 2: ways to run and customize agents beyond the default Chat experience
-		const moreGroup = append(features, $('.onboarding-a-sessions-group'));
-		const moreLabel = append(moreGroup, $('div.onboarding-a-sessions-group-label'));
-		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents that work your way");
-		const moreGrid = append(moreGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
-
-		this._createFeatureCard(moreGrid, Codicon.rocket,
-			localize('onboarding.sessions.runAnywhere', "Run Agents Anywhere"),
-			localize('onboarding.sessions.runAnywhere.desc', "Run agents locally for interactive work, in the background with Copilot CLI, or in the cloud with cloud agents that open a pull request your team can review."));
-
-		this._createFeatureCard(moreGrid, Codicon.settingsGear,
-			localize('onboarding.sessions.customize', "Customize Your Agents"),
-			localize('onboarding.sessions.customize.desc', "Tailor Copilot to your project with custom instructions and agents, skills, reusable prompts, and MCP servers that connect to the tools and context you rely on."));
-
-		// Tutorial link at bottom of content, above footer
-		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));
-		this._createDocLink(docsRow, localize('onboarding.sessions.agentsTutorial', "Agents tutorial"), 'https://code.visualstudio.com/docs/agents/agents-tutorial?referrer=in-product', 'agentsTutorial');
-	}
-
-	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {
-		const card = append(parent, $('div.onboarding-a-feature-card'));
-		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
-		iconCol.appendChild(renderIcon(icon));
-		const textCol = append(card, $('div.onboarding-a-feature-text'));
-		const titleEl = append(textCol, $('div.onboarding-a-feature-title'));
-		titleEl.textContent = title;
-		const descEl = append(textCol, $('div.onboarding-a-feature-desc'));
-		if (description) {
-			descEl.textContent = description;
-		}
-		return descEl;
-	}
-
 	private _createKbd(label: string): HTMLElement {
 		const kbd = $('kbd.onboarding-a-kbd');
 		kbd.textContent = label;
 		return kbd;
-	}
-
-	private _createDocLink(parent: HTMLElement, label: string, href: string, linkId?: string): void {
-		const link = this._registerStepFocusable(append(parent, $<HTMLAnchorElement>('a.onboarding-a-doc-link')));
-		link.textContent = label;
-		link.href = href;
-		link.target = '_blank';
-		link.rel = 'noopener';
-		link.prepend(renderIcon(Codicon.linkExternal));
-		if (linkId) {
-			this.stepDisposables.add(addDisposableListener(link, EventType.CLICK, () => {
-				this._logAction('docLinkClick', undefined, linkId);
-			}));
-		}
 	}
 
 	private _createInlineLink(parent: HTMLElement, label: string, href: string): HTMLAnchorElement {

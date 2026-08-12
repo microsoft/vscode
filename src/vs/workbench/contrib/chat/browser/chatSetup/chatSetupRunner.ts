@@ -6,7 +6,7 @@
 import './media/chatSetup.css';
 import { $ } from '../../../../../base/browser/dom.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -136,6 +136,24 @@ export class ChatSetupDialog extends Disposable {
 	}
 }
 
+export async function showChatSetupDialogWithCancellation(dialog: Pick<ChatSetupDialog, 'show' | 'dispose'>, cancellationToken: CancellationToken | undefined): Promise<ChatSetupStrategy> {
+	let canceled = false;
+	const cancellationListener = cancellationToken?.onCancellationRequested(() => {
+		canceled = true;
+		dialog.dispose();
+	});
+	try {
+		if (cancellationToken?.isCancellationRequested) {
+			canceled = true;
+			dialog.dispose();
+		}
+		return canceled ? ChatSetupStrategy.Canceled : await dialog.show();
+	} finally {
+		cancellationListener?.dispose();
+		dialog.dispose();
+	}
+}
+
 export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options: IChatSetupRunOptions | undefined, enterpriseAuthentication: boolean, providers: IChatSetupDialogProviders = defaultChat.provider): IChatSetupDialogButton[] {
 	const button = (label: string, strategy: ChatSetupStrategy, ...classes: string[]): IChatSetupDialogButton => ({ label, strategy, classes });
 
@@ -227,6 +245,9 @@ export class ChatSetup {
 
 		const dialogSkipped = this.skipDialogOnce;
 		this.skipDialogOnce = false;
+		if (options?.cancellationToken?.isCancellationRequested) {
+			return { dialogSkipped, success: undefined };
+		}
 
 		const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
@@ -237,6 +258,9 @@ export class ChatSetup {
 			this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotTrusted', installDuration: 0, signUpErrorCode: undefined, provider: undefined });
 
 			return { dialogSkipped, success: undefined /* canceled */ };
+		}
+		if (options?.cancellationToken?.isCancellationRequested) {
+			return { dialogSkipped, success: undefined };
 		}
 
 		if (!wasTrusted) {
@@ -266,7 +290,7 @@ export class ChatSetup {
 		let success: ChatSetupResultValue = undefined;
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
-		const setupCancellation = new CancellationTokenSource();
+		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
 			if (setupStrategy !== ChatSetupStrategy.Canceled) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
@@ -360,6 +384,9 @@ export class ChatSetup {
 	}
 
 	private async showDialog(options?: IChatSetupRunOptions): Promise<ChatSetupStrategy> {
+		if (options?.cancellationToken?.isCancellationRequested) {
+			return ChatSetupStrategy.Canceled;
+		}
 		const buttons = getChatSetupDialogButtons(this.context.state.entitlement, options, this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise);
 		const dialog = this.instantiationService.createInstance(ChatSetupDialog, this.layoutService.activeContainer, {
 			title: this.getDialogTitle(options),
@@ -370,11 +397,7 @@ export class ChatSetup {
 			extraClasses: options?.dialogExtraClasses,
 			renderFooter: options?.renderDialogFooter,
 		});
-		try {
-			return await dialog.show();
-		} finally {
-			dialog.dispose();
-		}
+		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken);
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {

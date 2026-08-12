@@ -12,10 +12,11 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, normalizeToolSearchDeferThreshold } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
@@ -219,7 +220,7 @@ function getErrorMessage(err: unknown): string {
 /**
  * Messages from a failed Copilot SDK `session.resume` that positively indicate
  * the session has no events on disk, so there is no history to lose. Includes
- * the post-"Start Over" case, where `truncateSession` leaves zero events.
+ * the post-"Start Over" case, where `truncateChat` leaves zero events.
  */
 const RESUMABLE_HISTORY_ABSENT_PATTERNS = [
 	/\bSession not found\b/i,
@@ -396,6 +397,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	constructor(
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
@@ -608,6 +610,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
+		const managedSettingsPermissions = this._managedSettingsService.permissions;
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),
@@ -653,6 +656,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			toolSearch: toolSearchActive ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false },
 			largeOutput: {
 				maxSizeBytes: 8 * 1024,
+			},
+			managedSettings: {
+				permissions: managedSettingsPermissions,
 			},
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),

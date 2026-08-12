@@ -166,6 +166,13 @@ export interface IEditorResolverServiceGetEditorsOptions {
 	readonly isDiffEditor?: boolean;
 }
 
+export interface IEditorResolverServiceGetAllEditorsOptions {
+	/**
+	 * Excludes registrations whose editor priority is exclusive.
+	 */
+	readonly excludeExclusiveEditors?: boolean;
+}
+
 export type RegisteredEditorPriorityInfo = {
 	readonly editor: RegisteredEditorPriority;
 	readonly diff: RegisteredEditorPriority;
@@ -294,7 +301,7 @@ export interface IEditorResolverService {
 	/**
 	 * A set of all the editors that are registered to the editor resolver.
 	 */
-	getEditors(): RegisteredEditorInfo[];
+	getEditors(options?: IEditorResolverServiceGetAllEditorsOptions): RegisteredEditorInfo[];
 
 	/**
 	 * Returns the id of the best editor that can render a *diff* for the resource, excluding the
