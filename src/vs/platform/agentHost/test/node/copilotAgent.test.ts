@@ -3145,7 +3145,7 @@ suite('CopilotAgent', () => {
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listSessions();
+				await agent.listLegacyChats();
 
 				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-4.8' } } });
 				await timeout(0);
@@ -3165,7 +3165,7 @@ suite('CopilotAgent', () => {
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listSessions();
+				await agent.listLegacyChats();
 
 				assert.strictEqual((agent as TestableCopilotAgent).lastClientOptions?.env?.['COPILOT_MODEL_FAMILY'], undefined);
 			} finally {
@@ -5846,12 +5846,12 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				await waitForState(agent.models, m => m.length > 0);
 
-				const result = await agent.createSession({
+				const result = await provisionSession(agent, {
 					session: AgentSession.uri('copilotcli', 'capability-override-session'),
 					workingDirectories: [URI.file('/workspace')],
 					model: { id: 'claude-sonnet', config: { thinkingLevel: 'medium' } },
 				});
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined);
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
 
 				assert.deepStrictEqual({
 					model: capturedConfig?.model,
