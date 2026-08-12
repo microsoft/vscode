@@ -320,7 +320,7 @@ steps:
             - powershell: |
                 . build/azure-pipelines/win32/exec.ps1
                 $ErrorActionPreference = "Stop"
-                exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" }
+                exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" "-xr!node_modules" "-xr!node_modules_cache" }
               displayName: Archive built workspace for tests
           archiveAppSteps:
             - powershell: |

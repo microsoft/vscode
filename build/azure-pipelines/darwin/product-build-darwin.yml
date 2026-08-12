@@ -79,8 +79,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: unit
         artifactPrefix: product-tests-macos-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo'
-        timeoutInMinutes: 120
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -91,6 +91,8 @@ jobs:
         extractArtifactSteps:
           - script: tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
             displayName: Extract built workspace
+        setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
         testSteps:
           - template: ./steps/product-build-darwin-test.yml@self
             parameters:
@@ -107,8 +109,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: integration
         artifactPrefix: product-tests-macos-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-app=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-server=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-web=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo product-tests-macos-${{ parameters.VSCODE_ARCH }}-app product-tests-macos-${{ parameters.VSCODE_ARCH }}-server product-tests-macos-${{ parameters.VSCODE_ARCH }}-web'
-        timeoutInMinutes: 120
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-app=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-server=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-web=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo product-tests-macos-${{ parameters.VSCODE_ARCH }}-app product-tests-macos-${{ parameters.VSCODE_ARCH }}-server product-tests-macos-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -130,6 +132,8 @@ jobs:
               tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-server/server.tar.gz -C $(Agent.BuildDirectory)
               tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
             displayName: Extract built workspace and products
+        setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
         testSteps:
           - template: ./steps/product-build-darwin-test.yml@self
             parameters:
@@ -146,8 +150,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: smoke
         artifactPrefix: product-tests-macos-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-app=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-server=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-web=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo product-tests-macos-${{ parameters.VSCODE_ARCH }}-app product-tests-macos-${{ parameters.VSCODE_ARCH }}-server product-tests-macos-${{ parameters.VSCODE_ARCH }}-web'
-        timeoutInMinutes: 120
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-app=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-server=macOS_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-macos-${{ parameters.VSCODE_ARCH }}-web=macOS_${{ parameters.VSCODE_ARCH }}" product-tests-macos-${{ parameters.VSCODE_ARCH }}-repo product-tests-macos-${{ parameters.VSCODE_ARCH }}-app product-tests-macos-${{ parameters.VSCODE_ARCH }}-server product-tests-macos-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -169,6 +173,8 @@ jobs:
               tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-server/server.tar.gz -C $(Agent.BuildDirectory)
               tar -xzf $(Pipeline.Workspace)/product-tests-macos-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
             displayName: Extract built workspace and products
+        setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
         testSteps:
           - template: ./steps/product-build-darwin-test.yml@self
             parameters:

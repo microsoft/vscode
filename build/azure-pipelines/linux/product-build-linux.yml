@@ -114,8 +114,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: unit
         artifactPrefix: product-tests-linux-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo'
-        timeoutInMinutes: 60
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -127,6 +127,7 @@ jobs:
           - script: tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo/repo.tar.gz -C $(Build.SourcesDirectory)
             displayName: Extract built workspace
         setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
           - template: ./steps/product-build-linux-test-setup.yml@self
         testSteps:
           - template: ./steps/product-build-linux-test.yml@self
@@ -144,8 +145,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: integration
         artifactPrefix: product-tests-linux-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-app=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-server=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-web=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo product-tests-linux-${{ parameters.VSCODE_ARCH }}-app product-tests-linux-${{ parameters.VSCODE_ARCH }}-server product-tests-linux-${{ parameters.VSCODE_ARCH }}-web'
-        timeoutInMinutes: 60
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-app=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-server=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-web=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo product-tests-linux-${{ parameters.VSCODE_ARCH }}-app product-tests-linux-${{ parameters.VSCODE_ARCH }}-server product-tests-linux-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -168,6 +169,7 @@ jobs:
               tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
             displayName: Extract built workspace and products
         setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
           - template: ./steps/product-build-linux-test-setup.yml@self
         testSteps:
           - template: ./steps/product-build-linux-test.yml@self
@@ -185,8 +187,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: smoke
         artifactPrefix: product-tests-linux-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-app=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-server=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-web=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo product-tests-linux-${{ parameters.VSCODE_ARCH }}-app product-tests-linux-${{ parameters.VSCODE_ARCH }}-server product-tests-linux-${{ parameters.VSCODE_ARCH }}-web'
-        timeoutInMinutes: 60
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-app=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-server=Linux_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-linux-${{ parameters.VSCODE_ARCH }}-web=Linux_${{ parameters.VSCODE_ARCH }}" product-tests-linux-${{ parameters.VSCODE_ARCH }}-repo product-tests-linux-${{ parameters.VSCODE_ARCH }}-app product-tests-linux-${{ parameters.VSCODE_ARCH }}-server product-tests-linux-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -209,6 +211,7 @@ jobs:
               tar -xzf $(Pipeline.Workspace)/product-tests-linux-${{ parameters.VSCODE_ARCH }}-web/web.tar.gz -C $(Agent.BuildDirectory)
             displayName: Extract built workspace and products
         setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
           - template: ./steps/product-build-linux-test-setup.yml@self
         testSteps:
           - template: ./steps/product-build-linux-test.yml@self

@@ -387,7 +387,7 @@ steps:
             - script: |
                 set -e
                 mkdir -p $(Build.ArtifactStagingDirectory)
-                tar -czf $(Build.ArtifactStagingDirectory)/repo.tar.gz --exclude=.git -C $(Build.SourcesDirectory) .
+                tar -czf $(Build.ArtifactStagingDirectory)/repo.tar.gz --exclude=.git --exclude='node_modules' --exclude='*/node_modules' --exclude='.build/node_modules_cache' -C $(Build.SourcesDirectory) .
               displayName: Archive built workspace for tests
           archiveAppSteps:
             - script: tar -czf $(Build.ArtifactStagingDirectory)/app.tar.gz -C $(Agent.BuildDirectory) VSCode-darwin-$(VSCODE_ARCH)

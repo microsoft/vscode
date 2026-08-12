@@ -89,8 +89,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: unit
         artifactPrefix: product-tests-windows-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo'
-        timeoutInMinutes: 60
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -103,6 +103,8 @@ jobs:
               7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace
+        setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
         testSteps:
           - template: ./steps/product-build-win32-test.yml@self
             parameters:
@@ -120,8 +122,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: integration
         artifactPrefix: product-tests-windows-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-app=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-server=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-web=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo product-tests-windows-${{ parameters.VSCODE_ARCH }}-app product-tests-windows-${{ parameters.VSCODE_ARCH }}-server product-tests-windows-${{ parameters.VSCODE_ARCH }}-web'
-        timeoutInMinutes: 60
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-app=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-server=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-web=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo product-tests-windows-${{ parameters.VSCODE_ARCH }}-app product-tests-windows-${{ parameters.VSCODE_ARCH }}-server product-tests-windows-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -146,6 +148,8 @@ jobs:
               7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-web\web.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of web.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace and products
+        setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
         testSteps:
           - template: ./steps/product-build-win32-test.yml@self
             parameters:
@@ -163,8 +167,8 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: smoke
         artifactPrefix: product-tests-windows-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-app=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-server=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-web=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo product-tests-windows-${{ parameters.VSCODE_ARCH }}-app product-tests-windows-${{ parameters.VSCODE_ARCH }}-server product-tests-windows-${{ parameters.VSCODE_ARCH }}-web'
-        timeoutInMinutes: 60
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-app=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-server=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-web=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo product-tests-windows-${{ parameters.VSCODE_ARCH }}-app product-tests-windows-${{ parameters.VSCODE_ARCH }}-server product-tests-windows-${{ parameters.VSCODE_ARCH }}-web'
+        timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
@@ -189,6 +193,8 @@ jobs:
               7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-web\web.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of web.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace and products
+        setupSteps:
+          - template: ./steps/product-test-dependencies.yml@self
         testSteps:
           - template: ./steps/product-build-win32-test.yml@self
             parameters:
