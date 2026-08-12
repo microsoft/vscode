@@ -4368,10 +4368,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const subagentChat = subagentChats.get(part.toolCallId);
 				if (subagentChat) {
 					const existing = part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData : undefined;
+					const parentToolCall = parentToolCalls.get(part.toolCallId);
+					const taskDescription = parentToolCall ? readToolCallMeta(parentToolCall).subagentDescription?.trim() : undefined;
 					part.toolSpecificData = {
 						...existing,
 						kind: 'subagent',
-						description: subagentChat.title || existing?.description || (typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage.value),
+						description: taskDescription || subagentChat.title || existing?.description || (typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage.value),
 						chatResource: subagentChat.resource.toString(),
 					};
 				}
