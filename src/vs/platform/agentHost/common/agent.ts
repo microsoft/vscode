@@ -1074,6 +1074,7 @@ export interface IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[];
 
+	/** An empty token revokes the credential previously forwarded for this resource. */
 	authenticate(resource: string, token: string): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
