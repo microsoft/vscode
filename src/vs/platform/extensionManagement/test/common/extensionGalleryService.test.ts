@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -11,9 +14,12 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
-import { IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
+import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { IRequestService } from '../../../request/common/request.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
@@ -24,6 +30,7 @@ import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtensionGalleryResourceType, ExtensionGalleryManifestStatus, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -32,6 +39,65 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 		this.serviceMachineIdResource = serviceMachineIdResource;
 		this.isBuilt = true;
 	}
+}
+
+class TestLogService extends NullLogService {
+	readonly errors: string[] = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([message, ...args].join(' '));
+	}
+}
+
+class TestRequestService implements IRequestService {
+	readonly _serviceBrand: undefined;
+	readonly onDidCompleteRequest = Event.None;
+	readonly requests: [string, string][] = [];
+
+	constructor(private readonly latestUrl: string, private readonly queryUrl: string, private readonly latestBody: string) { }
+
+	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
+		this.requests.push([options.type ?? '', options.url ?? '']);
+		if (options.type === 'GET' && options.url === this.latestUrl) {
+			return {
+				res: { statusCode: 200, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString(this.latestBody)),
+			};
+		}
+		if (options.type === 'POST' && options.url === this.queryUrl) {
+			return {
+				res: { statusCode: 400, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString('')),
+			};
+		}
+		throw new Error(`Unexpected request: ${options.type} ${options.url}`);
+	}
+
+	async resolveProxy(): Promise<string | undefined> {
+		return undefined;
+	}
+
+	async lookupAuthorization() {
+		return undefined;
+	}
+
+	async lookupKerberosAuthorization() {
+		return undefined;
+	}
+
+	async loadCertificates() {
+		return [];
+	}
+}
+
+function createExtensionGalleryManifestService(manifest: IExtensionGalleryManifest): IExtensionGalleryManifestService {
+	return {
+		_serviceBrand: undefined,
+		extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available,
+		onDidChangeExtensionGalleryManifestStatus: Event.None,
+		onDidChangeExtensionGalleryManifest: Event.None,
+		getExtensionGalleryManifest: async () => manifest,
+	};
 }
 
 suite('Extension Gallery Service', () => {
@@ -56,6 +122,55 @@ suite('Extension Gallery Service', () => {
 		assert.ok(isUUID(headers['X-Market-User-Id']));
 		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
+	});
+
+	test('falls back to query API when latest version omits files', async () => {
+		const latestUrlTemplate = 'https://market.test/vscode/{publisher}/{name}/latest';
+		const latestUrl = 'https://market.test/vscode/publisher/extension/latest';
+		const queryUrl = 'https://market.test/extensionquery';
+		const latestBody = JSON.stringify({
+			extensionName: 'extension',
+			publisher: {
+				publisherName: 'publisher'
+			},
+			versions: [{ version: '1.0.0' }]
+		});
+		const manifestService = createExtensionGalleryManifestService({
+			version: '1.0',
+			resources: [
+				{ id: queryUrl, type: ExtensionGalleryResourceType.ExtensionQueryService },
+				{ id: latestUrlTemplate, type: ExtensionGalleryResourceType.ExtensionLatestVersionUri },
+			],
+			capabilities: {
+				extensionQuery: { filtering: [], sorting: [], flags: [] },
+			},
+		});
+		const requestService = new TestRequestService(latestUrl, queryUrl, latestBody);
+		const logService = new TestLogService();
+		const allowedExtensionsService = disposables.add(new AllowedExtensionsService(productService, configurationService));
+		const extensionGalleryService = new ExtensionGalleryServiceWithNoStorageService(
+			requestService,
+			logService,
+			environmentService,
+			NullTelemetryService,
+			fileService,
+			productService,
+			configurationService,
+			allowedExtensionsService,
+			manifestService
+		);
+
+		const result = await extensionGalleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests: requestService.requests,
+			errors: logService.errors,
+			result,
+		}, {
+			requests: [['GET', latestUrl], ['POST', queryUrl]],
+			errors: [],
+			result: [],
+		});
 	});
 
 	test('sorting single extension version without target platform', async () => {

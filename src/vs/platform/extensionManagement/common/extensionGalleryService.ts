@@ -53,7 +53,7 @@ export interface IRawGalleryExtensionVersion {
 	readonly lastUpdated: string;
 	readonly assetUri: string;
 	readonly fallbackAssetUri: string;
-	readonly files: IRawGalleryExtensionFile[];
+	readonly files?: IRawGalleryExtensionFile[];
 	properties?: IRawGalleryExtensionProperty[];
 	readonly targetPlatform?: string;
 }
@@ -300,7 +300,7 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 
 function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): [string, IGalleryExtensionAsset][] {
 	const coreTranslationAssetPrefix = 'Microsoft.VisualStudio.Code.Translation.';
-	const result = version.files.filter(f => f.assetType.indexOf(coreTranslationAssetPrefix) === 0);
+	const result = (version.files ?? []).filter(f => f.assetType.indexOf(coreTranslationAssetPrefix) === 0);
 	return result.reduce<[string, IGalleryExtensionAsset][]>((result, file) => {
 		const asset = getVersionAsset(version, file.assetType);
 		if (asset) {
@@ -330,7 +330,7 @@ function getDownloadAsset(version: IRawGalleryExtensionVersion): IGalleryExtensi
 }
 
 function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset | null {
-	const result = version.files.filter(f => f.assetType === type)[0];
+	const result = version.files?.find(f => f.assetType === type);
 	return result ? {
 		uri: `${version.assetUri}/${type}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`,
 		fallbackUri: `${version.fallbackAssetUri}/${type}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
@@ -852,6 +852,10 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		if (!rawGalleryExtension) {
 			return 'NOT_FOUND';
+		}
+
+		if (rawGalleryExtension.versions.some(version => !version.files)) {
+			return 'MISSING_FILES';
 		}
 
 		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
