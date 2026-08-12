@@ -9,12 +9,13 @@ import { homedir, tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -139,12 +140,83 @@ suite('SessionPermissionManager', () => {
 	});
 
 	test('requires confirmation for protected files inside the working directory', async () => {
-		const files = ['.env', 'package.json', join('.git', 'config'), 'deps.lock', join('.vscode', 'settings.json')];
+		const files = [
+			'.env',
+			'package.json',
+			'Cargo.toml',
+			'build.gradle',
+			'build.gradle.kts',
+			'gradle.properties',
+			join('ruby_lsp', 'example', 'addon'),
+			join('.git', 'config'),
+			'deps.lock',
+			join('.vscode', 'settings.json'),
+		];
 		const results: (ToolCallConfirmationReason | undefined)[] = [];
 		for (const file of files) {
 			results.push(await permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri));
 		}
 		assert.deepStrictEqual(results, files.map(() => undefined));
+	});
+
+	if (!isLinux) {
+		test('requires confirmation for protected files with non-canonical casing', async () => {
+			const files = ['.ENV', 'Package.json', join('.GIT', 'config'), join('.VSCODE', 'settings.json')];
+			const results = await Promise.all(files.map(file => permissions.getAutoApproval(writeEvent(join(workDir, file)), sessionUri)));
+			assert.deepStrictEqual(results, files.map(() => undefined));
+		});
+	}
+
+	test('respects forwarded edit auto-approve patterns', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': false,
+				'**/*.ts': true,
+				'**/.github/hooks/**': true,
+			},
+		});
+
+		assert.deepStrictEqual([
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'README.md')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'hooks', 'pre-tool.json')), sessionUri),
+		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined]);
+	});
+
+	test('merges configured edit auto-approve patterns with defaults', () => {
+		assert.deepStrictEqual(mergeChatEditAutoApprovePatterns({
+			'**/generated/**': false,
+		}), {
+			...DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
+			'**/generated/**': false,
+		});
+	});
+
+	test('overriding a default pattern keeps the configured order', async () => {
+		// `'**/*': false` is configured last, so it has to decide the outcome for a
+		// file the earlier `'**/*.ts'` rule would otherwise approve.
+		const patterns = mergeChatEditAutoApprovePatterns({ '**/*.ts': true, '**/*': false });
+		configService.updateRootConfig({ [AgentHostEditAutoApprovePatternsConfigKey]: patterns });
+
+		assert.deepStrictEqual({
+			lastPatterns: Object.keys(patterns).slice(-2),
+			approval: await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+		}, {
+			lastPatterns: ['**/*.ts', '**/*'],
+			approval: undefined,
+		});
+	});
+
+	test('malformed edit auto-approve values fail closed', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': 'false',
+			},
+		});
+
+		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri);
+
+		assert.strictEqual(result, undefined);
 	});
 
 	test('requires confirmation for files that can register lifecycle hooks', async () => {
