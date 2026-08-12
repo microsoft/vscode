@@ -120,7 +120,13 @@ suite('AgentHostOctoKitService', () => {
 
 		await service.createPullRequest('o', 'r', 't', 'b', 'h', 'b', true, 'tok', controller.signal);
 
-		assert.strictEqual(captured().init?.signal, controller.signal);
+		const capturedSignal = captured().init?.signal;
+		const abortedBefore = capturedSignal?.aborted;
+		controller.abort();
+		assert.deepStrictEqual({ abortedBefore, abortedAfter: capturedSignal?.aborted }, {
+			abortedBefore: false,
+			abortedAfter: true,
+		});
 	});
 
 	test('findPullRequestByHeadBranch fetches the latest matching pull request', async () => {

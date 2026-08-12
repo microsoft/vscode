@@ -18,6 +18,7 @@ import {
 	gitHubRestStep,
 	ProgrammableGitHubServer,
 } from './programmableGitHubServer.js';
+import { nodeFetch } from './nodeFetch.js';
 
 suite('ProgrammableGitHubServer', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,7 +51,7 @@ suite('ProgrammableGitHubServer', () => {
 				}),
 			);
 
-			const restResponse = await fetch(`${server.apiBaseUrl}/repos/microsoft/vscode/pulls?state=all&head=octocat%3Afeature%2Ftest`, {
+			const restResponse = await nodeFetch(`${server.apiBaseUrl}/repos/microsoft/vscode/pulls?state=all&head=octocat%3Afeature%2Ftest`, {
 				headers: { Authorization: 'Bearer test-token' },
 			});
 			assert.deepStrictEqual({
@@ -65,7 +66,7 @@ suite('ProgrammableGitHubServer', () => {
 				body: [{ number: 42 }],
 			});
 
-			const graphQlResponse = await fetch(server.graphQlUrl, {
+			const graphQlResponse = await nodeFetch(server.graphQlUrl, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -138,10 +139,10 @@ suite('ProgrammableGitHubServer', () => {
 				}),
 			);
 
-			const first = await fetch(`${server.apiBaseUrl}/repos/octo/repo/pulls`);
+			const first = await nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/pulls`);
 			assert.deepStrictEqual(await first.json(), [{ number: 1 }]);
 
-			const second = await fetch(`${server.apiBaseUrl}/repos/octo/repo/pulls`, {
+			const second = await nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/pulls`, {
 				headers: { 'If-None-Match': first.headers.get('etag')! },
 			});
 			assert.deepStrictEqual({
@@ -152,10 +153,10 @@ suite('ProgrammableGitHubServer', () => {
 				etag: 'W/"etag-1"',
 			});
 
-			const redirected = await fetch(`${server.apiBaseUrl}/repos/octo/repo/issues`, { redirect: 'manual' });
+			const redirected = await nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/issues`, { redirect: 'manual' });
 			assert.strictEqual(redirected.status, 302);
 
-			const followUp = await fetch(redirected.headers.get('location')!);
+			const followUp = await nodeFetch(redirected.headers.get('location')!);
 			assert.deepStrictEqual(await followUp.json(), { id: 42 });
 
 			server.assertSatisfied();
@@ -201,7 +202,7 @@ suite('ProgrammableGitHubServer', () => {
 			);
 
 			let delayedSettled = false;
-			const delayed = fetch(`${server.apiBaseUrl}/repos/octo/repo/delayed`).then(async response => {
+			const delayed = nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/delayed`).then(async response => {
 				delayedSettled = true;
 				return response.json();
 			});
@@ -213,10 +214,10 @@ suite('ProgrammableGitHubServer', () => {
 			await release.complete();
 			assert.deepStrictEqual(await delayed, { ok: true });
 
-			const malformed = await fetch(`${server.apiBaseUrl}/repos/octo/repo/malformed`);
+			const malformed = await nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/malformed`);
 			assert.strictEqual(await malformed.text(), '{"malformed": true');
 
-			const limited = await fetch(`${server.apiBaseUrl}/repos/octo/repo/limited`);
+			const limited = await nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/limited`);
 			assert.deepStrictEqual({
 				status: limited.status,
 				retryAfter: limited.headers.get('retry-after'),
@@ -229,7 +230,7 @@ suite('ProgrammableGitHubServer', () => {
 				body: { message: 'You have exceeded a secondary rate limit.' },
 			});
 
-			await assert.rejects(() => fetch(`${server.apiBaseUrl}/repos/octo/repo/disconnect`));
+			await assert.rejects(() => nodeFetch(`${server.apiBaseUrl}/repos/octo/repo/disconnect`));
 			server.assertSatisfied();
 		});
 	});

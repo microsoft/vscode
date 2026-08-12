@@ -26,6 +26,7 @@ export function schedulerDelay(scheduler: IGitHubScheduler, delay: number, signa
 	}
 	return new Promise<void>((resolve, reject) => {
 		let scheduled: IDisposable | undefined;
+		let completedSynchronously = false;
 		const onAbort = () => {
 			scheduled?.dispose();
 			abortListener.dispose();
@@ -34,8 +35,13 @@ export function schedulerDelay(scheduler: IGitHubScheduler, delay: number, signa
 		const abortListener = toDisposable(() => signal.removeEventListener('abort', onAbort));
 		signal.addEventListener('abort', onAbort, { once: true });
 		scheduled = scheduler.schedule(() => {
+			completedSynchronously = true;
+			scheduled?.dispose();
 			abortListener.dispose();
 			resolve();
 		}, Math.max(0, delay));
+		if (completedSynchronously) {
+			scheduled.dispose();
+		}
 	});
 }

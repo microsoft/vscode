@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { GitHubHostCapabilitiesService } from '../../../node/shared/githubHostCapabilitiesService.js';
 import { GitHubTransport } from '../../../node/shared/githubTransport.js';
+import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
 suite('GitHubHostCapabilitiesService', () => {
@@ -24,13 +25,14 @@ suite('GitHubHostCapabilitiesService', () => {
 	test('probes once per host and enterprise version', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubGraphQLStep({
-				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "StatusCheckRollupContext")'],
+				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "Repository")', '__type(name: "RequirableByPullRequest")'],
 				response: gitHubGraphQLResponse({
 					pullRequest: { fields: [{ name: 'mergeQueueEntry' }, { name: 'reviewThreads' }] },
-					statusCheckRollupContext: { fields: [{ name: 'isRequired' }] },
+					repository: { fields: [{ name: 'mergeQueue' }] },
+					requirableByPullRequest: { fields: [{ name: 'isRequired' }] },
 				}),
 			}));
-			const transport = disposables.add(new GitHubTransport(fetch));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 			const credential = {
@@ -67,7 +69,7 @@ suite('GitHubHostCapabilitiesService', () => {
 			server.enqueue(gitHubGraphQLStep({
 				response: gitHubGraphQLResponse(undefined, [{ message: 'Field does not exist', type: 'VALIDATION' }]),
 			}));
-			const transport = disposables.add(new GitHubTransport(fetch));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
 
@@ -84,6 +86,89 @@ suite('GitHubHostCapabilitiesService', () => {
 				internalMergeStatus: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not infer requiredness from the status-check union', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				response: gitHubGraphQLResponse({
+					pullRequest: { fields: [{ name: 'reviewThreads' }] },
+					repository: { fields: [{ name: 'mergeQueue' }] },
+					requirableByPullRequest: null,
+				}),
+			}));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+
+			const result = await service.getCapabilities({
+				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
+				token: 'token',
+				generation: 1,
+				signal,
+			}, undefined, signal);
+
+			assert.deepStrictEqual(result, {
+				graphql: true,
+				mergeQueue: false,
+				internalMergeStatus: false,
+				reviewThreads: true,
+				checkContextRequiredness: false,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('retries capability probing after a transient GraphQL error', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					response: gitHubGraphQLResponse(undefined, [{ message: 'Temporarily unavailable', type: 'INTERNAL' }]),
+				}),
+				gitHubGraphQLStep({
+					response: gitHubGraphQLResponse({
+						pullRequest: { fields: [{ name: 'reviewThreads' }] },
+						repository: { fields: [] },
+						requirableByPullRequest: { fields: [] },
+					}),
+				}),
+			);
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+			const credential = {
+				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
+				token: 'token',
+				generation: 1,
+				signal,
+			};
+
+			const transient = await service.getCapabilities(credential, undefined, signal);
+			const recovered = await service.getCapabilities(credential, undefined, signal);
+
+			assert.deepStrictEqual({
+				transient,
+				recovered,
+				requestCount: server.requests.length,
+			}, {
+				transient: {
+					graphql: false,
+					mergeQueue: false,
+					internalMergeStatus: false,
+					reviewThreads: false,
+					checkContextRequiredness: false,
+				},
+				recovered: {
+					graphql: true,
+					mergeQueue: false,
+					internalMergeStatus: false,
+					reviewThreads: true,
+					checkContextRequiredness: false,
+				},
+				requestCount: 2,
 			});
 			server.assertSatisfied();
 		});

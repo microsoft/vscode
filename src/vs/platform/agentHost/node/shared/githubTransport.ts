@@ -6,7 +6,7 @@
 import { LRUCache } from '../../../../base/common/map.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { GitHubAccountHandle, GitHubRequestPriority } from '../../common/githubService.js';
+import { GitHubAccountHandle, GitHubRequestErrorKind, GitHubRequestPriority } from '../../common/githubService.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay, systemGitHubScheduler } from './githubScheduler.js';
@@ -23,18 +23,6 @@ export interface IGitHubTransport {
 	invalidateAccount(account: GitHubAccountHandle, reason?: unknown): void;
 	clear(): void;
 }
-
-export type GitHubRequestErrorKind =
-	| 'authentication'
-	| 'authorization'
-	| 'notFound'
-	| 'validation'
-	| 'schema'
-	| 'rateLimit'
-	| 'network'
-	| 'server'
-	| 'malformedResponse'
-	| 'unknown';
 
 export interface GitHubGraphQLError {
 	readonly message?: string;
@@ -105,6 +93,8 @@ interface ISharedGraphQLRequest {
 	waiters: number;
 }
 
+type RateLimitQueueResult<T> = { readonly blocked: true } | { readonly blocked: false; readonly value: T };
+
 const defaultApiVersion = '2022-11-28';
 const maximumErrorBodyLength = 500;
 const maximumRedirects = 5;
@@ -142,20 +132,26 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			return this._executeRest<T>(account, token, request, signal, cacheKey);
 		}
 
-		let shared = this._inFlight.get(cacheKey);
+		const coalescingKey = this._restCoalescingKey(account, request, finalUrl);
+		let shared = this._inFlight.get(coalescingKey);
 		if (!shared) {
 			const controller = new AbortController();
-			const promise = this._executeRest<unknown>(account, token, request, controller.signal, cacheKey)
-				.finally(() => this._inFlight.delete(cacheKey));
+			const promise = this._executeRest<unknown>(account, token, request, controller.signal, cacheKey);
 			shared = { controller, promise, waiters: 0 };
-			this._inFlight.set(cacheKey, shared);
+			this._inFlight.set(coalescingKey, shared);
+			const created = shared;
+			void promise.then(
+				() => this._deleteRestRequest(coalescingKey, created),
+				() => this._deleteRestRequest(coalescingKey, created),
+			);
 		}
 		shared.waiters++;
 		try {
 			return await this._waitForShared<T>(shared, signal);
 		} finally {
 			shared.waiters--;
-			if (shared.waiters === 0 && this._inFlight.get(cacheKey) === shared) {
+			if (shared.waiters === 0 && this._inFlight.get(coalescingKey) === shared) {
+				this._inFlight.delete(coalescingKey);
 				shared.controller.abort(new Error('All GitHub request waiters cancelled'));
 			}
 		}
@@ -177,10 +173,14 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		let shared = this._graphQlInFlight.get(key);
 		if (!shared) {
 			const controller = new AbortController();
-			const promise = this._executeGraphQL<unknown>(account, token, url, query, variables, controller.signal, priority)
-				.finally(() => this._graphQlInFlight.delete(key));
+			const promise = this._executeGraphQL<unknown>(account, token, url, query, variables, controller.signal, priority);
 			shared = { controller, promise, waiters: 0 };
 			this._graphQlInFlight.set(key, shared);
+			const created = shared;
+			void promise.then(
+				() => this._deleteGraphQLRequest(key, created),
+				() => this._deleteGraphQLRequest(key, created),
+			);
 		}
 		shared.waiters++;
 		try {
@@ -188,6 +188,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		} finally {
 			shared.waiters--;
 			if (shared.waiters === 0 && this._graphQlInFlight.get(key) === shared) {
+				this._graphQlInFlight.delete(key);
 				shared.controller.abort(new Error('All GitHub GraphQL request waiters cancelled'));
 			}
 		}
@@ -202,14 +203,13 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		signal: AbortSignal,
 		priority: GitHubRequestPriority,
 	): Promise<GitHubGraphQLResponse<T>> {
-		return this._queue.enqueue(account, priority, signal, async () => {
-			await this._rateLimits.wait(account, 'graphql', signal);
+		return this._enqueueWithRateLimit(account, 'graphql', priority, signal, async () => {
 			const response = await this._fetchWithRetry(url, {
 				method: 'POST',
 				cache: 'no-store',
 				headers: {
 					'Accept': 'application/json',
-					'Authorization': `token ${token}`,
+					'Authorization': `Bearer ${token}`,
 					'Cache-Control': 'no-store',
 					'Content-Type': 'application/json',
 					'X-GitHub-Api-Version': defaultApiVersion,
@@ -238,18 +238,24 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		const accountKey = GitHubRequestQueue.accountKey(account);
 		this._queue.cancelAccount(account, reason);
 		this._rateLimits.clearAccount(account);
+		const cacheKeys: string[] = [];
 		for (const [key, entry] of this._restCache) {
 			if (entry.accountKey === accountKey) {
-				this._restCache.delete(key);
+				cacheKeys.push(key);
 			}
+		}
+		for (const key of cacheKeys) {
+			this._restCache.delete(key);
 		}
 		for (const [key, request] of this._inFlight) {
 			if (key.startsWith(`${accountKey}\x00`)) {
+				this._inFlight.delete(key);
 				request.controller.abort(reason);
 			}
 		}
 		for (const [key, request] of this._graphQlInFlight) {
 			if (key.startsWith(`${accountKey}\x00`)) {
+				this._graphQlInFlight.delete(key);
 				request.controller.abort(reason);
 			}
 		}
@@ -280,12 +286,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		signal: AbortSignal,
 		cacheKey: string,
 	): Promise<GitHubRestResponse<T>> {
-		return this._queue.enqueue(account, request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation'), signal, async () => {
-			await this._rateLimits.wait(account, 'core', signal);
+		return this._enqueueWithRateLimit(account, 'core', request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation'), signal, async () => {
 			const cached = request.etag !== false && !request.unconditional ? this._restCache.get(cacheKey) : undefined;
 			const headers: Record<string, string> = {
 				'Accept': request.accept ?? 'application/vnd.github+json',
-				'Authorization': `token ${token}`,
+				'Authorization': `Bearer ${token}`,
 				'Cache-Control': 'no-store',
 				'X-GitHub-Api-Version': request.apiVersion ?? defaultApiVersion,
 			};
@@ -359,6 +364,27 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		});
 	}
 
+	private async _enqueueWithRateLimit<T>(
+		account: GitHubAccountHandle,
+		resource: string,
+		priority: GitHubRequestPriority,
+		signal: AbortSignal,
+		task: () => Promise<T>,
+	): Promise<T> {
+		while (true) {
+			await this._rateLimits.wait(account, resource, signal);
+			const result = await this._queue.enqueue<RateLimitQueueResult<T>>(account, priority, signal, async () => {
+				if (this._rateLimits.getDelay(account, resource) > 0) {
+					return { blocked: true };
+				}
+				return { blocked: false, value: await task() };
+			});
+			if (!result.blocked) {
+				return result.value;
+			}
+		}
+	}
+
 	private async _fetchRestWithRedirects(account: GitHubAccountHandle, initialUrl: string, init: RequestInit, retry: boolean): Promise<Response> {
 		let url = this._redirects.get(initialUrl) ?? initialUrl;
 		const initialOrigin = new URL(url).origin;
@@ -387,7 +413,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
 			try {
 				const response = await this._fetch(url, init);
-				if (attempt === 0 && response.status >= 500) {
+				if (retry && attempt === 0 && response.status >= 500) {
 					await schedulerDelay(this._scheduler, 100 + this._scheduler.jitter(200), init.signal as AbortSignal);
 					continue;
 				}
@@ -414,6 +440,26 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			request.apiVersion ?? defaultApiVersion,
 			request.representationVersion ?? 1,
 		].join('\x00');
+	}
+
+	private _restCoalescingKey(account: GitHubAccountHandle, request: GitHubRestRequest, url: string): string {
+		return [
+			this._restCacheKey(account, request, url),
+			request.etag === false ? 'etag-disabled' : 'etag-enabled',
+			request.unconditional === true ? 'unconditional' : 'conditional',
+		].join('\x00');
+	}
+
+	private _deleteRestRequest(key: string, request: ISharedRequest): void {
+		if (this._inFlight.get(key) === request) {
+			this._inFlight.delete(key);
+		}
+	}
+
+	private _deleteGraphQLRequest(key: string, request: ISharedGraphQLRequest): void {
+		if (this._graphQlInFlight.get(key) === request) {
+			this._graphQlInFlight.delete(key);
+		}
 	}
 
 	private _httpError(prefix: string, response: Response, body: string): GitHubRequestError {

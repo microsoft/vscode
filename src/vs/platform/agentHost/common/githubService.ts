@@ -17,6 +17,18 @@ export type GitHubRequestPriority =
 	| 'background'
 	| 'enrichment';
 
+export type GitHubRequestErrorKind =
+	| 'authentication'
+	| 'authorization'
+	| 'notFound'
+	| 'validation'
+	| 'schema'
+	| 'rateLimit'
+	| 'network'
+	| 'server'
+	| 'malformedResponse'
+	| 'unknown';
+
 export interface GitHubHostCapabilities {
 	readonly graphql: boolean;
 	readonly mergeQueue: boolean;

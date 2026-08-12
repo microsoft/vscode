@@ -9,18 +9,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 
 suite('FakeGitHubScheduler', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('runs due callbacks in time then insertion order', () => {
 		const scheduler = new FakeGitHubScheduler({ now: 100 });
 		const events: string[] = [];
 
-		scheduler.schedule(() => events.push(`late@${scheduler.now()}`), 50);
-		scheduler.schedule(() => {
+		disposables.add(scheduler.schedule(() => events.push(`late@${scheduler.now()}`), 50));
+		disposables.add(scheduler.schedule(() => {
 			events.push(`first@${scheduler.now()}`);
-			scheduler.schedule(() => events.push(`nested@${scheduler.now()}`), 0);
-		}, 10);
-		scheduler.schedule(() => events.push(`second@${scheduler.now()}`), 10);
+			disposables.add(scheduler.schedule(() => events.push(`nested@${scheduler.now()}`), 0));
+		}, 10));
+		disposables.add(scheduler.schedule(() => events.push(`second@${scheduler.now()}`), 10));
 
 		scheduler.advanceBy(9);
 		assert.deepStrictEqual({ now: scheduler.now(), events }, { now: 109, events: [] });

@@ -11,6 +11,7 @@ import { AgentHostAuthenticationService } from '../../../node/agentHostAuthentic
 import { GitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
 import { GitHubRequestError, GitHubTransport } from '../../../node/shared/githubTransport.js';
 import { MockAgent } from '../mockAgent.js';
+import { nodeFetch } from './nodeFetch.js';
 import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
 function signal(): AbortSignal {
@@ -37,7 +38,7 @@ suite('GitHubCredentialService', () => {
 			);
 			const endpoint = server.createEndpointService();
 			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
-			const transport = disposables.add(new GitHubTransport(fetch));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(transport, authentication, endpoint));
 			const agent = new MockAgent();
 			disposables.add(toDisposable(() => agent.dispose()));
@@ -69,10 +70,14 @@ suite('GitHubCredentialService', () => {
 
 	test('invalidates the matching authentication generation after 401', async () => {
 		await withServer(async server => {
-			server.enqueue(gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101 }) }));
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101 }) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/one', response: gitHubJsonResponse({ value: 1 }, { etag: '"one"' }) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/o/r/two', response: gitHubJsonResponse({ value: 2 }, { etag: '"two"' }) }),
+			);
 			const endpoint = server.createEndpointService();
 			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
-			const transport = disposables.add(new GitHubTransport(fetch));
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(transport, authentication, endpoint));
 			const agent = new MockAgent();
 			disposables.add(toDisposable(() => agent.dispose()));
@@ -80,15 +85,21 @@ suite('GitHubCredentialService', () => {
 			agent.getProtectedResources = () => [resource];
 			await authentication.authenticate({ resource: resource.resource, scopes: resource.scopes_supported, token: 'one' }, [agent]);
 			const credential = await credentials.getCredential(signal());
+			await transport.rest(credential.account, credential.token, { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/one` }, signal());
+			await transport.rest(credential.account, credential.token, { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/two` }, signal());
+			const invalidations: string[] = [];
+			disposables.add(credentials.onDidInvalidate(event => invalidations.push(event.reason)));
 
 			credentials.handleRequestError(credential, new GitHubRequestError('Bad credentials', 'authentication', 401));
 
 			assert.deepStrictEqual({
 				token: authentication.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported }),
 				aborted: credential.signal.aborted,
+				invalidations,
 			}, {
 				token: undefined,
 				aborted: true,
+				invalidations: ['authentication'],
 			});
 			server.assertSatisfied();
 		});

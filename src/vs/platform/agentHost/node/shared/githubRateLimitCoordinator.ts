@@ -19,6 +19,7 @@ export interface GitHubRateLimitState {
 export class GitHubRateLimitCoordinator extends Disposable {
 
 	private readonly _states = new Map<string, GitHubRateLimitState>();
+	private readonly _accountBlockedUntil = new Map<string, number>();
 
 	constructor(
 		private readonly _scheduler: IGitHubScheduler,
@@ -30,19 +31,21 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		return this._states.get(this._key(account, resource));
 	}
 
+	getDelay(account: GitHubAccountHandle, resource: string): number {
+		const accountKey = GitHubRequestQueue.accountKey(account);
+		const state = this._states.get(this._key(account, resource));
+		const resourceBlockedUntil = state?.blockedUntil ?? (state?.remaining === 0 ? state.resetAt : undefined);
+		const accountBlockedUntil = this._accountBlockedUntil.get(accountKey);
+		const blockedUntil = resourceBlockedUntil === undefined
+			? accountBlockedUntil
+			: accountBlockedUntil === undefined ? resourceBlockedUntil : Math.max(resourceBlockedUntil, accountBlockedUntil);
+		return blockedUntil === undefined ? 0 : Math.max(0, blockedUntil - this._scheduler.now());
+	}
+
 	async wait(account: GitHubAccountHandle, resource: string, signal: AbortSignal): Promise<void> {
-		const accountPrefix = `${GitHubRequestQueue.accountKey(account)}\x00`;
-		let blockedUntil: number | undefined;
-		for (const [key, state] of this._states) {
-			if (key === `${accountPrefix}${resource}` || key.startsWith(accountPrefix)) {
-				const candidate = state.blockedUntil ?? (state.remaining === 0 ? state.resetAt : undefined);
-				if (candidate !== undefined && (blockedUntil === undefined || candidate > blockedUntil)) {
-					blockedUntil = candidate;
-				}
-			}
-		}
-		if (blockedUntil !== undefined && blockedUntil > this._scheduler.now()) {
-			await schedulerDelay(this._scheduler, blockedUntil - this._scheduler.now(), signal);
+		const delay = this.getDelay(account, resource);
+		if (delay > 0) {
+			await schedulerDelay(this._scheduler, delay, signal);
 		}
 	}
 
@@ -53,11 +56,20 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const retryAfter = parseSeconds(response.headers.get('retry-after'), this._scheduler.now());
 		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'));
 		const secondaryLimited = isSecondaryRateLimit(response.status, responseBody);
-		const blockedUntil = retryAfter !== undefined
+		const blockedUntil = !secondaryLimited && retryAfter !== undefined
 			? this._scheduler.now() + retryAfter * 1000
-			: response.status === 429 || secondaryLimited
+			: !secondaryLimited && response.status === 429
 				? resetSeconds !== undefined ? resetSeconds * 1000 : previous?.blockedUntil
 				: undefined;
+		if (secondaryLimited) {
+			const accountKey = GitHubRequestQueue.accountKey(account);
+			const accountBlockedUntil = retryAfter !== undefined
+				? this._scheduler.now() + retryAfter * 1000
+				: resetSeconds !== undefined ? resetSeconds * 1000 : this._accountBlockedUntil.get(accountKey);
+			if (accountBlockedUntil !== undefined) {
+				this._accountBlockedUntil.set(accountKey, accountBlockedUntil);
+			}
+		}
 		this._states.set(key, {
 			limit: parseNumber(response.headers.get('x-ratelimit-limit')) ?? previous?.limit,
 			remaining: parseNumber(response.headers.get('x-ratelimit-remaining')) ?? previous?.remaining,
@@ -91,16 +103,19 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	}
 
 	clearAccount(account: GitHubAccountHandle): void {
-		const prefix = `${GitHubRequestQueue.accountKey(account)}\x00`;
+		const accountKey = GitHubRequestQueue.accountKey(account);
+		const prefix = `${accountKey}\x00`;
 		for (const key of this._states.keys()) {
 			if (key.startsWith(prefix)) {
 				this._states.delete(key);
 			}
 		}
+		this._accountBlockedUntil.delete(accountKey);
 	}
 
 	override dispose(): void {
 		this._states.clear();
+		this._accountBlockedUntil.clear();
 		super.dispose();
 	}
 
