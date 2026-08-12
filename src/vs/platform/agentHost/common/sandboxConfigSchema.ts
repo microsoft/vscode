@@ -61,7 +61,7 @@ export type ISandboxConfigValue = Partial<{
  * normalized form of each setting is declared here — the workbench is
  * expected to:
  *
- *  - map legacy boolean sandbox enabled values to the `'on' | 'off' | 'allowNetwork'`
+ *  - map legacy boolean sandbox enabled values to the `'on' | 'off'`
  *    agent-host enum, and
  *  - migrate values from any deprecated setting IDs to their modern key
  *
@@ -76,12 +76,12 @@ export const sandboxConfigSchema = createSchema({
 			[AgentHostSandboxKey.Enabled]: {
 				type: 'string',
 				title: localize('agentHost.config.sandbox.enabled.title', "Sandbox Enabled"),
-				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 			},
 			[AgentHostSandboxKey.WindowsEnabled]: {
 				type: 'string',
 				title: localize('agentHost.config.sandbox.windowsEnabled.title', "Sandbox Enabled (Windows)"),
-				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+				enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 			},
 			[AgentHostSandboxKey.AllowNetwork]: {
 				type: 'boolean',

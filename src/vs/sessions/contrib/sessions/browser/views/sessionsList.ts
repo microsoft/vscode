@@ -2283,7 +2283,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const activeSession = this._sessionsService.activeSession.get();
 
 		// Filter by session type and status
-		let filtered = this.sessions;
+		let filtered = this.sessions.filter(session => !isAutomationSession(session));
 		const hostFilter = this._agentHostFilterService.selectedProviderId;
 		if (hostFilter !== undefined) {
 			filtered = filtered.filter(s => s.providerId === hostFilter);
@@ -2301,10 +2301,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !s.isRead.get());
 		}
 
-		// Always include the active session even if it was filtered out,
-		// so it remains visible while selected
+		// Keep the active user-facing session visible even when another filter excludes it.
 		if (activeSession && !filtered.some(s => s.sessionId === activeSession.sessionId)) {
-			const match = this.sessions.find(s => s.sessionId === activeSession.sessionId);
+			const match = this.sessions.find(s => s.sessionId === activeSession.sessionId && !isAutomationSession(s));
 			if (match) {
 				filtered = [...filtered, match];
 			}
@@ -3453,6 +3452,11 @@ export function isQuickChatSession(session: ISession): boolean {
 	return session.isQuickChat?.get() ?? false;
 }
 
+/** Whether a session is associated with an automation run. */
+export function isAutomationSession(session: ISession): boolean {
+	return session.isAutomation?.get() ?? false;
+}
+
 export function groupSessionsForList(
 	sessions: ISession[],
 	grouping: SessionsGrouping,
@@ -3461,7 +3465,7 @@ export function groupSessionsForList(
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
 ): ISessionSection[] {
-	const sorted = sortSessions(sessions, sorting, getSortKey);
+	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
 
 	// Archived wins over pinned (done sessions stay grouped); pinned wins over the
 	// quick-chats bucket so a pinned quick chat still surfaces in Pinned.

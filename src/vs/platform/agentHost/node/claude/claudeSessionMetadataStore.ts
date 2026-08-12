@@ -6,7 +6,7 @@
 import type { SDKSessionInfo } from '@anthropic-ai/claude-agent-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
-import { AgentProvider, AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
+import { IAgentChatMetadata } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
 
@@ -60,10 +60,8 @@ export interface IClaudeSessionOverlayUpdate {
  *   `{ id, config }` shape,
  * - the read/write helpers that open a per-call DB ref,
  * - the projection from {@link SDKSessionInfo} + overlay onto the
- *   platform's {@link IAgentSessionMetadata} shape.
- *
- * One instance per {@link ClaudeAgent}: the {@link AgentProvider} id
- * passed at construction is the one stamped on every projected URI.
+ *   platform's {@link IAgentChatMetadata} shape (minus `chat`, which the
+ *   caller attaches from its own exact-chat identity).
  *
  * The SDK is the source of truth for session existence; the overlay
  * merely decorates. External Claude CLI sessions have no overlay DB,
@@ -80,7 +78,6 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_WORKING_DIRECTORIES = 'claude.workingDirectories';
 
 	constructor(
-		private readonly _provider: AgentProvider,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) { }
 
@@ -161,14 +158,14 @@ export class ClaudeSessionMetadataStore {
 
 	/**
 	 * Project an SDK-supplied {@link SDKSessionInfo} onto the platform's
-	 * {@link IAgentSessionMetadata} shape. Pure projection — does not touch
+	 * {@link IAgentChatMetadata} shape, minus `chat` — the caller attaches
+	 * that from its own exact-chat identity. Pure projection — does not touch
 	 * the DB. The per-session overlay no longer contributes any projected
 	 * field, so it is not read here; the store is still consulted on the
 	 * harness's internal restoration paths (see {@link read}).
 	 */
-	project(entry: SDKSessionInfo): IAgentSessionMetadata {
+	project(entry: SDKSessionInfo): Omit<IAgentChatMetadata, 'chat'> {
 		return {
-			session: AgentSession.uri(this._provider, entry.sessionId),
 			startTime: entry.createdAt ?? entry.lastModified,
 			modifiedTime: entry.lastModified,
 			summary: entry.customTitle ?? entry.summary,
