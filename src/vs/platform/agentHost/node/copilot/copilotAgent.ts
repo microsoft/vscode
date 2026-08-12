@@ -2831,41 +2831,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _sendMessageOnce(chat: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, workingDirectories?: readonly URI[], operationContext?: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveSendChatContext(chat, operationContext);
 		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
-			await this._activeClients.get(context.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded();
+			const current = this._resolveSendChatContext(chat, operationContext);
+			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded();
 
-			let entry: CopilotAgentSession | undefined = context.target;
+			let entry: CopilotAgentSession | undefined = current.target;
 			if (!entry) {
-				entry = await this._ensureResolvedChatSession(context, workingDirectories);
+				entry = await this._ensureResolvedChatSession(current, workingDirectories);
 			}
 
 			// If the active client's config changed (tools or plugins),
 			// dispose this session so it gets resumed with the updated config.
-			const activeClient = this._activeClients.get(context.configurationResource);
+			const activeClient = this._activeClients.get(current.configurationResource);
 			const hadCachedEntry = !!entry;
-			this._logService.info(`[Copilot:${context.configurationId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
+			this._logService.info(`[Copilot:${current.configurationId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			const rootsChanged = !!entry && workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-			const structuralConfigChanged = !!entry && !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot, context.chatKey);
+			const structuralConfigChanged = !!entry && !!activeClient && await activeClient.requiresRestart(entry.appliedSnapshot, current.chatKey);
 			if (entry && (rootsChanged || structuralConfigChanged)) {
-				this._logService.info(`[Copilot:${context.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
+				this._logService.info(`[Copilot:${current.configurationId}] Session configuration changed, refreshing session. clients=[${activeClient ? [...activeClient.toolSet.clientIds()].join(', ') || '(none)' : '(none)'}]`);
 				// Finish disconnecting before resuming the SAME SDK session id with
 				// the updated config. Routing is preserved so the session identity
 				// is recoverable; peer chats keep their own entries and are left
 				// intact. Resume explicitly (rather than via the generic re-resolve
 				// below) so the refreshed config is re-applied deterministically.
 				await this._destroyLiveSession(entry, true);
-				if (entry.sessionId === context.configurationId) {
-					entry = await this._resumeSession(context.configurationId, context.chat, workingDirectories);
+				if (entry.sessionId === current.configurationId) {
+					entry = await this._resumeSession(current.configurationId, current.chat, workingDirectories);
 				} else {
 					if (workingDirectories) {
 						activeClient?.pluginController.setAdditionalDirectories(this._additionalCustomizationDirectories(workingDirectories));
 					}
-					entry = await this._ensureResolvedChatSession(context, workingDirectories);
+					entry = await this._ensureResolvedChatSession(current, workingDirectories);
 				}
 			}
 			if (!entry) {
-				this._logService.info(`[Copilot:${context.configurationId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
+				this._logService.info(`[Copilot:${current.configurationId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
 			}
-			entry ??= await this._ensureResolvedChatSession(context, workingDirectories);
+			entry ??= await this._ensureResolvedChatSession(current, workingDirectories);
 			if (!entry) {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
@@ -2878,15 +2879,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			try {
-				const sdkMode = this._resolveSdkMode(context.configurationResource);
-				const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
+				const sdkMode = this._resolveSdkMode(current.configurationResource);
+				const sideChat = this._chatBackings.get(current.chatKey)?.sideChat;
 				const turns = sideChat ? await entry.getMessages() : [];
 				const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
 				await entry.send(sdkPrompt, attachments, turnId, sdkMode, senderClientId, clientType);
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
-				this._logService.error(`[Copilot:${context.configurationId}] entry.send() failed: code=${errCode}, message=${errMsg}, hadCachedEntry=${hadCachedEntry}, errorType=${err?.constructor?.name}`);
+				this._logService.error(`[Copilot:${current.configurationId}] entry.send() failed: code=${errCode}, message=${errMsg}, hadCachedEntry=${hadCachedEntry}, errorType=${err?.constructor?.name}`);
 				throw err;
 			}
 		});
