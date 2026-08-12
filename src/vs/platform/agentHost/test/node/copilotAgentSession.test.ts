@@ -38,6 +38,7 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization } from '../../common/state/protocol/channels-session/state.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { buildNonPtyShellTerminalUri } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -1123,9 +1124,33 @@ suite('CopilotAgentSession', () => {
 			attachments: [{
 				type: 'blob',
 				data: encodeBase64(VSBuffer.fromString(expectedText)),
-				mimeType: 'text/plain',
+				mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=agentFeedback',
 				displayName: '1 comment',
 			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: '2026-07-29T10:00:00.000Z',
+			data: {
+				interactionId: 'message-1',
+				content: '/act-on-feedback',
+				attachments: [{
+					type: 'blob' as const,
+					data: encodeBase64(VSBuffer.fromString(expectedText)),
+					mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=agentFeedback',
+					displayName: '1 comment',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [{
+			type: MessageAttachmentKind.Simple,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			modelRepresentation: expectedText,
 		}]);
 	});
 
@@ -2765,7 +2790,7 @@ suite('CopilotAgentSession', () => {
 				contentScheme: edit?.after?.content.uri ? URI.parse(edit.after.content.uri).scheme : undefined,
 			}, {
 				title: 'Create file?',
-				message: { markdown: 'Creating [package.json](file:///workspace/package.json)' },
+				message: { markdown: 'Create [package.json](file:///workspace/package.json)' },
 				before: undefined,
 				afterUri: 'file:///workspace/package.json',
 				contentScheme: 'pending-edit-content',
@@ -3095,17 +3120,14 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('per-request sandbox: applies the configured policy under default permissions', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
-				enabled: true,
-				allowBypass: true,
-				userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-			});
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('linux', sandbox));
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['off']);
 		});
 
@@ -3492,8 +3514,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('syncs sandbox when the session approval level changes', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
 			await session.send('hello', undefined, 'turn-1');
@@ -3512,17 +3535,9 @@ suite('CopilotAgentSession', () => {
 			}, {
 				permissionModes: ['off', 'on', 'off'],
 				sandboxConfigs: [
-					{
-						enabled: true,
-						allowBypass: true,
-						userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-					},
+					buildSandboxConfigForSdk('linux', sandbox),
 					{ enabled: false },
-					{
-						enabled: true,
-						allowBypass: true,
-						userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-					},
+					buildSandboxConfigForSdk('linux', sandbox),
 				],
 			});
 		});
@@ -3584,8 +3599,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('per-request permissions: Autopilot with Ask When Needed keeps SDK approval mode off', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: {
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'default',
@@ -3599,11 +3615,7 @@ suite('CopilotAgentSession', () => {
 				sandbox: mockSession.sandboxConfigUpdates.at(-1),
 			}, {
 				permissionModes: ['off'],
-				sandbox: {
-					enabled: true,
-					allowBypass: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-				},
+				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
 
@@ -3620,15 +3632,16 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
 		});
 
-		test('per-request sandbox: explicitly disabled on Windows', async () => {
+		test('per-request sandbox: applies the configured policy on Windows', async () => {
+			const sandbox = { [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
 			const { session, mockSession } = await createAgentSession(disposables, {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				platform: 'win32',
 			});
 
 			await session.send('hello', undefined, 'turn-1');
 
-			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), { enabled: false });
+			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), buildSandboxConfigForSdk('win32', sandbox));
 		});
 
 		test('per-request sandbox: explicitly disabled when the sandbox setting is off', async () => {
@@ -3818,8 +3831,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('peer chat observes auto-approve/permissions identically to the initial chat', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const options = {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: {
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'default',
@@ -3844,11 +3858,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
 			assert.deepStrictEqual(summarize(peerMockSession), {
 				permissionModes: ['off'],
-				sandbox: {
-					enabled: true,
-					allowBypass: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-				},
+				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
 
@@ -4565,7 +4575,7 @@ suite('CopilotAgentSession', () => {
 					'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
 					'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
 				],
-				ready: 'Editing [file.ts](file:///repo/file.ts)',
+				ready: 'Edit [file.ts](file:///repo/file.ts)',
 			});
 		});
 
@@ -6447,7 +6457,7 @@ suite('CopilotAgentSession', () => {
 						type: ActionType.ChatToolCallReady,
 						turnId: 'turn-1',
 						toolCallId: 'synth-skill-skill-event',
-						invocationMessage: { markdown: 'Reading skill [explore](file:///skills/explore/SKILL.md)' },
+						invocationMessage: { markdown: 'Read skill [explore](file:///skills/explore/SKILL.md)' },
 						confirmed: ToolCallConfirmationReason.NotNeeded,
 					},
 				},
@@ -7509,7 +7519,7 @@ suite('CopilotAgentSession', () => {
 			// "Running {displayName}…" fallback.
 			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
 			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
-			assert.strictEqual((readySignal.action as ChatToolCallReadyAction).invocationMessage, 'Listed agents');
+			assert.strictEqual((readySignal.action as ChatToolCallReadyAction).invocationMessage, 'List agents');
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {

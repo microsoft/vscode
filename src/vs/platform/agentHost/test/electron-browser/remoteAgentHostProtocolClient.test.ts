@@ -322,6 +322,27 @@ suite('RemoteAgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 1);
 	});
 
+	test('does not retain revoked authentication for reconnect replay', async () => {
+		const { client, transport } = createClient();
+		const authenticate = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user', 'write:user'], token: 'token' });
+		const authenticateRequest = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: authenticateRequest.id, result: { authenticated: true } });
+		await authenticate;
+		assert.deepStrictEqual(authenticateRequest.params, {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			scopes: ['read:user', 'write:user'],
+			token: 'token',
+		});
+
+		const revoke = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user'], token: '' });
+		const revokeRequest = transport.sentMessages[1] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: revokeRequest.id, result: { authenticated: true } });
+		await revoke;
+
+		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
 	test('listSessions carries the workspace-less marker back on _meta', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window

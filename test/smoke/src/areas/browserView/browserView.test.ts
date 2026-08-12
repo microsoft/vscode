@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { installAllHandlers, preseedChatExtensionEnablement } from '../../utils';
@@ -65,6 +66,36 @@ export function setup(logger: Logger): void {
 
 		after(async () => {
 			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		});
+
+		it('opens an HTML file in a locked browser editor', async function () {
+			const app = this.app as Application;
+			const htmlPath = path.join(app.workspacePathOrFolder, 'browser-editor-smoke.html');
+			const htmlUrl = pathToFileURL(htmlPath).toString();
+			fs.writeFileSync(htmlPath, '<!DOCTYPE html><html><head><title>HTML Browser Editor Smoke</title></head><body><main id="browser-editor-smoke">Loaded in the browser editor</main></body></html>');
+
+			try {
+				const browserPage = await app.code.driver.waitForNewPage(path.basename(htmlPath), async () => {
+					await app.workbench.quickaccess.openFileQuickAccessAndWait(htmlPath, path.basename(htmlPath));
+					await app.workbench.quickinput.selectQuickInputElement(0);
+				});
+				openPages.add(browserPage);
+				await browserPage.locator('#browser-editor-smoke', { hasText: 'Loaded in the browser editor' }).waitFor();
+
+				const urlDisplay = app.code.driver.currentPage.locator('.browser-root .browser-url-display');
+				await urlDisplay.waitFor();
+				assert.deepStrictEqual({
+					path: normalizeFileUrl(await urlDisplay.textContent()),
+					contentEditable: await urlDisplay.getAttribute('contenteditable'),
+					ariaReadonly: await urlDisplay.getAttribute('aria-readonly')
+				}, {
+					path: normalizeFileUrl(htmlUrl),
+					contentEditable: 'false',
+					ariaReadonly: 'true'
+				});
+			} finally {
+				fs.rmSync(htmlPath, { force: true });
+			}
 		});
 
 		it('navigates, reloads, and exposes page history', async function () {
@@ -234,6 +265,15 @@ export function setup(logger: Logger): void {
 	});
 }
 
+function normalizeFileUrl(url: string | null): string | null {
+	if (!url) {
+		return null;
+	}
+
+	const filePath = path.normalize(fileURLToPath(url));
+	return process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+}
+
 /**
  * Pre-seed the settings this suite depends on before the application starts.
  *
@@ -258,6 +298,9 @@ function preseedSettings(userDataDir: string | undefined): void {
 	fs.writeFileSync(settingsPath, JSON.stringify({
 		'window.menuStyle': 'custom',
 		'workbench.browser.experimentalUserTools.enabled': true,
+		'workbench.editorAssociations': {
+			'*.html': 'workbench.editor.browser'
+		},
 	}, null, 2));
 }
 

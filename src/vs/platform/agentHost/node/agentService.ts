@@ -1787,9 +1787,6 @@ export class AgentService extends Disposable implements IAgentService {
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
-			if (initialCustomizations && initialCustomizations.length > 0) {
-				state.customizations = [...initialCustomizations];
-			}
 
 			// Refine the forked session's placeholder `Forked: …` title into one
 			// derived from the inherited chat. Forks seed pre-existing
@@ -1811,9 +1808,6 @@ export class AgentService extends Disposable implements IAgentService {
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, importedTurns);
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
-			if (initialCustomizations && initialCustomizations.length > 0) {
-				state.customizations = [...initialCustomizations];
-			}
 
 			// Refine the placeholder title into one generated from the imported
 			// conversation, mirroring forks. Imports seed pre-existing turns, so
@@ -1834,9 +1828,10 @@ export class AgentService extends Disposable implements IAgentService {
 				state.config = sessionConfig;
 				state.activeClients = config?.activeClient ? [config.activeClient] : [];
 			}
-			if (initialCustomizations && initialCustomizations.length > 0) {
-				state.customizations = [...initialCustomizations];
-			}
+		}
+		// Discovery is asynchronous, so publish the result for clients that subscribed while it was in flight.
+		if (initialCustomizations && initialCustomizations.length > 0) {
+			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...initialCustomizations] });
 		}
 		this._serverToolHost.advertise(session.toString());
 		// Persist resolved config values for restore. Mid-session updates are

@@ -275,6 +275,14 @@ export function describeWebSearch(query: string, action: WebSearchAction | null)
 	return query;
 }
 
+export function webSearchInvocationMessage(query: string): string {
+	return localize('codex.webSearch.inProgress', "Searching the web for {0}", query);
+}
+
+export function webSearchPastTenseMessage(query: string): string {
+	return localize('codex.webSearch.completed', "Searched the web for {0}", query);
+}
+
 export function describeFileChange(changes: readonly FileUpdateChange[]): string {
 	return changes.map(change => {
 		const kind = change.kind.type === 'update' && change.kind.move_path
@@ -293,6 +301,16 @@ export function codexCompactionLabels(): { readonly displayName: string; readonl
 		displayName: localize('codex.compaction.displayName', "Compact conversation"),
 		invocationMessage: localize('codex.compaction.inProgress', "Compacting conversation"),
 		pastTenseMessage: localize('codex.compaction.completed', "Compacted conversation"),
+	};
+}
+
+export function codexImageGenerationLabels(status?: string): { readonly displayName: string; readonly invocationMessage: string; readonly pastTenseMessage: string; readonly failedMessage: string; readonly errorMessage: string } {
+	return {
+		displayName: localize('codex.imageGeneration.displayName', "Generate image"),
+		invocationMessage: localize('codex.imageGeneration.inProgress', "Generating image"),
+		pastTenseMessage: localize('codex.imageGeneration.completed', "Generated image"),
+		failedMessage: localize('codex.imageGeneration.failed', "Failed to generate image"),
+		errorMessage: localize('codex.imageGeneration.error', "Image generation {0}", status ?? ''),
 	};
 }
 
@@ -608,10 +626,37 @@ function mapItemStartedBody(
 				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
-				invocationMessage: query,
+				invocationMessage: webSearchInvocationMessage(query),
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta({ toolKind: 'search' }),
+			},
+		];
+	}
+	if (params.item.type === 'imageGeneration') {
+		const toolCallId = generateUuid();
+		const labels = codexImageGenerationLabels();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'image_gen.imagegen',
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: labels.displayName,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: labels.invocationMessage,
+				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? labels.displayName }),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 		];
 	}
@@ -1017,17 +1062,37 @@ export function mapItemCompleted(
 			toolCallId: entry.toolCallId,
 			result: {
 				success: true,
-				pastTenseMessage: `Searched ${query}`,
+				pastTenseMessage: webSearchPastTenseMessage(query),
+			},
+		}];
+	}
+	if (params.item.type === 'imageGeneration') {
+		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const labels = codexImageGenerationLabels(params.item.status);
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
+				content: success ? [{
+					type: ToolResultContentType.EmbeddedResource,
+					data: params.item.result,
+					contentType: 'image/png',
+				}] : undefined,
+				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
 		}];
 	}
 	if (params.item.type === 'fileChange') {
 		const output = fileChangeOutput(params.item.changes) || entry.output;
 		const success = params.item.status === 'completed';
+		const summary = describeFileChange(params.item.changes) || 'Apply file changes';
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
 		const result = {
 			success,
-			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
+			pastTenseMessage: success ? summary : 'Failed to apply file changes',
 			content,
 			...(success ? {} : { error: { message: `Patch ${params.item.status}`, ...(declined ? { code: 'denied' } : {}) } }),
 		};
@@ -1058,14 +1123,14 @@ export function mapItemCompleted(
 		const success = params.item.success === true || params.item.status === 'completed';
 		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
-		const serverPastTense = success ? getServerToolDisplay(entry.toolName, params.item.arguments, { text: output, success })?.pastTenseMessage : undefined;
+		const serverDisplay = success ? getServerToolDisplay(entry.toolName, params.item.arguments, { text: output, success }) : undefined;
 		return [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
 				success,
-				pastTenseMessage: serverPastTense ?? (success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`),
+				pastTenseMessage: serverDisplay?.pastTenseMessage ?? serverDisplay?.invocationMessage ?? (success ? `Called ${entry.toolName}` : `Failed to call ${entry.toolName}`),
 				content,
 				...(success ? {} : { error: { message: `Dynamic tool ${params.item.status}`, ...(declined ? { code: 'denied' } : {}) } }),
 			},
