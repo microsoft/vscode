@@ -522,7 +522,15 @@
 }
 
 .modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) > .active-item-indicator {
-	background-color: var(--vscode-modernActivityBar-activeBackground) !important;
+	background-color: var(--vscode-modernTab-activeBackground) !important;
+}
+
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked > .action-label.codicon {
+	color: var(--vscode-modernTab-activeForeground) !important;
+}
+
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked > .action-label.uri-icon {
+	background-color: var(--vscode-modernTab-activeForeground) !important;
 }
 
 .modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon):not(.checked):hover > .active-item-indicator {
@@ -534,7 +542,15 @@
 }
 
 .modern-ui-tabs.monaco-workbench:not(.hc-black):not(.hc-light) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover > .active-item-indicator {
-	background-color: var(--vscode-modernActivityBar-hoverBackground);
+	background-color: var(--vscode-modernTab-hoverBackground);
+}
+
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover > .action-label.codicon {
+	color: var(--vscode-modernTab-hoverForeground) !important;
+}
+
+.modern-ui-tabs .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover > .action-label.uri-icon {
+	background-color: var(--vscode-modernTab-hoverForeground) !important;
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus:not(.clicked) > .active-item-indicator {
@@ -758,7 +774,13 @@
 }
 
 .modern-ui-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
+	background-color: var(--vscode-modernTab-activeBackground) !important;
+	color: var(--vscode-modernTab-activeForeground) !important;
+}
+
+.modern-ui-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
+	background-color: var(--vscode-modernTab-hoverBackground) !important;
+	color: var(--vscode-modernTab-hoverForeground) !important;
 }
 
 .modern-ui-tabs .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked:not(:focus) {

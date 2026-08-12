@@ -696,13 +696,13 @@ export const MODERN_TAB_HOVER_FOREGROUND = registerColor('modernTab.hoverForegro
 
 // < --- Modern Activity Bar --- >
 
-export const MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items when the modern UI is enabled."));
+export const MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items in the default side position when the modern UI is enabled."));
 
-export const MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND = registerColor('modernActivityBar.activeForeground', MODERN_TAB_ACTIVE_FOREGROUND, localize('modernActivityBarActiveForeground', "Foreground color of active Activity bar items when the modern UI is enabled."));
+export const MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND = registerColor('modernActivityBar.activeForeground', MODERN_TAB_ACTIVE_FOREGROUND, localize('modernActivityBarActiveForeground', "Foreground color of active Activity bar items in the default side position when the modern UI is enabled."));
 
-export const MODERN_ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('modernActivityBar.hoverBackground', MODERN_TAB_HOVER_BACKGROUND, localize('modernActivityBarHoverBackground', "Background color of Activity bar items when hovering and the modern UI is enabled."));
+export const MODERN_ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('modernActivityBar.hoverBackground', MODERN_TAB_HOVER_BACKGROUND, localize('modernActivityBarHoverBackground', "Background color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
 
-export const MODERN_ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('modernActivityBar.hoverForeground', MODERN_TAB_HOVER_FOREGROUND, localize('modernActivityBarHoverForeground', "Foreground color of Activity bar items when hovering and the modern UI is enabled."));
+export const MODERN_ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('modernActivityBar.hoverForeground', MODERN_TAB_HOVER_FOREGROUND, localize('modernActivityBarHoverForeground', "Foreground color of Activity bar items in the default side position when hovering and the modern UI is enabled."));
 
 // < --- Title Bar --- >
 

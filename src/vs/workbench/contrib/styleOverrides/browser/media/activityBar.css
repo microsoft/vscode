@@ -121,16 +121,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-modernActivityBar-activeBackground);
 	transform: translateY(-50%);
-}
-
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.codicon {
-	color: var(--vscode-modernActivityBar-activeForeground) !important;
-}
-
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked .action-label.uri-icon {
-	background-color: var(--vscode-modernActivityBar-activeForeground) !important;
 }
 
 /*
@@ -145,16 +136,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-modernActivityBar-hoverBackground);
 	transform: translateY(-50%);
-}
-
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .action-label.codicon {
-	color: var(--vscode-modernActivityBar-hoverForeground) !important;
-}
-
-.style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .action-label.uri-icon {
-	background-color: var(--vscode-modernActivityBar-hoverForeground) !important;
 }
 
 .style-override .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label.codicon::before,

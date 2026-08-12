@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ThemingExtensions, IColorRegistry, listActiveSelectionForeground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Extensions as ThemingExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER } from '../../../../common/theme.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
@@ -327,7 +327,6 @@ suite('StyleOverridesContribution', () => {
 		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		root.style.setProperty('--vscode-modernActivityBar-activeBackground', '#123456');
 		root.style.setProperty('--vscode-modernActivityBar-activeForeground', '#abcdef');
-		root.style.setProperty('--vscode-modernTab-activeBackground', '#654321');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -339,7 +338,13 @@ suite('StyleOverridesContribution', () => {
 		const activityLabel = appendElement(actionItem, 'action-label codicon');
 		const indicator = appendElement(actionItem, 'active-item-indicator');
 		const badgeContent = appendElement(appendElement(actionItem, 'badge'), 'badge-content');
-		const horizontalAction = createCompositeAction(root, 35, true, true);
+		const agentsRoot = document.createElement('div');
+		agentsRoot.className = 'monaco-workbench modern-ui-tabs';
+		agentsRoot.style.setProperty('--vscode-modernTab-activeBackground', '#654321');
+		agentsRoot.style.setProperty('--vscode-modernTab-activeForeground', '#fedcba');
+		document.body.appendChild(agentsRoot);
+		store.add(toDisposable(() => agentsRoot.remove()));
+		const horizontalAction = createCompositeAction(agentsRoot, 35, true, true);
 		horizontalAction.actionLabel.classList.add('codicon');
 
 		const part = appendElement(root, 'part pane-composite-part');
@@ -366,8 +371,8 @@ suite('StyleOverridesContribution', () => {
 			activityColorsRegistered: [true, true, true, true],
 			indicatorBackground: 'rgb(18, 52, 86)',
 			activityLabelColor: 'rgb(171, 205, 239)',
-			horizontalIndicatorBackground: 'rgb(18, 52, 86)',
-			horizontalLabelColor: 'rgb(171, 205, 239)',
+			horizontalIndicatorBackground: 'rgb(101, 67, 33)',
+			horizontalLabelColor: 'rgb(254, 220, 186)',
 			indicatorWidth: '32px',
 			indicatorHeight: '32px',
 			indicatorBorderRadius: '6px',
@@ -425,6 +430,11 @@ suite('StyleOverridesContribution', () => {
 		const hoverColorProbe = appendElement(root, 'hover-color-probe');
 		hoverColorProbe.style.backgroundColor = 'var(--modern-ui-tab-hover-background)';
 		hoverColorProbe.style.color = 'var(--vscode-modernTab-hoverForeground)';
+		const settingsEditor = appendElement(root, 'settings-editor');
+		const settingsTabsWidget = appendElement(settingsEditor, 'settings-tabs-widget');
+		const settingsActionBar = appendElement(settingsTabsWidget, 'monaco-action-bar');
+		const settingsActionItem = appendElement(settingsActionBar, 'action-item');
+		const settingsActionLabel = appendElement(settingsActionItem, 'action-label checked');
 		const activeColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_ACTIVE_BACKGROUND);
 		const activeForeground = colorRegistry.getColors().find(color => color.id === MODERN_TAB_ACTIVE_FOREGROUND);
 		const hoverColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_HOVER_BACKGROUND);
@@ -442,10 +452,12 @@ suite('StyleOverridesContribution', () => {
 			editorTabForeground: getWindow(tabLabelAnchor).getComputedStyle(tabLabelAnchor).color,
 			hoverTabBackground: getWindow(hoverColorProbe).getComputedStyle(hoverColorProbe).backgroundColor,
 			hoverTabForeground: getWindow(hoverColorProbe).getComputedStyle(hoverColorProbe).color,
+			settingsTabBackground: getWindow(settingsActionLabel).getComputedStyle(settingsActionLabel).backgroundColor,
+			settingsTabForeground: getWindow(settingsActionLabel).getComputedStyle(settingsActionLabel).color,
 		}, {
 			registeredColors: [true, true, true, true],
 			activeDefault: listInactiveSelectionBackground,
-			activeForegroundDefault: oneOf(listInactiveSelectionForeground, listActiveSelectionForeground, foreground),
+			activeForegroundDefault: oneOf(listInactiveSelectionForeground, foreground),
 			hoverDefault: listHoverBackground,
 			hoverForegroundDefault: oneOf(listHoverForeground, foreground),
 			paneTabBackground: 'rgb(18, 52, 86)',
@@ -454,6 +466,8 @@ suite('StyleOverridesContribution', () => {
 			editorTabForeground: 'rgb(171, 205, 239)',
 			hoverTabBackground: 'rgb(101, 67, 33)',
 			hoverTabForeground: 'rgb(254, 220, 186)',
+			settingsTabBackground: 'rgb(18, 52, 86)',
+			settingsTabForeground: 'rgb(171, 205, 239)',
 		});
 	});
 });
