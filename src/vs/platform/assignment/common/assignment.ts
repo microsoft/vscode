@@ -124,10 +124,24 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private windowKind: WindowKind
 	) { }
 
+	/**
+	 * Returns a version string that can be parsed by the TAS client.
+	 * The tas client cannot handle suffixes lke "-insider"
+	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
+	 *
+	 * @param version Version string to be trimmed.
+	*/
+	private static trimVersionSuffix(version: string): string {
+		const regex = /\-[a-zA-Z0-9]+$/;
+		const result = version.split(regex);
+
+		return result[0];
+	}
+
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
 			case Filters.ApplicationVersion:
-				return trimVersionSuffix(this.version); // productService.version
+				return AssignmentFilterProvider.trimVersionSuffix(this.version); // productService.version
 			case Filters.Build:
 				return this.appName; // productService.nameLong
 			case Filters.ClientId:
@@ -145,7 +159,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 			case Filters.Platform:
 				return platform.PlatformToString(platform.platform);
 			case Filters.ReleaseDate:
-				return formatReleaseDate(this.releaseDate);
+				return AssignmentFilterProvider.formatReleaseDate(this.releaseDate);
 			case Filters.WindowKind:
 				return this.windowKind;
 			default:
@@ -153,98 +167,24 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		}
 	}
 
+	private static formatReleaseDate(iso: string): string {
+		// Expect ISO format, fall back to empty string if not provided
+		if (!iso) {
+			return '';
+		}
+		// Remove separators and milliseconds: YYYY-MM-DDTHH:MM:SS.sssZ -> YYYYMMDDHH
+		// Trimmed to 10 digits to fit within int32 bounds (ExP requirement)
+		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
+		if (!match) {
+			return '';
+		}
+		return match.slice(1, 5).join('');
+	}
+
 	getFilters(): Map<string, unknown> {
 		const filters: Map<string, unknown> = new Map<string, unknown>();
 		const filterValues = Object.values(Filters);
 		for (const value of filterValues) {
-			filters.set(value, this.getFilterValue(value));
-		}
-
-		return filters;
-	}
-}
-
-/**
- * Trims a TAS-incompatible version suffix (e.g. `-insider`) so the value can be parsed
- * into a .NET Build object by the experimentation backend.
- */
-function trimVersionSuffix(version: string): string {
-	return version.split(/\-[a-zA-Z0-9]+$/)[0];
-}
-
-/**
- * Formats an ISO release date into the `yyyymmddHH` form the experimentation backend
- * expects (10 digits: yyyymmddHH). Returns an empty string when unavailable.
- */
-function formatReleaseDate(iso: string): string {
-	if (!iso) {
-		return '';
-	}
-	const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
-	if (!match) {
-		return '';
-	}
-	return match.slice(1, 5).join('');
-}
-
-/**
- * userParam names for the new TAS assignments API (POST /api/v1/assignments), emitted by
- * {@link VSCodeCoreAssignmentsFilterProvider}. These replace the legacy header keys and
- * are sent only to the new endpoint.
- */
-export enum AssignmentsFilters {
-	ApplicationVersion = 'vscode_core_appversion',
-	Build = 'vscode_core_build',
-	DeveloperDeviceId = 'devdeviceid',
-	ExtensionName = 'vscode_core_extensionname',
-	ExtensionNameShort = 'extensionname',
-	TargetPopulation = 'vscode_core_targetpopulation',
-	Platform = 'vscode_core_platform',
-	ReleaseDate = 'vscode_core_releasedate',
-	WindowKind = 'vscode_core_windowkind',
-}
-
-/**
- * Emits the generic VS Code core filters for the new TAS assignments API using the new
- * userParam key names, so the assignments endpoint never receives the legacy header keys.
- */
-export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilterProvider {
-	constructor(
-		private version: string,
-		private appName: string,
-		private devDeviceId: string,
-		private targetPopulation: TargetPopulation,
-		private releaseDate: string,
-		private windowKind: WindowKind
-	) { }
-
-	getFilterValue(filter: string): string | null {
-		switch (filter) {
-			case AssignmentsFilters.ApplicationVersion:
-				return trimVersionSuffix(this.version);
-			case AssignmentsFilters.Build:
-				return this.appName;
-			case AssignmentsFilters.DeveloperDeviceId:
-				return this.devDeviceId;
-			case AssignmentsFilters.ExtensionName:
-			case AssignmentsFilters.ExtensionNameShort:
-				return 'vscode-core';
-			case AssignmentsFilters.TargetPopulation:
-				return this.targetPopulation;
-			case AssignmentsFilters.Platform:
-				return platform.PlatformToString(platform.platform);
-			case AssignmentsFilters.ReleaseDate:
-				return formatReleaseDate(this.releaseDate);
-			case AssignmentsFilters.WindowKind:
-				return this.windowKind;
-			default:
-				return null;
-		}
-	}
-
-	getFilters(): Map<string, unknown> {
-		const filters: Map<string, unknown> = new Map<string, unknown>();
-		for (const value of Object.values(AssignmentsFilters)) {
 			filters.set(value, this.getFilterValue(value));
 		}
 

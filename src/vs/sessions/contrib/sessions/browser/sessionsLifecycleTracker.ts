@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { classifySessionWorkspaceTopology } from '../../../common/sessionsTelemetry.js';
+import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 /** Storage key for the cumulative number of times this client has been launched. */
 const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
@@ -257,13 +257,13 @@ export class SessionsLifecycleTracker extends Disposable {
 	 * brand-new session the user starts from the Agents window.
 	 */
 	incrementAndGetUserRequestCounters(session: ISession): IUserRequestCounters {
-		const providerId = session.providerId;
+		const providerId = getSessionsTelemetryProviderId(session.providerId);
 		const workspaceUri = session.workspace.get()?.uri.toString();
 
 		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) + 1;
 		this._storageService.store(TOTAL_SESSIONS_KEY, userSessionsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const providerCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
+		const providerCounts = this._readProviderCounterMap();
 		const userSessionsForProvider = (providerCounts[providerId] ?? 0) + 1;
 		providerCounts[providerId] = userSessionsForProvider;
 		this._storageService.store(PROVIDER_SESSIONS_KEY, JSON.stringify(providerCounts), StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -329,14 +329,24 @@ export class SessionsLifecycleTracker extends Disposable {
 
 	private _readUserRequestCounters(providerId: string, workspaceUri: string | undefined): IUserRequestCounters {
 		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
-		const providerCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
-		const userSessionsForProvider = providerCounts[providerId] ?? 0;
+		const providerCounts = this._readProviderCounterMap();
+		const userSessionsForProvider = providerCounts[getSessionsTelemetryProviderId(providerId)] ?? 0;
 		let userSessionsInWorkspace = 0;
 		if (workspaceUri) {
 			const workspaceCounts = this._readCounterMap(WORKSPACE_SESSIONS_KEY);
 			userSessionsInWorkspace = workspaceCounts[workspaceUri] ?? 0;
 		}
 		return { userSessionsTotal, userSessionsInWorkspace, userSessionsForProvider };
+	}
+
+	private _readProviderCounterMap(): Record<string, number> {
+		const storedCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
+		const providerCounts: Record<string, number> = {};
+		for (const [providerId, count] of Object.entries(storedCounts)) {
+			const telemetryProviderId = getSessionsTelemetryProviderId(providerId);
+			providerCounts[telemetryProviderId] = (providerCounts[telemetryProviderId] ?? 0) + count;
+		}
+		return providerCounts;
 	}
 
 	private _readCounterMap(key: string): Record<string, number> {
@@ -491,8 +501,8 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: SessionDoneReason, appLaunchCount: number, requestCounters: IUserRequestCounters): ISessionLifecycleSummary {
 	const now = Date.now();
 	return {
-		agentSessionId: sessionId,
-		providerId: entry.providerId,
+		agentSessionId: hashSessionIdForTelemetry(sessionId),
+		providerId: getSessionsTelemetryProviderId(entry.providerId),
 		providerType: entry.providerType,
 		isolationKind: entry.isolationKind,
 		workspaceHash: entry.workspaceUriString ? hash(entry.workspaceUriString).toString(16) : '',

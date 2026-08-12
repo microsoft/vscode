@@ -841,7 +841,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 									onData: (chunk) => {
 										if (!closed) {
 											try {
-												controller?.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
+												controller?.enqueue(new Uint8Array(chunk.buffer));
 											} catch {
 												close();
 											}
@@ -895,7 +895,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 								// deserialize pipeline); transferring its underlying ArrayBuffer would
 								// detach every sibling view. WebKit detaches synchronously, which
 								// previously broke webview resource loading in Safari.
-								const data = chunk.buffer.slice();
+								const data = new Uint8Array(chunk.buffer);
 								this._send('did-load-resource-chunk', { id, data }, [data.buffer]);
 							},
 							onError: () => {

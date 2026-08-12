@@ -910,7 +910,7 @@ following list content ends up with no space above it. Add a matching top margin
 .interactive-item-container .value .rendered-markdown {
 	ul + [data-code],
 	ol + [data-code],
-	li > [data-code]:not(:first-child) {
+	li > [data-code] {
 		margin-top: 16px;
 	}
 }
