@@ -650,7 +650,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// Refresh editor focus and transfer the voice capture lease back to omni
 		// when an in-progress omni turn regains OS focus.
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => {
-			widget.focusInput();
+			const activeElement = auxiliaryWindow.window.document.activeElement;
+			if (!activeElement
+				|| activeElement === auxiliaryWindow.window.document.body
+				|| activeElement === auxiliaryWindow.window.document.documentElement
+				|| widget.inputEditor.getDomNode()?.contains(activeElement)) {
+				widget.focusInput();
+			}
 			if (this.voiceSessionController.omniInputActive.get()) {
 				this.voiceSessionController.setOmniInputActive(true);
 				this.voiceSessionController.setActiveWindow(auxiliaryWindow.window);
