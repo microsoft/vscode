@@ -6,7 +6,7 @@
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { CODEX_AGENT_PROVIDER_ID } from '../../common/agentService.js';
+import { CODEX_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import type { IAgentCustomizationSettingsRegistration } from '../../common/agentCustomizationSettings.js';
 
 export function createCodexProviderConfiguration(userHome: URI): IAgentCustomizationSettingsRegistration {

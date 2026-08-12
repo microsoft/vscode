@@ -353,6 +353,7 @@ export interface IBrowserViewCDPService {
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource: URI | undefined;
 	readonly url: string;
 	readonly title: string;
 	readonly favicon: string | undefined;
@@ -474,6 +475,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	constructor(
 		readonly id: string,
 		readonly owner: IBrowserViewOwner,
+		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
