@@ -1,0 +1,91 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { GitHubHostCapabilitiesService } from '../../../node/shared/githubHostCapabilitiesService.js';
+import { GitHubTransport } from '../../../node/shared/githubTransport.js';
+import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+
+suite('GitHubHostCapabilitiesService', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function withServer(fn: (server: ProgrammableGitHubServer) => Promise<void>): Promise<void> {
+		const server = await ProgrammableGitHubServer.start();
+		try {
+			await fn(server);
+		} finally {
+			await server.disposeAsync();
+		}
+	}
+
+	test('probes once per host and enterprise version', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "StatusCheckRollupContext")'],
+				response: gitHubGraphQLResponse({
+					pullRequest: { fields: [{ name: 'mergeQueueEntry' }, { name: 'reviewThreads' }] },
+					statusCheckRollupContext: { fields: [{ name: 'isRequired' }] },
+				}),
+			}));
+			const transport = disposables.add(new GitHubTransport(fetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+			const credential = {
+				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
+				token: 'token',
+				generation: 1,
+				signal,
+			};
+
+			const first = await service.getCapabilities(credential, '3.16', signal);
+			const cached = await service.getCapabilities(credential, '3.16', signal);
+
+			assert.deepStrictEqual({
+				first,
+				sameObject: first === cached,
+				requestCount: server.requests.length,
+			}, {
+				first: {
+					graphql: true,
+					mergeQueue: true,
+					internalMergeStatus: false,
+					reviewThreads: true,
+					checkContextRequiredness: true,
+				},
+				sameObject: true,
+				requestCount: 1,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('fails closed when the schema probe returns errors', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				response: gitHubGraphQLResponse(undefined, [{ message: 'Field does not exist', type: 'VALIDATION' }]),
+			}));
+			const transport = disposables.add(new GitHubTransport(fetch));
+			const service = disposables.add(new GitHubHostCapabilitiesService(transport, server.createEndpointService()));
+			const signal = new AbortController().signal;
+
+			const result = await service.getCapabilities({
+				account: { host: new URL(server.apiBaseUrl).host, accountId: '101' },
+				token: 'token',
+				generation: 1,
+				signal,
+			}, undefined, signal);
+
+			assert.deepStrictEqual(result, {
+				graphql: false,
+				mergeQueue: false,
+				internalMergeStatus: false,
+				reviewThreads: false,
+				checkContextRequiredness: false,
+			});
+			server.assertSatisfied();
+		});
+	});
+});

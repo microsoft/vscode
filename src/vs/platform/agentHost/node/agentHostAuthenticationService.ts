@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 
@@ -10,15 +13,46 @@ interface IStoredAuthToken {
 	readonly resource: string;
 	readonly scopes: readonly string[];
 	readonly token: string;
+	readonly generation: number;
 }
 
-export class AgentHostAuthenticationService {
+export interface IAgentHostAuthToken {
+	readonly token: string;
+	readonly generation: number;
+}
+
+export interface IAgentHostAuthTokenChange {
+	readonly request: IAgentHostAuthTokenRequest;
+	readonly generation: number;
+	readonly kind: 'accepted' | 'invalidated';
+}
+
+export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
+
+export interface IAgentHostAuthenticationService {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeToken: Event<IAgentHostAuthTokenChange>;
+	authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult>;
+	replay(provider: IAgent): Promise<void>;
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
+	getAuthTokenWithGeneration(request: IAgentHostAuthTokenRequest): IAgentHostAuthToken | undefined;
+	invalidateAuthToken(request: IAgentHostAuthTokenRequest, generation: number): void;
+}
+
+export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _onDidChangeToken = this._register(new Emitter<IAgentHostAuthTokenChange>());
+	readonly onDidChangeToken = this._onDidChangeToken.event;
+	private _generation = 0;
 
 	constructor(
 		private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
@@ -74,9 +108,26 @@ export class AgentHostAuthenticationService {
 		if (!params.token) {
 			// Revocation must never remain replayable, even when a provider rejects
 			// while clearing its own live state.
-			this._tokens.delete(key);
+			const existing = this._tokens.get(key);
+			if (existing) {
+				this._tokens.delete(key);
+				this._onDidChangeToken.fire({
+					request: { resource: params.resource, scopes },
+					generation: existing.generation,
+					kind: 'invalidated',
+				});
+			}
 		} else if (authenticated) {
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
+			const existing = this._tokens.get(key);
+			if (existing?.token !== params.token) {
+				const generation = ++this._generation;
+				this._tokens.set(key, { resource: params.resource, scopes, token: params.token, generation });
+				this._onDidChangeToken.fire({
+					request: { resource: params.resource, scopes },
+					generation,
+					kind: 'accepted',
+				});
+			}
 		}
 		return { authenticated };
 	}
@@ -103,10 +154,14 @@ export class AgentHostAuthenticationService {
 	}
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
+		return this.getAuthTokenWithGeneration(request)?.token;
+	}
+
+	getAuthTokenWithGeneration(request: IAgentHostAuthTokenRequest): IAgentHostAuthToken | undefined {
 		const scopes = this._normalizeScopes(request.scopes);
 		const exact = this._tokens.get(this._key(request.resource, scopes));
 		if (exact) {
-			return exact.token;
+			return { token: exact.token, generation: exact.generation };
 		}
 		if (scopes.length === 0) {
 			return undefined;
@@ -126,12 +181,26 @@ export class AgentHostAuthenticationService {
 			}
 		}
 		if (best) {
-			return best.token;
+			return { token: best.token, generation: best.generation };
 		}
 
 		// Compatibility for clients that resolved the right token before scopes
 		// were forwarded through the authenticate command.
-		return this._tokens.get(this._key(request.resource, []))?.token;
+		const fallback = this._tokens.get(this._key(request.resource, []));
+		return fallback ? { token: fallback.token, generation: fallback.generation } : undefined;
+	}
+
+	invalidateAuthToken(request: IAgentHostAuthTokenRequest, generation: number): void {
+		const resolved = this.getAuthTokenWithGeneration(request);
+		if (!resolved || resolved.generation !== generation) {
+			return;
+		}
+		for (const [key, stored] of this._tokens) {
+			if (stored.resource === request.resource && (stored.generation === generation || stored.token === resolved.token)) {
+				this._tokens.delete(key);
+			}
+		}
+		this._onDidChangeToken.fire({ request, generation, kind: 'invalidated' });
 	}
 
 	private _containsAll(scopes: readonly string[], requested: ReadonlySet<string>): boolean {

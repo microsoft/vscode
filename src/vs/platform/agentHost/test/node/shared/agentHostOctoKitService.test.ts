@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
+import type { GitHubCredential, IGitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
+import { GitHubTransport } from '../../../node/shared/githubTransport.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { deriveGitHubEndpoints } from '../../../common/githubEndpoints.js';
 import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
@@ -26,10 +29,6 @@ function getUrl(input: string | URL | Request): string {
 		return input;
 	}
 	return input instanceof URL ? input.href : input.url;
-}
-
-function makeService(fetchImpl: FetchFunction, enterpriseUri?: string, logService = new NullLogService()): AgentHostOctoKitService {
-	return new AgentHostOctoKitService(fetchImpl, logService, createTestGitHubEndpointService(enterpriseUri));
 }
 
 function signal(): AbortSignal {
@@ -53,7 +52,31 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 suite('AgentHostOctoKitService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const credentialService: IGitHubCredentialService = {
+		_serviceBrand: undefined,
+		onDidInvalidate: Event.None,
+		getCredential: async requestSignal => ({
+			account: { host: 'api.github.com', accountId: '1' },
+			token: 'token',
+			generation: 1,
+			signal: requestSignal,
+		}),
+		resolveCredential: async (token, requestSignal): Promise<GitHubCredential> => ({
+			account: { host: 'api.github.com', accountId: '1' },
+			token,
+			generation: 1,
+			signal: requestSignal,
+		}),
+		handleRequestError: (_credential: GitHubCredential, _error: unknown): void => { },
+	};
+
+	function makeService(fetchImpl: FetchFunction, enterpriseUri?: string, logService = new NullLogService(), endpointService?: IAgentHostGitHubEndpointService): AgentHostOctoKitService {
+		const endpoint = endpointService ?? createTestGitHubEndpointService(enterpriseUri);
+		const transport = disposables.add(new GitHubTransport(fetchImpl));
+		return new AgentHostOctoKitService(logService, endpoint, credentialService, transport);
+	}
 
 	test('createPullRequest posts the expected request and parses the response', async () => {
 		const { fetch, captured } = capturingFetch(jsonResponse({ html_url: 'https://github.com/o/r/pull/42', number: 42, node_id: 'PR_node_42' }));
@@ -243,10 +266,10 @@ suite('AgentHostOctoKitService', () => {
 			getApiBaseUri: () => apiBaseUri,
 		};
 		const requests: (string | undefined)[] = [];
-		const service = new AgentHostOctoKitService(async (_input, init) => {
+		const service = makeService(async (_input, init) => {
 			requests.push((init?.headers as Record<string, string>)['If-None-Match']);
 			return new Response(JSON.stringify([{ html_url: 'https://github.com/o/r/pull/9', number: 9 }]), { status: 200, headers: { 'content-type': 'application/json', etag: 'W/"tag"' } });
-		}, new NullLogService(), endpointService);
+		}, undefined, new NullLogService(), endpointService);
 
 		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());
 		await service.findPullRequestByHeadBranch('o', 'r', 'feature', 'tok', signal());

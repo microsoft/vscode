@@ -86,12 +86,15 @@ import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { GitHubCredentialService, IGitHubCredentialService } from './shared/githubCredentialService.js';
+import { GitHubHostCapabilitiesService } from './shared/githubHostCapabilitiesService.js';
+import { GitHubTransport, IGitHubTransport } from './shared/githubTransport.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
@@ -502,7 +505,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._authService = new AgentHostAuthenticationService(_logService);
+		this._authService = this._register(new AgentHostAuthenticationService(_logService));
 		const databasePath = this._rootConfigResource
 			? joinPath(resourcesDirname(this._rootConfigResource), 'agent-host.db').fsPath
 			: ':memory:';
@@ -539,6 +542,7 @@ export class AgentService extends Disposable implements IAgentService {
 			[IAgentHostGitService, this._gitService],
 			[IAgentHostStorageService, this._storageService],
 			[ITelemetryService, this._telemetryService],
+			[IAgentHostAuthenticationService, this._authService],
 			// The outer agent-host process DI registers `ISessionDataService`,
 			// but this nested strict `InstantiationService` does not inherit it.
 			// Add it explicitly so `@ISessionDataService` injection into the
@@ -557,8 +561,25 @@ export class AgentService extends Disposable implements IAgentService {
 				resource: this._gitHubEndpointService.getCopilotResource(),
 				reason: AuthRequiredReason.Required,
 			});
+			this._stateManager.emitAuthRequired({
+				resource: this._gitHubEndpointService.getRepoResource().resource,
+				reason: AuthRequiredReason.Required,
+			});
 		}));
-		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
+		const gitHubTransport = this._register(new GitHubTransport(fetchFn));
+		services.set(IGitHubTransport, gitHubTransport);
+		const gitHubCredentialService = this._register(instantiationService.createInstance(GitHubCredentialService));
+		services.set(IGitHubCredentialService, gitHubCredentialService);
+		this._register(gitHubCredentialService.onDidInvalidate(event => {
+			if (event.reason === 'authentication') {
+				this._stateManager.emitAuthRequired({
+					resource: this._gitHubEndpointService.getRepoResource().resource,
+					reason: AuthRequiredReason.Required,
+				});
+			}
+		}));
+		this._register(instantiationService.createInstance(GitHubHostCapabilitiesService));
+		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
