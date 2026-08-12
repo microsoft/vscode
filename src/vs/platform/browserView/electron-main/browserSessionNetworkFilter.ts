@@ -86,9 +86,18 @@ export class BrowserSessionNetworkFilter {
 	private readonly derivedWebContentsByOwner = new Map<number, Set<number>>();
 	private readonly webContentsByOrigin = new Map<string, Set<number>>();
 	private readonly originsByWebContents = new Map<number, Set<string>>();
+	private readonly knownWebContents = new Set<number>();
 	private readonly observedWebContents = new Set<number>();
 
 	constructor(private readonly agentNetworkFilterService: IAgentNetworkFilterService) { }
+
+	registerWebContents(webContentsId: number): void {
+		this.knownWebContents.add(webContentsId);
+	}
+
+	unregisterWebContents(webContentsId: number): void {
+		this.knownWebContents.delete(webContentsId);
+	}
 
 	setFiltering(webContentsId: number, enabled: boolean): void {
 		if (enabled) {
@@ -136,7 +145,8 @@ export class BrowserSessionNetworkFilter {
 		const webContents = details.webContents;
 		const webContentsId = this.getWebContentsId(details, webContents);
 		const webContentsWasKnown = webContentsId !== undefined && (
-			this.isWebContentsFiltered(webContentsId)
+			this.knownWebContents.has(webContentsId)
+			|| this.isWebContentsFiltered(webContentsId)
 			|| this.observedWebContents.has(webContentsId)
 			|| this.originsByWebContents.has(webContentsId)
 		);
@@ -146,6 +156,7 @@ export class BrowserSessionNetworkFilter {
 			if (webContents && !this.observedWebContents.has(webContentsId)) {
 				this.observedWebContents.add(webContentsId);
 				webContents.once('destroyed', () => {
+					this.knownWebContents.delete(webContentsId);
 					this.observedWebContents.delete(webContentsId);
 					this.filteredWebContents.delete(webContentsId);
 					this.clearDerivedFilteringOwner(webContentsId);

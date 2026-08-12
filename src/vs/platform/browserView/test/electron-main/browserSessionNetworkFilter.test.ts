@@ -131,6 +131,7 @@ suite('BrowserSession network filter', () => {
 	test('filters shared and action-related main-frame requests without affecting known unshared views', () => {
 		const { filter } = createFilter();
 		filter.setFiltering(1, true);
+		filter.registerWebContents(2);
 		invokeRequest(filter, { url: 'https://unshared.example/page', resourceType: 'mainFrame', webContentsId: 2 });
 
 		const unsharedNavigation = invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 2 });
@@ -165,6 +166,20 @@ suite('BrowserSession network filter', () => {
 			navigationOnlyActionError: undefined,
 			retainedActionError: 'Access to denied.example is blocked by network domain policy.',
 			errorAfterAction: undefined,
+		});
+	});
+
+	test('allows a registered unshared view first navigation while unknown views fail closed', () => {
+		const { filter } = createFilter();
+		filter.setFiltering(1, true);
+		filter.registerWebContents(2);
+
+		assert.deepStrictEqual({
+			registeredUnshared: invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 2 }),
+			unknown: invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 3 }),
+		}, {
+			registeredUnshared: { cancel: false },
+			unknown: { cancel: true },
 		});
 	});
 

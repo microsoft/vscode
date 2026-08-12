@@ -263,6 +263,14 @@ export class BrowserSession {
 		this._agentNetworkFilter.setFiltering(webContentsId, enabled);
 	}
 
+	registerAgentNetworkWebContents(webContentsId: number): void {
+		this._agentNetworkFilter.registerWebContents(webContentsId);
+	}
+
+	unregisterAgentNetworkWebContents(webContentsId: number): void {
+		this._agentNetworkFilter.unregisterWebContents(webContentsId);
+	}
+
 	setAgentNetworkAction(webContentsId: number, sourceId: string, enabled: boolean): void {
 		this._agentNetworkFilter.setAgentAction(webContentsId, sourceId, enabled);
 	}

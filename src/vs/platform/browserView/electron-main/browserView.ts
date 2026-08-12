@@ -153,6 +153,7 @@ export class BrowserView extends Disposable {
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
 		this._webContentsId = this._view.webContents.id;
+		this.session.registerAgentNetworkWebContents(this._webContentsId);
 		if (owner.sessionId) {
 			this.setAgentNetworkFiltering(owner.sessionId, true);
 		}
@@ -1016,6 +1017,7 @@ export class BrowserView extends Disposable {
 			this.session.setAgentNetworkAction(this._webContentsId, sourceId, false);
 		}
 		this._agentNetworkActionSources.clear();
+		this.session.unregisterAgentNetworkWebContents(this._webContentsId);
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();
