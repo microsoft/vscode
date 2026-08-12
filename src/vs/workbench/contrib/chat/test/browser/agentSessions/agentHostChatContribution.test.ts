@@ -270,6 +270,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.dispatchedActions.filter(d => d.action.type === 'chat/turnStarted');
 	}
 	public sessionStates = new Map<string, SeededSessionState>();
+
+	hasLiveSubscription(resource: string): boolean {
+		return this._liveSubscriptions.has(resource);
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
@@ -11091,6 +11096,42 @@ suite('AgentHostChatContribution', () => {
 			});
 			await timeout(50);
 			assert.strictEqual((parent!.toolSpecificData as IChatSubagentToolInvocationData).isActive, false);
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('failed subagent tool calls release child chat subscriptions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const toolCallId = 'tc-failed-task';
+			const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
+
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId, toolName: 'task', displayName: 'Delegate Task',
+				_meta: { toolKind: 'subagent', subagentChatUri: childChatUri },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId, invocationMessage: 'Delegating task',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			await timeout(0);
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), true);
+
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: '"Delegate Task" failed',
+					error: { message: 'Maximum sub-agent depth reached', code: 'failure' },
+				},
+			} as ChatAction);
+			await timeout(0);
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false);
 
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
