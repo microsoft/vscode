@@ -3,23 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { AzureAuthMode } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
+import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { applyAzureSupportedEndpoints, applyConfiguredAzureSupportedEndpoints, azureSupportedEndpointsForUrl, resolveAzureEntraAuthProvider, resolveAzureEntraScopes, resolveAzureModelCapabilities, resolveAzureUrl } from '../azureProvider';
+import { CopilotLanguageModelWrapper } from '../../../conversation/vscode-node/languageModelAccess';
+import { AzureBYOKModelProvider, applyAzureSupportedEndpoints, resolveAzureEntraAuthProvider, resolveAzureEntraScopes, resolveAzureModelCapabilities, resolveAzureUrl } from '../azureProvider';
+import { IBYOKStorageService } from '../byokStorageService';
+import { responsesSupportedEndpointsForUrl } from '../customOAIProvider';
 
 describe('AzureBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
+	let accessor: ITestingServicesAccessor;
+	let instantiationService: IInstantiationService;
 
 	beforeEach(() => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 
 		// Add IBlockedExtensionService which is required by CopilotLanguageModelWrapper
 		testingServiceCollection.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+		instantiationService = accessor.get(IInstantiationService);
 	});
 
 	afterEach(() => {
@@ -105,6 +116,69 @@ describe('AzureBYOKModelProvider', () => {
 
 		it('should fall back when no configured Entra scopes are valid', () => {
 			expect(resolveAzureEntraScopes({ entraScopes: [123, '', null] })).toEqual([AzureAuthMode.COGNITIVE_SERVICES_SCOPE]);
+		});
+	});
+
+	it('uses configured Entra authentication and creates a Responses endpoint', async () => {
+		const authenticationSession = {
+			accessToken: 'test-access-token',
+			account: { id: 'test-account', label: 'Test Account' },
+			id: 'test-session',
+			scopes: ['https://cognitiveservices.azure.us/.default'],
+		} satisfies vscode.AuthenticationSession;
+		const getSession = vi.spyOn(vscode.authentication, 'getSession').mockResolvedValue(authenticationSession);
+		const provideResponse = vi.spyOn(CopilotLanguageModelWrapper.prototype, 'provideLanguageModelResponse').mockResolvedValue();
+		const storageService: IBYOKStorageService = {
+			getAPIKey: async () => undefined,
+			storeAPIKey: async () => { },
+			deleteAPIKey: async () => { },
+			getStoredModelConfigs: async () => ({}),
+			saveModelConfig: async () => { },
+			removeModelConfig: async () => { },
+		};
+		const provider = instantiationService.createInstance(AzureBYOKModelProvider, storageService);
+		const model = {
+			id: 'gpt-5.1',
+			name: 'GPT 5.1',
+			version: '1.0.0',
+			family: 'gpt-5.1',
+			url: 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview',
+			maxInputTokens: 272000,
+			maxOutputTokens: 128000,
+			capabilities: { toolCalling: true, imageInput: true },
+			configuration: {
+				entraAuthProvider: AzureAuthMode.MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER,
+				entraScopes: ['https://cognitiveservices.azure.us/.default'],
+				models: [{
+					id: 'gpt-5.1',
+					name: 'GPT 5.1',
+					url: 'https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview',
+					maxInputTokens: 272000,
+					maxOutputTokens: 128000,
+					toolCalling: true,
+					vision: true,
+				}]
+			},
+		};
+
+		await provider.provideLanguageModelChatResponse(
+			model,
+			[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'Hello')],
+			{ requestInitiator: 'test', tools: [], toolMode: vscode.LanguageModelChatToolMode.Auto },
+			{ report: () => { } },
+			CancellationToken.None
+		);
+
+		expect({
+			authentication: getSession.mock.calls,
+			apiType: provideResponse.mock.calls[0][0].apiType,
+		}).toEqual({
+			authentication: [[
+				AzureAuthMode.MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER,
+				['https://cognitiveservices.azure.us/.default'],
+				{ createIfNone: true, silent: false },
+			]],
+			apiType: 'responses',
 		});
 	});
 
@@ -225,57 +299,15 @@ describe('AzureBYOKModelProvider', () => {
 		});
 	});
 
-	describe('applyConfiguredAzureSupportedEndpoints', () => {
-		it('initializes endpoint metadata when none exists', () => {
-			const modelInfo = {} as IChatModelInformation;
-
-			applyConfiguredAzureSupportedEndpoints(modelInfo, [ModelSupportedEndpoint.Responses]);
-
-			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.Responses]);
-		});
-
-		it('merges explicitly configured supported endpoints with existing metadata', () => {
-			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] } as IChatModelInformation;
-
-			applyConfiguredAzureSupportedEndpoints(modelInfo, [ModelSupportedEndpoint.Responses]);
-
-			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses]);
-		});
-
-		it('deduplicates endpoints that already exist in metadata', () => {
-			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses] } as IChatModelInformation;
-
-			applyConfiguredAzureSupportedEndpoints(modelInfo, [ModelSupportedEndpoint.Responses]);
-
-			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses]);
-		});
-
-		it('leaves metadata unchanged when configured endpoints are empty', () => {
-			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] } as IChatModelInformation;
-
-			applyConfiguredAzureSupportedEndpoints(modelInfo, []);
-
-			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions]);
-		});
-
-		it('leaves metadata unchanged when no endpoints are configured', () => {
-			const modelInfo = { supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] } as IChatModelInformation;
-
-			applyConfiguredAzureSupportedEndpoints(modelInfo, undefined);
-
-			expect(modelInfo.supported_endpoints).toEqual([ModelSupportedEndpoint.ChatCompletions]);
-		});
-	});
-
-	describe('azureSupportedEndpointsForUrl', () => {
+	describe('responsesSupportedEndpointsForUrl', () => {
 		it('marks Responses (and Chat Completions) for /responses URLs and leaves Chat Completions URLs unmarked', () => {
 			expect({
-				responses: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview'),
-				apimResponses: azureSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/responses'),
-				mixedCaseResponses: azureSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/Responses'),
-				chatCompletions: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview'),
-				deploymentNamedResponses: azureSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/responses/chat/completions?api-version=2025-01-01-preview'),
-				malformed: azureSupportedEndpointsForUrl('not a url'),
+				responses: responsesSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview'),
+				apimResponses: responsesSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/responses'),
+				mixedCaseResponses: responsesSupportedEndpointsForUrl('https://my-apim.azure-api.net/openai/Responses'),
+				chatCompletions: responsesSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2025-01-01-preview'),
+				deploymentNamedResponses: responsesSupportedEndpointsForUrl('https://my-resource.openai.azure.com/openai/deployments/responses/chat/completions?api-version=2025-01-01-preview'),
+				malformed: responsesSupportedEndpointsForUrl('not a url'),
 			}).toEqual({
 				responses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],
 				apimResponses: [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses],

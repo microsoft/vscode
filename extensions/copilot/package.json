@@ -1971,25 +1971,6 @@
                     ],
                     "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
-                  "supportedEndpoints": {
-                    "type": "array",
-                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "/chat/completions",
-                        "/responses",
-                        "ws:/responses",
-                        "/v1/messages"
-                      ],
-                      "enumItemLabels": [
-                        "Chat Completions",
-                        "Responses",
-                        "WebSocket Responses",
-                        "Messages"
-                      ]
-                    }
-                  },
                   "requestHeaders": {
                     "type": "object",
                     "description": "Additional HTTP headers to include with requests to this model. These reserved headers are not allowed and ignored if present: forbidden request headers (https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header), forwarding headers ('forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'), and others ('api-key', 'authorization', 'content-type', 'openai-intent', 'x-github-api-version', 'x-initiator', 'x-interaction-id', 'x-interaction-type', 'x-onbehalf-extension-id', 'x-request-id', 'x-vscode-user-agent-library-version'). Pattern-based forbidden headers ('proxy-*', 'sec-*', 'x-http-method*' with forbidden methods) are also blocked.",
@@ -2176,25 +2157,6 @@
                     ],
                     "markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` → nested, otherwise top-level."
                   },
-                  "supportedEndpoints": {
-                    "type": "array",
-                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "/chat/completions",
-                        "/responses",
-                        "ws:/responses",
-                        "/v1/messages"
-                      ],
-                      "enumItemLabels": [
-                        "Chat Completions",
-                        "Responses",
-                        "WebSocket Responses",
-                        "Messages"
-                      ]
-                    }
-                  },
                   "requestHeaders": {
                     "type": "object",
                     "description": "Additional HTTP headers to include with requests to this model. These reserved headers are not allowed and ignored if present: forbidden request headers (https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header), forwarding headers ('forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'), and others ('api-key', 'authorization', 'content-type', 'openai-intent', 'x-github-api-version', 'x-initiator', 'x-interaction-id', 'x-interaction-type', 'x-onbehalf-extension-id', 'x-request-id', 'x-vscode-user-agent-library-version'). Pattern-based forbidden headers ('proxy-*', 'sec-*', 'x-http-method*' with forbidden methods) are also blocked.",
@@ -2340,6 +2302,19 @@
                     "type": "number",
                     "markdownDescription": "The model's full context window (input + output) in tokens, e.g. `1000000` for a 1M model. When set it is the source of truth for the context window and `maxInputTokens` can be omitted. Otherwise the window is derived as `maxInputTokens + maxOutputTokens`."
                   },
+                  "editTools": {
+                    "type": "array",
+                    "description": "List of edit tools supported by the model. If this is not configured, the editor will try multiple edit tools and pick the best one.\n\n- 'find-replace': Find and replace text in a document.\n- 'multi-find-replace': Find and replace text in a document.\n- 'apply-patch': A file-oriented diff format used by some OpenAI models\n- 'code-rewrite': A general but slower editing tool that allows the model to rewrite and code snippet and provide only the replacement to the editor.",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "find-replace",
+                        "multi-find-replace",
+                        "apply-patch",
+                        "code-rewrite"
+                      ]
+                    }
+                  },
                   "thinking": {
                     "type": "boolean",
                     "default": false,
@@ -2372,20 +2347,16 @@
                   },
                   "supportedEndpoints": {
                     "type": "array",
-                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions, `/responses` for Responses API, `ws:/responses` for WebSocket Responses, and `/v1/messages` for Messages API.",
+                    "markdownDescription": "Endpoint shape identifiers supported by this model. These values are metadata, not endpoint URLs. Values are additive with endpoint metadata inferred from the URL. Use `/chat/completions` for Chat Completions and `/responses` for Responses API.",
                     "items": {
                       "type": "string",
                       "enum": [
                         "/chat/completions",
-                        "/responses",
-                        "ws:/responses",
-                        "/v1/messages"
+                        "/responses"
                       ],
                       "enumItemLabels": [
                         "Chat Completions",
-                        "Responses",
-                        "WebSocket Responses",
-                        "Messages"
+                        "Responses"
                       ]
                     }
                   },

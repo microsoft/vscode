@@ -16,7 +16,7 @@ import { BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider'
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
-import { AbstractCustomOAIBYOKModelProvider, CustomOAIModelProviderConfig, hasExplicitApiPath } from './customOAIProvider';
+import { AbstractCustomOAIBYOKModelProvider, CustomOAIModelProviderConfig, hasExplicitApiPath, responsesSupportedEndpointsForUrl } from './customOAIProvider';
 
 type AzureEntraAuthProvider = typeof AzureAuthMode.MICROSOFT_AUTH_PROVIDER | typeof AzureAuthMode.MICROSOFT_SOVEREIGN_CLOUD_AUTH_PROVIDER;
 
@@ -52,20 +52,11 @@ export function resolveAzureEntraScopes(configuration: AzureBYOKModelProviderCon
  * Applies Azure endpoint metadata that is inferred from the resolved request URL.
  */
 export function applyAzureSupportedEndpoints(modelInfo: IChatModelInformation, url: string): void {
-	const supportedEndpoints = azureSupportedEndpointsForUrl(url);
+	const supportedEndpoints = responsesSupportedEndpointsForUrl(url);
 	if (supportedEndpoints) {
 		modelInfo.supported_endpoints = Array.from(new Set([
 			...(modelInfo.supported_endpoints ?? []),
 			...supportedEndpoints
-		]));
-	}
-}
-
-export function applyConfiguredAzureSupportedEndpoints(modelInfo: IChatModelInformation, configuredEndpoints: readonly ModelSupportedEndpoint[] | undefined): void {
-	if (configuredEndpoints?.length) {
-		modelInfo.supported_endpoints = Array.from(new Set([
-			...(modelInfo.supported_endpoints ?? []),
-			...configuredEndpoints
 		]));
 	}
 }
@@ -115,29 +106,6 @@ export function resolveAzureUrl(modelId: string, url: string): string {
 	} else {
 		throw new Error(`Unrecognized Azure deployment URL: ${url}`);
 	}
-}
-
-/**
- * Determines the `supported_endpoints` for a resolved Azure BYOK URL. When the URL targets the
- * Responses API, both Chat Completions and Responses are advertised so a Responses-shaped body
- * (`input`) is sent; otherwise `undefined` preserves the default Chat Completions behavior. This
- * keeps the Entra auth path consistent with the API-key path (issue #318114).
- */
-export function azureSupportedEndpointsForUrl(url: string): ModelSupportedEndpoint[] | undefined {
-	let pathname: string;
-	try {
-		pathname = new URL(url).pathname;
-	} catch {
-		// Tolerate malformed URLs by preserving the default Chat Completions behavior.
-		return undefined;
-	}
-	// Match the final path segment so a deployment named "responses" (e.g.
-	// `/openai/deployments/responses/chat/completions`) is not misclassified. Compare
-	// case-insensitively to tolerate APIM vanity routes that may use different casing.
-	if (pathname.replace(/\/$/, '').toLowerCase().endsWith('/responses')) {
-		return [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses];
-	}
-	return undefined;
 }
 
 export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
@@ -202,7 +170,6 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
 		const modelCapabilities = resolveAzureModelCapabilities(model, url, modelConfiguration);
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
-		applyConfiguredAzureSupportedEndpoints(modelInfo, modelConfiguration?.supportedEndpoints);
 		applyAzureSupportedEndpoints(modelInfo, url);
 
 		const openAIChatEndpoint = this._instantiationService.createInstance(

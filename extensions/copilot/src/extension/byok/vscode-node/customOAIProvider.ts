@@ -45,6 +45,19 @@ export function hasExplicitApiPath(url: string): boolean {
 	return url.includes('/responses') || url.includes('/chat/completions');
 }
 
+export function responsesSupportedEndpointsForUrl(url: string): ModelSupportedEndpoint[] | undefined {
+	let pathname: string;
+	try {
+		pathname = new URL(url).pathname;
+	} catch {
+		return undefined;
+	}
+	if (pathname.replace(/\/$/, '').toLowerCase().endsWith('/responses')) {
+		return [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses];
+	}
+	return undefined;
+}
+
 export interface CustomOAIModelProviderConfig extends LanguageModelChatConfiguration {
 	url?: string;
 	models?: CustomOAIModelConfig[];
@@ -143,8 +156,8 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
 			contextWindow: modelConfiguration?.contextWindow,
-			toolCalling: !!model.capabilities?.toolCalling,
-			vision: !!model.capabilities?.imageInput,
+			toolCalling: !!model.capabilities?.toolCalling || false,
+			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
@@ -156,17 +169,11 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
-		if (modelCapabilities?.supportedEndpoints?.length) {
+		const supportedEndpoints = responsesSupportedEndpointsForUrl(url);
+		if (supportedEndpoints) {
 			modelInfo.supported_endpoints = Array.from(new Set([
 				...(modelInfo.supported_endpoints ?? []),
-				...modelCapabilities.supportedEndpoints
-			]));
-		}
-		if (modelCapabilities?.url?.includes('/responses')) {
-			modelInfo.supported_endpoints = Array.from(new Set([
-				...(modelInfo.supported_endpoints ?? []),
-				ModelSupportedEndpoint.ChatCompletions,
-				ModelSupportedEndpoint.Responses
+				...supportedEndpoints
 			]));
 		}
 		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
