@@ -491,6 +491,9 @@ const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
 interface IExtensionHostCliMarker {
 	readonly origin?: string;
 	readonly customTitle?: string;
+	readonly repositoryProperties?: unknown;
+	readonly worktreeProperties?: unknown;
+	readonly workspaceFolder?: unknown;
 }
 
 /**
@@ -2456,7 +2459,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			cached = fs.readFile(this._extensionHostCliMarkerPath(sessionId), 'utf8')
 				.then(raw => {
 					const parsed = JSON.parse(raw) as unknown;
-					return parsed && typeof parsed === 'object' ? parsed as IExtensionHostCliMarker : undefined;
+					return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as IExtensionHostCliMarker : undefined;
 				})
 				.catch(() => undefined);
 			this._extensionHostCliMarkerCache.set(sessionId, cached);
@@ -2466,14 +2469,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _isExtensionHostCliSession(sessionId: string): Promise<boolean> {
 		const marker = await this._readExtensionHostCliMarker(sessionId);
-		if (!marker) {
+		if (!marker || Object.keys(marker).length === 0) {
 			return false;
 		}
-		// The marker file name is shared with other Copilot CLI hosts (e.g. the
-		// GitHub Copilot app writes `origin: 'other'`). Only VS Code-originated
-		// sessions are adoptable. Markers written before `origin` existed have no
-		// field at all and stay eligible.
-		return marker.origin === undefined || marker.origin === EXTENSION_HOST_CLI_MARKER_ORIGIN;
+		// Mirror the extension host's `getSessionOrigin`: honor an explicit
+		// `origin` (the GitHub Copilot app writes `other`), else guess `vscode`
+		// only when older origin-less markers carry VS Code-specific properties.
+		if (marker.origin !== undefined) {
+			return marker.origin === EXTENSION_HOST_CLI_MARKER_ORIGIN;
+		}
+		return marker.repositoryProperties !== undefined
+			|| marker.worktreeProperties !== undefined
+			|| marker.workspaceFolder !== undefined;
 	}
 
 	/**
