@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -148,8 +148,8 @@ suite('mapSessionEvents — history replay', () => {
 			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
 			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
 		}, {
-			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
-			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+			invocationMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
 		});
 	});
 
@@ -877,6 +877,42 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
 		]);
+	});
+
+	test('reconstructs subagent content when legacy completion precedes subagent start', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'summarize the service' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize agent service', agent_type: 'explore' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true, result: { content: 'Agent started in background.' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { interactionId: 'subagent-prompt', content: 'Inspect agentService.ts.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Summary complete.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const toolCall = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall)?.toolCall;
+		const subagentContent = toolCall?.status === ToolCallStatus.Completed
+			? toolCall.content?.find(content => content.type === ToolResultContentType.Subagent)
+			: undefined;
+
+		assert.deepStrictEqual({
+			description: toolCall ? readToolCallMeta(toolCall).subagentDescription : undefined,
+			subagentContent,
+			childMarkdown: subagentTurnsByToolCallId.get('tc-task')?.flatMap(turn => turn.responseParts)
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content),
+		}, {
+			description: 'Summarize agent service',
+			subagentContent: {
+				type: ToolResultContentType.Subagent,
+				resource: 'copilot:/test-session/subagent/tc-task',
+				title: 'Explore Agent',
+				agentName: 'explore',
+				description: 'Explores',
+			},
+			childMarkdown: ['Summary complete.'],
+		});
 	});
 
 	test('drops subagent user messages whose agentId cannot be mapped', async () => {

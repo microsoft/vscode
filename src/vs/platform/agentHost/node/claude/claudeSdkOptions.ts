@@ -50,7 +50,7 @@ export interface IBuildOptionsInput {
 	 * {@link isResume}; truncates the loaded transcript to this anchor so
 	 * the next turn continues from the restored point on the same session
 	 * id. Omitted in the non-resume (`sessionId`) branch and on ordinary
-	 * resumes. Set by `truncateSession` for the rebuild that immediately
+	 * resumes. Set by `truncateChat` for the rebuild that immediately
 	 * precedes the post-restore turn.
 	 */
 	readonly resumeSessionAt?: string;
