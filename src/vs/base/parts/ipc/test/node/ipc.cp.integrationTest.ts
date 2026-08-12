@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../common/async.js';
 import { Event } from '../../../../common/event.js';
 import { IChannel } from '../../common/ipc.js';
 import { Client } from '../../node/ipc.cp.js';
@@ -67,5 +68,10 @@ suite('IPC, Child Process', function () {
 		const answer_2 = await service.marco();
 		assert.strictEqual(answer_2, 'polo');
 		assert.strictEqual(count, 2);
+	});
+
+	test('rejected call does not cause an unhandled rejection', async () => {
+		await assert.rejects(channel.call('unknown'), /command not found: unknown/);
+		await timeout(0);
 	});
 });

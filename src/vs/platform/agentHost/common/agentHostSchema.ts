@@ -6,6 +6,7 @@
 import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
@@ -410,6 +411,9 @@ export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
  */
 export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
 
+/** Root config key carrying the effective edit auto-approve patterns. */
+export const AgentHostEditAutoApprovePatternsConfigKey = 'editAutoApprovePatterns';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
@@ -767,6 +771,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.codexMultiRootEnabled.title', "Codex Multiple Working Directories"),
 		description: localize('agentHost.config.codexMultiRootEnabled.description', "Whether the Codex provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
 		default: false,
+	}),
+	[AgentHostEditAutoApprovePatternsConfigKey]: schemaProperty<ChatEditAutoApprovePatterns>({
+		type: 'object',
+		title: localize('agentHost.config.editAutoApprovePatterns.title', "Edit Auto Approve Patterns"),
+		description: localize('agentHost.config.editAutoApprovePatterns.description', "Effective edit auto-approve patterns forwarded by the connected client for agent-host write permission checks."),
+		default: DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({
 		type: 'object',
