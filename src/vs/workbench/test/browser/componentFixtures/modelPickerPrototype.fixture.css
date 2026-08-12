@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.model-picker-prototype-fixture {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size120);
+	box-sizing: border-box;
+	width: auto;
+	min-height: 0;
+	padding: var(--vscode-spacing-size240);
+	background: var(--vscode-editor-background);
+}
+
+/* The harness switch is scaffolding, not part of the picker. Everything about it is
+ * deliberately off-key — a warning tint, a dashed edge and a stated caption — so nobody
+ * reads it as a surface we are proposing. */
+.model-picker-prototype-harness-control {
+	display: flex;
+	align-items: center;
+	align-self: center;
+	gap: var(--vscode-spacing-size20);
+	padding: var(--vscode-spacing-size20);
+	border: var(--vscode-strokeThickness) dashed var(--vscode-inputValidation-warningBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-inputValidation-warningBackground);
+}
+
+.model-picker-prototype-harness-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size60);
+	color: var(--vscode-editorWarning-foreground);
+	font-size: var(--vscode-fontSize-label3);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.model-picker-prototype-harness-label::before {
+	content: "\ea60";
+	font-family: codicon;
+	font-size: var(--vscode-codiconFontSize-compact);
+	letter-spacing: normal;
+}
+
+.model-picker-prototype-harness-control .model-picker-prototype-harness-button.monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	background: transparent;
+	color: var(--vscode-editorWarning-foreground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.model-picker-prototype-harness-control .model-picker-prototype-harness-button.monaco-button:hover {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent);
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.model-picker-prototype-harness-control .model-picker-prototype-harness-button.monaco-button.active {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+	color: var(--vscode-editorWarning-foreground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype-harness-control .model-picker-prototype-harness-button.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Reset is an action, not one of the harness choices, so it sits past a divider. */
+.model-picker-prototype-harness-control .model-picker-prototype-harness-reset.monaco-button {
+	margin-left: var(--vscode-spacing-size60);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
+	border-radius: 0;
+	padding-left: var(--vscode-spacing-size100);
+}
+
+.model-picker-prototype-reopen.monaco-button {
+	display: none;
+	width: auto;
+	margin-left: var(--vscode-spacing-size60);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+}
+
+.model-picker-prototype-reopen.monaco-button.visible {
+	display: flex;
+}
+
+.model-picker-prototype.closed {
+	display: none;
+}

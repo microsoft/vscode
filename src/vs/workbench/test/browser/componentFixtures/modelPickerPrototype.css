@@ -1,0 +1,1454 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.model-picker-prototype.action-widget {
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: row;
+	box-sizing: border-box;
+	width: 248px;
+	min-width: 248px;
+	max-width: 248px;
+	height: 380px;
+	position: relative;
+	overflow: hidden;
+	padding: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editor-background);
+	box-shadow: var(--vscode-shadow-lg);
+}
+
+/* Dark themes need a deeper recess. The shadow that separates these surfaces in light is
+ * a black glow, which is all but invisible against a dark shell, so the surfaces have to
+ * carry the separation on their own. */
+.vs-dark .model-picker-prototype .model-picker-prototype-list,
+.vs-dark .model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+.vs-dark .model-picker-prototype .model-picker-prototype-search-toggle.monaco-button.active,
+.vs-dark .model-picker-prototype.setup-required .model-picker-prototype-setup,
+.vs-dark .model-picker-prototype.hub-empty .model-picker-prototype-setup,
+.vs-dark .model-picker-prototype.auto-enabled .model-picker-prototype-auto-control {
+	background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--vscode-editor-background));
+}
+
+.model-picker-prototype.action-widget.configuration-visible {
+	width: 464px;
+	min-width: 464px;
+	max-width: 464px;
+}
+
+.model-picker-prototype-main {
+	display: flex;
+	flex: 0 0 232px;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.model-picker-prototype .action-list-filter {
+	display: none;
+	flex: 1;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	height: 28px;
+	padding: 0;
+}
+
+.model-picker-prototype.search-mode .action-list-filter {
+	display: flex;
+}
+
+/* Search takes the tabs' place inside the same bar, so the search button itself never
+ * moves — it just becomes the selected tab. */
+.model-picker-prototype.search-mode .model-picker-prototype-source-strip {
+	display: none;
+}
+
+.model-picker-prototype .action-list-filter-row {
+	flex: 1;
+	align-self: center;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size60) 0 var(--vscode-spacing-size40);
+}
+
+.model-picker-prototype .model-picker-prototype-search-back.monaco-button {
+	flex: 0 0 28px;
+	align-self: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+}
+
+.model-picker-prototype .model-picker-prototype-search-back.monaco-button .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.model-picker-prototype .model-picker-prototype-search-back.monaco-button:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-search-back.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.model-picker-prototype .action-list-filter-input,
+.model-picker-prototype .action-list-filter-input:focus {
+	height: 24px;
+	padding: 0;
+	border-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	box-shadow: none;
+	font-size: var(--vscode-fontSize-body1);
+}
+
+/* No focus ring on the field: it has no box of its own by design — it replaces the tab
+ * strip, and a ring would draw one. Focus is already clear from the caret, the placeholder
+ * and the search button standing as the active tab. The close button keeps its own ring.
+ * Specificity has to clear the workbench's global `input[type=text]:focus` rule. */
+.model-picker-prototype .action-list-filter-row input.action-list-filter-input:focus,
+.model-picker-prototype .action-list-filter-row input.action-list-filter-input:focus-visible {
+	outline: none;
+}
+
+.model-picker-prototype-source-bar {
+	order: 1;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	padding: var(--vscode-spacing-size80) 0 0;
+}
+
+/* The strip scrolls; the add button rides at its end so it always follows the
+ * last tab. Search stays pinned outside it. */
+.model-picker-prototype-source-strip {
+	display: flex;
+	flex: 0 1 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.model-picker-prototype-source-strip::-webkit-scrollbar {
+	display: none;
+}
+
+.model-picker-prototype-source-tabs {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size20);
+}
+
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button {
+	margin-left: auto;
+}
+
+.model-picker-prototype-source-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button,
+.model-picker-prototype .model-picker-prototype-add-provider.monaco-button,
+.model-picker-prototype .model-picker-prototype-manage.monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	min-width: 28px;
+	height: 28px;
+	padding: 0 var(--vscode-spacing-size60);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+}
+
+/* The button's own rule spaces an icon away from a label. These buttons carry no label, so
+ * the margin only widens them — and it pushed the tab icons off the column the row gutter
+ * below them establishes. */
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button > .codicon,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button > .codicon,
+.model-picker-prototype .model-picker-prototype-add-provider.monaco-button > .codicon,
+.model-picker-prototype .model-picker-prototype-manage.monaco-button > .codicon,
+.model-picker-prototype .model-picker-prototype-search-back.monaco-button > .codicon {
+	margin: 0;
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button:hover,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button:hover,
+.model-picker-prototype .model-picker-prototype-add-provider.monaco-button:hover,
+.model-picker-prototype .model-picker-prototype-manage.monaco-button:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button.active {
+	position: relative;
+	z-index: 2;
+	color: var(--vscode-foreground);
+	/* Matches the well's radius: the tab and the well are one surface. */
+	border-radius: var(--vscode-cornerRadius-medium) var(--vscode-cornerRadius-medium) 0 0;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
+	box-shadow: var(--vscode-shadow-md);
+	clip-path: inset(-12px -12px 0);
+	transition: box-shadow 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The well meets the active tab at a hard inside corner. These fillets curve it up into
+ * the tab on whichever sides have well beside them, so the two surfaces join without a
+ * right angle. Drawn with the tab's own background so they track the theme. */
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active::before,
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active::after,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button.active::before {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	width: var(--vscode-cornerRadius-medium);
+	height: var(--vscode-cornerRadius-medium);
+	background: inherit;
+	pointer-events: none;
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active::before,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button.active::before {
+	left: calc(-1 * var(--vscode-cornerRadius-medium));
+	mask: radial-gradient(circle at 0 0, transparent var(--vscode-cornerRadius-medium), #000 var(--vscode-cornerRadius-medium));
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active::after {
+	right: calc(-1 * var(--vscode-cornerRadius-medium));
+	mask: radial-gradient(circle at 100% 0, transparent var(--vscode-cornerRadius-medium), #000 var(--vscode-cornerRadius-medium));
+}
+
+/* The leftmost tab has no well to its left, and search sits at the right edge. */
+.model-picker-prototype.first-tab-active .model-picker-prototype-source-tab.monaco-button.active::before {
+	display: none;
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab.monaco-button:focus-visible,
+.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button:focus-visible,
+.model-picker-prototype .model-picker-prototype-add-provider.monaco-button:focus-visible,
+.model-picker-prototype .model-picker-prototype-manage.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.model-picker-prototype .model-picker-prototype-source-tab .codicon,
+.model-picker-prototype .model-picker-prototype-search-toggle .codicon,
+.model-picker-prototype .model-picker-prototype-add-provider .codicon,
+.model-picker-prototype .model-picker-prototype-manage .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.model-picker-prototype .model-picker-prototype-manage.monaco-button {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.model-picker-prototype .model-picker-prototype-list {
+	order: 3;
+	flex: 1;
+	min-height: 0;
+	/* Underlap the tab strip by a pixel. The two edges are flush to the CSS pixel, but
+	 * at fractional device ratios two separately-rasterised fills can leave a hairline
+	 * between them; an overlap makes that impossible at any ratio. */
+	margin-top: -1px;
+	padding: var(--vscode-spacing-size80) 0;
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
+	box-shadow: var(--vscode-shadow-md);
+	transition: box-shadow 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Auto takes the lift while it is in charge: the well it disabled settles back down and
+ * the control rises, so the shadow itself says which surface is live. The active tab
+ * reads as part of the well's surface, so it hands its lift over too. */
+.model-picker-prototype.auto-enabled .model-picker-prototype-list,
+.model-picker-prototype.auto-enabled .model-picker-prototype-source-tab.monaco-button.active {
+	box-shadow: none;
+}
+
+/* The active leftmost tab sits flush against the well's left edge, so the well's
+ * rounded corner would notch out from under it. Search sits at the right edge and
+ * needs the same treatment on that side. Stated with the widget class so these win
+ * over the panel's own full radius. */
+.model-picker-prototype.action-widget.first-tab-active .model-picker-prototype-list,
+.model-picker-prototype.action-widget.first-tab-active .model-picker-prototype-setup {
+	border-top-left-radius: 0;
+}
+
+.model-picker-prototype.action-widget.search-mode .model-picker-prototype-list,
+.model-picker-prototype.action-widget.search-mode .model-picker-prototype-setup {
+	border-top-right-radius: 0;
+}
+
+/* The well runs under the settings card, so its right edge stops being a corner. */
+.model-picker-prototype.configuration-visible .model-picker-prototype-list {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.model-picker-prototype .model-picker-prototype-icon-openrouter .codicon,
+.model-picker-prototype .model-picker-prototype-icon-foundry .codicon {
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+	filter: grayscale(1);
+}
+
+.model-picker-prototype .model-picker-prototype-icon-openrouter .codicon {
+	background-image: url('./modelPickerPrototypeAssets/openrouter.png');
+}
+
+.model-picker-prototype .model-picker-prototype-icon-foundry .codicon {
+	background-image: url('./modelPickerPrototypeAssets/microsoft-foundry.png');
+}
+
+.model-picker-prototype .model-picker-prototype-icon-openrouter .codicon::before,
+.model-picker-prototype .model-picker-prototype-icon-foundry .codicon::before {
+	content: '';
+}
+
+.model-picker-prototype .model-picker-prototype-list .monaco-scrollable-element > .shadow {
+	display: none;
+}
+
+.model-picker-prototype .monaco-list .monaco-list-row {
+	box-sizing: border-box;
+	width: calc(100% - var(--vscode-spacing-size80));
+	margin-left: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size60) 0 0;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.model-picker-prototype .monaco-list-row.action {
+	gap: 0;
+}
+
+/* Single 20px leading gutter puts every label on the same text edge. */
+.model-picker-prototype .monaco-list-row.action > .codicon:first-child {
+	display: flex;
+	flex: 0 0 var(--vscode-spacing-size200);
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: 100%;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+	text-align: center;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-group > .codicon:first-child {
+	display: none;
+}
+
+.model-picker-prototype .monaco-list .monaco-list-row.model-picker-prototype-group {
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	/* One heading treatment everywhere. Collapsible groups are painted at full foreground
+	 * by the list's enabled-row rule and the hub's at the disabled tone, which made two
+	 * weights of heading sit side by side. */
+	color: var(--vscode-disabledForeground);
+	background: transparent;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-group .title {
+	display: flex;
+	align-items: center;
+	gap: 0;
+}
+
+/* Every group label starts on the same text edge; creator groups fill the
+ * gutter with a company glyph, capability groups leave it empty. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-group .title::before {
+	content: "";
+	display: inline-block;
+	flex: 0 0 var(--vscode-spacing-size200);
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-codiconFontSize-compact);
+	font-family: codicon;
+	/* Compact: at full size the marks crowd the gutter and sit oddly against the
+	 * lettered monograms beside them. */
+	font-size: var(--vscode-codiconFontSize-compact);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: var(--vscode-codiconFontSize-compact);
+	text-align: center;
+}
+
+/* Names the account the models below arrive through. Same treatment as the group headings
+ * it introduces — one heading language — but at full strength, since it names the whole
+ * list rather than a slice of it. Indented to the headings' text edge so the two agree. */
+.model-picker-prototype .monaco-list .monaco-list-row.model-picker-prototype-account-row {
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size200);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	background: transparent;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-account-row .title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-account-row .action-item-badge,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-account-row > .codicon:first-child {
+	display: none;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-group .action-item-badge {
+	display: none;
+}
+
+
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-selected-model,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-search-result-selected,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-editor-background));
+	box-shadow: none;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-selected-model .title,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-search-result-selected .title,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model .title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-selected-model > .codicon:first-child,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-search-result-selected > .codicon:first-child,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model > .codicon:first-child {
+	color: var(--vscode-button-background);
+}
+
+
+/* The edited row keeps a normal row's geometry and only changes surface, so it
+ * reads as "this is the one you're configuring" without any join to the card. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-model,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model {
+	background: var(--vscode-editor-background);
+	box-shadow: none;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-model .title,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model .title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model {
+	--vscode-list-hoverBackground: var(--vscode-button-background);
+	--vscode-list-hoverForeground: var(--vscode-button-foreground);
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-copilot .title::before {
+	content: "\ec8a";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-google .title::before {
+	content: "";
+	background: currentColor;
+	-webkit-mask: url('./modelPickerPrototypeAssets/google-gemini.svg') center / contain no-repeat;
+	mask: url('./modelPickerPrototypeAssets/google-gemini.svg') center / contain no-repeat;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-openai .title::before {
+	content: "\ec81";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-anthropic .title::before {
+	content: "\ec82";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-microsoft .title::before {
+	content: "\ecd3";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-xai .title::before {
+	content: "\ecec";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-moonshot .title::before {
+	content: "\ecd2";
+}
+
+/* Hub sections name a purpose: what you kept, what we suggest, where you have been. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-section-pinned .title::before {
+	content: "\eb2b";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-section-recommended .title::before {
+	content: "\eb6c";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-section-recent .title::before {
+	content: "\ea82";
+}
+
+/* Capability tiers read as a three-segment gauge: a ring split into thirds, lit to the
+ * tier's level. It says "level" the way a progress ring does, without borrowing a glyph
+ * that already means something else in VS Code. Drawn as a masked SVG rather than a
+ * conic-gradient so the segments can carry round caps — a gradient can only cut them
+ * square, which is what made the ring read as heavy. The heading names the tier, so the
+ * ring is decorative. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-powerful .title::before,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-versatile .title::before,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-lightweight .title::before,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-other .title::before {
+	content: "";
+	background: currentColor;
+}
+
+/* Unlit segments live in the asset's own alpha, so one mask carries both tones. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-powerful .title::before {
+	-webkit-mask: url('./modelPickerPrototypeAssets/tier-3.svg') center / contain no-repeat;
+	mask: url('./modelPickerPrototypeAssets/tier-3.svg') center / contain no-repeat;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-versatile .title::before {
+	-webkit-mask: url('./modelPickerPrototypeAssets/tier-2.svg') center / contain no-repeat;
+	mask: url('./modelPickerPrototypeAssets/tier-2.svg') center / contain no-repeat;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-lightweight .title::before {
+	-webkit-mask: url('./modelPickerPrototypeAssets/tier-1.svg') center / contain no-repeat;
+	mask: url('./modelPickerPrototypeAssets/tier-1.svg') center / contain no-repeat;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-tier-other .title::before {
+	-webkit-mask: url('./modelPickerPrototypeAssets/tier-0.svg') center / contain no-repeat;
+	mask: url('./modelPickerPrototypeAssets/tier-0.svg') center / contain no-repeat;
+}
+
+/* VS Code ships brand glyphs only for Claude, Gemini, Kimi, OpenAI and xAI. The rest
+ * get an authored monogram rather than four identical sparkles — the creator's name sits
+ * beside it, so the letter is an anchor, not an identifier. Real marks would need to go
+ * through OSS review before they could live in the repo. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-deepseek .title::before,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-meta .title::before,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-mistral .title::before,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-qwen .title::before {
+	font-family: inherit;
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-deepseek .title::before {
+	content: "D";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-meta .title::before {
+	content: "M";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-mistral .title::before {
+	content: "M";
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-creator-qwen .title::before {
+	content: "Q";
+}
+
+.model-picker-prototype .monaco-list-row.action .detail {
+	padding-left: var(--vscode-spacing-size200);
+}
+
+.model-picker-prototype .monaco-list-row.action .action-item-badge {
+	padding: 0;
+	border-radius: 0;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-search-result .title {
+	flex: 0 1 auto;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-search-result .action-item-badge,
+.model-picker-prototype .monaco-list-row.model-picker-prototype-search-result-selected .action-item-badge {
+	margin-left: auto;
+	padding-left: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+/* Customized models carry a compact summary of what was changed. */
+.model-picker-prototype .monaco-list-row.model-picker-prototype-modified-model .title {
+	flex: 0 1 auto;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-modified-model .action-item-badge {
+	flex: 0 0 auto;
+	max-width: 88px;
+	margin-left: auto;
+	overflow: hidden;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-descriptionForeground);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 16px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-modified-model.model-picker-prototype-editing-selected-model .action-item-badge {
+	color: var(--vscode-button-foreground);
+	background: color-mix(in srgb, var(--vscode-button-foreground) 24%, transparent);
+}
+
+.model-picker-prototype-configuration {
+	display: none;
+}
+
+/* A plain floating card: nothing joins it, so it lifts on every side. */
+.model-picker-prototype.configuration-visible .model-picker-prototype-configuration {
+	position: relative;
+	z-index: 2;
+	display: flex;
+	flex: 0 0 216px;
+	flex-direction: column;
+	box-sizing: border-box;
+	min-width: 0;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editor-background);
+	box-shadow: var(--vscode-shadow-lg);
+}
+
+/* Configuration panel.
+ * Two left edges only: 12px (headings, meta, credits) and 32px (option labels,
+ * indented by the 20px check gutter). */
+.model-picker-prototype-configuration-header {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+}
+
+.model-picker-prototype-configuration-title-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.model-picker-prototype-configuration-title {
+	flex: 0 1 auto;
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-prototype-configuration-tag {
+	flex: 0 0 auto;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-descriptionForeground);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-editor-background));
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 16px;
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-close.monaco-button {
+	flex: 0 0 auto;
+	margin-left: auto;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-reset.monaco-button {
+	flex: 0 0 auto;
+	margin-left: auto;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+}
+
+/* When reset is present it claims the gap, so close sits tight beside it. */
+.model-picker-prototype .model-picker-prototype-configuration-reset.monaco-button + .model-picker-prototype-configuration-close.monaco-button {
+	margin-left: 0;
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-reset.monaco-button .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-reset.monaco-button:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-reset.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-close.monaco-button .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-close.monaco-button:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-close.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.model-picker-prototype-configuration-content {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+	scrollbar-gutter: stable;
+}
+
+/* Groups read as groups: tight inside, generous between. */
+.model-picker-prototype-configuration-section + .model-picker-prototype-configuration-section {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+/* Section headings match the list's group headings — same role, same styling. */
+.model-picker-prototype-configuration-section-title {
+	margin: 0 0 var(--vscode-spacing-size20);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype-configuration-options {
+	display: grid;
+	gap: var(--vscode-spacing-size40);
+}
+
+.model-picker-prototype-configuration-option {
+	display: grid;
+	grid-template-columns: var(--vscode-spacing-size200) minmax(0, 1fr);
+	align-items: center;
+	width: 100%;
+	min-height: 24px;
+	padding: 0 var(--vscode-spacing-size60) 0 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	background: transparent;
+	font: inherit;
+	text-align: left;
+}
+
+.model-picker-prototype .model-picker-prototype-configuration-option .model-picker-prototype-configuration-option-indicator.codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+	text-align: center;
+}
+
+.model-picker-prototype-configuration-option:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.model-picker-prototype-configuration-option.checked {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-editor-background));
+}
+
+.model-picker-prototype-configuration-option.checked .model-picker-prototype-configuration-option-indicator {
+	color: var(--vscode-button-background);
+}
+
+.model-picker-prototype-configuration-option.checked .model-picker-prototype-configuration-option-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype-configuration-option:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.model-picker-prototype-configuration-option-label {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+/* One line only — a wrapped description shifts every option below it. */
+.model-picker-prototype-configuration-section-description {
+	margin-bottom: var(--vscode-spacing-size60);
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 1.35;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-prototype-configuration-empty {
+	padding: var(--vscode-spacing-size160) 0;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}
+
+.model-picker-prototype-configuration-footer {
+	position: relative;
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) var(--vscode-spacing-size100);
+}
+
+/* Content fades under the credits instead of being cut at a hard line. */
+.model-picker-prototype-configuration-footer::before {
+	content: "";
+	position: absolute;
+	right: 0;
+	bottom: 100%;
+	left: 0;
+	height: var(--vscode-spacing-size160);
+	background: linear-gradient(to top, var(--vscode-editor-background), transparent);
+	pointer-events: none;
+}
+
+/* Empty state row: the same centred icon-title-sentence block as the full-panel empty
+ * states, just scaled down to sit inside a section rather than replace the list. */
+.model-picker-prototype .monaco-list .monaco-list-row.model-picker-prototype-empty-row {
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size20);
+	/* Symmetric: the row's icon gutter would otherwise push the centred block right. */
+	padding: 0 var(--vscode-spacing-size120);
+	opacity: 1;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-empty-row .codicon {
+	flex: 0 0 auto;
+	width: auto;
+	margin: 0 0 var(--vscode-spacing-size20);
+	/* Quiet: the mark sets context, it isn't the thing to act on. */
+	opacity: 0.4;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-codiconFontSize);
+	line-height: var(--vscode-codiconFontSize);
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-empty-row .title {
+	flex: 0 0 auto;
+	max-width: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-align: center;
+}
+
+.model-picker-prototype .monaco-list-row.model-picker-prototype-empty-row .detail {
+	flex: 0 0 auto;
+	max-width: 100%;
+	padding: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	text-align: center;
+	text-wrap: balance;
+	white-space: normal;
+}
+
+/* Row actions: quiet glyphs that firm up on hover, sized as real targets rather than
+ * bare icons so their hover state is a deliberate shape instead of an inherited blob. */
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .actions-container {
+	gap: var(--vscode-spacing-size20);
+}
+
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .action-item .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+}
+
+/* The global codicon sizing rule is more specific than a plain class, so compact
+ * sizing has to be stated at least as strongly. */
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .action-item .action-label.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: var(--vscode-codiconFontSize-compact);
+}
+
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .action-item .action-label:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* At the pin cap the action stays visible but plainly unavailable, so the limit is
+ * discoverable rather than a click that silently does nothing. */
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .action-item.disabled .action-label,
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .action-item.disabled .action-label:hover {
+	opacity: 0.4;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+}
+
+.model-picker-prototype .monaco-list-row .action-list-item-toolbar .action-item .action-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Signed-out empty state occupies the well, so the surface reads the same as a
+ * populated list — one message, one primary action, centred. */
+.model-picker-prototype-setup {
+	display: none;
+}
+
+.model-picker-prototype.setup-required .model-picker-prototype-list,
+.model-picker-prototype.hub-empty .model-picker-prototype-list {
+	display: none;
+}
+
+.model-picker-prototype.setup-required .model-picker-prototype-setup,
+.model-picker-prototype.hub-empty .model-picker-prototype-setup {
+	order: 3;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: stretch;
+	/* Underlaps the tab strip by a pixel, same as the well it replaces. */
+	margin-top: -1px;
+	justify-content: center;
+	min-height: 0;
+	padding: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
+	box-shadow: var(--vscode-shadow-md);
+}
+
+/* Centred as a block rather than pinned to the top, so the empty well reads as
+ * "nothing here yet" instead of "something is missing". */
+.model-picker-prototype-setup-panel {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size120);
+	text-align: center;
+}
+
+.model-picker-prototype .model-picker-prototype-setup-icon.codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: calc(var(--vscode-codiconFontSize) * 2);
+	height: calc(var(--vscode-codiconFontSize) * 2);
+	margin-bottom: var(--vscode-spacing-size40);
+	/* Quiet: the mark sets context, it isn't the thing to act on. */
+	opacity: 0.4;
+	color: var(--vscode-foreground);
+	/* Twice the icon ramp's normal size — a hero mark, still derived from the ramp. */
+	font-size: calc(var(--vscode-codiconFontSize) * 2);
+	line-height: calc(var(--vscode-codiconFontSize) * 2);
+}
+
+.model-picker-prototype-setup-title {
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype-setup-detail {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	text-wrap: balance;
+}
+
+.model-picker-prototype .model-picker-prototype-setup-button.monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	margin-top: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size160);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-button-foreground);
+	background: var(--vscode-button-background);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-align: center;
+}
+
+.model-picker-prototype .model-picker-prototype-setup-button.monaco-button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-setup-button.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+/* Auto mode bar: a switch over the list, not a row in it. Sits below the well,
+ * where a mode switch reads as governing the surface rather than heading it. */
+.model-picker-prototype-auto-bar {
+	display: none;
+}
+
+.model-picker-prototype.auto-available .model-picker-prototype-auto-bar {
+	order: 4;
+	position: relative;
+	z-index: 3;
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size20);
+	margin-top: var(--vscode-spacing-size80);
+	/* No right padding: the control's track lines up with the well's right edge above it. */
+	padding: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Title, the tiers that slide out of the switch, and the switch — all one row, so
+ * enabling Auto blooms the control open in place instead of growing the bar. */
+.model-picker-prototype-auto-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+/* Tiers and switch share one recessed track, so the mode reads as a single control
+ * rather than a row of loose parts. The track only appears once there is something in
+ * it to group — off, the switch stands alone. */
+.model-picker-prototype-auto-control {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	/* No gap: the space before the tiers lives inside their clip, so it collapses with
+	 * them and the switch rests in exactly the same place whenever Auto is off. */
+	/* The horizontal inset also lands the switch's centre on the search glyph's centre
+	 * above it, since the control's right edge tracks the well's. */
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: transparent;
+	transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1), box-shadow 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.model-picker-prototype.auto-enabled .model-picker-prototype-auto-control {
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-editor-background));
+	box-shadow: var(--vscode-shadow-md);
+}
+
+.model-picker-prototype .model-picker-prototype-auto-toggle {
+	position: relative;
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 24px;
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: transparent;
+	font: inherit;
+}
+
+/* The hit target is taller than the switch, so drawing the highlight on the target reads
+ * as a circle around a pill. It is drawn to the switch's own silhouette instead. */
+.model-picker-prototype .model-picker-prototype-auto-toggle::before {
+	content: '';
+	position: absolute;
+	inset: 1px -3px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: transparent;
+}
+
+.model-picker-prototype .model-picker-prototype-auto-toggle:hover::before {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-auto-toggle:focus-visible {
+	outline: none;
+}
+
+.model-picker-prototype .model-picker-prototype-auto-toggle:focus-visible::before {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.model-picker-prototype-auto-heading {
+	display: flex;
+	flex: 1;
+	align-items: baseline;
+	min-width: 0;
+}
+
+.model-picker-prototype-auto-title {
+	flex: 0 1 auto;
+	overflow: hidden;
+	min-width: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Off, the bar is a single line and the discount rides with the title. On, the caption
+ * takes it over, so the note steps aside rather than saying it twice. */
+.model-picker-prototype-auto-title-note {
+	flex: 0 0 auto;
+	margin-left: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	white-space: nowrap;
+}
+
+.model-picker-prototype.auto-enabled .model-picker-prototype-auto-title-note {
+	display: none;
+}
+
+/* One line only — the full explanation lives in the hover. */
+.model-picker-prototype-auto-detail {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label3);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* No sliding-switch primitive exists in VS Code, so the track is built from
+ * theme tokens and carries the on/off state itself. */
+.model-picker-prototype-auto-track {
+	position: relative;
+	flex: 0 0 auto;
+	width: 26px;
+	height: 16px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-checkbox-border);
+}
+
+.model-picker-prototype-auto-thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 12px;
+	height: 12px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: var(--vscode-editor-background);
+	transition: left 100ms ease-out;
+}
+
+.model-picker-prototype.auto-enabled .model-picker-prototype-auto-track {
+	background: var(--vscode-button-background);
+}
+
+.model-picker-prototype.auto-enabled .model-picker-prototype-auto-thumb {
+	left: 12px;
+	background: var(--vscode-button-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.model-picker-prototype-auto-thumb {
+		transition: none;
+	}
+}
+
+/* Turning Auto on reveals its tiers beside the switch and its caption beneath, so the
+ * control blooms open in place. `0fr -> 1fr` animates to the content's real size, so
+ * there is no guessed max-width or max-height to keep in sync. */
+.model-picker-prototype-auto-routing {
+	display: grid;
+	flex: 0 0 auto;
+	grid-template-columns: 0fr;
+	transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.model-picker-prototype.auto-enabled .model-picker-prototype-auto-routing {
+	grid-template-columns: 1fr;
+}
+
+/* Anchor the clip to the switch side so the tiers unfurl out of it: the switch leads
+ * left and each tier is revealed behind it in reading order, Eco first. */
+.model-picker-prototype-auto-routing-inner {
+	overflow: hidden;
+	min-width: 0;
+}
+
+.model-picker-prototype-auto-detail-clip {
+	display: grid;
+	grid-template-rows: 0fr;
+	transition: grid-template-rows 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.model-picker-prototype.auto-enabled .model-picker-prototype-auto-detail-clip {
+	grid-template-rows: 1fr;
+}
+
+.model-picker-prototype-auto-detail-inner {
+	overflow: hidden;
+	min-height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.model-picker-prototype-auto-routing,
+	.model-picker-prototype-auto-detail-clip,
+	.model-picker-prototype-auto-control,
+	.model-picker-prototype .model-picker-prototype-list,
+	.model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+	.model-picker-prototype .model-picker-prototype-search-toggle.monaco-button.active {
+		transition: none;
+	}
+}
+
+/* The tiers carry no track of their own — only the chosen one is drawn, using the same
+ * fill and check as a chosen option in the card, so "chosen" reads identically
+ * everywhere and the rest stays quiet text. */
+.model-picker-prototype-auto-segments {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	/* Carried inside the clip so it is revealed with the tiers rather than held open
+	 * by the control while they are collapsed. */
+	margin-left: var(--vscode-spacing-size60);
+	width: max-content;
+}
+
+.model-picker-prototype .model-picker-prototype-auto-segment {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	/* Same height as the switch beside it, since they share one track. */
+	height: 24px;
+	padding: 0 var(--vscode-spacing-size60);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-foreground);
+	background: transparent;
+	font: inherit;
+	white-space: nowrap;
+}
+
+.model-picker-prototype .model-picker-prototype-auto-segment:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.model-picker-prototype .model-picker-prototype-auto-segment.checked {
+	background: color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-editor-background));
+}
+
+.model-picker-prototype .model-picker-prototype-auto-segment:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.model-picker-prototype .model-picker-prototype-auto-segment .model-picker-prototype-configuration-option-label {
+	font-size: var(--vscode-fontSize-label2);
+}
+
+/* Reserve the chosen weight's width: a zero-height copy of the label at the heavier weight
+ * sets the box, so the weight can change without moving the row. */
+.model-picker-prototype .model-picker-prototype-auto-segment .model-picker-prototype-configuration-option-label::before {
+	content: attr(data-label);
+	display: block;
+	visibility: hidden;
+	overflow: hidden;
+	height: 0;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.model-picker-prototype .model-picker-prototype-auto-segment.checked .model-picker-prototype-configuration-option-label {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* The gate: visible, legible, and plainly not available. */
+.model-picker-prototype .model-picker-prototype-list.auto-gated .monaco-list-rows {
+	opacity: 0.45;
+	pointer-events: none;
+}
+
+.model-picker-prototype-add-menu {
+	position: absolute;
+	z-index: 10;
+	top: 76px;
+	right: var(--vscode-spacing-size400);
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	width: 200px;
+	padding: var(--vscode-spacing-size40);
+	border: var(--vscode-strokeThickness) solid var(--vscode-menu-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-menu-background);
+	box-shadow: var(--vscode-shadow-lg);
+}
+
+.model-picker-prototype-add-menu-item {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-menu-foreground);
+	background: transparent;
+	font: inherit;
+	text-align: left;
+}
+
+.model-picker-prototype-add-menu-item:hover,
+.model-picker-prototype-add-menu-item:focus-visible {
+	color: var(--vscode-menu-selectionForeground);
+	background: var(--vscode-menu-selectionBackground);
+	outline: none;
+}
+
+.model-picker-prototype-credit-heading-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	margin-bottom: var(--vscode-spacing-size20);
+}
+
+.model-picker-prototype-credit-heading {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-prototype-credit-tag {
+	margin-left: auto;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-descriptionForeground);
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, var(--vscode-editor-background));
+	font-size: var(--vscode-fontSize-label3);
+	line-height: 16px;
+	white-space: nowrap;
+}
+
+/* Only high / very high get the warning treatment, matching the production hover. */
+.model-picker-prototype-credit-tag.high-cost {
+	color: var(--vscode-editorWarning-foreground);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, var(--vscode-editor-background));
+}
+
+/* One row of rates: the glyph carries the metric, the name is on hover. */
+.model-picker-prototype-credit-table {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size40);
+}
+
+.model-picker-prototype-credit-cell {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
+}
+
+/* Specificity guard: the global `.codicon[class*='codicon-']` rule otherwise
+ * resets these back to the base 16px. */
+.model-picker-prototype .model-picker-prototype-credit-icon.codicon {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.model-picker-prototype-credit-value {
+	font-size: var(--vscode-fontSize-label2);
+	font-variant-numeric: tabular-nums;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* The pointed-at rate lifts to full strength, so it is clear which one the heading is
+ * naming. Eased, so sweeping the row reads as a glide rather than a series of snaps. */
+.model-picker-prototype .model-picker-prototype-credit-icon.codicon,
+.model-picker-prototype-credit-value {
+	transition: color 120ms ease-out;
+}
+
+.model-picker-prototype .model-picker-prototype-credit-cell.hovered .model-picker-prototype-credit-icon.codicon,
+.model-picker-prototype-credit-cell.hovered .model-picker-prototype-credit-value {
+	color: var(--vscode-foreground);
+}
+
+.model-picker-prototype-credit-note {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.hc-black .model-picker-prototype.action-widget,
+.hc-light .model-picker-prototype.action-widget {
+	box-shadow: none;
+	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+.hc-light .model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+.hc-black .model-picker-prototype .model-picker-prototype-list,
+.hc-light .model-picker-prototype .model-picker-prototype-list {
+	background: var(--vscode-editor-background);
+}
+
+.hc-black .model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+.hc-light .model-picker-prototype .model-picker-prototype-source-tab.monaco-button.active,
+.hc-black .model-picker-prototype .model-picker-prototype-list,
+.hc-light .model-picker-prototype .model-picker-prototype-list,
+.hc-black .model-picker-prototype .monaco-list-row.model-picker-prototype-selected-model,
+.hc-light .model-picker-prototype .monaco-list-row.model-picker-prototype-selected-model,
+.hc-black .model-picker-prototype .monaco-list-row.model-picker-prototype-search-result-selected,
+.hc-light .model-picker-prototype .monaco-list-row.model-picker-prototype-search-result-selected,
+.hc-black .model-picker-prototype .monaco-list-row.model-picker-prototype-editing-model,
+.hc-light .model-picker-prototype .monaco-list-row.model-picker-prototype-editing-model,
+.hc-black .model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model,
+.hc-light .model-picker-prototype .monaco-list-row.model-picker-prototype-editing-selected-model,
+.hc-black .model-picker-prototype.configuration-visible .model-picker-prototype-configuration,
+.hc-light .model-picker-prototype.configuration-visible .model-picker-prototype-configuration {
+	box-shadow: none;
+}

@@ -341,3 +341,5 @@ Update this section with insights from your fixture development experience!
 * Do not copy the component to the fixture and modify it there. Always adapt the original component to be fixture-friendly, then render it in the fixture. This ensures the fixture tests the real component code and lifecycle, rather than a modified version that may hide bugs.
 
 * **Don't recompose child widgets in fixtures.** Never manually instantiate and add a sub-widget (e.g., a toolbar content widget) that the parent component is supposed to create. Instead, configure the parent correctly (e.g., set the right editor option, register the right provider) so the child appears through the normal code path. Manually recomposing hides integration bugs and doesn't test the real widget lifecycle.
+
+* **Visual prototypes still need a real interactive component.** Keep state, events, keyboard behavior, and fixed surface geometry in a reusable component; fixtures should only provide representative inputs. Do not invent domain metadata merely to fill visual space—the prototype data should reflect fields the production experience can actually provide.

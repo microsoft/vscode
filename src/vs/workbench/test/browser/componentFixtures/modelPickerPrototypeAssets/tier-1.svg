@@ -1,0 +1,7 @@
+<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+	<title>One of three</title>
+	<g fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" transform="rotate(-90 8 8)">
+		<circle cx="8" cy="8" r="6.25" pathLength="360" stroke-dasharray="88 32" stroke-opacity=".32"/>
+		<circle cx="8" cy="8" r="6.25" pathLength="360" stroke-dasharray="88 272"/>
+	</g>
+</svg>
