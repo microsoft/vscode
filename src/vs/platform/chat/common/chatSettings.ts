@@ -38,6 +38,9 @@ export function mergeChatEditAutoApprovePatterns(value: unknown): ChatEditAutoAp
 		return patterns;
 	}
 	for (const [pattern, isApproved] of Object.entries(value)) {
+		// Re-inserting moves an overridden default to the end so the configured
+		// order keeps deciding which pattern matches last.
+		delete patterns[pattern];
 		patterns[pattern] = isApproved === true;
 	}
 	return patterns;

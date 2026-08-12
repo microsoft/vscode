@@ -160,6 +160,21 @@ suite('SessionPermissionManager', () => {
 		});
 	});
 
+	test('overriding a default pattern keeps the configured order', async () => {
+		// `'**/*': false` is configured last, so it has to decide the outcome for a
+		// file the earlier `'**/*.ts'` rule would otherwise approve.
+		const patterns = mergeChatEditAutoApprovePatterns({ '**/*.ts': true, '**/*': false });
+		configService.updateRootConfig({ [AgentHostEditAutoApprovePatternsConfigKey]: patterns });
+
+		assert.deepStrictEqual({
+			lastPatterns: Object.keys(patterns).slice(-2),
+			approval: await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri),
+		}, {
+			lastPatterns: ['**/*.ts', '**/*'],
+			approval: undefined,
+		});
+	});
+
 	test('malformed edit auto-approve values fail closed', async () => {
 		configService.updateRootConfig({
 			[AgentHostEditAutoApprovePatternsConfigKey]: {
