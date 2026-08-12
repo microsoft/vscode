@@ -3,14 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { SessionEventPayload } from '@github/copilot-sdk';
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { readAgentErrorTelemetryMeta } from '../../common/meta/agentErrorMeta.js';
 import { buildChatUri, buildSubagentSessionUri } from '../../common/state/sessionState.js';
-import { classifyCopilotClientFailure, createCopilotFailureCorrelation } from '../../node/copilot/copilotFailureTelemetry.js';
+import { classifyCopilotClientFailure, createCopilotFailureCorrelation, normalizeCopilotApiEndpoint, reportCopilotModelCallFailure } from '../../node/copilot/copilotFailureTelemetry.js';
+
+class CapturingTelemetryService implements ITelemetryService {
+	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.USAGE;
+	readonly sessionId = 'test-session';
+	readonly machineId = 'test-machine';
+	readonly sqmId = 'test-sqm';
+	readonly devDeviceId = 'test-dev-device';
+	readonly firstSessionDate = 'test-first-session-date';
+	readonly sendErrorTelemetry = true;
+	readonly events: { eventName: string; data: Record<string, unknown> | undefined }[] = [];
+
+	publicLog(): void { }
+	publicLog2(): void { }
+	publicLogError(): void { }
+	publicLogError2(eventName: string, data?: Record<string, unknown>): void {
+		this.events.push({ eventName, data });
+	}
+	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
+}
 
 suite('CopilotFailureTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +81,95 @@ suite('CopilotFailureTelemetry', () => {
 
 		assert.strictEqual(value, String(Number(value)));
 		assert.strictEqual(value.includes('/'), false);
+	});
+
+	test('normalizes only allowlisted Copilot API endpoints', () => {
+		assert.deepStrictEqual([
+			normalizeCopilotApiEndpoint('/chat/completions'),
+			normalizeCopilotApiEndpoint('/responses'),
+			normalizeCopilotApiEndpoint('/v1/messages'),
+			normalizeCopilotApiEndpoint('ws:/responses'),
+			normalizeCopilotApiEndpoint('https://api.githubcopilot.com/responses'),
+			normalizeCopilotApiEndpoint('https://contoso.example/private/deployment'),
+			normalizeCopilotApiEndpoint(undefined),
+		], [
+			'chatCompletions',
+			'responses',
+			'anthropicMessages',
+			'responsesWebSocket',
+			'responses',
+			'other',
+			undefined,
+		]);
+	});
+
+	test('reports bounded model call endpoint categories instead of raw endpoints', () => {
+		const telemetryService = new CapturingTelemetryService();
+		const session = AgentSession.uri('copilotcli', 'agent-session-id');
+		const chat = URI.parse(buildChatUri(session, 'peer-chat-id'));
+		const correlation = createCopilotFailureCorrelation(session, chat, 'turn-id', 'sdk-session-id');
+		const event: SessionEventPayload<'model.call_failure'> = {
+			type: 'model.call_failure',
+			id: 'event-1',
+			parentId: 'parent-1',
+			agentId: 'agent-1',
+			timestamp: '2026-01-01T00:00:00.000Z',
+			ephemeral: true,
+			data: {
+				source: 'top_level',
+				failureKind: 'api',
+				transport: 'http',
+				apiEndpoint: '/responses',
+				statusCode: 500,
+				durationMs: 42,
+				model: 'gpt-5.6-sol',
+				reasoningEffort: 'high',
+				isAuto: false,
+				isByok: false,
+				rte: true,
+				badRequestKind: undefined,
+				apiCallId: 'api-call-id',
+				providerCallId: 'provider-call-id',
+				serviceRequestId: 'service-request-id',
+				requestFingerprint: undefined,
+			},
+		};
+
+		reportCopilotModelCallFailure(telemetryService, event, correlation);
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.copilotModelCallFailure',
+			data: {
+				agentSessionId: 'agent-session-id',
+				chatSessionId: getTelemetryChatSessionId(chat),
+				turnId: 'turn-id',
+				sdkSessionId: 'sdk-session-id',
+				sdkEventId: 'event-1',
+				sdkParentEventId: 'parent-1',
+				sdkAgentId: 'agent-1',
+				failureKind: 'api',
+				source: 'top_level',
+				transport: 'http',
+				apiEndpoint: 'responses',
+				statusCode: 500,
+				durationMs: 42,
+				model: 'gpt-5.6-sol',
+				reasoningEffort: 'high',
+				isAuto: false,
+				isByok: false,
+				rte: true,
+				badRequestKind: undefined,
+				apiCallId: 'api-call-id',
+				providerCallId: 'provider-call-id',
+				serviceRequestId: 'service-request-id',
+				messageCount: undefined,
+				toolCallCount: undefined,
+				toolResultMessageCount: undefined,
+				namelessToolCallCount: undefined,
+				imagePartCount: undefined,
+				imagePartsMissingMediaType: undefined,
+			},
+		}]);
 	});
 
 	test('drops empty provider request identifiers', () => {
