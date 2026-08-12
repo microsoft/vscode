@@ -76,19 +76,19 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
  * registered default and workspace/folder layers.
  */
 /** A global configuration layer that contains an explicitly configured value. */
-export type ExplicitGlobalConfigurationSource = 'policy' | 'user' | 'application';
+export type ConfigurationSource = 'policy' | 'user' | 'application';
 
 /** An explicitly configured global value and the layer that supplied it. */
-export interface IExplicitGlobalConfigurationValue<T> {
+export interface IInspectedValue<T> {
 	readonly value: T;
-	readonly source: ExplicitGlobalConfigurationSource;
+	readonly source: ConfigurationSource;
 }
 
 /** Inspects an explicitly configured global value while preserving its source layer. */
-export function inspectValue<T>(configurationService: IConfigurationService, settingId: string): IExplicitGlobalConfigurationValue<T> | undefined {
+export function inspectValue<T>(configurationService: IConfigurationService, settingId: string): IInspectedValue<T> | undefined {
 	const inspected = configurationService.inspect<T>(settingId);
 	const property = getPropertySchema(settingId);
-	const values: readonly [ExplicitGlobalConfigurationSource, T | undefined][] = [
+	const values: readonly [ConfigurationSource, T | undefined][] = [
 		['policy', inspected.policyValue],
 		['user', inspected.userValue],
 		['application', inspected.applicationValue],

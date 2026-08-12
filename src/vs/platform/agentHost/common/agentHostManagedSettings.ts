@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
-import { getGlobalConfigurationValue, inspectValue, type IExplicitGlobalConfigurationValue } from './agentHostConfigurationSync.js';
+import { getGlobalConfigurationValue, inspectValue, type IInspectedValue } from './agentHostConfigurationSync.js';
 import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from './agentHostSchema.js';
 
 export interface IAgentHostManagedSettingsPermissions {
@@ -20,7 +20,7 @@ interface IManagedPermissionsSettingMapping {
 	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
-function managedPermissionsSetting<T>(settingId: string, transform: (configuration: IExplicitGlobalConfigurationValue<T>) => IAgentHostManagedSettingsPermissions | undefined): IManagedPermissionsSettingMapping {
+function managedPermissionsSetting<T>(settingId: string, transform: (configuration: IInspectedValue<T>) => IAgentHostManagedSettingsPermissions | undefined): IManagedPermissionsSettingMapping {
 	return {
 		settingId,
 		contribute: configurationService => {
