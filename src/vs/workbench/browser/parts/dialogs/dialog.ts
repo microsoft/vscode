@@ -32,13 +32,13 @@ export function createWorkbenchDialogOptions(
 	layoutService: ILayoutService,
 	hostService: IHostService,
 	allowableCommands = defaultDialogAllowableCommands,
-	isCommandAllowed?: (commandId: string, event: StandardKeyboardEvent) => boolean,
+	shouldPassThroughCommand?: (commandId: string, event: StandardKeyboardEvent) => boolean,
 ): IDialogOptions {
 	return {
 		keyEventProcessor: (event: StandardKeyboardEvent) => {
 			const resolved = keybindingService.softDispatch(event, layoutService.activeContainer);
 			if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-				if (!allowableCommands.has(resolved.commandId) && !isCommandAllowed?.(resolved.commandId, event)) {
+				if (!allowableCommands.has(resolved.commandId) && !shouldPassThroughCommand?.(resolved.commandId, event)) {
 					EventHelper.stop(event, true);
 				}
 			}
