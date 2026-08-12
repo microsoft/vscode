@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyModelFamilyAlias, CopilotCliConfigKey, copilotCliConfigSchema, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { applyModelFamilyAlias, CopilotCliConfigKey, copilotCliConfigSchema, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 
@@ -70,63 +70,31 @@ suite('copilotCliConfig', () => {
 		);
 	});
 
-	test('resolveModelCapabilityOverride merges the wildcard entry under the model entry field-by-field', () => {
+	test('resolveModelCapabilityOverrideField prefers a usable specific value, then the wildcard', () => {
+		const isString = (value: unknown): value is string => typeof value === 'string';
 		const overrides: CopilotCliModelCapabilityOverrides = {
-			'*': { reasoningEffort: 'medium', excludedTools: ['mcp:*'] },
-			'preview-model-x': { family: 'claude-opus-4.8', reasoningEffort: 'high' },
+			'*': { family: 'gpt-5', reasoningEffort: 'medium' },
+			'preview-model-x': { family: 'claude-opus-4.8' },
+			'bad-model': { family: 42 as never },
 		};
+		const invalid: unknown[] = [];
 		assert.deepStrictEqual(
 			[
-				// specific fields win, wildcard fills the gaps
-				resolveModelCapabilityOverride(overrides, 'preview-model-x'),
-				// only the wildcard matches
-				resolveModelCapabilityOverride(overrides, 'other-model'),
-				// no wildcard, exact match only
-				resolveModelCapabilityOverride({ 'preview-model-x': { family: 'claude-opus-4.8' } }, 'preview-model-x'),
-				// no entry at all / no overrides
-				resolveModelCapabilityOverride({ 'preview-model-x': { family: 'claude-opus-4.8' } }, 'other-model'),
-				resolveModelCapabilityOverride(undefined, 'preview-model-x'),
+				// specific wins over the wildcard
+				resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', isString),
+				// unset specific field falls back to the wildcard
+				resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'reasoningEffort', isString),
+				// an invalid specific value falls through instead of masking the wildcard
+				resolveModelCapabilityOverrideField(overrides, 'bad-model', 'family', isString, value => invalid.push(value)),
 				// no model id (server-side "Auto"): only the wildcard can match
-				resolveModelCapabilityOverride(overrides, undefined),
-				resolveModelCapabilityOverride({ 'preview-model-x': { family: 'claude-opus-4.8' } }, undefined),
-				// malformed (non-object) entries are ignored
-				resolveModelCapabilityOverride({ 'preview-model-x': 'oops' as never, '*': 42 as never }, 'preview-model-x'),
+				resolveModelCapabilityOverrideField(overrides, undefined, 'family', isString),
+				// no matching entry / no overrides / malformed entries
+				resolveModelCapabilityOverrideField({ 'preview-model-x': { family: 'claude-opus-4.8' } }, 'other-model', 'family', isString),
+				resolveModelCapabilityOverrideField(undefined, 'preview-model-x', 'family', isString),
+				resolveModelCapabilityOverrideField({ 'preview-model-x': 'oops' as never, '*': 42 as never }, 'preview-model-x', 'family', isString),
+				invalid,
 			],
-			[
-				{ family: 'claude-opus-4.8', reasoningEffort: 'high', excludedTools: ['mcp:*'] },
-				{ reasoningEffort: 'medium', excludedTools: ['mcp:*'] },
-				{ family: 'claude-opus-4.8' },
-				undefined,
-				undefined,
-				{ reasoningEffort: 'medium', excludedTools: ['mcp:*'] },
-				undefined,
-				undefined,
-			]
-		);
-	});
-
-	test('resolveModelCapabilityOverride merges modelCapabilities field-by-field', () => {
-		const overrides: CopilotCliModelCapabilityOverrides = {
-			'*': { modelCapabilities: { supports: { vision: true } } },
-			'preview-model-x': { reasoningEffort: 'high' },
-		};
-		assert.deepStrictEqual(
-			[
-				// specific reasoningEffort wins, wildcard modelCapabilities fills the gap
-				resolveModelCapabilityOverride(overrides, 'preview-model-x'),
-				// only the wildcard matches
-				resolveModelCapabilityOverride(overrides, 'other-model'),
-				// a specific modelCapabilities entry wins over the wildcard's
-				resolveModelCapabilityOverride({
-					...overrides,
-					'preview-model-x': { ...overrides['preview-model-x'], modelCapabilities: { limits: { max_context_window_tokens: 64000 } } },
-				}, 'preview-model-x'),
-			],
-			[
-				{ reasoningEffort: 'high', modelCapabilities: { supports: { vision: true } } },
-				{ modelCapabilities: { supports: { vision: true } } },
-				{ reasoningEffort: 'high', modelCapabilities: { limits: { max_context_window_tokens: 64000 } } },
-			]
+			['claude-opus-4.8', 'medium', 'gpt-5', 'gpt-5', undefined, undefined, undefined, [42]]
 		);
 	});
 

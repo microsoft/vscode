@@ -81,20 +81,6 @@ export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModel
 export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
 
 /**
- * The wildcard entry merged field-by-field under the model's own entry; a
- * model-less ("Auto") session matches the wildcard only. Field values are NOT
- * validated here — the root-config validator does not descend into entries.
- */
-export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): ICopilotCliModelCapabilityOverride | undefined {
-	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];
-	const entry = modelId !== undefined ? overrides?.[modelId] : undefined;
-	if (!isObject(wildcard) && !isObject(entry)) {
-		return undefined;
-	}
-	return { ...(isObject(wildcard) ? wildcard : undefined), ...(isObject(entry) ? entry : undefined) };
-}
-
-/**
  * Resolves one field from the specific entry and then the wildcard. Invalid
  * specific values are ignored rather than masking a usable wildcard default.
  */
