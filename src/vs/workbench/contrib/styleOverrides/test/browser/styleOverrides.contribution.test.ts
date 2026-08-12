@@ -318,6 +318,20 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('pane composite overflow uses the icon foreground', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.style.setProperty('--vscode-icon-foreground', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const overflow = createCompositeAction(root, 40, false, true);
+		overflow.actionLabel.classList.add('codicon', 'codicon-more');
+		overflow.actionLabel.style.color = 'rgba(231, 231, 231, 0.6)';
+
+		assert.strictEqual(getWindow(overflow.actionLabel).getComputedStyle(overflow.actionLabel).color, 'rgb(18, 52, 86)');
+	});
+
 	test('preserves Modern UI activity badges and horizontal pane dividers', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override modern-ui-tabs';
