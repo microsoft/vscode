@@ -545,6 +545,8 @@
 		"--vscode-minimapSlider-activeBackground",
 		"--vscode-minimapSlider-background",
 		"--vscode-minimapSlider-hoverBackground",
+		"--vscode-modernActivityBar-activeBackground",
+		"--vscode-modernActivityBar-hoverBackground",
 		"--vscode-modernTab-activeBackground",
 		"--vscode-modernTab-hoverBackground",
 		"--vscode-multiDiffEditor-background",

@@ -700,6 +700,12 @@ export const MODERN_TAB_HOVER_BACKGROUND = registerColor('modernTab.hoverBackgro
 	hcLight: null
 }, localize('modernTabHoverBackground', "Background color of tabs when hovering and the modern tab style is enabled."));
 
+// < --- Modern Activity Bar --- >
+
+export const MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items when the modern UI is enabled."));
+
+export const MODERN_ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('modernActivityBar.hoverBackground', MODERN_TAB_HOVER_BACKGROUND, localize('modernActivityBarHoverBackground', "Background color of Activity bar items when hovering and the modern UI is enabled."));
+
 // < --- Title Bar --- >
 
 export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {

@@ -14,7 +14,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions as ThemingExtensions, IColorRegistry, opaque, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
-import { EDITOR_BORDER, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, SURFACE_BACKGROUND, SURFACE_BORDER } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, SURFACE_BACKGROUND, SURFACE_BORDER } from '../../../../common/theme.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -325,7 +325,8 @@ suite('StyleOverridesContribution', () => {
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
 		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
-		root.style.setProperty('--vscode-modernTab-activeBackground', '#123456');
+		root.style.setProperty('--vscode-modernActivityBar-activeBackground', '#123456');
+		root.style.setProperty('--vscode-modernTab-activeBackground', '#654321');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -337,6 +338,7 @@ suite('StyleOverridesContribution', () => {
 		appendElement(actionItem, 'action-label codicon');
 		const indicator = appendElement(actionItem, 'active-item-indicator');
 		const badgeContent = appendElement(appendElement(actionItem, 'badge'), 'badge-content');
+		const horizontalIndicator = createCompositeAction(root, 35, true, true).indicator;
 
 		const part = appendElement(root, 'part pane-composite-part');
 		const header = appendElement(part, 'header-or-footer header');
@@ -344,7 +346,9 @@ suite('StyleOverridesContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
+			activityColorsRegistered: [MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
 			indicatorBackground: targetWindow.getComputedStyle(indicator).backgroundColor,
+			horizontalIndicatorBackground: targetWindow.getComputedStyle(horizontalIndicator).backgroundColor,
 			indicatorWidth: targetWindow.getComputedStyle(indicator).width,
 			indicatorHeight: targetWindow.getComputedStyle(indicator).height,
 			indicatorBorderRadius: targetWindow.getComputedStyle(indicator).borderRadius,
@@ -355,7 +359,9 @@ suite('StyleOverridesContribution', () => {
 			headerOverflow: targetWindow.getComputedStyle(header).overflow,
 			footerBorderWidth: targetWindow.getComputedStyle(footer).borderTopWidth,
 		}, {
+			activityColorsRegistered: [true, true],
 			indicatorBackground: 'rgb(18, 52, 86)',
+			horizontalIndicatorBackground: 'rgb(18, 52, 86)',
 			indicatorWidth: '32px',
 			indicatorHeight: '32px',
 			indicatorBorderRadius: '6px',

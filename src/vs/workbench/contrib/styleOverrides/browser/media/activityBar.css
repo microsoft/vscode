@@ -25,11 +25,11 @@
 }
 
 .style-override .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
-	background-color: var(--vscode-modernTab-activeBackground);
+	background-color: var(--vscode-modernActivityBar-activeBackground);
 }
 
 .style-override .activitybar > .content:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) :not(.monaco-menu) > .monaco-action-bar .action-item:not(.checked):hover .active-item-indicator {
-	background-color: var(--vscode-modernTab-hoverBackground);
+	background-color: var(--vscode-modernActivityBar-hoverBackground);
 }
 
 /* Compact: minimal horizontal inset — 24×24px box centered in the 28px item. */
@@ -105,7 +105,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-activityBarTop-activeBackground, var(--vscode-toolbar-activeBackground));
+	background-color: var(--vscode-modernActivityBar-activeBackground);
 	transform: translateY(-50%);
 }
 
@@ -121,7 +121,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: var(--vscode-cornerRadius-small);
-	background-color: var(--vscode-toolbar-hoverBackground);
+	background-color: var(--vscode-modernActivityBar-hoverBackground);
 	transform: translateY(-50%);
 }
 
