@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -230,7 +231,7 @@ export interface ISessionsProvider {
 	 * Mark a new session as preparing its first request before asynchronous
 	 * configuration and request-context resolution begin.
 	 */
-	startNewSessionRequest?(sessionId: string): void;
+	startNewSessionRequest?(sessionId: string, activity?: string): IDisposable | undefined;
 
 	/**
 	 * Create a new **quick chat**: a workspace-less session not scoped to any

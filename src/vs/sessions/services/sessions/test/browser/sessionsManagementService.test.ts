@@ -1052,8 +1052,9 @@ suite('SessionsManagementService', () => {
 				events.push('create');
 				return session;
 			}
-			override startNewSessionRequest(): void {
-				events.push('start');
+			override startNewSessionRequest(_sessionId: string, activity?: string) {
+				events.push(`start:${activity}`);
+				return { dispose: () => events.push('clear') };
 			}
 			override async setWorktreeConfiguration(): Promise<void> {
 				events.push('configure');
@@ -1066,11 +1067,15 @@ suite('SessionsManagementService', () => {
 		}(session);
 		const { service, view } = createSessionsManagementService(session, disposables, provider);
 
-		const sendPromise = service.createAndSendNewChatRequest(URI.parse('test:///folder'), async () => {
-			events.push('prepare');
-			requestPreparationStarted.complete();
-			await requestOptionsBarrier.p;
-			return { query: 'prepared' };
+		const sendPromise = service.createAndSendNewChatRequest(URI.parse('test:///folder'), {
+			kind: 'deferred',
+			activity: 'Fetching pull request...',
+			async resolve() {
+				events.push('prepare');
+				requestPreparationStarted.complete();
+				await requestOptionsBarrier.p;
+				return { query: 'prepared' };
+			},
 		}, {
 			isolationMode: 'worktree',
 			metadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
@@ -1089,8 +1094,8 @@ suite('SessionsManagementService', () => {
 			events,
 			createMetadata,
 		}, {
-			eventsWhilePreparingRequest: ['create', 'start', 'show:s1', 'prepare', 'configure'],
-			events: ['create', 'start', 'show:s1', 'prepare', 'configure', 'send:prepared'],
+			eventsWhilePreparingRequest: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure'],
+			events: ['create', 'start:Fetching pull request...', 'show:s1', 'prepare', 'configure', 'clear', 'send:prepared'],
 			createMetadata: { github: { pullRequestUrl: 'https://github.com/owner/repo/pull/42' } },
 		});
 	});

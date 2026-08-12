@@ -12,7 +12,6 @@ import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -87,6 +86,7 @@ import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/ch
 import { IChatTipService } from '../chatTipService.js';
 import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
+import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -155,7 +155,10 @@ export function getImmediateSilentSlashCommandPart(parsedRequest: IParsedChatReq
 	);
 }
 
-export function shouldShowChatWelcome(itemCount: number, hasTranscriptOverlay: boolean): boolean {
+export function shouldShowChatWelcome(itemCount: number | undefined, hasTranscriptOverlay: boolean): boolean | undefined {
+	if (itemCount === undefined && !hasTranscriptOverlay) {
+		return undefined;
+	}
 	return itemCount === 0 && !hasTranscriptOverlay;
 }
 
@@ -305,7 +308,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
-	private transcriptProgress: { readonly container: HTMLElement; readonly label: HTMLElement } | undefined;
+	private transcriptProgress: { readonly container: HTMLElement; readonly content: HTMLElement } | undefined;
+	private readonly transcriptProgressPart = this._register(new MutableDisposable<DisposableStore>());
 	private transcriptProgressActive = false;
 	private transcriptContext: HTMLElement | undefined;
 	private readonly transcriptContextPart = this._register(new MutableDisposable<ChatAttachmentsContentPart>());
@@ -1175,10 +1179,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * Updates the DOM visibility of welcome view and chat list immediately
 	 */
 	private updateChatViewVisibility(): void {
-		if (this.viewModel) {
+		const showWelcome = shouldShowChatWelcome(
+			this.viewModel?.getItems().length,
+			this.transcriptProgressActive || this.transcriptContextValue !== undefined,
+		);
+		if (showWelcome !== undefined) {
 			const isStandardLayout = this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal';
-			const numItems = this.viewModel.getItems().length;
-			const showWelcome = shouldShowChatWelcome(numItems, this.transcriptProgressActive || this.transcriptContextValue !== undefined);
 			dom.setVisibility(showWelcome, this.welcomeMessageContainer);
 			dom.setVisibility(!showWelcome, this.listContainer);
 
@@ -1213,14 +1219,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			container.hidden = true;
 			container.setAttribute('role', 'status');
 			container.setAttribute('aria-live', 'polite');
-			const icon = dom.append(container, $('span'));
-			icon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
-			icon.setAttribute('aria-hidden', 'true');
-			const label = dom.append(container, $('span'));
-			label.setAttribute('aria-hidden', 'true');
-			this.transcriptProgress = { container, label };
+			const content = dom.append(container, $('.interactive-item-container'));
+			content.setAttribute('aria-hidden', 'true');
+			this.transcriptProgress = { container, content };
 		}
-		this.transcriptProgress.label.textContent = message ?? '';
+		this.transcriptProgressPart.clear();
+		dom.clearNode(this.transcriptProgress.content);
+		if (message) {
+			const store = new DisposableStore();
+			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
+			const progressPart = store.add(this.instantiationService.createInstance(ChatProgressSubPart, renderedMessage.element, Codicon.check, undefined));
+			progressPart.domNode.classList.add('shimmer-progress');
+			dom.append(this.transcriptProgress.content, progressPart.domNode);
+			this.transcriptProgressPart.value = store;
+		}
 		this.transcriptProgress.container.setAttribute('aria-label', ariaLabel ?? '');
 		this.transcriptProgress.container.hidden = message === undefined;
 		this.transcriptProgressActive = message !== undefined;
