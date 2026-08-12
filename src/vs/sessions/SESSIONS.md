@@ -101,7 +101,7 @@ User selections in the Agents-window mode picker report the shared `chat.modeCha
 
 The `sessions.showSessionsPicker` command globally prioritizes non-archived sessions that need input, followed by other unread sessions. Each priority group preserves the picker's existing recent-first order, and sessions in neither group remain in the existing "recently opened" and "other sessions" sections. Archived-session exclusion is owned by the picker grouping helper so archived sessions cannot enter any section regardless of status or read state. The picker initially selects the first session rather than the preceding New Session item or the active session.
 
-The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer renders the shared chat-tip content above its input only after the cumulative Agents request counter reaches two; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
+The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer renders the shared chat-tip content above its input only after the cumulative Agents request counter reaches two; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface. The composer runs the **shared chat paste pipeline** rather than a hand-rolled one: it enables Monaco's `CopyPasteController` and registers an `IChatPasteTarget` (`newChatInputPasteTarget.ts`) keyed by its input model URI, so the workbench chat paste providers — code attachments, symbol references, HTML-to-Markdown, chat attachment transfer, and long pasted-text artifacts — behave identically here and in the in-session chat. Paste providers depend on `IChatPasteTarget`, never on `IChatWidget`. Image paste and the terminal-command paste veto remain composer-owned capture-phase handlers that run before the pipeline.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
@@ -275,6 +275,12 @@ Sessions produce file changes organized into **`ISessionChangeset`** groups — 
 
 Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
 
+Changesets can also advertise scoped operations. The Changes view uses `IChangesViewService.activeSessionChangesetOperationsObs` as the canonical visible operation list; this applies client-owned policy before toolbar and context-key consumers read it. In particular, an Agent Host `merge` operation is hidden when the session repository reports a protected base branch, leaving pull-request operations to lead the toolbar.
+
+Providers may expose `ISession.completedStateIcon` for a completed source-control workflow. The sessions list and picker prefer this observable over the legacy pull-request icon lookup. Agent Host derives it from durable source-control provenance: a successful direct merge shows `git-merge` with the merged-PR purple, while a pull request discovered afterward restores its live PR-state icon. Quick Pick items carry `iconColor` separately from their codicon class so the picker preserves the same theme color, and its item autorun keeps an open picker synchronized with outcome changes.
+
+Every `ISession` wrapper must delegate optional provider-owned observables such as `completedStateIcon`. `VisibleSession` and `ResourceOverrideSession` explicitly forward the complete session surface so active and transient resource consumers do not silently lose metadata.
+
 ---
 
 ## Data Flow
@@ -414,26 +420,59 @@ up to two authored pull requests with failing CI or unaddressed review comments.
 `options` is the default when no variation treatment is assigned; `prompt` and
 `githubPrompt` remain available as explicit treatments and developer overrides.
 Any remaining slots are filled, in order, by the standard Implement a feature,
-Fix a bug, and Fix CI options. GitHub work is resolved
-silently with bounded cancellable lookups and shared issue/pull-request state
-icons; failures and timeouts leave every candidate completed by that point in
-place and fill the rest with standard options. Changing the selected workspace
-clears the repository-specific option set immediately, shows loading skeletons,
-and starts a fresh lookup for the replacement draft so cards from the previous
-repository cannot be inserted into the new workspace. Clearing the workspace
-cancels the active lookup, removes only untouched/generated option text, and
-hides the widget so stale results cannot reappear.
+Fix a bug, and Fix CI options. GitHub work is resolved silently with bounded
+cancellable lookups and shared issue/pull-request state icons. The complete
+lookup has a 10-second ceiling; summary requests receive up to 5 seconds,
+issue-linkage requests 2.5 seconds, and review-thread requests 4 seconds within
+that total budget. Failures and timeouts leave every candidate completed by that
+point in place and fill the rest with standard options. Repository discovery and
+API authentication use github.com by default. When GitHub Enterprise is
+configured, repository discovery accepts only that Enterprise host and API calls
+use its endpoint and `github-enterprise` authentication provider; hostless
+session metadata and github.com remotes are not mixed into that connection.
+Changing the selected
+workspace clears the repository-specific option set immediately, shows loading
+skeletons, and starts a fresh lookup for the replacement draft so cards from the
+previous repository cannot be inserted into the new workspace. Clearing the
+workspace cancels the active lookup, removes only untouched/generated option
+text, and hides the widget so stale results cannot reappear.
+
+Repository-backed cards lead with the issue or pull-request title beside its
+state icon. A quiet secondary row starts at the same content edge as that title
+and combines the option label, repository number, and a trailing directional
+affordance (for example, **Tackle issue #123 →**) so the generic action cannot
+be mistaken for the repository content title. The full action and content title
+remain available through the card's ARIA label and managed hover when either
+visible line is truncated.
 
 Selecting the first option focuses the input immediately and animates its prompt
 into an empty input. Later selections replace the generated prompt immediately.
 A different option can replace the input only while it is empty, exactly matches
 the previously selected prompt, or exactly matches that prompt after its editable
 placeholder was activated and removed. Any other edit disables every option but
-preserves the selected presentation; clearing the input or restoring either exact
-generated form enables them again. The option widget remains mounted after
-selection and is disposed with the composer. Standard prompts contain
-action-specific editable placeholders and the same inspect, explain, implement,
-and validate guidance as the prompt variation.
+preserves the selected presentation; clearing the input clears the selection and
+enables every option, while restoring either exact generated form enables the
+options without clearing the selection. The option widget remains mounted after
+selection and is disposed with the composer. Its heading row ends with a close
+action that cancels an in-flight lookup, hides the widget for the lifetime of
+that composer, preserves inserted or partially typed text, and returns focus to
+the input. GitHub numbers and repository titles use the standard foreground so
+they retain contrast across themes. Standard prompts contain action-specific
+editable placeholders followed by concise, task-specific guidance to ask the
+user questions when the intended behavior, bug context, or CI remediation is
+unclear.
+
+Successful option insertions and the close action emit
+`onboarding.promptOptionInteraction`. The event records only the interaction and
+a fixed option category (`implementFeature`, `fixBug`, `fixCI`, `githubIssue`,
+`githubPRCI`, or `githubPRComments`); it never records issue/PR numbers, titles,
+URLs, prompt text, or other repository content.
+
+GitHub prompt personalization must keep repository discovery and API connection
+selection on the same host. Do not add Enterprise hosts to the github.com
+allowlist while routing every API request through Enterprise; either preserve
+the resolved host through the request or make Enterprise discovery exclusive,
+including hostless metadata paths.
 
 The run step awaits typing or option resolution and forwards sequence
 cancellation; cancellation or composer disposal preserves only text already

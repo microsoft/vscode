@@ -298,6 +298,8 @@ suite('AgentHostClientTools', () => {
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
 			const invokedToolCalls: IToolInvocation[] = [];
+			const executedToolCalls: IToolInvocation[] = [];
+			const invocationTokens: CancellationToken[] = [];
 			const recordedStateKinds = new Map<string, IChatToolInvocation.StateKind[]>();
 			return {
 				onDidChangeTools: onDidChangeTools.event,
@@ -311,6 +313,7 @@ suite('AgentHostClientTools', () => {
 				getTool: (id: string) => tools.find(t => t.id === id),
 				invokeTool: async (invocation: IToolInvocation, _countTokens, token?: CancellationToken) => {
 					invokedToolCalls.push(invocation);
+					invocationTokens.push(token ?? CancellationToken.None);
 					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
 					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
 					if (options?.throwBeforeConfirmation) {
@@ -364,6 +367,7 @@ suite('AgentHostClientTools', () => {
 							: undefined;
 						toolInvocation?.transitionFromStreaming(prepared, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
 					}
+					executedToolCalls.push(invocation);
 					const result: IToolResult = options?.invokeResult
 						? await options.invokeResult.p
 						: { content: [{ kind: 'text', value: 'done' }] };
@@ -419,8 +423,10 @@ suite('AgentHostClientTools', () => {
 				fireOnDidChangeTools: () => onDidChangeTools.fire(),
 				begunToolCalls,
 				invokedToolCalls,
+				executedToolCalls,
+				invocationTokens,
 				recordedStateKinds,
-			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
+			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; executedToolCalls: IToolInvocation[]; invocationTokens: CancellationToken[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
 		}
 
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
@@ -1380,10 +1386,10 @@ suite('AgentHostClientTools', () => {
 				invokedToolCallCount: 0,
 				actionsBeforeSkip: [],
 				actionsAfterSkip: [{
-					type: ActionType.ChatToolCallComplete,
-					approved: undefined,
-					success: false,
-					error: 'Run Task was skipped from another client',
+					type: ActionType.ChatToolCallConfirmed,
+					approved: false,
+					success: undefined,
+					error: undefined,
 				}],
 			});
 		});
@@ -1781,6 +1787,97 @@ suite('AgentHostClientTools', () => {
 				invoked: 1,
 				dispatchedApproval: true,
 			});
+			invokeResult.complete({ content: [{ kind: 'text', value: 'done' }] });
+			await timeout(0);
+		});
+
+		test('cancels a confirming client tool when its confirmation request disappears', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			await provideSessionWithPendingConfirmationClientTool(handler, connection);
+
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionInputNeededRemoved,
+				id: 'confirmation-tool-call-1',
+			});
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				cancelled: toolsService.invocationTokens[0]?.isCancellationRequested,
+				state: toolsService.begunToolCalls[0]?.state.get().type,
+			}, {
+				cancelled: true,
+				state: IChatToolInvocation.StateKind.Cancelled,
+			});
+		});
+
+		test('does not execute a client tool skipped from another client while confirming', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true });
+			const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				approved: false,
+				reason: ToolCallCancellationReason.Skipped,
+				reasonMessage: 'Run Task was skipped from another client',
+			});
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				executed: toolsService.executedToolCalls.length,
+				state: toolsService.begunToolCalls[0]?.state.get().type,
+				completions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallComplete
+					&& entry.action.toolCallId === 'tool-call-1').length,
+			}, {
+				executed: 0,
+				state: IChatToolInvocation.StateKind.Cancelled,
+				completions: 0,
+			});
+		});
+
+		test('transfers cancellation authority from confirmation to execution', async () => {
+			const invokeResult = new DeferredPromise<IToolResult>();
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { requireConfirmation: true, invokeResult });
+			const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
+			const invocation = toolsService.begunToolCalls[0];
+
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionInputNeededRemoved,
+				id: 'confirmation-tool-call-1',
+			});
+			await timeout(0);
+			assert.strictEqual(toolsService.invocationTokens[0]?.isCancellationRequested, false);
+
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.UserAction,
+			});
+			await timeout(0);
+			connection.applySessionAction(AgentSession.uri('copilot', 'session-1'), {
+				type: ActionType.SessionInputNeededRemoved,
+				id: 'exec-tool-call-1',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				cancelled: toolsService.invocationTokens[0]?.isCancellationRequested,
+				confirmations: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
+					&& entry.action.type === ActionType.ChatToolCallConfirmed
+					&& entry.action.toolCallId === 'tool-call-1').length,
+			}, {
+				cancelled: true,
+				confirmations: 1,
+			});
+
 			invokeResult.complete({ content: [{ kind: 'text', value: 'done' }] });
 			await timeout(0);
 		});
