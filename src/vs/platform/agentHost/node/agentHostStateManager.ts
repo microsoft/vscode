@@ -129,6 +129,11 @@ class SessionSummaryNotifier extends Disposable {
 		return this._lastNotified.has(session);
 	}
 
+	/** The last summary announced to clients for `session`, if any. */
+	getAnnounced(session: string): SessionSummary | undefined {
+		return this._lastNotified.get(session);
+	}
+
 	/** Marks `session` dirty and schedules a debounced flush. */
 	markDirty(session: string): void {
 		this._dirty.add(session);
@@ -385,6 +390,16 @@ export class AgentHostStateManager extends Disposable {
 	getSessionSummary(session: URI): SessionSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		return entry ? this._toSummary(session, entry) : undefined;
+	}
+
+	/**
+	 * The summary a session was surfaced/announced with (e.g. an adoptable-legacy
+	 * session) while it has no full state yet. Returns `undefined` once the
+	 * session is restored into state. Lets callers honour a still-listed
+	 * adoptable session even if the migrate setting was toggled off after surfacing.
+	 */
+	getSurfacedSessionSummary(session: string): SessionSummary | undefined {
+		return this._sessionStates.has(session) ? undefined : this._summaryNotifier.getAnnounced(session);
 	}
 
 	/**
