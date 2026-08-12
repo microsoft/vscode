@@ -19,7 +19,7 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/common/errors.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { AutomationDefinitionPatch } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AutomationDefinition, AutomationMisfirePolicy, AutomationOperation, AutomationScheduleKind, AutomationState, AutomationTrigger, AutomationTriggerKind, AutomationWeekday } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { AutomationDefinition, AutomationMisfirePolicy, AutomationOperation, AutomationState, AutomationTrigger, AutomationTriggerKind } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary } from '../../../../platform/agentHost/common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -1343,48 +1343,37 @@ function triggersFromSchedule(schedule: IAutomationSchedule): AutomationTrigger[
 		return [];
 	}
 	const id = 'schedule';
-	if (schedule.interval === 'hourly') {
-		return [{ id, kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Hourly }, misfirePolicy: AutomationMisfirePolicy.RunOnce }];
-	}
 	const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-	const time = { hour: schedule.scheduleHour, minute: schedule.scheduleMinute };
+	if (schedule.interval === 'hourly') {
+		return [{ id, kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce }];
+	}
+	const time = `${schedule.scheduleMinute} ${schedule.scheduleHour}`;
 	if (schedule.interval === 'daily') {
-		return [{ id, kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Daily, time, timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce }];
+		return [{ id, kind: AutomationTriggerKind.Schedule, schedule: { expression: `${time} * * *`, timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce }];
 	}
 	return [{
 		id,
 		kind: AutomationTriggerKind.Schedule,
 		schedule: {
-			kind: AutomationScheduleKind.Weekly,
-			weekday: weekdays[schedule.scheduleDay],
-			time,
+			expression: `${time} * * ${schedule.scheduleDay}`,
 			timeZone,
 		},
 		misfirePolicy: AutomationMisfirePolicy.RunOnce,
 	}];
 }
 
-const weekdays = [
-	AutomationWeekday.Sunday,
-	AutomationWeekday.Monday,
-	AutomationWeekday.Tuesday,
-	AutomationWeekday.Wednesday,
-	AutomationWeekday.Thursday,
-	AutomationWeekday.Friday,
-	AutomationWeekday.Saturday,
-] as const;
-
 function toAutomation(host: IHostAutomation): IAutomation {
 	const { state } = host;
 	const definition = state.definition;
 	const scheduleTrigger = definition.triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
+	const schedule = scheduleTrigger ? scheduleFromTrigger(scheduleTrigger) : undefined;
 	const target = targetFromDefinition(definition, host.authority);
 	const lastRun = state.runs[0];
 	return Object.freeze({
 		id: hostKey(host.authority, host.resource),
 		name: definition.title,
 		prompt: definition.message.text,
-		schedule: scheduleTrigger ? scheduleFromTrigger(scheduleTrigger) : manualSchedule(),
+		schedule: schedule ?? manualSchedule(),
 		target,
 		modelId: definition.session.model?.id,
 		mode: readString(definition.session.config?.[SessionConfigKey.Mode]),
@@ -1399,7 +1388,7 @@ function toAutomation(host: IHostAutomation): IAutomation {
 			resource: host.resource,
 			revision: state.revision,
 			connected: !!host.connection,
-			hasUnsupportedTriggers: definition.triggers.length > 1 || definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.Event || trigger.schedule.kind === AutomationScheduleKind.Cron),
+			hasUnsupportedTriggers: definition.triggers.length > 1 || definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.Event || scheduleFromTrigger(trigger) === undefined),
 			canEdit: state.operations.includes(AutomationOperation.Update),
 			canRun: state.operations.includes(AutomationOperation.Run),
 			canDelete: state.operations.includes(AutomationOperation.Dispose),
@@ -1452,22 +1441,42 @@ function targetFromDefinition(definition: AutomationDefinition, authority = AMBI
 	return { kind: 'workspace', folderUri: URI.parse(folder), providerId, sessionTypeId, isolation };
 }
 
-function scheduleFromTrigger(trigger: Extract<AutomationTrigger, { kind: AutomationTriggerKind.Schedule }>): IAutomationSchedule {
-	switch (trigger.schedule.kind) {
-		case AutomationScheduleKind.Hourly:
-			return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		case AutomationScheduleKind.Daily:
-			return { interval: 'daily', scheduleHour: trigger.schedule.time.hour, scheduleMinute: trigger.schedule.time.minute, scheduleDay: 0 };
-		case AutomationScheduleKind.Weekly:
-			return {
-				interval: 'weekly',
-				scheduleHour: trigger.schedule.time.hour,
-				scheduleMinute: trigger.schedule.time.minute,
-				scheduleDay: weekdays.indexOf(trigger.schedule.weekday),
-			};
-		case AutomationScheduleKind.Cron:
-			return manualSchedule();
+function scheduleFromTrigger(trigger: Extract<AutomationTrigger, { kind: AutomationTriggerKind.Schedule }>): IAutomationSchedule | undefined {
+	if (trigger.misfirePolicy === AutomationMisfirePolicy.Skip) {
+		return undefined;
 	}
+	const fields = trigger.schedule.expression.trim().split(/\s+/);
+	if (fields.length !== 5) {
+		return undefined;
+	}
+	const [minuteField, hourField, dayOfMonth, month, dayOfWeek] = fields;
+	if (minuteField === '0' && hourField === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+		return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+	}
+	const scheduleMinute = parseSimpleCronNumber(minuteField, 0, 59);
+	const scheduleHour = parseSimpleCronNumber(hourField, 0, 23);
+	if (scheduleMinute === undefined || scheduleHour === undefined || dayOfMonth !== '*' || month !== '*' || trigger.schedule.timeZone !== Intl.DateTimeFormat().resolvedOptions().timeZone) {
+		return undefined;
+	}
+	if (dayOfWeek === '*') {
+		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
+	}
+	const scheduleDay = parseSimpleCronWeekday(dayOfWeek);
+	return scheduleDay === undefined ? undefined : { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay };
+}
+
+function parseSimpleCronNumber(value: string, min: number, max: number): number | undefined {
+	const parsed = Number(value);
+	return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : undefined;
+}
+
+function parseSimpleCronWeekday(value: string): number | undefined {
+	const named = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(value.toLowerCase());
+	if (named >= 0) {
+		return named;
+	}
+	const parsed = parseSimpleCronNumber(value, 0, 7);
+	return parsed === 7 ? 0 : parsed;
 }
 
 function manualSchedule(): IAutomationSchedule {

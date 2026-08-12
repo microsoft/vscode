@@ -17,7 +17,6 @@ import {
 	AutomationExecutionLifetime,
 	AutomationMisfirePolicy,
 	AutomationOperation,
-	AutomationScheduleKind,
 	AutomationTriggerKind,
 	type AutomationDefinition,
 	type AutomationSchedule,
@@ -86,13 +85,7 @@ export class AgentAutomationService extends Disposable {
 		execution: { lifetime: AutomationExecutionLifetime.HostLifetime },
 		create: {},
 		schedules: {
-			kinds: [
-				AutomationScheduleKind.Hourly,
-				AutomationScheduleKind.Daily,
-				AutomationScheduleKind.Weekly,
-				AutomationScheduleKind.Cron,
-			],
-			cron: { dialect: 'unix5', minIntervalMinutes: 1 },
+			minIntervalMinutes: 1,
 		},
 		runCancellation: {},
 		schedulePreview: {},
@@ -723,13 +716,8 @@ function runStartedAt(lifecycle: AutomationRunLifecycle): string | undefined {
 }
 
 function computeNextSchedule(schedule: AutomationSchedule, after: Date): Date | undefined {
-	if (schedule.kind === AutomationScheduleKind.Hourly) {
-		return new Date(after.getTime() + 60 * 60 * 1000);
-	}
-	const matcher = schedule.kind === AutomationScheduleKind.Cron
-		? parseCron(schedule.expression)
-		: undefined;
-	if (schedule.kind === AutomationScheduleKind.Cron && !matcher) {
+	const matcher = parseCron(schedule.expression);
+	if (!matcher) {
 		return undefined;
 	}
 	for (let minute = 1; minute <= MAX_SCHEDULE_LOOKAHEAD_MINUTES; minute++) {
@@ -738,22 +726,10 @@ function computeNextSchedule(schedule: AutomationSchedule, after: Date): Date | 
 		if (!parts) {
 			return undefined;
 		}
-		if (schedule.kind === AutomationScheduleKind.Daily
-			&& parts.hour === schedule.time.hour
-			&& parts.minute === schedule.time.minute) {
-			return candidate;
-		}
-		if (schedule.kind === AutomationScheduleKind.Weekly
-			&& parts.weekday === schedule.weekday
-			&& parts.hour === schedule.time.hour
-			&& parts.minute === schedule.time.minute) {
-			return candidate;
-		}
-		if (schedule.kind === AutomationScheduleKind.Cron
-			&& matcher!.minutes.has(parts.minute)
-			&& matcher!.hours.has(parts.hour)
-			&& matcher!.months.has(parts.month)
-			&& cronDayMatches(matcher!, parts.day, parts.weekdayNumber)) {
+		if (matcher.minutes.has(parts.minute)
+			&& matcher.hours.has(parts.hour)
+			&& matcher.months.has(parts.month)
+			&& cronDayMatches(matcher, parts.day, parts.weekdayNumber)) {
 			return candidate;
 		}
 	}
@@ -804,8 +780,8 @@ function parseCron(expression: string): ICronMatcher | undefined {
 	const minutes = parseCronField(fields[0], 0, 59);
 	const hours = parseCronField(fields[1], 0, 23);
 	const days = parseCronField(fields[2], 1, 31);
-	const months = parseCronField(fields[3], 1, 12);
-	const weekdays = parseCronField(fields[4], 0, 6);
+	const months = parseCronField(fields[3], 1, 12, cronMonths);
+	const weekdays = parseCronField(fields[4], 0, 7, cronWeekdays, value => value === 7 ? 0 : value);
 	return minutes && hours && days && months && weekdays
 		? {
 			minutes,
@@ -827,11 +803,49 @@ function cronDayMatches(matcher: ICronMatcher, day: number, weekday: number): bo
 		: dayMatches && weekdayMatches;
 }
 
-function parseCronField(value: string, min: number, max: number): Set<number> | undefined {
+const cronMonths = new Map([
+	['jan', 1],
+	['feb', 2],
+	['mar', 3],
+	['apr', 4],
+	['may', 5],
+	['jun', 6],
+	['jul', 7],
+	['aug', 8],
+	['sep', 9],
+	['oct', 10],
+	['nov', 11],
+	['dec', 12],
+]);
+
+const cronWeekdays = new Map([
+	['sun', 0],
+	['mon', 1],
+	['tue', 2],
+	['wed', 3],
+	['thu', 4],
+	['fri', 5],
+	['sat', 6],
+]);
+
+function parseCronField(
+	value: string,
+	min: number,
+	max: number,
+	names?: ReadonlyMap<string, number>,
+	normalize: (value: number) => number = value => value,
+): Set<number> | undefined {
 	const result = new Set<number>();
 	for (const term of value.split(',')) {
-		const [rangePart, stepPart] = term.split('/');
-		const step = stepPart === undefined ? 1 : Number(stepPart);
+		const stepParts = term.split('/');
+		if (stepParts.length > 2) {
+			return undefined;
+		}
+		const [rangePart, stepPart] = stepParts;
+		if (stepPart !== undefined && rangePart !== '*' && !rangePart.includes('-')) {
+			return undefined;
+		}
+		const step = stepPart === undefined ? 1 : parseCronValue(stepPart, undefined);
 		if (!Number.isInteger(step) || step < 1) {
 			return undefined;
 		}
@@ -841,20 +855,32 @@ function parseCronField(value: string, min: number, max: number): Set<number> | 
 			start = min;
 			end = max;
 		} else if (rangePart.includes('-')) {
-			const pair = rangePart.split('-').map(Number);
-			[start, end] = pair;
+			const range = rangePart.split('-');
+			if (range.length !== 2) {
+				return undefined;
+			}
+			start = parseCronValue(range[0], names);
+			end = parseCronValue(range[1], names);
 		} else {
-			start = Number(rangePart);
+			start = parseCronValue(rangePart, names);
 			end = start;
 		}
 		if (!Number.isInteger(start) || !Number.isInteger(end) || start < min || end > max || start > end) {
 			return undefined;
 		}
 		for (let current = start; current <= end; current += step) {
-			result.add(current);
+			result.add(normalize(current));
 		}
 	}
 	return result;
+}
+
+function parseCronValue(value: string, names: ReadonlyMap<string, number> | undefined): number {
+	const named = names?.get(value.toLowerCase());
+	if (named !== undefined) {
+		return named;
+	}
+	return /^\d+$/.test(value) ? Number(value) : Number.NaN;
 }
 
 function encodeCursor(offset: number): string {

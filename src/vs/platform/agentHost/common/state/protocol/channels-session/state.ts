@@ -48,19 +48,38 @@ export const enum SessionStatus {
 	IsArchived = 1 << 6,
 }
 
-/** @category Session State */
+/**
+ * Discriminant describing the durable provenance of a session.
+ *
+ * @category Session State
+ */
 export const enum SessionOriginKind {
+	/** The session was created as part of an automation run. */
 	Automation = 'automation',
 }
 
-/** @category Session State */
+/**
+ * Provenance recorded on a session created for an automation run.
+ *
+ * The links let clients navigate from an ordinary session to the task-level
+ * run and its durable definition. The session channel remains authoritative
+ * for this session's transcript, tools, confirmations, and changes.
+ *
+ * @category Session State
+ */
 export interface AutomationSessionOrigin {
 	kind: SessionOriginKind.Automation;
+	/** Owning `ahp-automation:` URI. */
 	automation: URI;
+	/** Owning `ahp-automation-run:` URI. */
 	run: URI;
 }
 
-/** @category Session State */
+/**
+ * Durable provenance for sessions created by a higher-level AHP workflow.
+ *
+ * @category Session State
+ */
 export type SessionOrigin = AutomationSessionOrigin;
 
 /**

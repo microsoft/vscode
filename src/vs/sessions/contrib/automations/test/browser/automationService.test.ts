@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { AutomationDefinition, AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationDefinition, AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, AutomationTriggerKind, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CreateAutomationParams, ListAutomationsResult, RunAutomationParams, RunAutomationResult, UpdateAutomationParams } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/common/errors.js';
@@ -710,6 +710,83 @@ suite('AutomationService', () => {
 			host: AMBIENT_AGENT_HOST_AUTHORITY,
 			modelId: 'auto',
 			legacyLedger: undefined,
+		});
+	});
+
+	test('maps simple schedules to portable cron definitions', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const schedules = [
+			{ schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 } as const, expression: '0 * * * *' },
+			{ schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 15, scheduleDay: 0 } as const, expression: '15 9 * * *' },
+			{ schedule: { interval: 'weekly', scheduleHour: 18, scheduleMinute: 45, scheduleDay: 2 } as const, expression: '45 18 * * 2' },
+		];
+		const projected = [];
+		for (const [index, entry] of schedules.entries()) {
+			const automation = await service.createAutomation({
+				name: `scheduled-${index}`,
+				prompt: 'Run tests',
+				schedule: entry.schedule,
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			});
+			const trigger = connection.lastCreateDefinition?.triggers[0];
+			projected.push({
+				schedule: automation.schedule,
+				expression: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.expression : undefined,
+				timeZone: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.timeZone : undefined,
+				hasUnsupportedTriggers: automation.host?.hasUnsupportedTriggers,
+			});
+		}
+
+		assert.deepStrictEqual(projected, schedules.map(entry => ({
+			schedule: entry.schedule,
+			expression: entry.expression,
+			timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+			hasUnsupportedTriggers: false,
+		})));
+	});
+
+	test('keeps arbitrary cron schedules read-only in the simple editor', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const resource = 'ahp-automation:/cron';
+		connection.seedAutomation(resource, true);
+		const definition = connection.lastCreateDefinition!;
+		connection.setAutomationDefinition(resource, {
+			...definition,
+			triggers: [{
+				id: 'schedule',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: {
+					expression: '*/15 * * * *',
+					timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				},
+			}],
+		});
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+
+		assert.deepStrictEqual({
+			schedule: automation.schedule,
+			hasUnsupportedTriggers: automation.host?.hasUnsupportedTriggers,
+		}, {
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			hasUnsupportedTriggers: true,
 		});
 	});
 

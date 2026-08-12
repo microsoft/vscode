@@ -14,7 +14,7 @@ import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AutomationOperation, AutomationScheduleKind, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
+import { AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentAutomationService, type IAutomationSessionExecutor } from '../../node/agentAutomationService.js';
@@ -192,8 +192,8 @@ suite('AgentAutomationService', () => {
 				definition: {
 					...automationDefinition(),
 					triggers: [
-						{ id: 'trigger-a', kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Hourly, timeZone: 'UTC' } },
-						{ id: 'trigger-b', kind: AutomationTriggerKind.Schedule, schedule: { kind: AutomationScheduleKind.Hourly, timeZone: 'UTC' } },
+						{ id: 'trigger-a', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } },
+						{ id: 'trigger-b', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } },
 					],
 				},
 				revision: 1,
@@ -238,11 +238,24 @@ suite('AgentAutomationService', () => {
 		assert.strictEqual(manager.getAutomationState('ahp-automation:/event'), undefined);
 	});
 
+	test('rejects cron steps on single values', async () => {
+		await assert.rejects(() => service.create({
+			channel: 'ahp-automation:/invalid-schedule',
+			definition: {
+				...automationDefinition(),
+				triggers: [{
+					id: 'trigger-a',
+					kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: '5/2 * * * *', timeZone: 'UTC' },
+				}],
+			},
+		}), /Invalid automation schedule/);
+	});
+
 	test('unix cron treats restricted day-of-month and weekday as alternatives', async () => {
 		const result = await service.preview({
 			channel: 'ahp-root://',
 			schedule: {
-				kind: AutomationScheduleKind.Cron,
 				expression: '0 0 31 * 1',
 				timeZone: 'UTC',
 			},
@@ -263,7 +276,6 @@ suite('AgentAutomationService', () => {
 		const result = await service.preview({
 			channel: 'ahp-root://',
 			schedule: {
-				kind: AutomationScheduleKind.Cron,
 				expression: '0 0 */2 * 1',
 				timeZone: 'UTC',
 			},
@@ -279,6 +291,48 @@ suite('AgentAutomationService', () => {
 			count: 1,
 			isMonday: true,
 			isSelectedDayOfMonth: true,
+		});
+	});
+
+	test('AHP cron supports names, ranges, and Sunday 7', async () => {
+		const soon = new Date(Date.now() + 2 * 60_000);
+		const monthName = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'][soon.getUTCMonth()];
+		const namedMonth = await service.preview({
+			channel: 'ahp-root://',
+			schedule: {
+				expression: `${soon.getUTCMinutes()} ${soon.getUTCHours()} * ${monthName} *`,
+				timeZone: 'UTC',
+			},
+			count: 1,
+		});
+		const namedWeekdayRange = await service.preview({
+			channel: 'ahp-root://',
+			schedule: {
+				expression: '* * * * MON-FRI',
+				timeZone: 'UTC',
+			},
+			count: 1,
+		});
+		const sunday = await service.preview({
+			channel: 'ahp-root://',
+			schedule: {
+				expression: '0 0 * * 7',
+				timeZone: 'UTC',
+			},
+			count: 1,
+		});
+		const namedMonthDate = namedMonth.items[0] ? new Date(namedMonth.items[0]) : undefined;
+		const namedWeekdayDate = namedWeekdayRange.items[0] ? new Date(namedWeekdayRange.items[0]) : undefined;
+		const sundayDate = sunday.items[0] ? new Date(sunday.items[0]) : undefined;
+
+		assert.deepStrictEqual({
+			namedMonth: namedMonthDate?.getUTCMonth(),
+			namedWeekdayInRange: namedWeekdayDate ? namedWeekdayDate.getUTCDay() >= 1 && namedWeekdayDate.getUTCDay() <= 5 : false,
+			numericSunday: sundayDate?.getUTCDay(),
+		}, {
+			namedMonth: soon.getUTCMonth(),
+			namedWeekdayInRange: true,
+			numericSunday: 0,
 		});
 	});
 });

@@ -9,7 +9,7 @@
 import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
-import type { AutomationExecutionLifetime, AutomationScheduleKind } from '../channels-automation/state.js';
+import type { AutomationExecutionLifetime } from '../channels-automation/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
 
@@ -266,44 +266,98 @@ export interface InitializeResult {
 	 * @see {@link /specification/telemetry-channel | Telemetry Channel}
 	 */
 	telemetry?: TelemetryCapabilities;
-	/** Host automation support. Absence means unsupported. */
+	/**
+	 * Host-owned automation support. Absence means the host does not expose an
+	 * automation catalogue or automation commands.
+	 *
+	 * @see {@link /guide/automations | Automations Guide}
+	 */
 	automations?: AutomationCapabilities;
 }
 
-/** @category Commands */
+/**
+ * Automation features supported by this host authority.
+ *
+ * Capabilities describe implementation support. Per-resource
+ * {@link AutomationState.operations} and
+ * {@link AutomationRunState.operations} remain authoritative for whether a
+ * particular operation is currently allowed.
+ *
+ * @category Commands
+ */
 export interface AutomationCapabilities {
+	/** Availability guarantee for automatic trigger execution. */
 	execution: AutomationExecutionCapabilities;
+	/** Present when clients may call `createAutomation`. */
 	create?: AutomationCreateCapability;
+	/** Present when definitions may contain schedule triggers. */
 	schedules?: AutomationScheduleCapabilities;
+	/** Present when clients may request cancellation on eligible runs. */
 	runCancellation?: AutomationRunCancellationCapability;
+	/** Present when clients may call `previewAutomationSchedule`. */
 	schedulePreview?: AutomationSchedulePreviewCapability;
+	/**
+	 * Maximum terminal run summaries retained per automation. Active runs are not
+	 * counted toward the limit. Absence means the retention limit is
+	 * implementation-defined.
+	 */
 	runHistoryLimit?: number;
 }
 
-/** @category Commands */
+/**
+ * Automatic trigger execution availability.
+ *
+ * @category Commands
+ */
 export interface AutomationExecutionCapabilities {
+	/** How long automatic trigger evaluation remains available. */
 	lifetime: AutomationExecutionLifetime;
 }
 
-/** @category Commands */
+/**
+ * Presence capability for `createAutomation`.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * create-specific options.
+ *
+ * @category Commands
+ */
 export interface AutomationCreateCapability { }
 
-/** @category Commands */
+/**
+ * Host restrictions on portable {@link AutomationSchedule} triggers.
+ *
+ * The cron grammar itself is fixed by AHP. Hosts MUST accept every expression
+ * in that grammar unless it violates an advertised interval restriction.
+ *
+ * @category Commands
+ */
 export interface AutomationScheduleCapabilities {
-	kinds: AutomationScheduleKind[];
-	cron?: AutomationCronScheduleCapability;
-}
-
-/** @category Commands */
-export interface AutomationCronScheduleCapability {
-	dialect: 'unix5';
+	/**
+	 * Smallest permitted interval between consecutive occurrences. Omission
+	 * means no restriction beyond the cron format's one-minute resolution.
+	 */
 	minIntervalMinutes?: number;
 }
 
-/** @category Commands */
+/**
+ * Presence capability for `automationRun/cancelRequested`.
+ *
+ * The empty object means "supported"; clients must additionally check for
+ * {@link AutomationRunOperation.Cancel} on each run.
+ *
+ * @category Commands
+ */
 export interface AutomationRunCancellationCapability { }
 
-/** @category Commands */
+/**
+ * Presence capability for `previewAutomationSchedule`.
+ *
+ * The empty object means "supported"; fields are reserved for future preview
+ * limits or options.
+ *
+ * @category Commands
+ */
 export interface AutomationSchedulePreviewCapability { }
 
 // ─── ping ────────────────────────────────────────────────────────────────────

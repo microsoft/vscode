@@ -11,30 +11,75 @@ import type { URI } from '../common/state.js';
 import type { AutomationDefinition } from './state.js';
 import type { AutomationRunSummary } from '../channels-automation-run/state.js';
 
-/** @category Automation Actions */
+/**
+ * Replace the editable definition after a successful `updateAutomation` or
+ * another host-authorized definition change.
+ *
+ * Full replacement semantics apply to `definition`. The reducer also replaces
+ * the revision and modification timestamp. Omitting `nextRunAt` clears the
+ * previously projected next occurrence.
+ *
+ * @category Automation Actions
+ * @version 1
+ */
 export interface AutomationDefinitionChangedAction {
 	type: ActionType.AutomationDefinitionChanged;
+	/** Complete replacement definition. */
 	definition: AutomationDefinition;
+	/** New monotonic revision. */
 	revision: number;
+	/** Definition modification timestamp in ISO 8601 format. */
 	modifiedAt: string;
+	/** Earliest known future scheduled occurrence, or omitted to clear it. */
 	nextRunAt?: string;
 }
 
-/** @category Automation Actions */
+/**
+ * Upsert one run summary in the retained history.
+ *
+ * Existing entries are replaced by {@link AutomationRunSummary.resource}. A
+ * previously unseen run is inserted at the front because history is
+ * newest-first.
+ *
+ * @category Automation Actions
+ * @version 1
+ */
 export interface AutomationRunSummarySetAction {
 	type: ActionType.AutomationRunSummarySet;
+	/** New or replacement run summary. */
 	run: AutomationRunSummary;
 }
 
-/** @category Automation Actions */
+/**
+ * Remove one retained run summary by its automation-run URI.
+ *
+ * The action is a no-op when the URI is not present in the current history
+ * window.
+ *
+ * @category Automation Actions
+ * @version 1
+ */
 export interface AutomationRunSummaryRemovedAction {
 	type: ActionType.AutomationRunSummaryRemoved;
+	/** {@link AutomationRunSummary.resource} to remove. */
 	run: URI;
 }
 
-/** @category Automation Actions */
+/**
+ * Append an older page of run summaries returned by
+ * `fetchAutomationRuns`.
+ *
+ * Entries already present by resource URI are ignored, preserving the
+ * newest-first ordering of the existing history followed by the fetched page.
+ * Omitting `nextCursor` marks the end of retained history.
+ *
+ * @category Automation Actions
+ * @version 1
+ */
 export interface AutomationRunsLoadedAction {
 	type: ActionType.AutomationRunsLoaded;
+	/** Older run summaries in newest-first order within this page. */
 	runs: AutomationRunSummary[];
+	/** Opaque cursor for the next older page, or omitted at the end. */
 	nextCursor?: string;
 }
