@@ -61,18 +61,18 @@ export interface ICountableToolSet {
 
 /** Counts the enabled tools across the non-deprecated tool sets surfaced in Chat Customizations → Tools. */
 export function countEnabledCustomizationTools(toolSets: Iterable<ICountableToolSet>, state: IToolEnablementState, reader?: IReader): number {
-	let count = 0;
+	const enabled = new Set<string>();
 	for (const ts of toolSets) {
 		if (ts.deprecated) {
 			continue;
 		}
 		for (const tool of ts.getTools(reader)) {
 			if (isToolEnabledInSet(state, ts.id, tool.id)) {
-				count++;
+				enabled.add(tool.id);
 			}
 		}
 	}
-	return count;
+	return enabled.size;
 }
 
 /**

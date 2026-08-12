@@ -18,7 +18,7 @@ import { IWorkbenchLocalMcpServer } from '../../../../services/mcp/common/mcpWor
 import { getMcpServerMapping } from '../mcpConfigFileUtils.js';
 import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
-import { IMcpConfigPath, IMcpWorkbenchService, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
+import { IMcpConfigPath, IMcpWorkbenchService, MCP_CONFIGURATION_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionSortOrder, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
 
 interface CollectionState extends IDisposable {
@@ -77,7 +77,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 
 				const config = server.config;
 				const mcpConfigPath = await mcpConfigPathPromise;
-				const collectionId = `mcp.config.${mcpConfigPath ? mcpConfigPath.id : 'unknown'}`;
+				const collectionId = `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${mcpConfigPath ? mcpConfigPath.id : 'unknown'}`;
 
 				let definitions = collections.get(collectionId);
 				if (!definitions) {

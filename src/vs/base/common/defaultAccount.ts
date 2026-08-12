@@ -9,6 +9,7 @@ export interface IQuotaSnapshotData {
 	readonly overage_count: number;
 	readonly overage_entitlement: number;
 	readonly overage_permitted: boolean;
+	readonly credits_used?: number;
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;

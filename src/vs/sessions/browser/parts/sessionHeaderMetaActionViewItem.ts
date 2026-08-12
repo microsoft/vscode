@@ -35,13 +35,22 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 		button.element.classList.add('monaco-text-button', 'chat-composite-bar-meta-item-button');
 		this._register(button.onDidClick(() => {
 			if (this._action.enabled) {
-				this.actionRunner.run(this._action, this._context);
+				this.onDidClickButton();
 			}
 		}));
 
 		this.updateLabel();
 		this.updateEnabled();
 		this.updateTooltip();
+	}
+
+	/**
+	 * Invoked when the pill is activated. Runs the action by default; subclasses can
+	 * override to present their own affordance (e.g. a picker when the pill stands
+	 * for several items).
+	 */
+	protected onDidClickButton(): void {
+		this.actionRunner.run(this._action, this._context);
 	}
 
 	override focus(): void {
@@ -83,12 +92,21 @@ export class SessionHeaderMetaActionViewItem extends BaseActionViewItem {
 	}
 
 	protected override updateAriaLabel(): void {
-		const ariaLabel = this.getTooltip();
+		const ariaLabel = this.getAriaLabel();
 		if (ariaLabel) {
 			this.button?.element.setAttribute('aria-label', ariaLabel);
 		} else {
 			this.button?.element.removeAttribute('aria-label');
 		}
+	}
+
+	/**
+	 * The button's accessible name. Defaults to {@link getTooltip}. Subclasses that render
+	 * meaningful state in the visible label (e.g. the workspace name, or diff counts) should
+	 * override this so screen readers announce the same information that is shown visually.
+	 */
+	protected getAriaLabel(): string | undefined {
+		return this.getTooltip();
 	}
 
 	protected override getTooltip(): string | undefined {

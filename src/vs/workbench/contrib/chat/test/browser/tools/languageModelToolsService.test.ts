@@ -18,6 +18,8 @@ import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../.
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -68,6 +70,15 @@ class TestTelemetryService implements Partial<ITelemetryService> {
 
 	reset() {
 		this.events = [];
+	}
+}
+
+class CountingDialogService extends TestDialogService {
+	confirmCalls = 0;
+
+	override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		this.confirmCalls++;
+		return super.confirm(confirmation);
 	}
 }
 
@@ -169,6 +180,7 @@ interface TestToolsServiceOptions {
 	accessibilitySignalService?: Partial<IAccessibilitySignalService>;
 	telemetryService?: Partial<ITelemetryService>;
 	commandService?: Partial<ICommandService>;
+	dialogService?: IDialogService;
 	/** Called after configurationService is created but before the service is instantiated */
 	configureServices?: (config: TestConfigurationService) => void;
 }
@@ -207,6 +219,9 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	}
 	if (options?.commandService) {
 		instaService.stub(ICommandService, options.commandService as ICommandService);
+	}
+	if (options?.dialogService) {
+		instaService.stub(IDialogService, options.dialogService);
 	}
 
 	const service = store.add(instaService.createInstance(LanguageModelToolsService));
@@ -4983,6 +4998,153 @@ suite('LanguageModelToolsService', () => {
 
 			// Updated parameters should be applied since validation passed
 			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
+		});
+	});
+
+	suite('preApproved (out-of-band auto-approval)', () => {
+		let preApprovedService: LanguageModelToolsService;
+		let preApprovedChatService: MockChatService;
+
+		setup(() => {
+			const setup = createTestToolsService(store);
+			preApprovedService = setup.service;
+			preApprovedChatService = setup.chatService;
+		});
+
+		test('a confirmable tool with dto.preApproved never enters WaitingForConfirmation', async () => {
+			let invokeCompleted = false;
+			const tool = registerToolForTest(preApprovedService, store, 'preApprovedTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool would normally require confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'pre-approved', { requestId: 'req1', capture });
+
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'pre-approved' });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+
+			// Start the invocation without awaiting so the state at publish time is
+			// observable: an auto-approved call must be published already executing
+			// and must never surface a confirmation prompt (which would flicker
+			// "needs input" in the sessions list).
+			const invokePromise = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+			const publishedState = invocation.state.get().type;
+
+			// If the fix regressed, the call would be stuck awaiting confirmation;
+			// confirm it so the promise resolves and the assertion below (rather
+			// than a test timeout) reports the failure.
+			if (publishedState === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			}
+			const result = await invokePromise;
+
+			assert.deepStrictEqual(
+				{
+					invokeCompleted,
+					value: (result.content[0] as IToolResultTextPart).value,
+					publishedWaitingForConfirmation: publishedState === IChatToolInvocation.StateKind.WaitingForConfirmation,
+				},
+				{
+					invokeCompleted: true,
+					value: 'success',
+					publishedWaitingForConfirmation: false,
+				},
+			);
+		});
+
+		test('dto.preApproved does not override a preToolUse hook that returned ask', async () => {
+			const tool = registerToolForTest(preApprovedService, store, 'preApprovedAskTool', {
+				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] }),
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool requires confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(preApprovedChatService, 'pre-approved-ask', { requestId: 'req1', capture });
+
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'pre-approved-ask' });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+			dto.preToolUseResult = { permissionDecision: 'ask', permissionDecisionReason: 'Requires user confirmation' };
+
+			const invokePromise = preApprovedService.invokeTool(dto, async () => 0, CancellationToken.None);
+			const invocation = await waitForPublishedInvocation(capture);
+
+			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.WaitingForConfirmation,
+				'preApproved must not override an explicit hook ask');
+
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await invokePromise;
+		});
+
+		test('a headless confirmable tool with dto.preApproved does not show a dialog', async () => {
+			const dialogService = new CountingDialogService({ confirmed: true });
+			const setup = createTestToolsService(store, { dialogService });
+			let invokeCompleted = false;
+			const tool = registerToolForTest(setup.service, store, 'headlessPreApprovedTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool would normally require confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+			const dto = tool.makeDto({ test: 1 });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+
+			const result = await setup.service.invokeTool(dto, async () => 0, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				invokeCompleted,
+				value: (result.content[0] as IToolResultTextPart).value,
+				confirmCalls: dialogService.confirmCalls,
+			}, {
+				invokeCompleted: true,
+				value: 'success',
+				confirmCalls: 0,
+			});
+		});
+
+		test('a headless preToolUse hook ask overrides dto.preApproved', async () => {
+			const dialogService = new CountingDialogService({ confirmed: true });
+			const setup = createTestToolsService(store, { dialogService });
+			const tool = registerToolForTest(setup.service, store, 'headlessPreApprovedAskTool', {
+				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] }),
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool requires confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+			const dto = tool.makeDto({ test: 1 });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+			dto.preToolUseResult = { permissionDecision: 'ask', permissionDecisionReason: 'Requires user confirmation' };
+
+			await setup.service.invokeTool(dto, async () => 0, CancellationToken.None);
+
+			assert.strictEqual(dialogService.confirmCalls, 1);
 		});
 	});
 });

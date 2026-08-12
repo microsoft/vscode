@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,6 +12,7 @@ import { IAgentConnection } from '../../../../platform/agentHost/common/agentSer
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { AgentHostPty } from './agentHostPty.js';
+import { AgentHostOutputChannel } from './agentHostOutputChannel.js';
 import { AhpTerminalCommandSource } from './ahpTerminalCommandSource.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
@@ -91,6 +91,9 @@ export interface IAgentHostTerminalService {
 	 */
 	reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance>;
 
+	/** Attach a non-pty output channel directly to chat without creating a terminal instance. */
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable;
+
 	/**
 	 * Sets the default cwd used by profile providers when no explicit cwd
 	 * is provided. Call with `undefined` to clear.
@@ -116,7 +119,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	 * keyed by terminal URI string. Used for reconnection scoping.
 	 */
 	private readonly _activePtys = new Map<string, { pty: AgentHostPty; clientId: string }>();
-	private readonly _reviveSequencer = new SequencerByKey<string>();
+	private readonly _pendingRevives = new Map<string, Promise<ITerminalInstance>>();
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -322,7 +325,24 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance> {
 		const key = terminalUri.toString();
-		return this._reviveSequencer.queue(key, () => this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key));
+		const pending = this._pendingRevives.get(key);
+		if (pending) {
+			return pending;
+		}
+		const revive = this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key).finally(() => {
+			if (this._pendingRevives.get(key) === revive) {
+				this._pendingRevives.delete(key);
+			}
+		});
+		this._pendingRevives.set(key, revive);
+		return revive;
+	}
+
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable {
+		const store = new DisposableStore();
+		const source = store.add(new AgentHostOutputChannel(connection, terminalUri));
+		store.add(this._terminalChatService.registerOutputSource(terminalToolSessionId, source));
+		return store;
 	}
 
 	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string): Promise<ITerminalInstance> {
@@ -332,9 +352,8 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		}
 		const store = new DisposableStore();
 		const commandSource = store.add(new AhpTerminalCommandSource());
-		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource));
 
-		const instance = await this._terminalService.createTerminal({
+		const instancePromise = Promise.resolve().then(() => this._terminalService.createTerminal({
 			config: {
 				customPtyImplementation: (id, cols, rows) => {
 					const pty = new AgentHostPty(id, connection, terminalUri, {
@@ -355,7 +374,15 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
-		});
+		}));
+		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource, instancePromise));
+		let instance: ITerminalInstance;
+		try {
+			instance = await instancePromise;
+		} catch (error) {
+			store.dispose();
+			throw error;
+		}
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
 
 		this._revivedInstances.set(key, instance);

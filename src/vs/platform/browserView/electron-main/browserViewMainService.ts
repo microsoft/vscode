@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
+import { IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, IBrowserViewWindowConfiguration, IBrowserDeviceProfile } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -190,8 +190,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).inspector.onDidSelectElement;
 	}
 
-	onDynamicDidChangeElementSelectionActive(id: string) {
-		return this._getBrowserView(id).inspector.onDidChangeElementSelectionActive;
+	onDynamicDidRemoveElementComment(id: string) {
+		return this._getBrowserView(id).inspector.onDidRemoveElementComment;
+	}
+
+	onDynamicDidChangeElementSelectionState(id: string) {
+		return this._getBrowserView(id).inspector.onDidChangeElementSelectionState;
 	}
 
 	onDynamicDidPickArea(id: string) {
@@ -314,6 +318,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this._getBrowserView(id).session.permissions.set(origin, grants);
 	}
 
+	async selectDevice(id: string, requestId: string, deviceId: string | null): Promise<void> {
+		this._getBrowserView(id).selectDevice(requestId, deviceId);
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
@@ -334,8 +342,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).getConsoleLogs();
 	}
 
-	async toggleElementSelection(id: string, enabled?: boolean): Promise<void> {
-		return this._getBrowserView(id).inspector.toggleElementSelection(enabled);
+	async toggleElementSelection(id: string, enabled?: boolean, options?: IBrowserElementSelectionOptions): Promise<void> {
+		return this._getBrowserView(id).inspector.toggleElementSelection(enabled, options);
+	}
+
+	async setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void> {
+		this._getBrowserView(id).inspector.setElementComments(update);
 	}
 
 	async toggleAreaSelection(id: string, enabled?: boolean): Promise<void> {
@@ -386,12 +398,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private _recomputeTrustedFileRoots(): void {
 		const roots = new Set<string>();
+		let trustAllFiles = false;
 		for (const configuration of this._windowConfigurations.values()) {
 			for (const root of configuration.trustedFileRoots) {
 				roots.add(root);
 			}
+			trustAllFiles ||= configuration.trustAllFiles;
 		}
-		BrowserSession.setTrustedFileRoots([...roots]);
+		BrowserSession.setTrustedFileRoots([...roots], trustAllFiles);
 	}
 
 	/**
@@ -583,15 +597,21 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}));
 		}
 
-		menu.append(new MenuItem({ type: 'separator' }));
 		if (inspectTarget) {
+			menu.append(new MenuItem({ type: 'separator' }));
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.addElementToChat', 'Add Element to Chat'),
 				click: () => inspectTarget.addToChat()
 			}));
+			menu.append(new MenuItem({
+				label: localize('browser.contextMenu.addComment', 'Add Comment...'),
+				click: () => inspectTarget.addComment()
+			}));
 			void inspectTarget.highlight().catch(() => { });
 			menu.on('menu-will-close', () => inspectTarget.dispose());
 		}
+
+		menu.append(new MenuItem({ type: 'separator' }));
 		menu.append(new MenuItem({
 			label: localize('browser.contextMenu.inspect', 'Inspect'),
 			click: () => webContents.inspectElement(params.x, params.y)

@@ -13,7 +13,7 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService, IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -33,10 +33,14 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 // eslint-disable-next-line local/code-import-patterns
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
+// eslint-disable-next-line local/code-import-patterns
 import { ViewAllChangesActionViewItem } from '../../../../../sessions/contrib/changes/browser/changesActions.js';
+// eslint-disable-next-line local/code-import-patterns
+import { OpenFilesViewActionViewItem } from '../../../../../sessions/contrib/files/browser/workspaceFolderActions.js';
 import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
-import { createFixtureGitHubService } from './githubFixtureUtils.js';
+import { createFixtureGitHubService, createFixturePullRequestIconCache } from './githubFixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
@@ -45,6 +49,7 @@ import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
 // pull request and diff-stats pills). Kept in sync with the production actions.
 const OPEN_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.action.openPullRequest';
 const VIEW_ALL_CHANGES_COMMAND_ID = 'workbench.agentSessions.action.viewChanges';
+const OPEN_FILES_COMMAND_ID = 'workbench.agentSessions.action.openFilesView';
 
 // ============================================================================
 // Mock helpers
@@ -110,10 +115,11 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = `local:${options.title}`;
 		override readonly resource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
-		override readonly capabilities = capabilities;
+		override readonly capabilities = constObservable(capabilities);
 		override readonly title: IObservable<string> = constObservable(options.title);
 		override readonly status: IObservable<SessionStatus> = constObservable(options.status ?? SessionStatus.Completed);
 		override readonly isArchived: IObservable<boolean> = constObservable(options.isArchived ?? false);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(options.workspace);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(options.changes ?? []);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([createMockBranchChangeset(options.changes ?? [])]);
@@ -125,7 +131,6 @@ function createMockSession(options: IMockSessionOptions): IActiveSession {
 function createMockListModelService(): ISessionsListModelService {
 	return new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
-		override isSessionRead(_session: ISession): boolean { return true; }
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
 			switch (status) {
 				case SessionStatus.InProgress:
@@ -197,6 +202,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.defineInstance(ISessionContext, new SessionContext(constObservable<IActiveSession | undefined>(session)));
 			reg.defineInstance(IGitHubService, createFixtureGitHubService([{ owner: 'microsoft', repo: 'vscode', pullRequest: openPullRequestDetails }]));
+			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -216,8 +222,13 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 		action instanceof MenuItemAction ? instaService.createInstance(OpenPullRequestActionViewItem, action, options) : undefined);
 	actionViewItemService.register(Menus.SessionHeaderMeta, VIEW_ALL_CHANGES_COMMAND_ID, (action, options, instaService) =>
 		action instanceof MenuItemAction ? instaService.createInstance(ViewAllChangesActionViewItem, action, options) : undefined);
+	actionViewItemService.register(Menus.SessionHeaderMeta, OPEN_FILES_COMMAND_ID, (action, options, instaService) =>
+		action instanceof MenuItemAction ? instaService.createInstance(OpenFilesViewActionViewItem, action, options) : undefined);
 
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+	if (session.workspace.get()?.label) {
+		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: OPEN_FILES_COMMAND_ID, title: 'Files' }, group: 'navigation', order: -10 });
+	}
 	const hasChanges = session.changes.get().some(change => change.insertions > 0 || change.deletions > 0);
 	if (hasChanges) {
 		menuService.addItem(Menus.SessionHeaderMeta, { command: { id: VIEW_ALL_CHANGES_COMMAND_ID, title: 'View All Changes' }, group: 'navigation', order: 0 });
@@ -284,10 +295,10 @@ function createMockBranchChangeset(changes: readonly ISessionFileChange[]): ISes
 // Fixtures
 // ============================================================================
 
-// The session header meta row renders the workspace label followed by the
-// contributed pills: the `#<number>` pull request pill (GitHub contribution) and
-// the `+/-` diff-stats pill (changes contribution). Both are real toolbar action
-// view items resolved through Menus.SessionHeaderMeta.
+// The session header meta row renders the contributed pills resolved through
+// Menus.SessionHeaderMeta: the workspace folder pill (files contribution), the
+// `+/-` diff-stats pill (changes contribution), and the `#<number>` pull request
+// pill (GitHub contribution). All are real toolbar action view items.
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	SessionHeader_Default: defineComponentFixture({

@@ -23,6 +23,24 @@ const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
 const SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED = true;
 
+/** The default size (px) used when a scrollbar element does not pass an explicit size. */
+export const DEFAULT_SCROLLBAR_SIZE = 10;
+let globalDefaultScrollbarSize = DEFAULT_SCROLLBAR_SIZE;
+const _onDidChangeDefaultScrollbarSizeEmitter = new Emitter<number>();
+export const onDidChangeDefaultScrollbarSize: Event<number> = _onDidChangeDefaultScrollbarSizeEmitter.event;
+
+/**
+ * Update the default scrollbar size used by all scrollable elements that were
+ * created without an explicit horizontal/vertical scrollbar size option.
+ * Elements with explicit sizes (e.g. the editor, menus) are unaffected.
+ */
+export function setGlobalDefaultScrollbarSize(size: number): void {
+	if (size !== globalDefaultScrollbarSize) {
+		globalDefaultScrollbarSize = size;
+		_onDidChangeDefaultScrollbarSizeEmitter.fire(size);
+	}
+}
+
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
 	insertBefore: HTMLElement;
@@ -270,6 +288,20 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._shouldRender = true;
 
 		this._revealOnScroll = true;
+
+		// Subscribe to global default size changes, but only for axes whose size
+		// was NOT explicitly provided. Elements with explicit sizes (editor,
+		// menus, peek, chat input, etc.) use a fixed size and must not be updated.
+		const hSizeExplicit = typeof options.horizontalScrollbarSize !== 'undefined';
+		const vSizeExplicit = typeof options.verticalScrollbarSize !== 'undefined';
+		if (!hSizeExplicit || !vSizeExplicit) {
+			this._register(onDidChangeDefaultScrollbarSize(newSize => {
+				this.updateOptions({
+					...(!hSizeExplicit ? { horizontalScrollbarSize: newSize } : {}),
+					...(!vSizeExplicit ? { verticalScrollbarSize: newSize } : {}),
+				});
+			}));
+		}
 	}
 
 	public override dispose(): void {
@@ -747,12 +779,12 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),
 
 		horizontal: (typeof opts.horizontal !== 'undefined' ? opts.horizontal : ScrollbarVisibility.Auto),
-		horizontalScrollbarSize: (typeof opts.horizontalScrollbarSize !== 'undefined' ? opts.horizontalScrollbarSize : 10),
+		horizontalScrollbarSize: (typeof opts.horizontalScrollbarSize !== 'undefined' ? opts.horizontalScrollbarSize : globalDefaultScrollbarSize),
 		horizontalSliderSize: (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : 0),
 		horizontalHasArrows: (typeof opts.horizontalHasArrows !== 'undefined' ? opts.horizontalHasArrows : false),
 
 		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
-		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
+		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : globalDefaultScrollbarSize),
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
 		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
 

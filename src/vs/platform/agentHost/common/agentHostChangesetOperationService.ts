@@ -12,6 +12,8 @@ import type { ChangesetOperation, ISessionGitHubState, ISessionGitState, URI } f
 
 export const IAgentHostChangesetOperationService = createDecorator<IAgentHostChangesetOperationService>('agentHostChangesetOperationService');
 
+export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
+
 /**
  * Server-side handler for a changeset operation advertised via
  * `changeset/operationsChanged`.
@@ -115,6 +117,13 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 * be used.
 	 */
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
+
+	/**
+	 * Returns the operations that should be advertised for the given changeset, or
+	 * `undefined` when no operations are available.
+	 */
+	getOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): readonly ChangesetOperation[] | undefined;
+
 	/**
 	 * Invokes an advertised operation after validating the changeset, operation id,
 	 * and requested target scope.

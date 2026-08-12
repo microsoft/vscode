@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -24,8 +25,11 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
+import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -154,16 +158,6 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	container.style.height = '700px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
-	// The component-explorer harness injects a global `* { box-sizing: border-box }`
-	// reset into the document head. The chat input toolbar (and other Monaco UI bits)
-	// rely on the browser default `content-box` so that explicit `height` plus `padding`
-	// add up correctly (e.g. the attachments row is 16px height + 3px padding = 22px).
-	// Revert the reset for our subtree so the fixture renders like the real product.
-	const styleReset = document.createElement('style');
-	styleReset.textContent = '.component-fixture-box-sizing-reset, .component-fixture-box-sizing-reset * { box-sizing: revert; }';
-	container.appendChild(styleReset);
-	container.classList.add('component-fixture-box-sizing-reset');
-
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: (reg) => {
@@ -227,6 +221,14 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly onDidChangeEntitlement = Event.None;
+				override readonly onDidChangeSentiment = Event.None;
+				// A signed-in, set-up user so the model picker renders normally
+				// (no Restricted / Sign In state) in this fixture.
+				override readonly sentiment = { completed: true };
+				override readonly entitlement = ChatEntitlement.Pro;
+				override readonly anonymous = false;
+				override readonly hasByokModels = false;
 				override readonly quotas = {};
 				override readonly onDidChangeQuotaRemaining = Event.None;
 				override readonly onDidChangeUsageBasedBilling = Event.None;
@@ -248,6 +250,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override getOptionGroupsForSessionType() { return undefined; }
 				override getCustomAgentTargetForSessionType() { return Target.Undefined; }
 				override requiresCustomModelsForSessionType() { return false; }
+				override supportsAutoModelForSessionType() { return true; }
 				override getChatSessionContribution() { return undefined; }
 				override getCapabilitiesForSessionType() { return undefined; }
 				override getSessionOptions() { return undefined; }
@@ -313,6 +316,19 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 				override readonly onDidChange = Event.None;
 				override getActiveNotification() { return undefined; }
+				override announceRendered() { }
+			}());
+			reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
+				override readonly isVisible = false;
+				override registerHost() { return Disposable.None; }
+			}());
+			reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
+				override readonly isVisible = false;
+				override registerHost() { return Disposable.None; }
+			}());
+			reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
+				override registerHost() { return Disposable.None; }
+				override toggleNoticeFocus() { return false; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
