@@ -301,6 +301,7 @@ export async function resolveTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
+	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
 	readonly token: string;
 }
 
@@ -381,16 +382,15 @@ async function authenticateProtectedResourceWithServices(
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
 	const token = await resolveTokenForProtectedResource(authenticationService, logService, resource, options);
-	if (!token) {
-		return false;
-	}
 
-	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], token);
+	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], token ?? '');
 	if (!authenticated) {
-		logService.trace(`${options.logPrefix} Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
+		logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
 		return false;
 	}
-	logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+	logService.info(token
+		? `${options.logPrefix} Authenticating for resource: ${resource.resource}`
+		: `${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
 	return true;
 }
 

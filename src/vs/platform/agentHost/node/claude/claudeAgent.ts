@@ -725,6 +725,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
+		if (!token) {
+			const oldHandle = this._proxyHandle;
+			const changed = this._githubToken !== undefined || oldHandle !== undefined;
+			this._githubToken = undefined;
+			this._proxyHandle = undefined;
+			oldHandle?.dispose();
+			if (changed) {
+				this._models.set([], undefined);
+				void this._startModelRefresh();
+			}
+			this._logService.info(changed ? '[Claude] Auth token cleared' : '[Claude] Auth token unchanged');
+			return true;
+		}
 		// A GitHub Copilot token is arriving (sign-in). Always start the proxy so a
 		// session that picks a Copilot-routed model from the merged catalog has a
 		// started handle to run against — even while model-less sessions still

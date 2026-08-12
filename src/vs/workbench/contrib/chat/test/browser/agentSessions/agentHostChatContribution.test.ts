@@ -11612,7 +11612,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('skips authenticate when no token is resolvable', async () => {
+		test('forwards missing-token state once when no token is resolvable', async () => {
 			const noTokenService: Partial<IAuthenticationService> = {
 				onDidChangeSessions: Event.None,
 				getOrActivateProviderIdForServer: async () => undefined,
@@ -11625,7 +11625,9 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
 
-			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: '' },
+			]);
 		});
 
 		test('propagates interactive authentication errors for eager-created sessions', async () => {

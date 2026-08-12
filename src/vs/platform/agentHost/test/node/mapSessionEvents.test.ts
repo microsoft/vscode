@@ -148,8 +148,8 @@ suite('mapSessionEvents — history replay', () => {
 			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
 			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
 		}, {
-			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
-			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+			invocationMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
 		});
 	});
 

@@ -2814,7 +2814,7 @@ suite('CopilotAgentSession', () => {
 				contentScheme: edit?.after?.content.uri ? URI.parse(edit.after.content.uri).scheme : undefined,
 			}, {
 				title: 'Create file?',
-				message: { markdown: 'Creating [package.json](file:///workspace/package.json)' },
+				message: { markdown: 'Create [package.json](file:///workspace/package.json)' },
 				before: undefined,
 				afterUri: 'file:///workspace/package.json',
 				contentScheme: 'pending-edit-content',
@@ -3855,8 +3855,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('peer chat observes auto-approve/permissions identically to the initial chat', async () => {
+			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const options = {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
 				configValues: {
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'default',
@@ -3881,11 +3882,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(summarize(peerMockSession), summarize(initialMockSession));
 			assert.deepStrictEqual(summarize(peerMockSession), {
 				permissionModes: ['off'],
-				sandbox: {
-					enabled: true,
-					allowBypass: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
-				},
+				sandbox: buildSandboxConfigForSdk('linux', sandbox),
 			});
 		});
 
@@ -4602,7 +4599,7 @@ suite('CopilotAgentSession', () => {
 					'Replacing 2 lines in [file.ts](file:///repo/file.ts)',
 					'Replacing 2 lines with 3 lines in [file.ts](file:///repo/file.ts)',
 				],
-				ready: 'Editing [file.ts](file:///repo/file.ts)',
+				ready: 'Edit [file.ts](file:///repo/file.ts)',
 			});
 		});
 
@@ -6502,7 +6499,7 @@ suite('CopilotAgentSession', () => {
 						type: ActionType.ChatToolCallReady,
 						turnId: 'turn-1',
 						toolCallId: 'synth-skill-skill-event',
-						invocationMessage: { markdown: 'Reading skill [explore](file:///skills/explore/SKILL.md)' },
+						invocationMessage: { markdown: 'Read skill [explore](file:///skills/explore/SKILL.md)' },
 						confirmed: ToolCallConfirmationReason.NotNeeded,
 					},
 				},
@@ -7564,7 +7561,7 @@ suite('CopilotAgentSession', () => {
 			// "Running {displayName}…" fallback.
 			const readySignal = signals.find(s => isAction(s, ActionType.ChatToolCallReady));
 			assert.ok(readySignal && isAction(readySignal, ActionType.ChatToolCallReady));
-			assert.strictEqual((readySignal.action as ChatToolCallReadyAction).invocationMessage, 'Listed agents');
+			assert.strictEqual((readySignal.action as ChatToolCallReadyAction).invocationMessage, 'List agents');
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
