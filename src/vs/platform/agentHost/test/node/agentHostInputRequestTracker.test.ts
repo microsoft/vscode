@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { ActionType, type ChatInputCompletedAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, type ChatInputAnswer, type ChatInputRequest, type ChatState } from '../../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from '../../node/agentHostInputRequestTracker.js';

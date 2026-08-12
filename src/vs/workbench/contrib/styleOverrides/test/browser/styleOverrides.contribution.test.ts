@@ -319,12 +319,26 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('pane composite overflow uses the icon foreground', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.style.setProperty('--vscode-icon-foreground', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const overflow = createCompositeAction(root, 40, false, true);
+		overflow.actionLabel.classList.add('codicon', 'codicon-more');
+		overflow.actionLabel.style.color = 'rgba(231, 231, 231, 0.6)';
+
+		assert.strictEqual(getWindow(overflow.actionLabel).getComputedStyle(overflow.actionLabel).color, 'rgb(18, 52, 86)');
+	});
+
 	test('preserves Modern UI activity indicators, badges and horizontal pane dividers', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override modern-ui-tabs';
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
-		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-modernActivityBar-activeBackground', '#123456');
 		root.style.setProperty('--vscode-modernActivityBar-activeForeground', '#abcdef');
 		document.body.appendChild(root);
@@ -375,7 +389,7 @@ suite('StyleOverridesContribution', () => {
 			horizontalLabelColor: 'rgb(254, 220, 186)',
 			indicatorWidth: '32px',
 			indicatorHeight: '32px',
-			indicatorBorderRadius: '6px',
+			indicatorBorderRadius: '4px',
 			badgeTop: '18px',
 			badgeWidth: '16px',
 			badgeHeight: '16px',
@@ -405,7 +419,6 @@ suite('StyleOverridesContribution', () => {
 			borderColor: 'rgb(18, 52, 86)',
 		});
 	});
-
 	test('uses the registered modern tab colors', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui-tabs';
@@ -495,6 +508,34 @@ suite('StyleOverridesContribution', () => {
 			selectedActionBackground: 'rgb(68, 85, 102)',
 			settingsTabBackground: 'rgb(18, 52, 86)',
 			settingsTabForeground: 'rgb(171, 205, 239)',
+		});
+	});
+
+	test('keeps panel global actions above overflowing title actions', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override';
+		root.style.setProperty('--vscode-panel-background', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part basepanel bottom');
+		const title = appendElement(panel, 'composite title');
+		const titleActions = appendElement(title, 'title-actions');
+		const globalActions = appendElement(title, 'global-actions');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			titleActionsMinWidth: targetWindow.getComputedStyle(titleActions).minWidth,
+			globalActionsPosition: targetWindow.getComputedStyle(globalActions).position,
+			globalActionsZIndex: targetWindow.getComputedStyle(globalActions).zIndex,
+			globalActionsFlexShrink: targetWindow.getComputedStyle(globalActions).flexShrink,
+			globalActionsBackground: targetWindow.getComputedStyle(globalActions).backgroundColor,
+		}, {
+			titleActionsMinWidth: '0px',
+			globalActionsPosition: 'relative',
+			globalActionsZIndex: '1',
+			globalActionsFlexShrink: '0',
+			globalActionsBackground: 'rgb(18, 52, 86)',
 		});
 	});
 });
