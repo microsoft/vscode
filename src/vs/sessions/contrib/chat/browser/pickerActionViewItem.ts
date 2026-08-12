@@ -6,6 +6,7 @@
 import { HorizontalRovingActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { INewChatModePickerService } from './newChatModePicker.js';
 
 export interface IPickerActionViewItemWidget extends IDisposable {
 	readonly actionBarFocusElements: readonly HTMLElement[];
@@ -46,5 +47,17 @@ export class PickerActionViewItem extends HorizontalRovingActionViewItem {
 	override dispose(): void {
 		this.picker.dispose();
 		super.dispose();
+	}
+}
+
+export class NewChatModePickerActionViewItem extends PickerActionViewItem {
+	constructor(
+		picker: IPickerActionViewItemWidget & { showPicker(): void },
+		disposable: IDisposable,
+		classNames: readonly string[] = [],
+		@INewChatModePickerService modePickerService: INewChatModePickerService,
+	) {
+		super(picker, disposable, classNames);
+		this._register(modePickerService.registerModePicker(() => picker.showPicker()));
 	}
 }

@@ -8,6 +8,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -95,9 +96,18 @@ export class BranchPicker extends Disposable {
 	private _isolationRow: HTMLElement | undefined;
 	private _isolationCheckbox: Checkbox | undefined;
 	private _isolationState: IBranchPickerIsolationState | undefined;
+	private readonly _onDidChangeActionBarFocusElements = this._register(new Emitter<void>());
+	readonly onDidChangeActionBarFocusElements = this._onDidChangeActionBarFocusElements.event;
 
 	get actionBarFocusElements(): readonly HTMLElement[] {
-		return this._triggerElement ? [this._triggerElement] : [];
+		const elements: HTMLElement[] = [];
+		if (this._isolationCheckbox && !this._isolationSlot?.classList.contains('hidden')) {
+			elements.push(this._isolationCheckbox.domNode);
+		}
+		if (this._triggerElement) {
+			elements.push(this._triggerElement);
+		}
+		return elements;
 	}
 
 	constructor(
@@ -171,6 +181,7 @@ export class BranchPicker extends Disposable {
 		}
 		this._isolationSlot.classList.toggle('disabled', mode === 'disabled');
 		this._isolationSlot.classList.toggle('hidden', mode === 'hidden');
+		this._onDidChangeActionBarFocusElements.fire();
 
 		const reason = state?.disabledReason;
 		if (this._isolationRow) {
@@ -239,6 +250,7 @@ export class BranchPicker extends Disposable {
 				this.showPicker();
 			}
 		}));
+		this._onDidChangeActionBarFocusElements.fire();
 	}
 
 	update(state: IBranchPickerState): void {

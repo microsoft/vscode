@@ -31,8 +31,7 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
-import { INewChatModePickerService } from '../../../chat/browser/newChatModePicker.js';
+import { NewChatModePickerActionViewItem, PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -133,8 +132,12 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 				this._selectMode(mode, session.get(), sessionsProvidersService);
 			}));
 			if (registerModePicker) {
-				const modePickerService = scopedInstantiationService.invokeFunction(accessor => accessor.get(INewChatModePickerService));
-				disposableStore.add(modePickerService.registerModePicker(() => picker.showPicker()));
+				return scopedInstantiationService.createInstance(
+					NewChatModePickerActionViewItem,
+					picker,
+					disposableStore,
+					['chat-input-picker-item', 'chat-agent-picker-item'],
+				);
 			}
 			return new PickerActionViewItem(picker, disposableStore, ['chat-input-picker-item', 'chat-agent-picker-item']);
 		};

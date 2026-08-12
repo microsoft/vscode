@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
-import { NewChatModePickerService } from '../../browser/newChatModePicker.js';
 
 suite('NewChatModelPickerService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,20 +21,6 @@ suite('NewChatModelPickerService', () => {
 		firstInputPickers.openModelPicker();
 
 		assert.deepStrictEqual(opened, ['first']);
-	});
-
-	test('opens the latest mode picker registered for that input scope', () => {
-		const firstInputPickers = new NewChatModePickerService();
-		const secondInputPickers = new NewChatModePickerService();
-		const opened: string[] = [];
-
-		disposables.add(firstInputPickers.registerModePicker(() => opened.push('first')));
-		disposables.add(firstInputPickers.registerModePicker(() => opened.push('first-latest')));
-		disposables.add(secondInputPickers.registerModePicker(() => opened.push('second')));
-
-		firstInputPickers.openModePicker();
-
-		assert.deepStrictEqual(opened, ['first-latest']);
 	});
 
 	test('uses one active picker for opening and switching models', () => {

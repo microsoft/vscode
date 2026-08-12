@@ -32,6 +32,9 @@ export class BranchPicker extends Disposable {
 	get actionBarFocusElements(): readonly HTMLElement[] {
 		return this._picker.actionBarFocusElements;
 	}
+	get onDidChangeActionBarFocusElements() {
+		return this._picker.onDidChangeActionBarFocusElements;
+	}
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,

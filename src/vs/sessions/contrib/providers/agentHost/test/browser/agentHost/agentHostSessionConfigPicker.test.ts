@@ -319,6 +319,19 @@ suite('Agent Host Session Config Picker', () => {
 				count: 1,
 			},
 		});
+
+	});
+
+	test('includes the editable isolation checkbox in the roving focus list', () => {
+		const services = setupServices(store);
+		services.provider.set(makeRepoConfig('main'), false);
+		const { picker, container } = renderPicker(store, services);
+		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+
+		assert.deepStrictEqual(
+			picker.actionBarFocusElements.map(element => element === checkbox ? 'isolation' : element.textContent),
+			['isolation', 'main'],
+		);
 	});
 
 	test('branch picker keeps the display label for a dynamic (enumDynamic) selection, not just the persisted value', async () => {

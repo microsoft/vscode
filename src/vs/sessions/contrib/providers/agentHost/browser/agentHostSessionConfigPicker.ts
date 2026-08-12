@@ -231,6 +231,10 @@ class IsolationCheckboxControl extends Disposable {
 	private _enabled = true;
 	private _tooltip: string | undefined;
 
+	get focusElement(): HTMLElement {
+		return this.checkbox.domNode;
+	}
+
 	constructor(
 		readonly sessionId: string,
 		label: string,
@@ -597,6 +601,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			this._container?.prepend(control.slot);
 		}
 		control.update(value === 'worktree', isReadOnly, isLoading, tooltip);
+		if (!isReadOnly && !isLoading) {
+			this._actionBarFocusElements.unshift(control.focusElement);
+		}
 	}
 
 	private _applyIsolationValue(sessionId: string, checked: boolean): void {

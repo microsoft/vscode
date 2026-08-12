@@ -22,8 +22,7 @@ import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
-import { PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
-import { INewChatModePickerService } from '../../../chat/browser/newChatModePicker.js';
+import { NewChatModePickerActionViewItem, PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
@@ -133,9 +132,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 						provider.getSession(scopedSession.sessionId)?.setMode(mode);
 					}
 				}));
-				const modePickerService = scopedInstantiationService.invokeFunction(accessor => accessor.get(INewChatModePickerService));
-				disposableStore.add(modePickerService.registerModePicker(() => picker.showPicker()));
-				return new PickerActionViewItem(picker, disposableStore);
+				return scopedInstantiationService.createInstance(NewChatModePickerActionViewItem, picker, disposableStore, []);
 			},
 		));
 		// Permission picker registration is skipped on web so the

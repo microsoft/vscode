@@ -69,7 +69,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getDictationHoverMarkdown } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -108,6 +108,7 @@ import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../..
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { OpenModePickerAction, OpenModelPickerAction } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -136,8 +137,6 @@ const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
 const SessionsChatInputHasDictationFocus = new RawContextKey<boolean>('sessionsChatInputHasDictationFocus', false, localize('sessionsChatInputHasDictationFocus', "True when focus is in an Agents window chat composer that supports dictation."));
 
 const TOGGLE_DICTATION_COMMAND_ID = 'sessions.action.chat.toggleDictation';
-const OPEN_AGENT_PICKER_COMMAND_ID = 'sessions.action.chat.openAgentPicker';
-const OPEN_MODEL_PICKER_COMMAND_ID = 'sessions.action.chat.openModelPicker';
 const ADD_CONTEXT_ACTION_ID = 'sessions.action.chat.addContext';
 
 registerAction2(class extends Action2 {
@@ -160,6 +159,23 @@ registerAction2(class extends Action2 {
 /** Composer the dictation shortcut targets (the composer isn't an `IChatWidget`). */
 let activeDictationComposer: NewChatInputWidget | undefined;
 
+function registerNewChatPickerCommandOverride(commandId: string, openPicker: (composer: NewChatInputWidget) => void): void {
+	const originalCommand = CommandsRegistry.getCommand(commandId);
+	if (!originalCommand) {
+		throw new Error(`Cannot override unregistered chat picker command '${commandId}'.`);
+	}
+	CommandsRegistry.registerCommand(commandId, (accessor, ...args) => {
+		if (activeDictationComposer) {
+			openPicker(activeDictationComposer);
+			return;
+		}
+		return originalCommand.handler(accessor, ...args);
+	});
+}
+
+registerNewChatPickerCommandOverride(OpenModePickerAction.ID, composer => composer.openModePicker());
+registerNewChatPickerCommandOverride(OpenModelPickerAction.ID, composer => composer.openModelPicker());
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: TOGGLE_DICTATION_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
@@ -169,22 +185,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 	handler: () => activeDictationComposer?.toggleDictation(),
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: OPEN_AGENT_PICKER_COMMAND_ID,
-	weight: KeybindingWeight.EditorContrib + 1,
-	when: SessionsChatInputHasDictationFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.Period,
-	handler: () => activeDictationComposer?.openModePicker(),
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: OPEN_MODEL_PICKER_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	when: SessionsChatInputHasDictationFocus,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period,
-	handler: () => activeDictationComposer?.openModelPicker(),
 });
 
 // Preserve the command id so push-to-talk hold mode can track this chord.
@@ -758,6 +758,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Create scoped context key service and register history navigation
 		// BEFORE creating the editor, so the editor's context key scope is a child
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
+		ChatContextKeys.location.bindTo(inputScopedContextKeyService).set(ChatAgentLocation.Chat);
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
 		this._historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this._historyNavigationForwardsEnablement = historyNavigationForwardsEnablement;
@@ -837,13 +838,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		const dictationFocusKey = SessionsChatInputHasDictationFocus.bindTo(inputScopedContextKeyService);
+		const inChatInputKey = ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService);
 		this._register(this._editor.onDidFocusEditorWidget(() => {
 			dictationFocusKey.set(true);
+			inChatInputKey.set(true);
 			activeDictationComposer = this;
 			this._onDidFocus.fire();
 		}));
 		this._register(this._editor.onDidBlurEditorWidget(() => {
 			dictationFocusKey.set(false);
+			inChatInputKey.set(false);
 			if (activeDictationComposer === this) {
 				activeDictationComposer = undefined;
 			}
