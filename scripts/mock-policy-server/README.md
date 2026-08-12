@@ -30,7 +30,7 @@ npm run mock-policy-server -- --schema ./copilot-agent-runtime/schema/managed-se
 ```
 
 1. Open the printed GUI URL.
-2. Pick an endpoint tab, choose a preset and click **Apply**, or edit the JSON.
+2. Pick an endpoint tab, choose a preset and click **Apply**, or edit the HTTP status code and JSON response body.
 3. Click **Wire all endpoints** to point `product.overrides.json` at this server.
 4. **Reload** Code OSS (running from sources, so `VSCODE_DEV` is set).
 5. Sign in with your GitHub/Copilot account.

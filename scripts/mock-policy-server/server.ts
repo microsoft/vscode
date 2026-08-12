@@ -13,7 +13,7 @@
  *
  *     npm run mock-policy-server
  *
- * Then open the printed URL, pick an endpoint, edit the JSON, Save, and Wire.
+ * Then open the printed URL, pick an endpoint, edit the status and JSON, and Wire.
  * Reload Code OSS and run "Developer: Sync Account Policy" +
  * "Developer: Policy Diagnostics".
  */
@@ -162,7 +162,7 @@ server.listen(PORT, HOST, () => {
 	console.log('');
 	console.log(`  Managed-settings schema source: ${SCHEMA_SOURCE}`);
 	console.log('');
-	console.log('  Open the GUI, edit the responses, Save, then Wire product.overrides.json.');
+	console.log('  Open the GUI, edit the response status and body, then Wire product.overrides.json.');
 	console.log('  Reload Code OSS and run "Developer: Sync Account Policy".');
 	console.log('');
 });

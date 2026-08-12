@@ -57,6 +57,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	const $ = (id: string): HTMLElement => document.getElementById(id)!;
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
+	const responseStatusInput = $('response-status') as HTMLInputElement;
+	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
 	const endpointMeta = $('endpoint-meta');
 	const endpointUrlEl = $('endpoint-url');
@@ -93,6 +95,18 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	function setStatus(message: string, kind?: string): void {
 		editorStatus.textContent = message;
 		editorStatus.dataset.kind = kind || '';
+	}
+
+	function parseResponseStatus(): number | undefined {
+		const raw = responseStatusInput.value.trim();
+		const status = Number(raw);
+		const valid = raw !== '' && Number.isInteger(status) && status >= 200 && status <= 599;
+		const message = valid ? '' : 'Enter an integer from 200 to 599.';
+		responseStatusInput.setCustomValidity(message);
+		responseStatusInput.setAttribute('aria-invalid', String(!valid));
+		responseStatusValidation.textContent = message;
+		responseStatusValidation.dataset.kind = valid ? '' : 'error';
+		return valid ? status : undefined;
 	}
 
 	/** Validate the editor content as JSON. Returns parsed value or undefined. */
@@ -234,6 +248,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 		endpointMeta.replaceChildren(routeSpan, descSpan);
 		endpointUrlEl.textContent = endpoint.url ?? '';
+		responseStatusInput.value = String(endpoint.status ?? 200);
+		parseResponseStatus();
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
 		renderPresets();
@@ -259,6 +275,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		const preset = endpoint?.presets?.[Number(presetSelect.value)];
 		if (preset) {
 			endpoint.status = preset.status ?? 200;
+			responseStatusInput.value = String(endpoint.status);
+			parseResponseStatus();
 			editor.value = JSON.stringify(preset.body, null, '\t');
 			drafts[activeId] = editor.value;
 			saveDrafts();
@@ -283,6 +301,14 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	}
 
 	async function save(): Promise<void> {
+		const responseStatus = parseResponseStatus();
+		if (responseStatus === undefined) {
+			return;
+		}
+		const endpoint = activeEndpoint();
+		if (endpoint) {
+			endpoint.status = responseStatus;
+		}
 		const parsed = parseEditor();
 		if (parsed === undefined) {
 			return;
@@ -291,7 +317,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			const state = await api<ServerState>('/api/state', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint: activeId, status: activeEndpoint()?.status ?? 200, body: parsed })
+				body: JSON.stringify({ endpoint: activeId, status: responseStatus, body: parsed })
 			});
 			endpoints = state.endpoints;
 			renderWired(state);
@@ -417,6 +443,15 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		loadDrafts();
 
 		editor.addEventListener('input', () => { drafts[activeId] = editor.value; saveDrafts(); parseEditor(); debouncedSave(); });
+		responseStatusInput.addEventListener('input', () => {
+			const status = parseResponseStatus();
+			const endpoint = activeEndpoint();
+			if (status !== undefined && endpoint) {
+				endpoint.status = status;
+				parseEditor();
+				debouncedSave();
+			}
+		});
 		$('apply-preset').addEventListener('click', applyPreset);
 		$('format').addEventListener('click', formatJson);
 		$('wire').addEventListener('click', () => wire(true));
@@ -451,6 +486,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			const endpoint = activeEndpoint();
 			if (endpoint) {
 				endpoint.status = 200;
+				responseStatusInput.value = String(endpoint.status);
+				parseResponseStatus();
 			}
 			editor.value = JSON.stringify(hydrateFromSchema(schema), null, '\t');
 			drafts[activeId] = editor.value;
