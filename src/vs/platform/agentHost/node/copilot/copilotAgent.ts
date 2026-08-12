@@ -3571,9 +3571,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		await this._queueChat(resolved.configurationId, resolved.sequencerKey, async () => {
+			const current = this._resolveTruncateChatContext(chat, context);
 			this._logService.info(`[Copilot:${sessionId}] Truncating chat ${chat.toString()}${turnId !== undefined ? ` at turnId=${turnId}` : ' (all turns)'}`);
 
-			const entry = await this._ensureResolvedChatSession(resolved);
+			const entry = await this._ensureResolvedChatSession(current);
 			if (!entry) {
 				this._logService.info(`[Copilot:${sessionId}] No chat entry resolved for truncation; nothing to truncate`);
 				return;

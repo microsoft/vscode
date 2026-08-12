@@ -3859,8 +3859,6 @@ suite('CopilotAgentSession', () => {
 				permissionModes: ['off'],
 				sandbox: {
 					enabled: true,
-					allowBypass: true,
-					userPolicy: { filesystem: {}, network: { allowOutbound: false } },
 				},
 			});
 		});
