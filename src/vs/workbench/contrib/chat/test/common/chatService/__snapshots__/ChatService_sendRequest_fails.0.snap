@@ -78,6 +78,7 @@
       editedFileEvents: undefined,
       modelId: undefined,
       modeInfo: undefined,
+      hiddenFromTranscript: undefined,
       terminalExecutionId: undefined,
       responseId: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
@@ -88,6 +89,7 @@
         completedAt: undefined
       },
       vote: undefined,
+      modelTotals: undefined,
       sessionCopilotCredits: undefined,
       voteDownReason: undefined,
       slashCommand: undefined,

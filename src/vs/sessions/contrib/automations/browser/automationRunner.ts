@@ -5,12 +5,12 @@
 
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { derived, waitForState } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { AutomationRunTrigger, IAutomation, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
@@ -31,7 +31,7 @@ export class AutomationRunner implements IAutomationRunner {
 	) { }
 
 	runOnce(
-		automation: IAutomation,
+		automation: IAutomationDescriptor,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token: CancellationToken = CancellationToken.None,
@@ -44,7 +44,7 @@ export class AutomationRunner implements IAutomationRunner {
 	}
 
 	private async _runOnce(
-		automation: IAutomation,
+		automation: IAutomationDescriptor,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token: CancellationToken,
@@ -62,7 +62,7 @@ export class AutomationRunner implements IAutomationRunner {
 	}
 
 	private async _runOnceInner(
-		automation: IAutomation,
+		automation: IAutomationDescriptor,
 		trigger: AutomationRunTrigger,
 		leaderWindowId: number,
 		token: CancellationToken,
@@ -140,7 +140,7 @@ export class AutomationRunner implements IAutomationRunner {
 			}
 
 			if (session) {
-				const sessionResource = session.resource.toString();
+				const sessionResource = session.resource;
 				const dispatchedRun = await this.automationService.updateRun(runId, { sessionResource }) ?? run;
 				await dispatched.complete({ kind: 'started', run: dispatchedRun, sessionResource });
 			} else {
@@ -155,7 +155,7 @@ export class AutomationRunner implements IAutomationRunner {
 
 			const terminalStatus = session
 				? await waitForState(
-					session.status,
+					derived(reader => session.mainChat.read(reader).status.read(reader)),
 					status => status === SessionStatus.Completed || status === SessionStatus.Error,
 					undefined,
 					token,
@@ -204,7 +204,7 @@ export class AutomationRunner implements IAutomationRunner {
 		}
 	}
 
-	private async _markCancelled(runId: string, trigger: AutomationRunTrigger, automation: IAutomation, startTimeMs: number): Promise<void> {
+	private async _markCancelled(runId: string, trigger: AutomationRunTrigger, automation: IAutomationDescriptor, startTimeMs: number): Promise<void> {
 		try {
 			if (this.automationService.getActiveRunFor(automation.id)?.id === runId) {
 				await this.automationService.updateRun(runId, {

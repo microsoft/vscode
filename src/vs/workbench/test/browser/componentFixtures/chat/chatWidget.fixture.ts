@@ -31,7 +31,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
-import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
+import { IChatResponseFileChangesService, IChatResponseFileEdit } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -45,6 +45,8 @@ export interface IFixtureFileChange {
 	readonly removed: number;
 	/** Whether the file was created (vs. edited) during the turn. */
 	readonly created: boolean;
+	/** Whether the file is outside the owning session workspace. */
+	readonly isOutsideWorkspace?: boolean;
 }
 
 export interface IFixtureMessage {
@@ -91,8 +93,8 @@ export interface IChatWidgetFixtureOptions {
 	/**
 	 * When set, renders the chat as an agent host session and enables the turn
 	 * changes summary (`chat.turnStatusPills`), so completed turns with
-	 * {@link IFixtureMessage.fileChanges} show the summary/preview under the
-	 * response.
+	 * {@link IFixtureMessage.fileChanges} show workspace changes and external
+	 * Markdown previews under the response.
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
@@ -108,13 +110,14 @@ interface IChatWidgetFixtureHandle {
 	readonly addTerminalConfirmation: (request: ReturnType<ChatModel['addRequest']>, command: string) => void;
 }
 
-function makeFileDiff(change: IFixtureFileChange): IEditSessionEntryDiff {
+function makeFileDiff(change: IFixtureFileChange): IChatResponseFileEdit {
 	// A created file has no before-content, so the agent host provider maps its
 	// `originalURI` to the `modifiedURI` (equal URIs); an edited file keeps a
 	// distinct original.
-	const modifiedURI = URI.file(`/repo/${change.name}`);
-	const originalURI = change.created ? modifiedURI : URI.file(`/repo/.original/${change.name}`);
-	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false };
+	const root = change.isOutsideWorkspace ? '/home/user' : '/repo';
+	const modifiedURI = URI.file(`${root}/${change.name}`);
+	const originalURI = change.created ? modifiedURI : URI.file(`${root}/.original/${change.name}`);
+	return { originalURI, modifiedURI, added: change.added, removed: change.removed, quitEarly: false, identical: false, isFinal: true, isBusy: false, isOutsideWorkspace: change.isOutsideWorkspace ?? false };
 }
 
 function makeUserMessage(text: string) {
@@ -146,6 +149,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Maps a completed turn's requestId to its per-turn file diffs, consumed by
 	// the turn changes summary via the stubbed IChatResponseFileChangesService.
 	const requestDiffs = new Map<string, readonly IEditSessionEntryDiff[]>();
+	const requestFileEdits = new Map<string, readonly IChatResponseFileEdit[]>();
 	const needsTurnPills = isChatTurnStatusPillsEnabled(options.turnStatusPills);
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -171,6 +175,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
 					override getChangesForRequest(_sessionResource: URI, requestId: string) {
 						return constObservable(requestDiffs.get(requestId) ?? []);
+					}
+					override getFileEditsForRequest(_sessionResource: URI, requestId: string) {
+						return constObservable(requestFileEdits.get(requestId) ?? []);
 					}
 				}());
 			}
@@ -235,7 +242,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
 		const response = request.response!;
 		if (message.fileChanges) {
-			requestDiffs.set(request.id, message.fileChanges.map(makeFileDiff));
+			const fileEdits = message.fileChanges.map(makeFileDiff);
+			requestDiffs.set(request.id, fileEdits.filter(diff => !diff.isOutsideWorkspace));
+			requestFileEdits.set(request.id, fileEdits);
 		}
 		for (const part of message.assistant ?? []) {
 			if (part.kind === 'markdown') {
@@ -325,7 +334,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
 	if (options.responseFooterAction) {
 		menuService.addItem(MenuId.ChatMessageFooter, { command: { id: 'workbench.action.chat.copyResponse', title: 'Copy', icon: Codicon.copy }, group: 'navigation', order: 1 });
 	}
@@ -588,30 +597,29 @@ const MULTI_TURN: IFixtureMessage[] = [
 ];
 
 // Code blocks that follow or are nested in list items should have symmetric spacing
-// above and below. Covers the two DOM shapes markdown produces: a code block that is a
-// sibling after a list, and a code block nested inside a list item (indented fence).
+// above and below. This also covers tight lists, where prose before a code block is a
+// text node and the code block is therefore still the first element child.
 const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	{
-		user: 'How do I set up the project?',
+		user: 'Why do the files appear while diffs fail?',
 		assistant: [
 			{
 				kind: 'markdown', text: [
-					'Follow these steps:',
+					'## Root cause',
 					'',
-					'- Clone the repository',
-					'- Install the dependencies',
+					'Git is unusable on this Mac because the Xcode license has not been accepted. Both `git --version` and `/usr/bin/git --version` currently exit with code 69 and report:',
 					'',
-					'```bash',
-					'npm install',
-					'```',
+					'> You have not agreed to the Xcode license agreements.',
 					'',
-					'- Then start the build watcher:',
+					'### Why files appear but diffs fail',
 					'',
-					'  ```bash',
-					'  npm run watch',
-					'  ```',
-					'',
-					'- Finally, launch the app',
+					'1. The session restores/caches the change-set metadata, so VS Code can display the filenames and change counts.',
+					'2. Opening a diff requires loading its original side using a `git-blob:` URI.',
+					'3. Agent Host executes roughly:',
+					'   ```bash',
+					'   git show 1e393d7b352de7927a98d0321e51ae63046c8652:<path>',
+					'   ```',
+					'4. Git refuses to run because of the Xcode license.',
 				].join('\n')
 			},
 		],

@@ -5,6 +5,7 @@
 
 import { Disposable, IDisposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -22,7 +23,9 @@ import { GitHubIssueFetcher } from '../../../../../sessions/contrib/github/brows
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubIssue, IGitHubPullRequest } from '../../../../../sessions/contrib/github/common/types.js';
+import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
+// eslint-disable-next-line local/code-import-patterns
+import { GitHubCIOverallStatus, IGitHubIssue, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../../../sessions/contrib/github/common/types.js';
 
 interface IFixturePullRequestEntry {
 	readonly owner: string;
@@ -45,6 +48,14 @@ class FixtureGitHubPullRequestModel extends GitHubPullRequestModel {
 	constructor(owner: string, repo: string, prNumber: number, pullRequest: IGitHubPullRequest | undefined) {
 		super(owner, repo, prNumber, new FixtureGitHubPRFetcher(), new NullLogService());
 		this.pullRequest = constObservable(pullRequest);
+	}
+
+	override refresh(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	override startPolling(): IDisposable {
+		return Disposable.None;
 	}
 }
 
@@ -109,6 +120,16 @@ export function createFixtureGitHubService(entries: readonly IFixturePullRequest
 
 		private readonly _references = new FixtureGitHubPullRequestModelReferenceCollection(pullRequests);
 		private readonly _issueReferences = new FixtureGitHubIssueModelReferenceCollection(issues);
+		private readonly _ciModel = new class extends mock<GitHubPullRequestCIModel>() {
+			override readonly overallStatus = constObservable(GitHubCIOverallStatus.Neutral);
+			override refresh(): Promise<void> { return Promise.resolve(); }
+			override startPolling(): IDisposable { return Disposable.None; }
+		}();
+		private readonly _reviewThreadsModel = new class extends mock<GitHubPullRequestReviewThreadsModel>() {
+			override readonly reviewThreads = constObservable<readonly IGitHubPullRequestReviewThread[]>([]);
+			override refresh(): Promise<void> { return Promise.resolve(); }
+			override startPolling(): IDisposable { return Disposable.None; }
+		}();
 
 		override createPullRequestModelReference(owner: string, repo: string, prNumber: number): IReference<GitHubPullRequestModel> {
 			return this._references.acquire(toPullRequestKey(owner, repo, prNumber), owner, repo, prNumber);
@@ -117,7 +138,24 @@ export function createFixtureGitHubService(entries: readonly IFixturePullRequest
 		override createIssueModelReference(owner: string, repo: string, issueNumber: number): IReference<GitHubIssueModel> {
 			return this._issueReferences.acquire(toIssueKey(owner, repo, issueNumber), owner, repo, issueNumber);
 		}
+
+		override createPullRequestCIModelReference(): IReference<GitHubPullRequestCIModel> {
+			return { object: this._ciModel, dispose: () => { } };
+		}
+
+		override createPullRequestReviewThreadsModelReference(): IReference<GitHubPullRequestReviewThreadsModel> {
+			return { object: this._reviewThreadsModel, dispose: () => { } };
+		}
 	}();
+}
+
+export function createFixturePullRequestIconCache(): IPullRequestIconCache {
+	const icons = new Map<string, ThemeIcon>();
+	return {
+		_serviceBrand: undefined,
+		get: link => icons.get(link),
+		set: (link, icon) => { icons.set(link, icon); },
+	};
 }
 
 function toPullRequestKey(owner: string, repo: string, prNumber: number): string {

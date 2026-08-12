@@ -9,10 +9,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agentService.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -88,7 +90,7 @@ suite('AgentHostTelemetryReporter', () => {
 				conversationId: AgentSession.id(session),
 				initiatorClientType: 'agents_window',
 				messagesJson: JSON.stringify(tools),
-				messagesJsonChunk: zlib.gzipSync(Buffer.from(JSON.stringify(tools), 'utf8')).toString('base64'),
+				messagesJSONChunk: zlib.gzipSync(Buffer.from(JSON.stringify(tools), 'utf8')).toString('base64'),
 			},
 		}]);
 	});
@@ -317,7 +319,95 @@ suite('AgentHostTelemetryReporter', () => {
 		}]);
 	});
 
-	test('autoModeRouterDecision maps the SDK Hydra and binary score shapes without inventing unavailable fields', () => {
+	test('turnHung emits bounded last activity categories', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+
+		reporter.turnHung({
+			provider: 'copilot',
+			session,
+			turnId: 'turn-1',
+			hangReason: 'stalledAfterProgress',
+			hadAnyProgress: true,
+			lastActivityKind: ActionType.ChatToolCallDelta,
+			blockedOn: undefined,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+			quietTimeMs: 1000,
+			turnElapsedMs: 2000,
+			model: undefined,
+			modelTelemetryKind: undefined,
+			modelSelectionKind: 'default',
+			permissionLevel: undefined,
+		});
+		reporter.turnHung({
+			provider: 'copilot',
+			session,
+			turnId: 'turn-2',
+			hangReason: 'stalledAfterProgress',
+			hadAnyProgress: true,
+			lastActivityKind: 'custom/path/value',
+			blockedOn: undefined,
+			toolId: undefined,
+			toolSourceKind: undefined,
+			inFlightToolCallCount: 0,
+			quietTimeMs: 1000,
+			turnElapsedMs: 2000,
+			model: undefined,
+			modelTelemetryKind: undefined,
+			modelSelectionKind: 'default',
+			permissionLevel: undefined,
+		});
+
+		assert.deepStrictEqual(service.standardEvents, [{
+			eventName: 'agentHost.turnHung',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				chatSessionId: getTelemetryChatSessionId(session),
+				isSubagentSession: false,
+				turnId: 'turn-1',
+				hangReason: 'stalledAfterProgress',
+				isExpected: false,
+				hadAnyProgress: true,
+				lastActivityKind: 'chat.toolCallDelta',
+				blockedOn: undefined,
+				toolId: undefined,
+				toolSourceKind: undefined,
+				inFlightToolCallCount: 0,
+				quietTimeMs: 1000,
+				turnElapsedMs: 2000,
+				model: undefined,
+				modelSelectionKind: 'default',
+				permissionLevel: undefined,
+			},
+		}, {
+			eventName: 'agentHost.turnHung',
+			data: {
+				provider: 'copilot',
+				agentSessionId: AgentSession.id(session),
+				chatSessionId: getTelemetryChatSessionId(session),
+				isSubagentSession: false,
+				turnId: 'turn-2',
+				hangReason: 'stalledAfterProgress',
+				isExpected: false,
+				hadAnyProgress: true,
+				lastActivityKind: 'other',
+				blockedOn: undefined,
+				toolId: undefined,
+				toolSourceKind: undefined,
+				inFlightToolCallCount: 0,
+				quietTimeMs: 1000,
+				turnElapsedMs: 2000,
+				model: undefined,
+				modelSelectionKind: 'default',
+				permissionLevel: undefined,
+			},
+		}]);
+	});
+
+	test('autoModeRouterDecision maps authoritative SDK router fields and score shapes without deriving values', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
 
@@ -330,6 +420,15 @@ suite('AgentHostTelemetryReporter', () => {
 			confidence: 0.9,
 			candidateModels: ['gpt-5', 'gpt-4.1'],
 			categoryScores: { reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 },
+			routingMethod: 'hydra',
+			availableModels: ['gpt-5', 'gpt-4.1', 'gpt-5-mini'],
+			fallback: false,
+			fallbackReason: 'not-needed',
+			stickyOverride: true,
+			routerLatencyMs: 25,
+			endToEndLatencyMs: 40,
+			chosenShortfall: 0.05,
+			hasImage: true,
 		});
 		reporter.autoModeRouterDecision({
 			session,
@@ -340,6 +439,15 @@ suite('AgentHostTelemetryReporter', () => {
 			confidence: undefined,
 			candidateModels: undefined,
 			categoryScores: { needs_reasoning: 0.2, no_reasoning: 0.8 },
+			routingMethod: undefined,
+			availableModels: undefined,
+			fallback: undefined,
+			fallbackReason: undefined,
+			stickyOverride: undefined,
+			routerLatencyMs: undefined,
+			endToEndLatencyMs: undefined,
+			chosenShortfall: undefined,
+			hasImage: undefined,
 		});
 
 		assert.deepStrictEqual({ events: service.enhancedEvents, measurements: service.enhancedMeasurements }, {
@@ -350,9 +458,15 @@ suite('AgentHostTelemetryReporter', () => {
 					vscodeRequestId: 'turn-hydra',
 					initiatorClientType: 'editor_window',
 					predictedLabel: 'high',
+					routingMethod: 'hydra',
+					fallback: 'false',
+					fallbackReason: 'not-needed',
 					candidateModel: 'gpt-5',
 					chosenModel: 'gpt-5',
 					candidateModels: JSON.stringify(['gpt-5', 'gpt-4.1']),
+					availableModels: JSON.stringify(['gpt-5', 'gpt-4.1', 'gpt-5-mini']),
+					stickyOverrideStr: 'true',
+					hasImage: 'true',
 					hydraScores: JSON.stringify({ reasoning: 0.8, code_gen: 0.7, debugging: 0.6, tool_use: 0.5 }),
 				},
 			}, {
@@ -368,7 +482,7 @@ suite('AgentHostTelemetryReporter', () => {
 					binaryScores: JSON.stringify({ needs_reasoning: 0.2, no_reasoning: 0.8 }),
 				},
 			}],
-			measurements: [{ confidence: 0.9 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
+			measurements: [{ confidence: 0.9, latencyMs: 25, e2eLatencyMs: 40, stickyOverride: 1, chosenShortfall: 0.05 }, { scoreNeedsReasoning: 0.2, scoreNoReasoning: 0.8 }],
 		});
 	});
 

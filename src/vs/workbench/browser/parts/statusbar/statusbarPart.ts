@@ -225,6 +225,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.getId() === Parts.STATUSBAR_PART && e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this._onDidChange.fire(undefined);
+				if (this.element) {
+					this.updateStyles();
+				}
 			}
 		}));
 	}
@@ -329,7 +332,11 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const accessor: IStatusbarEntryAccessor = {
 			update: entry => {
 				lastEntry = entry;
+				const hadBackgroundColor = itemContainer.classList.contains('has-background-color');
 				item.update(this.withEntryOverride(entry, id));
+				if (hadBackgroundColor !== itemContainer.classList.contains('has-background-color')) {
+					this.updateVisibleBackgroundColorNeighbors();
+				}
 			},
 			dispose: () => {
 				const { needsFullRefresh } = this.doAddOrRemoveModelEntry(viewModelEntry, false);
@@ -591,6 +598,38 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				}
 			}
 		}
+
+		this.updateVisibleBackgroundColorNeighbors();
+	}
+
+	private updateVisibleBackgroundColorNeighbors(): void {
+		this.doUpdateVisibleBackgroundColorNeighbors(this.viewModel.getEntries(StatusbarAlignment.LEFT), StatusbarAlignment.LEFT);
+		this.doUpdateVisibleBackgroundColorNeighbors(this.viewModel.getEntries(StatusbarAlignment.RIGHT).reverse(), StatusbarAlignment.RIGHT);
+	}
+
+	private doUpdateVisibleBackgroundColorNeighbors(entries: IStatusbarViewModelEntry[], alignment: StatusbarAlignment): void {
+		let previousVisibleEntry: IStatusbarViewModelEntry | undefined;
+
+		for (const entry of entries) {
+			entry.container.classList.remove('visible-background-color-neighbor');
+
+			if (this.viewModel.isHidden(entry.id)) {
+				continue;
+			}
+
+			const isCompactNeighbor = alignment === StatusbarAlignment.LEFT
+				? previousVisibleEntry?.container.classList.contains('compact-right') && entry.container.classList.contains('compact-left')
+				: previousVisibleEntry?.container.classList.contains('compact-left') && entry.container.classList.contains('compact-right');
+			if (
+				previousVisibleEntry?.container.classList.contains('has-background-color') &&
+				entry.container.classList.contains('has-background-color') &&
+				!isCompactNeighbor
+			) {
+				entry.container.classList.add('visible-background-color-neighbor');
+			}
+
+			previousVisibleEntry = entry;
+		}
 	}
 
 	private showContextMenu(e: MouseEvent | GestureEvent): void {
@@ -663,17 +702,15 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		// Background / foreground colors
 		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
+		container.style.boxShadow = this.getId() === Parts.STATUSBAR_PART && this.layoutService.isFloatingPanelsEnabled() && !isHighContrast(this.theme.type) && backgroundColor
+			? `0 1px 0 ${backgroundColor}`
+			: '';
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 
 		// Update compact entries to refresh hover colors based on current theme
 		this.updateCompactEntries();
-
-		// Mark the bar when a style override is active (currently only the debugging
-		// color) so Modern UI can restore the recolor, which floating mode otherwise
-		// paints transparent.
-		container.classList.toggle('has-style-override', !!styleOverride?.background);
 
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);

@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentsVoiceStorageKeys } from '../../../agentsVoice/common/agentsVoice.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard } from '../widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingHostOptions } from '../widget/input/chatInputOnboarding.js';
 import './media/dictationOnboarding.css';
 
 /**
@@ -543,7 +543,7 @@ export interface IDictationOnboardingBannerOptions {
  * The card runs alongside the first dictation, so it explains the feature
  * without delaying the action the user invoked.
  */
-export class DictationOnboardingBanner extends Disposable {
+export class DictationOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
 
 	readonly domNode: HTMLElement;
 
@@ -627,6 +627,35 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 		this.waveform.start();
 		this.logAction('shown');
+	}
+
+	announce(): void {
+		this.card.announce();
+	}
+
+	/**
+	 * Stops the waveform and releases the microphone while the card is put away
+	 * for a notification, so an invisible introduction never holds the microphone
+	 * open or keeps painting.
+	 */
+	setVisible(visible: boolean): void {
+		if (visible) {
+			this.waveform.start();
+			if (this.preview) {
+				void this.startPreview();
+			}
+		} else {
+			this.waveform.stop();
+			this.preview?.releaseMicrophone();
+		}
+	}
+
+	hasFocus(): boolean {
+		return this.card.hasFocus();
+	}
+
+	focus(): void {
+		this.card.focus();
 	}
 
 	/**
@@ -728,11 +757,8 @@ export class DictationOnboardingBanner extends Disposable {
 		}
 
 		const options = buildMicrophoneOptions(devices);
-		// Before permission is granted the browser reports the devices but not
-		// their names. Re-rendering a list of "Unknown device" rows and then
-		// swapping in the real names a moment later is worse than waiting: keep
-		// the row as it is until there is something worth showing.
-		if (this.options.length > 1 && !options.some(option => option.deviceId && option.label)) {
+		// Wait for a real microphone label before rendering a multi-microphone picker.
+		if (options.length > 1 && !devices.some(device => device.kind === 'audioinput' && device.label)) {
 			return;
 		}
 
@@ -860,12 +886,8 @@ export interface IDictationOnboardingService {
 	/**
 	 * Register a container that can host the card (a chat input). The most
 	 * recently focused host wins when the card is shown.
-	 *
-	 * @param container the element the card is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the card alongside the user's first dictation. Dictation starts
@@ -910,8 +932,8 @@ export class DictationOnboardingService extends Disposable implements IDictation
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, undefined, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): boolean {

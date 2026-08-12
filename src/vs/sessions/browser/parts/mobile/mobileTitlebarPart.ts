@@ -353,6 +353,9 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
+			// The conditional-auth opt-in is desktop-only (the native agent host it
+			// lets in does not run on mobile/web).
+			allowSignedOutWhenUsable: false,
 		});
 
 		// Avatar
@@ -441,6 +444,7 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
+			allowSignedOutWhenUsable: false,
 		}));
 		if (badgeKey) {
 			this.dismissedBadgeKey = badgeKey;

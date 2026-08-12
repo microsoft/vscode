@@ -21,6 +21,7 @@ suite('Sessions - Account Title Bar State', () => {
 			entitlement: ChatEntitlement.Pro,
 			sentiment: {},
 			quotas: {},
+			allowSignedOutWhenUsable: false,
 			...overrides,
 		};
 	}
@@ -142,6 +143,25 @@ suite('Sessions - Account Title Bar State', () => {
 			source: 'copilot',
 			label: 'Agents Signed Out',
 			kind: 'prominent',
+		});
+	});
+
+	test('offers a calm opt-in sign-in when signed-out operation is enabled', () => {
+		const state = getAccountTitleBarState(createState({
+			accountName: undefined,
+			accountProviderLabel: undefined,
+			entitlement: ChatEntitlement.Unknown,
+			allowSignedOutWhenUsable: true,
+		}));
+
+		assert.deepStrictEqual({
+			source: state.source,
+			label: state.label,
+			kind: state.kind,
+		}, {
+			source: 'copilot',
+			label: 'Sign In',
+			kind: 'default',
 		});
 	});
 

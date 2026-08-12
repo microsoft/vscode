@@ -19,13 +19,13 @@
 }
 
 .monaco-workbench.agent-sessions-workbench > .monaco-grid-view {
-	margin: 0 var(--vscode-spacing-size100) var(--vscode-spacing-size100) 4px;
+	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 4px;
 	width: auto;
-	height: calc(100% - var(--vscode-spacing-size100));
+	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
 }
 
 .monaco-workbench.agent-sessions-workbench.nosidebar > .monaco-grid-view {
-	margin-left: var(--vscode-spacing-size100);
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {
@@ -294,12 +294,7 @@
 	background: var(--vscode-agentsPanel-border);
 }
 
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-toolbars {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
-	padding-bottom: var(--vscode-spacing-size80, 8px) !important;
-}
-
-.agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-container:not(:has(.editor-group-header-toolbars)) > .title {
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	box-sizing: border-box;
 }

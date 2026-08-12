@@ -86,6 +86,13 @@ export interface IAccountTitleBarStateContext {
 		readonly chat?: IQuotaSnapshot;
 		readonly completions?: IQuotaSnapshot;
 	};
+	/**
+	 * Whether the conditional-auth opt-in permits signed-out operation.
+	 * When true, a signed-out account shows a calm opt-in sign-in instead of the
+	 * alarming "Agents Signed Out". Defaults to `false`, so the opt-in being off
+	 * keeps today's behavior.
+	 */
+	readonly allowSignedOutWhenUsable: boolean;
 }
 
 export interface IAccountTitleBarState {
@@ -134,7 +141,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		};
 	}
 
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas);
+	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.allowSignedOutWhenUsable);
 	if (copilotState) {
 		return copilotState;
 	}
@@ -164,13 +171,24 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 function getCopilotPresentation(
 	entitlement: ChatEntitlement,
 	sentiment: IChatSentiment,
-	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot }
+	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot },
+	allowSignedOutWhenUsable: boolean
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {
 		return undefined;
 	}
 
 	if (entitlement === ChatEntitlement.Unknown) {
+		if (allowSignedOutWhenUsable) {
+			// Signing in is optional, so present a calm affordance.
+			return {
+				source: 'copilot',
+				kind: 'default',
+				icon: Codicon.account,
+				label: localize('agentsSignInOptional', "Sign In"),
+				ariaLabel: localize('agentsSignInOptionalAria', "Sign in to GitHub to use more agents"),
+			};
+		}
 		return {
 			source: 'copilot',
 			kind: 'prominent',

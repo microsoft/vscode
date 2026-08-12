@@ -18,11 +18,15 @@ import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
+import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
+import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	const instantiationService = new TestInstantiationService();
+	const logService = new NullLogService();
 	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
@@ -32,9 +36,12 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
+	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
+	instantiationService.stub(IAgentHostStateManager, disposables.add(new AgentHostStateManager(logService)));
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, logService);
 	return disposables.add(instantiationService.createInstance(CodexAgent));
 }
 
@@ -50,7 +57,7 @@ suite('codexSessionConfigKeys', () => {
 			additionalDirectories: [narrowAdditionalDirectories(['/tmp/a', '', 1, '/tmp/b']), narrowAdditionalDirectories('nope')],
 			boolean: [narrowBoolean(true), narrowBoolean(false), narrowBoolean('true')],
 			webSearchMode: [narrowWebSearchMode('disabled'), narrowWebSearchMode('cached'), narrowWebSearchMode('online')],
-			reasoningEffort: [narrowReasoningEffort('minimal'), narrowReasoningEffort('medium'), narrowReasoningEffort('max')],
+			reasoningEffort: [narrowReasoningEffort('minimal'), narrowReasoningEffort('medium'), narrowReasoningEffort('max'), narrowReasoningEffort('ultra'), narrowReasoningEffort('extreme')],
 			personality: [narrowPersonality('friendly'), narrowPersonality('pragmatic'), narrowPersonality('grumpy')],
 			reasoningSummary: [narrowReasoningSummary('auto'), narrowReasoningSummary('detailed'), narrowReasoningSummary('verbose')],
 			collaborationMode: [collaborationModeKind('plan'), collaborationModeKind('interactive'), collaborationModeKind(undefined)],
@@ -61,7 +68,7 @@ suite('codexSessionConfigKeys', () => {
 			additionalDirectories: [['/tmp/a', '/tmp/b'], undefined],
 			boolean: [true, false, undefined],
 			webSearchMode: ['disabled', 'cached', undefined],
-			reasoningEffort: ['minimal', 'medium', undefined],
+			reasoningEffort: ['minimal', 'medium', 'max', 'ultra', undefined],
 			personality: ['friendly', 'pragmatic', undefined],
 			reasoningSummary: ['auto', 'detailed', undefined],
 			collaborationMode: ['plan', 'default', 'default'],

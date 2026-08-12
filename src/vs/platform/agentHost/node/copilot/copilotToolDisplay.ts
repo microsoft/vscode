@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequest } from '@github/copilot-sdk';
+import type { PermissionRequest, SkillInvokedData } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -520,6 +521,18 @@ function truncate(text: string, maxLength: number): string {
 	return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
 }
 
+const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-(?:[a-z0-9]{6}|\d+-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})|copilot-tool-output-\d{10,}-[a-z0-9]+)\.txt$/i;
+
+/**
+ * Matches the temp-file basename layouts the Copilot SDK uses when spilling large tool output to disk.
+ * Callers making trust decisions must separately verify the parent directory.
+ */
+export function isCopilotSdkToolOutputFile(filePath: string): boolean {
+	const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+	const fileName = lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
+	return COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE.test(fileName);
+}
+
 /**
  * Formats a file path as a markdown link `[](file-uri)` so it renders
  * as a clickable file widget in the chat UI.
@@ -642,6 +655,9 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
 			if (typeof args?.path === 'string' && args.path) {
+				if (isCopilotSdkToolOutputFile(args.path)) {
+					return localize('toolInvoke.viewToolOutput', "Reading tool output");
+				}
 				const link = formatPathAsMarkdownLink(resolvePath(args.path));
 				const range = formatViewRange(args.view_range);
 				if (range) {
@@ -837,6 +853,9 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
 			if (typeof args?.path === 'string' && args.path) {
+				if (isCopilotSdkToolOutputFile(args.path)) {
+					return localize('toolComplete.viewToolOutput', "Read tool output");
+				}
 				const link = formatPathAsMarkdownLink(resolvePath(args.path));
 				const range = formatViewRange(args.view_range);
 				if (range) {
@@ -969,13 +988,6 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 // display in this file).
 // =============================================================================
 
-/** Subset of the SDK's `skill.invoked` payload that the synth helper needs. */
-export interface ICopilotSkillInvokedData {
-	readonly name: string;
-	readonly path?: string;
-	readonly description?: string;
-}
-
 /**
  * Builds a stable synthetic tool call id for a `skill.invoked` event so
  * reconnect/replay produces the same id as the original live emit. The id
@@ -983,12 +995,11 @@ export interface ICopilotSkillInvokedData {
  * so it must not contain characters like `/` -- we hash any fallback values
  * that could carry filesystem paths or arbitrary text.
  */
-export function getSkillSyntheticToolCallId(eventId: string | undefined, data: ICopilotSkillInvokedData): string {
+export function getSkillSyntheticToolCallId(eventId: string | undefined, data: SkillInvokedData): string {
 	if (eventId) {
 		return `synth-skill-${eventId}`;
 	}
-	const seed = data.path ?? data.name;
-	return `synth-skill-${hash(seed).toString(16)}`;
+	return `synth-skill-${hash(data.path).toString(16)}`;
 }
 
 /**
@@ -1012,7 +1023,7 @@ export interface ISynthesizedSkillToolCall {
  * actions or {@link Turn} entries as needed.
  */
 export function synthesizeSkillToolCall(
-	data: ICopilotSkillInvokedData,
+	data: SkillInvokedData,
 	eventId: string | undefined,
 ): ISynthesizedSkillToolCall {
 	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
@@ -1028,13 +1039,9 @@ export function synthesizeSkillToolCall(
 	// backslashes in renderers (like the skill pill) that extract link text
 	// without re-parsing markdown.
 	const escapedName = escapeMarkdownLinkLabel(data.name);
-	const skillLink = data.path ? `[${escapedName}](${URI.file(data.path)})` : undefined;
-	const invocationMessage: StringOrMarkdown = skillLink
-		? md(localize('toolInvoke.skill', "Reading skill {0}", skillLink))
-		: localize('toolInvoke.skillName', "Reading skill {0}", data.name);
-	const pastTenseMessage: StringOrMarkdown = skillLink
-		? md(localize('toolComplete.skill', "Read skill {0}", skillLink))
-		: localize('toolComplete.skillName', "Read skill {0}", data.name);
+	const skillLink = `[${escapedName}](${URI.file(data.path)})`;
+	const invocationMessage = md(localize('toolInvoke.skill', "Reading skill {0}", skillLink));
+	const pastTenseMessage = md(localize('toolComplete.skill', "Read skill {0}", skillLink));
 	return {
 		toolCallId,
 		toolName: CopilotToolName.Skill,
@@ -1089,11 +1096,9 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 }
 
 /**
- * Returns a rendering hint for the given tool. Currently 'terminal', 'subagent',
- * and 'search' are supported, which tell the renderer to display the tool with
- * a terminal command block, a subagent widget, or a search icon respectively.
+ * Returns a rendering hint for the given tool.
  */
-export function getToolKind(toolName: string): 'terminal' | 'subagent' | 'search' | undefined {
+export function getToolKind(toolName: string, parameters?: Record<string, unknown>): ToolKind | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
 	}
@@ -1102,6 +1107,10 @@ export function getToolKind(toolName: string): 'terminal' | 'subagent' | 'search
 	}
 	if (SEARCH_TOOL_NAMES.has(toolName)) {
 		return 'search';
+	}
+	if (toolName === CopilotToolName.View
+		|| (toolName === CopilotToolName.StrReplaceEditor && parameters?.['command'] === 'view')) {
+		return 'read';
 	}
 	return undefined;
 }
@@ -1157,52 +1166,6 @@ export function tryStringify(value: unknown): string | undefined {
 	}
 }
 
-/**
- * Loose, optional-field projection of the SDK's {@link PermissionRequest}
- * discriminated union. Lets the rest of the agent host read the well-known
- * fields without `switch (request.kind)` narrowing at every access site.
- *
- * The SDK's `PermissionRequest` (a union with required per-variant fields) is
- * structurally assignable to this interface — every variant carries `kind`
- * and `toolCallId?`, and the variant-specific fields are listed here as
- * optional. Use this type at the agent-host boundary so call sites and tests
- * can rely on a single shape.
- */
-export interface ITypedPermissionRequest {
-	/** Permission kind discriminator from the SDK. */
-	kind: PermissionRequest['kind'];
-	/** Whether managed policy requires a human response and forbids host auto-approval. */
-	managedApprovalRequired?: boolean;
-	/** Tool call ID that triggered this permission request, when available. */
-	toolCallId?: string;
-	/** File path — set for `read` permission requests. */
-	path?: string;
-	/** File path — set for `write` permission requests. */
-	fileName?: string;
-	/** Full shell command text — set for `shell` permission requests. */
-	fullCommandText?: string;
-	/**
-	 * True when the model requested this `shell` command run outside the
-	 * sandbox (via `requestSandboxBypass`) and the host opted in via
-	 * `sandbox.allowBypass`.
-	 */
-	requestSandboxBypass?: boolean;
-	/** Human-readable intention describing the operation. */
-	intention?: string;
-	/** MCP server name — set for `mcp` permission requests. */
-	serverName?: string;
-	/** Tool name — set for `mcp` and `custom-tool` permission requests. */
-	toolName?: string;
-	/** Tool arguments — set for `custom-tool` permission requests. */
-	args?: Record<string, unknown>;
-	/** URL — set for `url` permission requests. */
-	url?: string;
-	/** Unified diff of the proposed change — set for `write` permission requests. */
-	diff?: string;
-	/** New file contents that will be written — set for `write` permission requests. */
-	newFileContents?: string;
-}
-
 /** Safely extract a string value from an SDK field that may be `unknown` at runtime. */
 function str(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
@@ -1211,7 +1174,7 @@ function str(value: unknown): string | undefined {
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
-export function getPermissionDisplay(request: ITypedPermissionRequest, workingDirectory?: URI, isNewFile?: boolean): {
+export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1220,13 +1183,20 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	/** File path extracted from the request. */
 	permissionPath?: string;
 } {
-	const path = str(request.path) ?? str(request.fileName);
-	const fullCommandText = str(request.fullCommandText);
-	const intention = str(request.intention);
-	const serverName = str(request.serverName);
-	const toolName = str(request.toolName);
+	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
+	const fullCommandText = request.kind === 'shell' ? str(request.fullCommandText) : undefined;
+	const intention = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
+		? str(request.intention)
+		: undefined;
+	const serverName = request.kind === 'mcp' ? str(request.serverName) : undefined;
+	const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'
+		? str(request.toolName)
+		: undefined;
+	const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
+		? request.requestSandboxBypass
+		: undefined;
 
-	const shellConfirmationTitle = request.requestSandboxBypass
+	const shellConfirmationTitle = requestSandboxBypass
 		? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
 		: localize('copilot.permission.shell.title', "Run in terminal?");
 
@@ -1248,7 +1218,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 		case 'custom-tool': {
 			// Custom tool overrides (e.g. our shell tool). Extract the actual
 			// tool args from the SDK's wrapper envelope.
-			const args = typeof request.args === 'object' && request.args !== null ? request.args as Record<string, unknown> : undefined;
+			const args = request.args;
 			const sdkToolName = str(request.toolName);
 			if (args && sdkToolName && isShellTool(sdkToolName) && typeof args.command === 'string') {
 				stripRedundantCdPrefix(sdkToolName, args, workingDirectory);
