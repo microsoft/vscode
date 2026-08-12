@@ -142,6 +142,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - script: |
+          set -e
+          test -d node_modules/@openai/codex-linux-x64
+          rm -r -- node_modules/@openai/codex-linux-x64
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'arm64'))
+        displayName: "Fault injection: remove Codex native package"
+
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Verify native optional dependency binaries
