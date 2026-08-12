@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { derived, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor as IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunStartResult, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
 
@@ -25,12 +26,12 @@ suite('AutomationRunner', () => {
 		const operation = runner.runOnce(automation);
 		await waitForState(service.runs, runs => runs.length === 1);
 		const pending = service.runs.get()[0];
-		service.setRun({ ...pending, status: 'running', sessionResource: 'copilotcli:/session' });
+		service.setRun({ ...pending, status: 'running', sessionResource: URI.parse('copilotcli:/session') });
 
 		assert.deepStrictEqual(await operation.whenDispatched, {
 			kind: 'started',
 			run: service.runs.get()[0],
-			sessionResource: 'copilotcli:/session',
+			sessionResource: URI.parse('copilotcli:/session'),
 		});
 		service.setRun({ ...service.runs.get()[0], status: 'completed', completedAt: new Date().toISOString() });
 		await operation.whenCompleted;

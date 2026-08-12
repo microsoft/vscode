@@ -2515,6 +2515,7 @@ export class AgentService extends Disposable implements IAgentService {
 			status: SessionStatus.Idle,
 			createdAt: now,
 			modifiedAt: now,
+			origin: config?.origin,
 			...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 			// The provider resolved only its process root (index 0), which may
 			// differ from the requested primary (e.g. a workspace-less scratch dir).
@@ -3409,7 +3410,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
+	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}

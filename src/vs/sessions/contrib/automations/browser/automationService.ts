@@ -24,7 +24,7 @@ import { ProtocolError } from '../../../../platform/agentHost/common/state/sessi
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { AutomationRunTrigger, AutomationTarget, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationRunTrigger, AutomationTarget, IAutomationDescriptor as IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { isAgentHostProviderId, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../common/agentHostSessionsProvider.js';
@@ -1434,8 +1434,8 @@ function toRun(run: AutomationRunState | AutomationRunSummary, automationId: str
 		automationId,
 		status: lifecycle.status,
 		trigger: triggerFromRun(run),
-		sessionResource: run.primarySession,
-		sessionResources: sessions,
+		sessionResource: run.primarySession ? URI.parse(run.primarySession) : undefined,
+		sessionResources: sessions.map(session => URI.parse(session)),
 		artifactCount: fullRun ? run.artifacts.length : run.artifactCount,
 		blocker: lifecycle.status === AutomationRunStatus.Blocked ? lifecycle.blocker.kind : undefined,
 		canCancel: run.operations.includes(AutomationRunOperation.Cancel),
