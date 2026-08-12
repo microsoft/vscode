@@ -1196,7 +1196,12 @@ export class AgentService extends Disposable implements IAgentService {
 			resource: meta.session.toString(),
 			provider,
 			title: meta.summary ?? '',
-			status: meta.status ?? SessionStatus.Idle,
+			// Surfaced legacy sessions predate agent-host read ownership, which has
+			// no per-session read flag for them yet. Default them to read: the
+			// client trusts the provider's read state once it owns it, so an
+			// unflagged summary would otherwise flip every previously-seen session
+			// to unread the moment migration is turned on.
+			status: withSessionStatusFlag(meta.status ?? SessionStatus.Idle, SessionStatus.IsRead, true),
 			createdAt: new Date(meta.startTime).toISOString(),
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
@@ -3022,13 +3027,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session: seed its
 		// VS Code-layer metadata in place (reusing the on-disk event log) so the
-		// restore below can hydrate it. Gated on the migrate setting so the common
-		// (non-migration) restore path does no extra work; a no-op for native /
-		// already-adopted sessions.
+		// restore below can hydrate it. A no-op for native / already-adopted sessions.
+		// Adopt when the migrate setting is on OR the session is already surfaced as
+		// adoptable — the latter so an entry the user can see in the list never
+		// dead-ends on "not found" if the setting was toggled off after surfacing.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+		const surfacedAdoptable = readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionStr)?._meta);
 		const migrationStartTime = Date.now();
 		let adoption: IAgentSessionAdoptionResult = { adopted: false, eligible: false };
-		if (migrateLegacyEnabled && agent.ensureSessionAdopted) {
+		if ((migrateLegacyEnabled || surfacedAdoptable) && agent.ensureSessionAdopted) {
 			try {
 				adoption = await agent.ensureSessionAdopted(session);
 			} catch (err) {

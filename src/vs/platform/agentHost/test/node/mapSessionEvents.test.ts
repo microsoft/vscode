@@ -412,6 +412,25 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'session.start', data: { selectedModel: 'opus-5' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'hello' } },
+			{ type: 'user.message', data: { interactionId: 'm3', content: 'again' } },
+			{ type: 'session.model_change', data: { newModel: 'gpt-5' } },
+			{ type: 'user.message', data: { interactionId: 'm4', content: 'switched' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(t => t.message.model), [
+			{ id: 'opus-5' },
+			{ id: 'opus-5' },
+			{ id: 'gpt-5' },
+		]);
+	});
+
 	test('uses top-level user messages as turn boundaries', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Investigate this issue' } },
