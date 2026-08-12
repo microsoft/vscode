@@ -399,14 +399,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 
-	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
+	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> {
 		let promptPaths: readonly IPromptPath[];
 		switch (storage) {
 			case PromptsStorage.extension:
 				promptPaths = await this.getExtensionPromptFiles(type, token);
 				break;
 			case PromptsStorage.local:
-				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.local, token, root).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
 				break;
 			case PromptsStorage.user:
 				promptPaths = this.areStandalonePromptFilesBlocked(type) ? [] : await this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
