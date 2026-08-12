@@ -3832,7 +3832,14 @@ suite('CopilotAgentSession', () => {
 
 		test('peer chat observes auto-approve/permissions identically to the initial chat', async () => {
 			const options = {
-				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
+				rootValues: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.AllowNetwork]: false,
+						[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
+						[AgentHostSandboxKey.LinuxFileSystem]: {},
+					},
+				},
 				configValues: {
 					[SessionConfigKey.Mode]: 'autopilot',
 					[SessionConfigKey.AutoApprove]: 'default',
