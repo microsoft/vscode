@@ -587,7 +587,11 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	constructor(role: LanguageModelChatMessageRole, content: string | Array<any>, name?: string) {
 		this.role = role;
-		this.content = typeof content === 'string' ? [{ type: 'text', value: content }] : content;
+		// Match real VS Code behavior: string content is wrapped in a
+		// LanguageModelTextPart instance (see extHostTypes.ts), not a plain
+		// `{ type: 'text', value }` object. Consumers rely on
+		// `instanceof LanguageModelTextPart` to extract text.
+		this.content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
 		this.name = name;
 	}
 
