@@ -298,6 +298,8 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					managedSettingsFetchStatus: null,
 					managedSettingsFetchedAt: null,
 					managedSettingsRawResponse: null,
+					managedSettingsCompatibilityError: null,
+					onDidChangeManagedSettingsCompatibilityError: Event.None,
 					getDefaultAccount: async () => null,
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },

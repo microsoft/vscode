@@ -220,6 +220,27 @@ suite('PromptsService', () => {
 		instaService.stub(IPromptsService, service);
 	});
 
+	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
+		const parentRoot = URI.file('/parent-repo');
+		const explicitRoot = URI.joinPath(parentRoot, 'packages/explicit-root');
+		const siblingRoot = URI.file('/sibling-root');
+		workspaceContextService.setWorkspace(testWorkspace(explicitRoot, siblingRoot));
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await mockFiles(fileService, [
+			{ path: '/parent-repo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			{ path: '/parent-repo/.github/prompts/parent.prompt.md', contents: ['parent'] },
+			{ path: '/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md', contents: ['explicit'] },
+			{ path: '/sibling-root/.github/prompts/sibling.prompt.md', contents: ['sibling'] },
+		]);
+
+		const files = await service.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None, explicitRoot);
+
+		assert.deepStrictEqual(files.map(file => file.uri.path), [
+			'/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md',
+			'/parent-repo/.github/prompts/parent.prompt.md',
+		]);
+	});
+
 	suite('IAgentSource.isEquals', () => {
 		test('returns true for equivalent local sources', () => {
 			const left: IAgentSource = { storage: PromptsStorage.local };
@@ -2400,6 +2421,42 @@ suite('PromptsService', () => {
 			} finally {
 				registered.dispose();
 				logErrorSpy.restore();
+			}
+		});
+
+		test('Canceled provider listing stops without logging an error', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let secondProviderCalled = false;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					cancellationTokenSource.cancel();
+					throw new CancellationError();
+				}
+			}));
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					secondProviderCalled = true;
+					return [];
+				}
+			}));
+			const errorSpy = sinon.spy(logService, 'error');
+
+			try {
+				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+
+				assert.deepStrictEqual({
+					secondProviderCalled,
+					errorCount: errorSpy.callCount,
+				}, {
+					secondProviderCalled: false,
+					errorCount: 0,
+				});
+			} finally {
+				errorSpy.restore();
 			}
 		});
 

@@ -17,9 +17,9 @@ import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import type { ISchema, SchemaDefinition, SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
-import { ActionType } from '../common/state/sessionActions.js';
-import { parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { AgentSession } from '../common/agentService.js';
+import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
+import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AgentSession } from '../common/agent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
@@ -55,6 +55,7 @@ export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManag
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;
+	readonly origin: ActionOrigin | undefined;
 }
 
 /**
@@ -223,6 +224,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
+					origin: envelope.origin,
 				});
 			}
 		}));
@@ -269,6 +271,9 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getSessionConfigValues(session: ProtocolURI): Record<string, unknown> | undefined {
+		if (isAhpChatChannel(session)) {
+			throw new Error(`Expected a session URI, received chat channel ${session}`);
+		}
 		return this._stateManager.getSessionState(session)?.config?.values;
 	}
 

@@ -221,6 +221,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -251,6 +254,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
@@ -282,6 +288,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
@@ -305,6 +314,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -339,6 +351,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			localBundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 		await resolveCustomizationRefs(
 			makeFileService(),
@@ -351,6 +366,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			{ includeUserStorage: true },
+			[]
 		);
 
 		assert.deepStrictEqual({
@@ -378,6 +394,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -398,6 +417,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -417,6 +439,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
@@ -435,6 +460,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
@@ -453,6 +481,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
@@ -468,6 +499,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true)]);
 	});
@@ -487,6 +521,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 		assert.deepStrictEqual(refs.map(r => r.uri), [pluginUri.toString()]);
 	});
@@ -504,6 +541,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 		assert.deepStrictEqual(refs, []);
 		// Use CancellationToken so the import isn't dead in the bundle.
@@ -525,6 +565,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -558,6 +601,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			'agent-host-copilotcli',
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, [[
@@ -578,6 +624,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			'remote-test-copilotcli',
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, []);
@@ -595,6 +644,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			'agent-host-claude',
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, [[
@@ -617,6 +669,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		// No loose files and no non-plugin MCP servers: bundler is never called.
@@ -639,6 +694,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
@@ -661,6 +719,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[],
 		);
 
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true), globalEnablement(true)]);
@@ -682,6 +743,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -702,6 +766,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -723,6 +790,8 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			true,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -748,6 +817,8 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
 			true,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -768,6 +839,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -793,6 +867,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -813,6 +890,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService({ '${workspaceFolder}': '/ws' }),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -840,6 +920,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			throwingResolver,
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -860,6 +943,9 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			makeConfigurationResolverService(),
 			bundler as unknown as SyncedCustomizationBundler,
 			SessionType.CopilotCLI,
+			false,
+			undefined,
+			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -895,6 +981,8 @@ suite('resolveLocalCustomAgents', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService([plugin]),
 			SessionType.CopilotCLI,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(agents, [{
@@ -920,6 +1008,8 @@ suite('resolveLocalCustomAgents', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]])),
 			SessionType.CopilotCLI,
+			undefined,
+			[],
 		);
 
 		assert.deepStrictEqual(agents.map(agent => agent.name), ['agent-0']);
@@ -938,6 +1028,8 @@ suite('resolveLocalCustomAgents', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), false]])),
 			SessionType.CopilotCLI,
+			undefined,
+			[],
 		);
 
 		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
@@ -960,6 +1052,8 @@ suite('resolveLocalCustomAgents', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			SessionType.CopilotCLI,
+			undefined,
+			[]
 		);
 
 		assert.deepStrictEqual(agents, [{
@@ -982,31 +1076,31 @@ suite('shouldSyncWorkspaceDotMcp - multi-root gate', () => {
 	// the feature tests green) fails here.
 	const LOCAL_COPILOT = 'agent-host-copilotcli';
 
-	test('true only for local Copilot + multi-root workspace + setting enabled', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 2, true), true);
+	test('true only for local Copilot + multiple roots + setting enabled', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, [URI.file('/workspace-a'), URI.file('/workspace-b')], true), true);
 	});
 
 	test('false when the multi-root setting is disabled', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 2, false), false);
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, [URI.file('/workspace-a'), URI.file('/workspace-b')], false), false);
 	});
 
-	test('false for a single-folder workspace', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 1, true), false);
+	test('false for a single root', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, [URI.file('/workspace')], true), false);
 	});
 
-	test('false for an empty workspace', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, 0, true), false);
+	test('false for a workspace-less scope', () => {
+		assert.strictEqual(shouldSyncWorkspaceDotMcp(LOCAL_COPILOT, [], true), false);
 	});
 
 	test('false for a non-Copilot harness (e.g. Claude)', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp('agent-host-claude', 2, true), false);
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('agent-host-claude', [URI.file('/workspace-a'), URI.file('/workspace-b')], true), false);
 	});
 
 	test('false for the Copilot CLI (extension host) harness', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp('copilotcli', 2, true), false);
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('copilotcli', [URI.file('/workspace-a'), URI.file('/workspace-b')], true), false);
 	});
 
 	test('false for a remote Copilot Agent Host session', () => {
-		assert.strictEqual(shouldSyncWorkspaceDotMcp('remote-myauthority-copilotcli', 2, true), false);
+		assert.strictEqual(shouldSyncWorkspaceDotMcp('remote-myauthority-copilotcli', [URI.file('/workspace-a'), URI.file('/workspace-b')], true), false);
 	});
 });

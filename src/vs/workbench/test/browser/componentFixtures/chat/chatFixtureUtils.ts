@@ -184,9 +184,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly enabled = observableValue('chatPetEnabled', false);
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
+		override readonly scale = observableValue('chatPetScale', 1);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
+		override setScale(scale: number) { this.scale.set(scale, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;

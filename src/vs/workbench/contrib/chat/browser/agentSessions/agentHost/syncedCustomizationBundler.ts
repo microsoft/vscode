@@ -6,6 +6,7 @@
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
@@ -99,7 +100,8 @@ interface IBundleResult {
  * backed by an in-memory filesystem.
  *
  * Each bundler instance is namespaced by its authority string so that
- * multiple agents can coexist under the same scheme without conflicts.
+ * multiple agent workspace scopes can coexist under the same scheme without
+ * conflicts.
  * The plugin is mounted at `vscode-synced-customization:///{authority}/`
  * and structured as:
  *
@@ -121,7 +123,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	/** Maps a synced (destination) URI string back to its original source location. Rebuilt on every {@link bundle}. */
-	private _originByDest = new Map<string, ISyncedCustomizationOrigin>();
+	private _originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 
 	constructor(
 		authority: string,
@@ -163,7 +165,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// bundle (a frequent case when a change event fires but content is
 		// identical).
 		const entries: { destUri: URI; content: VSBuffer; hashPart: string }[] = [];
-		const originByDest = new Map<string, ISyncedCustomizationOrigin>();
+		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
 		await Promise.all(syncable.map(async file => {
 			const dir = pluginDirForType(file.type)!;
 			const fileName = basename(file.uri);
@@ -187,7 +189,7 @@ export class SyncedCustomizationBundler extends Disposable {
 			// provenance (extension/plugin/built-in) can be recovered later.
 			// Only files that carry a source have recoverable provenance.
 			if (file.source !== undefined) {
-				originByDest.set(destUri.toString(), {
+				originByDest.set(destUri, {
 					uri: file.uri,
 					source: file.source,
 					extensionId: file.extensionId,
@@ -300,6 +302,6 @@ export class SyncedCustomizationBundler extends Disposable {
 	 * for URIs that are not part of the most recent bundle.
 	 */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
-		return this._originByDest.get(syncedUri.toString());
+		return this._originByDest.get(syncedUri);
 	}
 }

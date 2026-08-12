@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -16,6 +17,7 @@ import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPa
 import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 
 suite('ChatWidget', () => {
 
@@ -155,6 +157,23 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('prompt timeline width follows explicit widget layout', () => {
+		const onDidLayout = new Emitter<{ width: number; height: number }>();
+		const host = document.createElement('div');
+		Object.defineProperty(host, 'clientWidth', { value: 320 });
+		const widths: number[] = [];
+		const observation = observePromptTimelineHostWidth(
+			{ onDidLayout: onDidLayout.event },
+			host,
+			{ setHostWidth: width => widths.push(width) },
+		);
+
+		onDidLayout.fire({ width: 480, height: 600 });
+		observation.dispose();
+		onDidLayout.fire({ width: 640, height: 600 });
+		onDidLayout.dispose();
+		assert.deepStrictEqual(widths, [320, 480]);
+	});
 });
 
 suite('ChatWidget - acceptAndAwaitSentRequest', () => {
