@@ -1134,8 +1134,9 @@ edited branch. The automation and new-session surfaces share the provider-agnost
 `contrib/chat/browser/branchPicker` trigger, ActionWidget, filtering, focus, and
 accessibility behavior; their adapters supply branch state and selection side
 effects. The Automations dialog keeps its form focus cycle, popup command
-allowlist, and popup-first Escape handling in its own adapter instead of changing
-the shared Dialog widget. An edited automation's saved provider/session type
+allowlist, editable-target-only undo/redo handling, and popup-first Escape
+handling in its own adapter instead of changing the shared Dialog widget. An
+edited automation's saved provider/session type
 remains pending while providers are discovered, so a provisional fallback cannot erase Worktree intent;
 the user can still explicitly choose an available alternative. `ISessionType`
 advertises Worktree configuration support; unsupported targets keep the branch
