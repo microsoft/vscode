@@ -408,6 +408,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const disposables = new DisposableStore();
 		const elementDisposables = disposables.add(new DisposableStore());
 
+		container.closest('.monaco-list-row')?.classList.add('session-list-inset-row');
 		container.classList.add('session-item');
 
 		const iconContainer = DOM.append(container, $('.session-icon'));
@@ -1253,6 +1254,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): HTMLElement {
+		container.closest('.monaco-list-row')?.classList.add('session-list-inset-row');
 		container.classList.add('session-show-more');
 		return DOM.append(container, $('span.session-show-more-label'));
 	}
