@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
@@ -1506,7 +1507,7 @@ suite('AgentService (node dispatcher)', () => {
 				await svc.configurationService.whenIdle();
 			} finally {
 				localDisposables.dispose();
-				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+				await rm(tempDir.fsPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
 		});
 

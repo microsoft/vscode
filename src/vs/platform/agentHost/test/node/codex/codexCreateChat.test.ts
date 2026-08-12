@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { rm } from 'fs/promises';
 import { PassThrough } from 'stream';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -1458,7 +1459,7 @@ suite('CodexAgent chat backing durability', () => {
 			workingDirectories: metadata?.workingDirectories?.map(directory => directory.fsPath),
 		}, {
 			chat: peerChat.toString(),
-			workingDirectories: ['/repo/peer'],
+			workingDirectories: [URI.file('/repo/peer').fsPath],
 		});
 	});
 
