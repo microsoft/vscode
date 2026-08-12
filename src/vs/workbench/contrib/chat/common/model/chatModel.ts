@@ -890,16 +890,11 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'systemNotification') {
-			const lastStreamingToolIndex = this._responseParts.findLastIndex(part =>
-				part.kind === 'toolInvocation'
-				&& IChatToolInvocation.isStreaming(part)
-				&& !IChatToolInvocation.isEffectivelyHidden(part)
-			);
-			if (lastStreamingToolIndex === -1) {
-				this._responseParts.push(progress);
+			const lastResponsePart = this._responseParts.at(-1);
+			if (lastResponsePart?.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(lastResponsePart) && !IChatToolInvocation.isEffectivelyHidden(lastResponsePart)) {
+				this._responseParts.splice(this._responseParts.length - 1, 0, progress);
 			} else {
-				// Keep the live foreground tool at the visual tail when a side-channel notification arrives.
-				this._responseParts.splice(lastStreamingToolIndex, 0, progress);
+				this._responseParts.push(progress);
 			}
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'thinking') {
