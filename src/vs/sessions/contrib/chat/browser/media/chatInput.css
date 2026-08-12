@@ -194,6 +194,10 @@
 	position: relative;
 }
 
+.sessions-chat-voice-toolbar .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size40);
+}
+
 /* Match the send button's control tier (22×22, fully rounded) and the compact
 	glyph size used by the pickers, so the voice controls, the dictation mic and
 	Send all read as one row. */
