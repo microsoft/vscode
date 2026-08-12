@@ -12,8 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ThemingExtensions, IColorRegistry } from '../../../../../platform/theme/common/colorRegistry.js';
-import { EDITOR_BORDER, SURFACE_BORDER } from '../../../../common/theme.js';
+import { Extensions as ThemingExtensions, IColorRegistry, opaque, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
+import { EDITOR_BORDER, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, SURFACE_BACKGROUND, SURFACE_BORDER } from '../../../../common/theme.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -374,6 +375,51 @@ suite('StyleOverridesContribution', () => {
 		}, {
 			registeredDefault: SURFACE_BORDER,
 			borderColor: 'rgb(18, 52, 86)',
+		});
+	});
+
+	test('uses the registered modern tab colors', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--vscode-modernTab-activeBackground', '#123456');
+		root.style.setProperty('--vscode-modernTab-hoverBackground', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const { indicator } = createCompositeAction(root, 35, true);
+		const editor = appendElement(root, 'part editor');
+		const tabsContainer = appendElement(editor, 'tabs-container');
+		const tab = appendElement(tabsContainer, 'tab active');
+		const tabFill = appendElement(tab, 'tab-fill');
+		const hoverColorProbe = appendElement(root, 'hover-color-probe');
+		hoverColorProbe.style.backgroundColor = 'var(--modern-ui-tab-hover-background)';
+		const activeColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_ACTIVE_BACKGROUND);
+		const hoverColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_HOVER_BACKGROUND);
+
+		assert.deepStrictEqual({
+			registeredColors: [MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
+			activeDefault: activeColor?.defaults,
+			hoverDefault: hoverColor?.defaults,
+			paneTabBackground: getWindow(indicator).getComputedStyle(indicator).backgroundColor,
+			editorTabBackground: getWindow(tabFill).getComputedStyle(tabFill).backgroundColor,
+			hoverTabBackground: getWindow(hoverColorProbe).getComputedStyle(hoverColorProbe).backgroundColor,
+		}, {
+			registeredColors: [true, true],
+			activeDefault: {
+				dark: opaque(transparent(foreground, 0.22), SURFACE_BACKGROUND),
+				light: opaque(transparent(foreground, 0.16), SURFACE_BACKGROUND),
+				hcDark: null,
+				hcLight: null,
+			},
+			hoverDefault: {
+				dark: opaque(transparent(foreground, 0.08), SURFACE_BACKGROUND),
+				light: opaque(transparent(foreground, 0.06), SURFACE_BACKGROUND),
+				hcDark: null,
+				hcLight: null,
+			},
+			paneTabBackground: 'rgb(18, 52, 86)',
+			editorTabBackground: 'rgb(18, 52, 86)',
+			hoverTabBackground: 'rgb(101, 67, 33)',
 		});
 	});
 });

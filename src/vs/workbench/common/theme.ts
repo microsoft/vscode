@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
+import { registerColor, editorBackground, contrastBorder, transparent, opaque, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
@@ -683,6 +683,22 @@ export const SURFACE_BORDER = registerColor('surface.border', {
 }, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
 export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, localize('editorBorder', "Border color of the editor surface in the modern layout."));
+
+// < --- Modern Tabs --- >
+
+export const MODERN_TAB_ACTIVE_BACKGROUND = registerColor('modernTab.activeBackground', {
+	dark: opaque(transparent(foreground, 0.22), SURFACE_BACKGROUND),
+	light: opaque(transparent(foreground, 0.16), SURFACE_BACKGROUND),
+	hcDark: null,
+	hcLight: null
+}, localize('modernTabActiveBackground', "Background color of active tabs when the modern tab style is enabled."));
+
+export const MODERN_TAB_HOVER_BACKGROUND = registerColor('modernTab.hoverBackground', {
+	dark: opaque(transparent(foreground, 0.08), SURFACE_BACKGROUND),
+	light: opaque(transparent(foreground, 0.06), SURFACE_BACKGROUND),
+	hcDark: null,
+	hcLight: null
+}, localize('modernTabHoverBackground', "Background color of tabs when hovering and the modern tab style is enabled."));
 
 // < --- Title Bar --- >
 
