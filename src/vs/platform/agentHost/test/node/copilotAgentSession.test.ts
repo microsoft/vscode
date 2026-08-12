@@ -29,7 +29,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolDefinition, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent, type UsageInfoMeta } from '../../common/state/sessionState.js';
@@ -577,6 +577,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
 	sessionDatabase?: ISessionDatabase;
+	sessionDataService?: ISessionDataService;
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	sessionCustomizations?: () => readonly Customization[];
@@ -719,7 +720,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			storedFileContents.delete(resource.fsPath);
 		},
 	} as Partial<IFileService> as IFileService);
-	services.set(ISessionDataService, createSessionDataService(options?.sessionDatabase));
+	services.set(ISessionDataService, options?.sessionDataService ?? createSessionDataService(options?.sessionDatabase));
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
@@ -2696,6 +2697,55 @@ suite('CopilotAgentSession', () => {
 					process.env['COPILOT_HOME'] = previousCopilotHome;
 				}
 			}
+		});
+
+		test('auto-approves peer chat reads from the owning session attachment directory', async () => {
+			const ownerSession = AgentSession.uri('copilot', 'owner-session');
+			const peerChatStorage = AgentSession.uri('copilot', 'peer-chat');
+			const baseSessionDataService = createSessionDataService();
+			const sessionDataService: ISessionDataService = {
+				...baseSessionDataService,
+				getSessionDataDir: session => URI.file(join('/session-data', session.path)),
+			};
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables, {
+				sessionUri: ownerSession,
+				resource: peerChatStorage,
+				sessionDataService,
+			});
+			const ownerAttachment = URI.joinPath(
+				sessionDataService.getSessionDataDir(ownerSession),
+				SESSION_ATTACHMENTS_DIRNAME,
+				'attachment-id',
+				'Pasted text #1.txt',
+			).fsPath;
+
+			const ownerResult = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: ownerAttachment,
+				toolCallId: 'tc-read-owner-attachment',
+			});
+			assert.deepStrictEqual({
+				result: ownerResult,
+				signals: signals.length,
+			}, {
+				result: { kind: 'approve-once' },
+				signals: 0,
+			});
+
+			const otherAttachment = URI.joinPath(
+				sessionDataService.getSessionDataDir(AgentSession.uri('copilot', 'other-session')),
+				SESSION_ATTACHMENTS_DIRNAME,
+				'attachment-id',
+				'other.txt',
+			).fsPath;
+			const otherResult = runtime.handlePermissionRequest({
+				kind: 'read',
+				path: otherAttachment,
+				toolCallId: 'tc-read-other-attachment',
+			});
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(session.respondToPermissionRequest('tc-read-other-attachment', false));
+			assert.deepStrictEqual(await otherResult, { kind: 'reject', feedback: 'The user denied permission.' });
 		});
 
 		test('resolves native environment through INativeEnvironmentService registration', async () => {

@@ -1304,7 +1304,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
-		test('sends paste variables as paste simple attachments', async () => {
+		test('sends paste variables as embedded text attachments', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue',
@@ -1325,9 +1325,10 @@ suite('AgentHostChatContribution', () => {
 
 			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnStarted.message.attachments, [{
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.EmbeddedResource,
 				label: 'Previous conversation',
-				modelRepresentation: 'Transcript text',
+				data: encodeBase64(VSBuffer.fromString('Transcript text')),
+				contentType: 'text/plain',
 			}]);
 
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);

@@ -715,7 +715,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 	/** Session database reference. */
 	private readonly _databaseRef: IReference<ISessionDatabase>;
-	/** On-disk root for per-session data (database, attachments, …). */
+	/** On-disk root for the owning Agent Host session's shared data. */
 	private readonly _sessionDataDir: URI;
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -945,7 +945,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._databaseRef = sessionDataService.openDatabase(this._storageUri);
 		this._register(toDisposable(() => this._databaseRef.dispose()));
-		this._sessionDataDir = sessionDataService.getSessionDataDir(this._storageUri);
+		this._sessionDataDir = sessionDataService.getSessionDataDir(this._ownerSessionUri);
 
 		this._editTracker = this._instantiationService.createInstance(
 			FileEditTracker,

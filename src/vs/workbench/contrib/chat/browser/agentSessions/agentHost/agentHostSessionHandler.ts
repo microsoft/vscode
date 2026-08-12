@@ -5697,10 +5697,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const imageAttachment = this._toElementImageAttachment(v, sessionResource, metadata);
 			return imageAttachment ? [elementAttachment, imageAttachment] : elementAttachment;
 		}
-		// Pasted code, prompt text, workspace context, and free-form string entries: surface their
-		// textual representation as an opaque attachment.
+		// Pasted text is materialized by the agent host so large payloads stay out of synchronized state.
 		if (v.kind === 'paste') {
-			return this._toSimpleAttachment(v.name, v.code, v._meta, undefined, referenceRange);
+			return this._toEmbeddedTextAttachment(v.name, v.code, v._meta, referenceRange);
 		}
 		if (v.kind === 'promptText') {
 			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
@@ -5922,6 +5921,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		if (displayKind) {
 			attachment.displayKind = displayKind;
+		}
+		if (_meta) {
+			attachment._meta = _meta;
+		}
+		return attachment;
+	}
+
+	private _toEmbeddedTextAttachment(label: string, text: string, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageEmbeddedResourceAttachment {
+		const attachment: MessageEmbeddedResourceAttachment = {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label,
+			data: encodeBase64(VSBuffer.fromString(text)),
+			contentType: 'text/plain',
+		};
+		if (range) {
+			attachment.range = range;
 		}
 		if (_meta) {
 			attachment._meta = _meta;

@@ -2890,7 +2890,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
-		if (this.viewModel.model.requestInProgress.get() && await this._executeSlashCommandDuringRequest(requestInputs.input, isUserQuery, options.preserveFocus)) {
+		if (this.viewModel.model.requestInProgress.get() && await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext: requestInputs.attachedContext.asArray() }, isUserQuery, options.preserveFocus)) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
@@ -3118,7 +3118,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return sent.data.responseCreatedPromise;
 	}
 
-	private async _executeSlashCommandDuringRequest(input: string, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
+	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
 		const viewModel = this.viewModel;
 		if (!viewModel) {
 			return false;
@@ -3159,6 +3159,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.location,
 				viewModel.sessionResource,
 				CancellationToken.None,
+				requestOptions,
 			);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);

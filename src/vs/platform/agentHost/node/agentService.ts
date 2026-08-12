@@ -3327,11 +3327,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
+	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
-		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
+		const attachmentsRootStr = this._attachmentsRoot(sessionURI).toString();
 		return !!action.message.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
@@ -3352,15 +3352,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _attachmentsRoot(session: string): URI {
-		return joinPath(this._sessionDataService.getSessionDataDir(URI.parse(session)), SESSION_ATTACHMENTS_DIRNAME);
+	private _attachmentsRoot(sessionURI: string): URI {
+		return joinPath(this._sessionDataService.getSessionDataDir(URI.parse(sessionURI)), SESSION_ATTACHMENTS_DIRNAME);
 	}
 
 	/**
 	 * Snapshot inline / client-resident attachment payloads onto disk
 	 * under the session's data directory and rewrite the action to
 	 * reference them via local `file:` URIs. Keeps potentially large
-	 * blobs (e.g. pasted images) out of the in-memory state tree while
+	 * blobs (e.g. pasted text or images) out of the in-memory state tree while
 	 * letting the agent consume them via the standard {@link IFileService}
 	 * surface — no special URI scheme or blob round-tripping needed.
 	 *

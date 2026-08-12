@@ -875,7 +875,14 @@ Each invocation creates a **fresh** side chat (there is no "reuse the last side
 chat" behavior). After creating the chat, it activates that peer chat through
 the normal `ISessionsService.openChat(session, sideChat.resource)` flow so the
 standard session/chat focus behavior applies, then sends the prompt on that
-chat through the normal foreground send path. When the slash command has
+chat through the normal foreground send path. Its first request preserves
+explicitly attached context from the originating composer, including pasted
+text attachments. Agent Host sends pasted text as an embedded textual resource,
+then snapshots it into the session attachment directory before reducing the
+turn so synchronized state and later replay retain only the resource reference.
+Every chat in that Agent Host session may read the shared attachment directory
+without an additional permission confirmation; other sessions remain excluded.
+When the slash command has
 already been selected in the input UI, the remaining prompt is only the
 question text; `/btw` must not be inserted a second time.
 
