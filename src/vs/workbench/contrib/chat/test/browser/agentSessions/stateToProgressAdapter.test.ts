@@ -731,6 +731,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
 		});
 
+		test('image generation in history is marked as a durable image outcome', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: createCompletedToolCall({
+						toolName: 'image_gen.imagegen',
+						toolInput: '{"prompt":"Draw a fox"}',
+						content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+					}),
+				} as ToolCallResponsePart],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const details = serialized.resultDetails;
+
+			assert.deepStrictEqual({
+				toolSpecificData: serialized.toolSpecificData,
+				input: isToolResultInputOutputDetails(details) ? details.input : undefined,
+				output: isToolResultInputOutputDetails(details) ? details.output : undefined,
+			}, {
+				toolSpecificData: { kind: 'generatedImage' },
+				input: '{"prompt":"Draw a fox"}',
+				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+			});
+		});
+
 		test('terminal tool call in history carries autoApproveRuleResolvable only when stamped', () => {
 			const turn = createTurn({
 				responseParts: [

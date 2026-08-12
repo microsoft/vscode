@@ -513,6 +513,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.liveTranscript')),
 			() => this.configurationService.getValue<boolean>('agents.voice.liveTranscript') !== false
 		);
+		const inputValue = observableFromEvent(
+			this,
+			this._widget.inputEditor.onDidChangeModelContent,
+			() => this._widget.getInput()
+		);
 		const transcriptOverlay = $('.voice-transcript-overlay');
 		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
 			horizontal: ScrollbarVisibility.Hidden,
@@ -668,6 +673,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
 			const showLiveTranscript = showLiveTranscriptSetting.read(reader);
+			const hasInput = inputValue.read(reader).length > 0;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
@@ -727,6 +733,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript || showListeningPlaceholder) {
+				if (hasInput) {
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					return;
+				}
 				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 				if (showListeningPlaceholder) {
 					transcriptOverlayNode.style.display = '';
@@ -1034,6 +1045,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				renderFollowups: true,
 				supportsFileReferences: true,
 				clear: () => this.clear(),
+				enableFind: true,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
 						return true;

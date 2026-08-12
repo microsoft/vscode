@@ -22,13 +22,9 @@ import type {
 export interface ListTasksOptions {
 	readonly page?: number;
 	readonly per_page?: number;
-	readonly sort?: 'updated_at' | 'created_at';
-	readonly direction?: 'asc' | 'desc';
 	readonly state?: string;
 	readonly is_archived?: boolean;
 	readonly since?: string;
-	readonly artifact_type?: 'pull' | 'chat';
-	readonly artifact_id?: number;
 	/**
 	 * Restrict the repo-scoped task list to tasks created by the given user id. Mirrors the
 	 * `creator_id` filter used by the github.com/copilot/agents repo page; without it the
