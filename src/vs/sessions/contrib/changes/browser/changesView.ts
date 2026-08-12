@@ -12,6 +12,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, derived, derivedObservableWithCache, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -176,7 +177,12 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
-					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs)
+					buttonConfigProvider: (action, index) => {
+						const configuration = this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs);
+						return index === 0
+							? { ...configuration, showIcon: false, showLabel: true }
+							: configuration;
+					}
 				},
 				menuService, contextKeyService, contextMenuService, keybindingService, telemetryService, hoverService
 			);
@@ -285,8 +291,10 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			container,
 			{
 				telemetrySource: 'changesView',
-				buttonConfigProvider: (_action, index) => {
-					return { showIcon: true, showLabel: index === 0 };
+				buttonConfigProvider: (action, index) => {
+					return index === 0
+						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label) }
+						: { showIcon: true, showLabel: false };
 				}
 			}
 		));

@@ -23,6 +23,7 @@ import {
 	describeFileChange,
 	describeWebSearch,
 	codexCompactionLabels,
+	codexImageGenerationLabels,
 	fileChangeOutput,
 	mapCodexTurnError,
 	turnStateFromStatus,
@@ -48,6 +49,7 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  *  - `agentMessage`     → `MarkdownResponsePart` with the full text
  *  - `commandExecution` → completed terminal `ToolCallResponsePart`
  *  - `webSearch`        → completed web-search `ToolCallResponsePart`
+ *  - `imageGeneration`  → completed image-generation `ToolCallResponsePart`
  *  - `fileChange`       → completed file-edit `ToolCallResponsePart`
  *  - thread coordination tools → completed session-link `ToolCallResponsePart`
  *  - `contextCompaction` → completed compaction `ToolCallResponsePart`
@@ -167,6 +169,8 @@ function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefine
 			}
 		} else if (item.type === 'webSearch') {
 			parts.push(webSearchToolCallPart(item));
+		} else if (item.type === 'imageGeneration') {
+			parts.push(imageGenerationToolCallPart(item));
 		} else if (item.type === 'fileChange') {
 			parts.push(fileChangeToolCallPart(item));
 		} else if (item.type === 'dynamicToolCall') {
@@ -308,6 +312,27 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: true,
 			pastTenseMessage: `Searched ${query}`,
+		},
+	};
+}
+
+function imageGenerationToolCallPart(item: Extract<ThreadItem, { type: 'imageGeneration' }>): ToolCallResponsePart {
+	const success = item.status === 'completed' && item.result.length > 0;
+	const labels = codexImageGenerationLabels(item.status);
+	return {
+		kind: ResponsePartKind.ToolCall,
+		toolCall: {
+			status: ToolCallStatus.Completed,
+			toolCallId: generateUuid(),
+			toolName: 'image_gen.imagegen',
+			displayName: labels.displayName,
+			invocationMessage: labels.invocationMessage,
+			toolInput: JSON.stringify({ prompt: item.revisedPrompt ?? labels.displayName }),
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			success,
+			pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
+			content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: item.result, contentType: 'image/png' }] : undefined,
+			error: success ? undefined : { message: labels.errorMessage },
 		},
 	};
 }

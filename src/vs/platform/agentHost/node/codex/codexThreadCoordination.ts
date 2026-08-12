@@ -109,11 +109,12 @@ export function extractCodexCreatedThreadDirectives(text: string): ICodexCreated
 
 	for (let index = 0; index < lines.length; index++) {
 		const line = lines[index];
-		const fenceMatch = /^\s{0,3}(?<marker>`{3,}|~{3,})/.exec(line)?.groups?.['marker'];
-		if (fenceMatch) {
+		const fenceMatch = /^ {0,3}(?<marker>`{3,}|~{3,})(?<remainder>.*)$/.exec(line)?.groups;
+		const fenceMarker = fenceMatch?.['marker'];
+		if (fenceMarker) {
 			if (!fence) {
-				fence = fenceMatch[0];
-			} else if (fenceMatch[0] === fence[0] && fenceMatch.length >= fence.length) {
+				fence = fenceMarker;
+			} else if (fenceMarker[0] === fence[0] && fenceMarker.length >= fence.length && !fenceMatch?.['remainder']?.trim()) {
 				fence = undefined;
 			}
 			output.push(line);

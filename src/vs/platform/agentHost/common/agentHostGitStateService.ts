@@ -28,12 +28,18 @@ export interface IAgentHostGitStateService {
 	 */
 	readonly onDidRefreshSessionGitState: Event<string>;
 
+	/** Fires when GitHub metadata that affects changeset operations changes. */
+	readonly onDidChangeSessionGitHubState: Event<string>;
+
 	/**
 	 * Refreshes the git state for a given session.
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
+
+	/** Resolves the canonical base branch selected for a session. */
+	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
 	/**
 	 * Sets the GitHub state for a given session.

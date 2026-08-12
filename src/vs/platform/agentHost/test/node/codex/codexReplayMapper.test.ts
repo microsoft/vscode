@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState, type ModelSelection, type Turn } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection, type Turn } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -356,6 +356,8 @@ suite('codexReplayMapper', () => {
 							'',
 							'```text',
 							'::created-thread{threadId="example-only"}',
+							'```typescript',
+							'::created-thread{threadId="after-info-string"}',
 							'',
 							'',
 							'',
@@ -391,6 +393,8 @@ suite('codexReplayMapper', () => {
 				'',
 				'```text',
 				'::created-thread{threadId="example-only"}',
+				'```typescript',
+				'::created-thread{threadId="after-info-string"}',
 				'',
 				'',
 				'',
@@ -594,6 +598,38 @@ suite('codexReplayMapper', () => {
 			pastTenseMessage: 'Ran `ls -la`',
 			success: true,
 			output: 'total 0',
+		});
+	});
+
+	test('imageGeneration restores its generated image', () => {
+		const turns = replayThreadToTurns({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u', content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
+					{ type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null, startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never);
+		const part = turns[0].responseParts[0];
+		assert.deepStrictEqual(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+			toolName: part.toolCall.toolName,
+			displayName: part.toolCall.displayName,
+			toolInput: part.toolCall.toolInput,
+			success: part.toolCall.success,
+			pastTenseMessage: part.toolCall.pastTenseMessage,
+			content: part.toolCall.content,
+		} : undefined, {
+			toolName: 'image_gen.imagegen',
+			displayName: 'Generate image',
+			toolInput: '{"prompt":"A watercolor fox"}',
+			success: true,
+			pastTenseMessage: 'Generated image',
+			content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
 		});
 	});
 

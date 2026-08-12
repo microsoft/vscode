@@ -266,12 +266,12 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 	return index;
 }
 
-function isSessionCreatedTool(part: IChatRendererContent): boolean {
+function isResponseOutcomeTool(part: IChatRendererContent): boolean {
 	return (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-		&& part.toolSpecificData?.kind === 'sessionCreated';
+		&& (part.toolSpecificData?.kind === 'sessionCreated' || part.toolSpecificData?.kind === 'generatedImage');
 }
 
-export function getFinalResponseStartIndexAfterMovingSessionCreatedTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
+export function getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content: ReadonlyArray<IChatRendererContent>): number | undefined {
 	const finalResponseStartIndex = getFinalResponseStartIndex(content);
 	if (finalResponseStartIndex === undefined) {
 		return undefined;
@@ -279,7 +279,7 @@ export function getFinalResponseStartIndexAfterMovingSessionCreatedTools(content
 
 	let movedToolCount = 0;
 	for (let index = 0; index < finalResponseStartIndex; index++) {
-		if (isSessionCreatedTool(content[index])) {
+		if (isResponseOutcomeTool(content[index])) {
 			movedToolCount++;
 		}
 	}
@@ -290,23 +290,23 @@ export function isFinalResponseRendered(content: ReadonlyArray<IChatRendererCont
 	return finalResponseStartIndex !== undefined && content[finalResponseStartIndex]?.kind === 'markdownContent';
 }
 
-export function moveSessionCreatedToolsAfterFinalResponse(content: ReadonlyArray<IChatRendererContent>): IChatRendererContent[] {
-	const sessionCreatedTools = content.filter(isSessionCreatedTool);
-	if (sessionCreatedTools.length === 0) {
+export function moveResponseOutcomeToolsAfterFinalResponse(content: ReadonlyArray<IChatRendererContent>): IChatRendererContent[] {
+	const outcomeTools = content.filter(isResponseOutcomeTool);
+	if (outcomeTools.length === 0) {
 		return [...content];
 	}
 
-	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingSessionCreatedTools(content);
+	const finalResponseStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content);
 	if (finalResponseStartIndex === undefined) {
 		return [...content];
 	}
 
-	const reordered = content.filter(part => !isSessionCreatedTool(part));
+	const reordered = content.filter(part => !isResponseOutcomeTool(part));
 	let insertionIndex = finalResponseStartIndex;
 	while (reordered[insertionIndex]?.kind === 'markdownContent') {
 		insertionIndex++;
 	}
-	reordered.splice(insertionIndex, 0, ...sessionCreatedTools);
+	reordered.splice(insertionIndex, 0, ...outcomeTools);
 	return reordered;
 }
 
@@ -541,6 +541,16 @@ export function shouldPinToolInvocationToThinking(state: IChatToolInvocation.Sta
 
 function toolInvocationHasMcpAppData(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
 	return toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.mcpAppData;
+}
+
+function isGeneratedImageResultOwner(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, content: ReadonlyArray<IChatRendererContent>): boolean {
+	for (let index = content.length - 1; index >= 0; index--) {
+		const part = content[index];
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'generatedImage') {
+			return part.toolCallId === toolInvocation.toolCallId;
+		}
+	}
+	return false;
 }
 
 const forceVerboseLayoutTracing = false
@@ -1595,7 +1605,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
 			const responseContent = annotateSpecialMarkdownContent(element.response.value);
-			content.push(...(element.isComplete ? moveSessionCreatedToolsAfterFinalResponse(responseContent) : responseContent));
+			content.push(...(element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent));
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
 			}
@@ -2435,7 +2445,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
-		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingSessionCreatedTools(responseContent);
+		const responseFinalStartIndex = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(responseContent);
 		const finalResponseStartIndex = responseFinalStartIndex === undefined ? undefined : responseFinalStartIndex + 1;
 		if (finalResponseStartIndex === undefined || !isFinalResponseRendered(content, finalResponseStartIndex) || finalResponseStartIndex === 0 || !content.slice(0, finalResponseStartIndex).some(part => part.kind !== 'references' || part.references.length > 0)) {
 			this.removeCompletedResponseDisclosure(templateData);
@@ -2577,7 +2587,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
 
 		const responseContent = annotateSpecialMarkdownContent(element.response.value);
-		const renderableResponse = element.isComplete ? moveSessionCreatedToolsAfterFinalResponse(responseContent) : responseContent;
+		const renderableResponse = element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent;
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
@@ -2789,6 +2799,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// thinking group. Keyed on toolId so this holds while the tool streams too
 		// (before `toolSpecificData` is set on completion).
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (isCreateSessionTool(part.toolId) || isCreateChatTool(part.toolId) || isSendMessageTool(part.toolId))) {
+			return false;
+		}
+
+		// Generated images are durable response outcomes. Keep them outside thinking from the
+		// moment the tool starts so completion can replace the compact progress rendering with
+		// the final image in place instead of leaving a materialized copy inside thinking.
+		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+			&& (part.toolId === 'image_gen.imagegen' || part.toolSpecificData?.kind === 'generatedImage')) {
 			return false;
 		}
 
@@ -3329,6 +3347,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
+		// A completed turn renders all generated images in one gallery. Keep the gallery on the
+		// final image tool call so multiple tool results cannot be split between the completed
+		// response disclosure and the durable response outcome.
+		if (context.element.isComplete
+			&& toolInvocation.toolSpecificData?.kind === 'generatedImage'
+			&& !isGeneratedImageResultOwner(toolInvocation, context.content)) {
+			return this.renderNoContent(other =>
+				(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+				&& other.toolCallId === toolInvocation.toolCallId);
+		}
+
 		if (this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools') === CollapsedToolsDisplayMode.Off) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
@@ -3339,6 +3368,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = undefined;
 		const createToolPart = (): { domNode: HTMLElement; disposable: ChatToolInvocationPart; part: ChatToolInvocationPart } => {
 			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._announcedToolProgressKeys, codeBlockStartIndex);
+			lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 			this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
 			return { domNode: lazilyCreatedPart.domNode, disposable: lazilyCreatedPart, part: lazilyCreatedPart };
 		};
