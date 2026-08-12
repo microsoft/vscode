@@ -1247,10 +1247,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
-		const tokenChanged = this._githubToken !== token;
-		this._githubToken = token;
-		this._updateRestrictedTelemetry(token);
-		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
+		const normalizedToken = token || undefined;
+		const tokenChanged = this._githubToken !== normalizedToken;
+		this._githubToken = normalizedToken;
+		this._updateRestrictedTelemetry(normalizedToken);
+		this._logService.info(`[Copilot] Auth token ${tokenChanged ? (normalizedToken ? 'updated' : 'cleared') : 'unchanged'}`);
 		if (tokenChanged) {
 			await this._restartClientIfProxyChanged();
 			void this._scheduleModelRefresh();
@@ -1315,7 +1316,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const additionalProperties = { initiatorClientType: this._clientTypeForTelemetry(notification.sessionId) };
 		const router = this._githubTelemetryRouter;
 		if (!router?.isTarget(notification)) {
-			this._gitHubTelemetryForwarder.forward(notification);
+			this._gitHubTelemetryForwarder.forward(notification, this._turnIdForTelemetry(notification.sessionId));
 			return;
 		}
 		if (!notification.restricted) {
@@ -1352,6 +1353,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return sdkSessionId
 			? this._findSessionBySdkId(sdkSessionId)?.currentTurnClientType ?? AgentHostClientType.Unknown
 			: AgentHostClientType.Unknown;
+	}
+
+	private _turnIdForTelemetry(sdkSessionId: string | undefined): string | undefined {
+		return sdkSessionId ? this._findSessionBySdkId(sdkSessionId)?.currentTurnId : undefined;
 	}
 
 	/**

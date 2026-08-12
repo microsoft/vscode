@@ -15,6 +15,7 @@ suite('CodexLaunchConfig', () => {
 		assert.deepStrictEqual(config.env, { PATH: '/bin', OPENAI_API_KEY: 'nonce', AI_AGENT: 'github_copilot_vscode_agent' });
 		assert.ok(config.args.includes('model_providers.vscode-proxy.name="VS Code Proxy"'));
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
+		assert.ok(config.args.includes('model_providers.vscode-proxy.requires_openai_auth=false'));
 		assert.ok(config.args.includes('features.image_generation=false'));
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.ok(config.args.includes('--log-level=debug'));
@@ -59,21 +60,22 @@ suite('CodexLaunchConfig', () => {
 	});
 
 	test('resume explicitly binds each session provider', () => {
-		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-a', {}), {
+		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-a', {}, undefined, {}, undefined, true), {
 			threadId: 'thread-a',
 			modelProvider: 'openai',
+			config: { 'features.image_generation': true },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams('vscode-proxy', 'thread-b', { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } }), {
 			threadId: 'thread-b',
 			modelProvider: 'vscode-proxy',
-			config: { mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
+			config: { 'features.image_generation': false, mcp_servers: { GitHub: { url: 'https://api.githubcopilot.com/mcp/' } } },
 		});
 		assert.deepStrictEqual(buildCodexResumeParams('openai', 'thread-c', {}, undefined, {
 			agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } },
 		}, 'Use the selected reviewer instructions.'), {
 			threadId: 'thread-c',
 			modelProvider: 'openai',
-			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } } },
+			config: { agents: { Reviewer: { description: 'Reviews', config_file: '/tmp/reviewer.toml' } }, 'features.image_generation': false },
 			developerInstructions: 'Use the selected reviewer instructions.',
 		});
 		assert.deepStrictEqual(buildCodexResumeParams('custom-provider', 'thread-c', {}, ['/repo-a', '/repo-b']), {
@@ -81,6 +83,7 @@ suite('CodexLaunchConfig', () => {
 			modelProvider: 'custom-provider',
 			cwd: '/repo-a',
 			runtimeWorkspaceRoots: ['/repo-a', '/repo-b'],
+			config: { 'features.image_generation': false },
 		});
 	});
 });
