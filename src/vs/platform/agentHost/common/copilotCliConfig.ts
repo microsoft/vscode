@@ -81,10 +81,9 @@ export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModel
 export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
 
 /**
- * The wildcard entry merged field-by-field under the model's own entry. `modelId`
- * is optional because a session can run without a chosen model (server-side
- * "Auto"), and the wildcard still applies to it. Field values are NOT validated
- * here — the root-config validator does not descend into `additionalProperties`.
+ * The wildcard entry merged field-by-field under the model's own entry; a
+ * model-less ("Auto") session matches the wildcard only. Field values are NOT
+ * validated here — the root-config validator does not descend into entries.
  */
 export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): ICopilotCliModelCapabilityOverride | undefined {
 	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];

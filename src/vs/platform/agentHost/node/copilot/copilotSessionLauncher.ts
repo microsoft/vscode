@@ -111,11 +111,10 @@ export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): Re
 
 /**
  * Narrows the names that gate prompt content so the system message never
- * advertises a tool the filters disabled. Client tools reach the SDK through its
- * `tools` option (`custom:` source), so bare-name and `custom:` forms match —
- * plus, for the tool-search tool only, `builtin:` forms when excluding (see the
- * matcher below). Routing keeps the unfiltered set — the runtime is the
- * enforcement point.
+ * advertises a tool the filters disabled. Client tools are `custom:`-source even
+ * when they override a built-in, so bare-name and `custom:` forms match (the
+ * tool-search tool under either of its names). Routing keeps the unfiltered
+ * set — the runtime is the enforcement point.
  */
 export function filterClientToolNames(names: ReadonlySet<string>, availableTools: readonly string[] | undefined, excludedTools: readonly string[] | undefined): ReadonlySet<string> {
 	if (!availableTools && !excludedTools) {
@@ -376,13 +375,10 @@ const TOOL_FILTER_SOURCE_WILDCARDS = ['builtin:*', 'mcp:*', 'custom:*'];
 
 /**
  * The patterns in a tool-filter override, or `undefined` when the value is not a
- * list at all. A bare `'*'` is EXPANDED rather than dropped: the SDK's
- * `validateToolFilterList` throws on it, but silently ignoring it would turn an
- * `excludedTools: ['*']` into "exclude nothing" — the opposite of what was
- * asked. A lone string is read as a one-element list for the same reason.
- *
- * Pure so the launcher and {@link CopilotAgentSession} gate on the same set
- * without logging the same diagnostics twice per launch.
+ * list (a lone string reads as one entry). A bare `'*'` expands to the source
+ * wildcards: the SDK throws on the bare form, and dropping it would turn
+ * "exclude everything" into "exclude nothing". Pure, so the launcher and
+ * {@link CopilotAgentSession} gate on the same set without duplicate logging.
  */
 export function normalizeToolFilterPatterns(value: unknown): string[] | undefined {
 	const list = typeof value === 'string' ? [value] : value;
