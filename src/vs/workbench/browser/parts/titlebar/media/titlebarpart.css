@@ -518,3 +518,17 @@
 	border-radius: 16px;
 	text-align: center;
 }
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content {
+	width: 12px;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-circle);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
+	width: 12px;
+	height: 12px;
+}

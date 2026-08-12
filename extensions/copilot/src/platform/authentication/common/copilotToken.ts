@@ -322,7 +322,6 @@ export interface Endpoints {
 	'origin-tracker'?: string;
 	proxy?: string;
 	telemetry?: string;
-	exp?: string;
 }
 
 //#endregion
@@ -432,7 +431,6 @@ const tokenEnvelopeValidator = vObj({
 		'origin-tracker': vString(),
 		proxy: vString(),
 		telemetry: vString(),
-		exp: vString(),
 	}),
 	enterprise_list: vNullable(vArray(vNumber())),
 	limited_user_quotas: vNullable(vObj({

@@ -31,6 +31,8 @@ export const enum CopilotCliConfigKey {
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
 
+export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
+
 // VS Code `chat.agentHost.*` setting IDs that feed the root-config keys above,
 // kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
 // and forwarded into the host's root config by `AgentHostCopilotCliSettingsContribution`
