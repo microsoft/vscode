@@ -105,6 +105,20 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
 		});
 
+		test('disallows remote images in question message', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: new MarkdownString('![remote](https://example.com/image.png)')
+				}
+			]);
+			createWidget(carousel);
+
+			assert.strictEqual(widget.domNode.querySelectorAll('.chat-question-title img').length, 0);
+		});
+
 		test('renders plain string question message as text', () => {
 			const carousel = createMockCarousel([
 				{
