@@ -8203,6 +8203,69 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	suite('rename server tools', () => {
+		test('rename session and chat replace live and persisted titles', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peerChat = buildChatUri(sessionUri, 'peer-rename');
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
+			await db.setMetadata('customTitle', 'Previous user title');
+			await db.setMetadata('customTitleSource', 'user');
+			await db.setMetadata(`customChatTitle:${peerChat}`, 'Previous peer title');
+			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
+
+			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameSession, {
+				title: 'Complete replacement session title',
+			});
+			const chatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
+				title: 'Complete replacement peer chat title',
+			});
+
+			for (let attempt = 0; attempt < 20 && await db.getMetadata('customTitle') !== 'Complete replacement session title'; attempt++) {
+				await Promise.resolve();
+			}
+			for (let attempt = 0; attempt < 20 && await db.getMetadata(`customChatTitle:${peerChat}`) !== 'Complete replacement peer chat title'; attempt++) {
+				await Promise.resolve();
+			}
+
+			assert.deepStrictEqual({
+				sessionResult,
+				chatResult,
+				liveSessionTitle: localService.stateManager.getSessionState(sessionUri)?.title,
+				liveChatTitle: localService.stateManager.getChatState(peerChat)?.title,
+				persistedSessionTitle: await db.getMetadata('customTitle'),
+				persistedSessionSource: await db.getMetadata('customTitleSource'),
+				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
+				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+			}, {
+				sessionResult: 'Renamed session to "Complete replacement session title".',
+				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
+				liveSessionTitle: 'Complete replacement session title',
+				liveChatTitle: 'Complete replacement peer chat title',
+				persistedSessionTitle: 'Complete replacement session title',
+				persistedSessionSource: 'agent',
+				persistedChatTitle: 'Complete replacement peer chat title',
+				persistedChatSource: 'agent',
+			});
+		});
+	});
+
 	suite('subscriber refcount eviction', () => {
 
 		class DelayedReleaseMockAgent extends MockAgent {

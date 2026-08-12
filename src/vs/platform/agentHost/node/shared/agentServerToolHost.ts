@@ -55,7 +55,7 @@ export interface IServerToolGroup {
 	/** Tool definitions this group advertises on the session's `serverTools`. */
 	readonly definitions: readonly ToolDefinition[];
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
-	isEnabled?(toolName: string): boolean;
+	isEnabled(toolName: string): boolean;
 	/**
 	 * Whether {@link toolName} (one of this group's {@link definitions}) can
 	 * ever prompt for confirmation. Providers exclude such tools from their
@@ -129,7 +129,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 	}
 
 	get definitions(): readonly ToolDefinition[] {
-		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled?.(definition.name) !== false));
+		return this._groups.flatMap(group => group.definitions.filter(definition => group.isEnabled(definition.name)));
 	}
 
 	get toolNames(): readonly string[] {
@@ -145,12 +145,12 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 
 	canRequireConfirmation(toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		return group?.isEnabled?.(toolName) !== false && (group?.canRequireConfirmation?.(toolName) ?? false);
+		return group?.isEnabled(toolName) === true && (group.canRequireConfirmation?.(toolName) ?? false);
 	}
 
 	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		if (group?.isEnabled?.(toolName) === false) {
+		if (group && !group.isEnabled(toolName)) {
 			return false;
 		}
 		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
@@ -163,7 +163,7 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
 		}
-		if (group.isEnabled?.(toolName) === false) {
+		if (!group.isEnabled(toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
 		return group.execute(this._stateManager, sessionUri, toolName, rawArgs);

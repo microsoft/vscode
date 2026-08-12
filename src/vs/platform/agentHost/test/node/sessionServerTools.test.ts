@@ -94,26 +94,58 @@ suite('SessionServerTools', () => {
 	test('runtime definitions reflect active-agent title generation changes after host construction', () => {
 		let enabled = false;
 		const stateManager = new AgentHostStateManager(new NullLogService());
+		const session = 'copilot:/s1';
+		stateManager.createSession({
+			resource: session,
+			provider: 'copilot',
+			title: 'Session',
+			status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled })),
 		]);
 
-		assert.deepStrictEqual(host.toolNames.includes(SessionServerToolName.RenameSession), false);
+		host.advertise(session);
+		const disabledDefinitions = host.definitions.map(tool => tool.name);
+		const disabledTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
 		enabled = true;
-		assert.deepStrictEqual(host.toolNames.includes(SessionServerToolName.RenameSession), true);
-		assert.deepStrictEqual(host.toolNames.includes(SessionServerToolName.RenameChat), true);
+		host.advertise(session);
+		const enabledTools = stateManager.getSessionState(session)?.serverTools?.map(tool => tool.name);
+		assert.deepStrictEqual({
+			disabledDefinitions,
+			disabledTools,
+			enabledTools,
+		}, {
+			disabledDefinitions: disabledTools,
+			disabledTools: [
+				SessionServerToolName.ListSessions,
+				SessionServerToolName.GetCurrentSession,
+				SessionServerToolName.CreateSession,
+				SessionServerToolName.CreateChat,
+				SessionServerToolName.SendMessage,
+				SessionServerToolName.GetSessionContext,
+				SessionServerToolName.DeleteSession,
+			],
+			enabledTools: sessionServerToolDefinitions.map(tool => tool.name),
+		});
 		stateManager.dispose();
 	});
 
 	test('rename execution rejects a stale disabled tool', async () => {
 		let enabled = true;
-		const group = createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled }));
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({ isActiveAgentTitleGenerationEnabled: () => enabled })),
+		]);
 		enabled = false;
 
 		await assert.rejects(
-			async () => group.execute(undefined!, 'ahp-chat://default/copilot%3A%2Fs1', SessionServerToolName.RenameSession, { title: 'New title' }),
-			/active-agent title generation is not enabled/,
+			async () => host.executeTool('ahp-chat://default/copilot%3A%2Fs1', SessionServerToolName.RenameSession, { title: 'New title' }),
+			/Server tool "rename_session" is disabled/,
 		);
+		stateManager.dispose();
 	});
 
 	test('serializeSessions produces compact metadata', () => {

@@ -609,6 +609,9 @@ function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServ
  */
 export const feedbackServerToolGroup: IServerToolGroup = {
 	definitions: feedbackServerToolDefinitions,
+	isEnabled(): boolean {
+		return true;
+	},
 	canRequireConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},
