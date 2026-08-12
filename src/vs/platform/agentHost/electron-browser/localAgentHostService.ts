@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, IChannel, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -22,9 +23,11 @@ import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTran
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, AgentHostClientByokLmChannel } from '../common/agentHostClientByokLmChannel.js';
+import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '../common/agentHostClientProxyChannel.js';
 import { IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
+import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
@@ -86,6 +89,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private _didAcquireInitialMessagePort = false;
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
+	private _startupTelemetry: AgentHostStartupTelemetry | undefined;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
@@ -134,6 +138,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	startAgentHost(): void {
 		if (!this._protocolClient) {
 			mark('code/agentHost/willStart');
+			this._startupTelemetry = this._register(this._instantiationService.createInstance(
+				AgentHostStartupTelemetry,
+				getAgentHostClientType(this._clientInfo),
+				AgentHostClientConnectionKind.Local,
+				() => StopWatch.create(true),
+				(callback, timeoutMs) => disposableTimeout(callback, timeoutMs),
+			));
 			this._forwardOTelPolicy();
 			this._protocolClient = this._register(this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient,
@@ -146,8 +157,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._register(this._protocolClient.onDidClose(() => this._onAgentHostExit.fire(0)));
 			this._register(this._protocolClient.onDidChangeConnectionState(state => {
 				if (state === AgentHostClientState.Connected) {
+					this._startupTelemetry?.protocolConnected();
 					this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${this.clientId}`);
 					this._onAgentHostStart.fire();
+				} else if (state === AgentHostClientState.Closed || state === AgentHostClientState.Incompatible) {
+					this._startupTelemetry?.protocolConnectionFailed();
 				}
 			}));
 		}
@@ -185,6 +199,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		const port = await acquirePort('vscode:createAgentHostMessageChannel', 'vscode:createAgentHostMessageChannelResult');
 		if (!this._didAcquireInitialMessagePort) {
 			this._didAcquireInitialMessagePort = true;
+			this._startupTelemetry?.messagePortAcquired();
 			mark('code/agentHost/didAcquireMessagePort');
 		}
 		this._logService.info(`${LOG_PREFIX} MessagePort acquired, creating client...`);
@@ -252,6 +267,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		}
 		if (!pending) {
 			this._authenticationSettled = true;
+			this._startupTelemetry?.authenticationSettled();
 		}
 		this._authenticationPending.set(pending, undefined);
 	}
@@ -301,17 +317,25 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
+		this._startupTelemetry?.sessionListRequested();
 		if (!this._didStartInitialSessionList) {
 			this._didStartInitialSessionList = true;
 			mark('code/agentHost/willListSessions');
 		}
-		return this._requireClient().listSessions().then(sessions => {
-			if (!this._didCompleteInitialSessionList) {
-				this._didCompleteInitialSessionList = true;
-				mark('code/agentHost/didListSessions');
-			}
-			return sessions;
-		});
+		return this._requireClient().listSessions().then(
+			sessions => {
+				this._startupTelemetry?.sessionListSucceeded();
+				if (!this._didCompleteInitialSessionList) {
+					this._didCompleteInitialSessionList = true;
+					mark('code/agentHost/didListSessions');
+				}
+				return sessions;
+			},
+			error => {
+				this._startupTelemetry?.sessionListFailed();
+				throw error;
+			},
+		);
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
