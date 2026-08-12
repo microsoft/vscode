@@ -215,6 +215,11 @@ export class AgentHostAuthenticationRecovery {
 		);
 		if (!token) {
 			logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
+			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, '')) {
+				this._resentTokens.delete(key);
+				logService.info(`${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
+			}
 			return;
 		}
 

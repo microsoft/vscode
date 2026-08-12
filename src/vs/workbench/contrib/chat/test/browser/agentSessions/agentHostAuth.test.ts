@@ -416,6 +416,42 @@ suite('AgentHostAuthenticationRecovery', () => {
 		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		assert.strictEqual(commandService.calls.length, 2);
 	});
+
+	test('forwards credential removal and resets escalation when the current token disappears', async () => {
+		const token = { value: 'tok-1' as string | undefined };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(token.value && scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = undefined;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = 'tok-1';
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: ['tok-1', '', 'tok-1'],
+		});
+	});
 });
 
 suite('resolveMcpServerAuthentication', () => {
