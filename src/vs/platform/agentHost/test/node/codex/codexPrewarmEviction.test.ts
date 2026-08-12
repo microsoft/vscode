@@ -26,7 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession } from '../../../common/agentService.js';
-import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, readSessionWorkspaceless } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -64,6 +64,7 @@ interface ITestWireRequest {
 }
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
+const OPENAI_TEST_MODEL = toCodexModelSelectionId('openai', 'gpt-5.6-sol');
 
 interface ITestPeer {
 	readonly transport: ICodexAppServerTransport;
@@ -282,8 +283,63 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 }
 
 suite('CodexAgent prewarm eviction', () => {
-
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('lists Codex Desktop chats without a chosen folder as workspace-less', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const userHome = agent['_environmentService'].userHome;
+		const generatedWorkspace = URI.joinPath(userHome, 'Documents', 'Codex', '2026-08-11', 'this');
+		const selectedWorkspace = URI.file(join(sep, 'repo', 'codex'));
+		const sessionsDirectory = URI.joinPath(userHome, '.codex', 'sessions', '2026', '08', '11');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+
+		const desktopGeneratedRollout = URI.joinPath(sessionsDirectory, 'desktop-generated.jsonl');
+		const desktopSelectedRollout = URI.joinPath(sessionsDirectory, 'desktop-selected.jsonl');
+		const vscodeGeneratedRollout = URI.joinPath(sessionsDirectory, 'vscode-generated.jsonl');
+		await Promise.all([
+			agent['_fileService'].createFile(desktopGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n')),
+			agent['_fileService'].createFile(desktopSelectedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n')),
+			agent['_fileService'].createFile(vscodeGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{}}\n')),
+		]);
+
+		try {
+			const listing = agent.listSessions();
+			const request = await readNextRequest(peer.outbound);
+			peer.push({
+				id: request.id,
+				result: {
+					data: [
+						{ id: 'desktop-generated', cwd: generatedWorkspace.fsPath, path: desktopGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 1, updatedAt: 2, name: 'Desktop generated' },
+						{ id: 'desktop-selected', cwd: selectedWorkspace.fsPath, path: desktopSelectedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 3, updatedAt: 4, name: 'Desktop selected' },
+						{ id: 'vscode-generated', cwd: generatedWorkspace.fsPath, path: vscodeGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 5, updatedAt: 6, name: 'VS Code generated' },
+					],
+					nextCursor: null,
+				}
+			});
+
+			const sessions = await listing;
+			assert.deepStrictEqual(sessions.map(session => ({
+				id: AgentSession.id(session.session),
+				workspaceless: readSessionWorkspaceless(session._meta),
+				workingDirectories: session.workingDirectories?.map(directory => directory.fsPath),
+			})), [
+				{ id: 'desktop-generated', workspaceless: true, workingDirectories: [generatedWorkspace.fsPath] },
+				{ id: 'desktop-selected', workspaceless: false, workingDirectories: [selectedWorkspace.fsPath] },
+				{ id: 'vscode-generated', workspaceless: false, workingDirectories: [generatedWorkspace.fsPath] },
+			]);
+		} finally {
+			peer.exit();
+		}
+	});
 
 	test('routes provider-qualified models independently and switches one session', async () => {
 		const agent = await createAgent(disposables);
@@ -1087,6 +1143,153 @@ suite('CodexAgent prewarm eviction', () => {
 		} finally {
 			peerB?.exit();
 			peerA.exit();
+		}
+	});
+
+	test('restored Desktop thread recovers its original thread, model, and history from a polluted overlay', async () => {
+		const database = new TestSessionDatabase();
+		await Promise.all([
+			database.setMetadata('codex.threadId', 'replacement-thread'),
+			database.setMetadata('codex.model', COPILOT_TEST_MODEL),
+		]);
+		const agent = await createAgent(disposables, { database });
+		agent['_models'].set([
+			{ provider: 'codex', id: COPILOT_TEST_MODEL, name: 'GPT Test', supportsVision: false },
+			{ provider: 'codex', id: OPENAI_TEST_MODEL, name: 'GPT-5.6 Sol', supportsVision: false },
+		], undefined);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const session = AgentSession.uri('codex', 'desktop-thread');
+		const workingDirectory = URI.file('/workspace/codex');
+		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
+		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+		await agent['_fileService'].createFile(rollout, VSBuffer.fromString([
+			'{"type":"session_meta","payload":{"originator":"Codex Desktop","model_provider":"openai"}}',
+			'{"type":"event_msg","payload":{"type":"task_started","turn_id":"desktop-turn"}}',
+			'{"type":"turn_context","payload":{"turn_id":"desktop-turn","model":"gpt-5.6-sol"}}',
+		].join('\n')));
+		const persistedTurn = {
+			id: 'desktop-turn',
+			items: [
+				{ type: 'userMessage', id: 'user-1', clientId: null, content: [{ type: 'text', text: 'remember capybara', text_elements: [] }] },
+				{ type: 'agentMessage', id: 'assistant-1', text: 'I will remember capybara.', phase: 'final_answer', memoryCitation: null },
+			],
+			itemsView: { type: 'full' },
+			status: 'completed',
+			error: null,
+			startedAt: 1,
+			completedAt: 2,
+			durationMs: 1000,
+		};
+
+		try {
+			const listingPromise = agent.listSessions();
+			const list = await readNextRequest(peer.outbound);
+			peer.push({
+				id: list.id,
+				result: {
+					data: [{
+						id: 'desktop-thread',
+						cwd: workingDirectory.fsPath,
+						modelProvider: 'openai',
+						path: rollout.fsPath,
+						source: 'vscode',
+						createdAt: 1,
+						updatedAt: 2,
+						name: 'Remember capybara',
+					}],
+					nextCursor: null,
+				},
+			});
+			await listingPromise;
+
+			const metadataPromise = agent.getSessionMetadata(session);
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: {
+					thread: {
+						id: read.params.threadId,
+						cwd: workingDirectory.fsPath,
+						modelProvider: 'vscode-proxy',
+						path: rollout.fsPath,
+						source: 'vscode',
+						turns: [persistedTurn],
+					},
+				},
+			});
+			const metadata = await metadataPromise;
+
+			const historyPromise = agent.getSessionMessages(session);
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({
+				id: historyRead.id,
+				result: {
+					thread: {
+						id: historyRead.params.threadId,
+						cwd: workingDirectory.fsPath,
+						modelProvider: 'vscode-proxy',
+						path: rollout.fsPath,
+						source: 'vscode',
+						turns: [persistedTurn],
+					},
+				},
+			});
+			const history = await historyPromise;
+
+			const send = agent.chats.sendMessage(URI.parse(buildDefaultChatUri(session)), 'hello', [workingDirectory], undefined, 'turn-1');
+			const resume = await readNextRequest(peer.outbound);
+			peer.push({
+				id: resume.id,
+				result: {
+					thread: { id: resume.params.threadId, cwd: workingDirectory.fsPath },
+					cwd: workingDirectory.fsPath,
+				},
+			});
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await send;
+
+			assert.deepStrictEqual({
+				initialReadThreadId: read.params.threadId,
+				historyReadThreadId: historyRead.params.threadId,
+				metadataModel: (metadata as typeof metadata & { model?: { id: string } })?.model?.id,
+				history: history.map(item => ({
+					id: item.id,
+					message: item.message.text,
+					messageModel: item.message.model?.id,
+					usageModel: item.usage?.model,
+				})),
+				resume: { method: resume.method, threadId: resume.params.threadId, modelProvider: resume.params.modelProvider },
+				turn: { method: turn.method, model: turn.params.model },
+				overlay: {
+					threadId: await database.getMetadata('codex.threadId'),
+					modelId: await database.getMetadata('codex.model'),
+				},
+			}, {
+				initialReadThreadId: 'desktop-thread',
+				historyReadThreadId: 'desktop-thread',
+				metadataModel: OPENAI_TEST_MODEL,
+				history: [{
+					id: 'desktop-turn',
+					message: 'remember capybara',
+					messageModel: OPENAI_TEST_MODEL,
+					usageModel: OPENAI_TEST_MODEL,
+				}],
+				resume: { method: 'thread/resume', threadId: 'desktop-thread', modelProvider: 'openai' },
+				turn: { method: 'turn/start', model: 'gpt-5.6-sol' },
+				overlay: { threadId: 'desktop-thread', modelId: OPENAI_TEST_MODEL },
+			});
+		} finally {
+			peer.exit();
 		}
 	});
 });

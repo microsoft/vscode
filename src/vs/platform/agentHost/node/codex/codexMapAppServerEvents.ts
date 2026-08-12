@@ -460,7 +460,7 @@ export function clearReasoningForItem(state: ICodexSessionMapState, itemId: stri
 	}
 }
 
-export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): (SessionAction | ChatAction)[] {
+export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification, modelId?: string): (SessionAction | ChatAction)[] {
 	const last = params.tokenUsage.last;
 	return [{
 		type: ActionType.ChatUsage,
@@ -468,6 +468,7 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 		usage: {
 			inputTokens: last.inputTokens,
 			outputTokens: last.outputTokens,
+			...(modelId ? { model: modelId } : {}),
 			cacheReadTokens: last.cachedInputTokens,
 			_meta: {
 				reasoningOutputTokens: last.reasoningOutputTokens,

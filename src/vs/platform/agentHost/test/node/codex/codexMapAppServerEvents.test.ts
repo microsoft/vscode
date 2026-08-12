@@ -186,7 +186,8 @@ suite('codexMapAppServerEvents', () => {
 	});
 
 	test('thread/tokenUsage/updated emits ChatUsage for the turn', () => {
-		const actions = mapTokenUsageUpdated({
+		const mapUsageWithModel = mapTokenUsageUpdated as (params: Parameters<typeof mapTokenUsageUpdated>[0], modelId: string) => ReturnType<typeof mapTokenUsageUpdated>;
+		const actions = mapUsageWithModel({
 			threadId: 'thr_1',
 			turnId: 'turn_a',
 			tokenUsage: {
@@ -194,13 +195,14 @@ suite('codexMapAppServerEvents', () => {
 				total: { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 60, reasoningOutputTokens: 20, totalTokens: 160 },
 				modelContextWindow: 200000,
 			},
-		});
+		}, 'codex-model:openai:gpt-5.6-sol');
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatUsage,
 			turnId: 'turn_a',
 			usage: {
 				inputTokens: 10,
 				outputTokens: 6,
+				model: 'codex-model:openai:gpt-5.6-sol',
 				cacheReadTokens: 4,
 				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
 			},

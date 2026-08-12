@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallStatus, TurnState, type ModelSelection, type Turn } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -40,6 +40,33 @@ suite('codexReplayMapper', () => {
 		const part = turns[0].responseParts[0];
 		assert.strictEqual(part.kind, ResponsePartKind.Markdown);
 		assert.strictEqual((part as { content: string }).content, 'hello back');
+	});
+
+	test('restored turn carries its original model on the request and response usage', () => {
+		const model: ModelSelection = { id: 'codex-model:openai:gpt-5.6-sol' };
+		const replayWithModels = replayThreadToTurns as (thread: Parameters<typeof replayThreadToTurns>[0], modelsByTurnId: ReadonlyMap<string, ModelSelection>) => Turn[];
+		const turns = replayWithModels({
+			id: 'thr',
+			turns: [{
+				id: 'turn_a',
+				items: [
+					{ type: 'userMessage', id: 'u1', content: [{ type: 'text', text: 'hi', text_elements: [] }] },
+					{ type: 'agentMessage', id: 'a1', text: 'hello back', phase: null, memoryCitation: null },
+				],
+				itemsView: { type: 'full' } as never,
+				status: 'completed' as never,
+				error: null,
+				startedAt: null, completedAt: null, durationMs: null,
+			}],
+		} as never, new Map([['turn_a', model]]));
+
+		assert.deepStrictEqual({
+			messageModel: turns[0].message.model,
+			usage: turns[0].usage,
+		}, {
+			messageModel: model,
+			usage: { model: model.id },
+		});
 	});
 
 	test('restores turn timing from the persisted codex thread', () => {

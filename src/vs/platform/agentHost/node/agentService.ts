@@ -3032,6 +3032,20 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}
+		if (!meta.project && !readSessionWorkspaceless(meta._meta) && this._worktree) {
+			const workingDirectory = meta.workingDirectories?.[0];
+			if (workingDirectory) {
+				try {
+					const project = await this._worktree.recordExternalWorktreeProject(session, workingDirectory);
+					if (project) {
+						adoptedWorktree = true;
+						meta = { ...meta, project };
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentService] restore: external worktree project discovery failed for ${sessionStr}`, err);
+				}
+			}
+		}
 
 		const defaultChatUri = URI.parse(buildDefaultChatUri(sessionStr));
 		let turns: readonly Turn[];
@@ -3172,8 +3186,11 @@ export class AgentService extends Disposable implements IAgentService {
 			this._getChatDraft(session, defaultChatUri),
 			this._readPersistedChatTitle(session, defaultChatUri),
 		]);
+		const restoredDraft = meta.model
+			? { ...(defaultDraft ?? { text: '', origin: { kind: MessageKind.User } }), model: meta.model }
+			: defaultDraft;
 		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
-		this._stateManager.restoreSession(summary, mergedTurns, { draft: defaultDraft, defaultChatTitle });
+		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
 
 		// A freshly-adopted legacy session bridges its git checkpoints into the
 		// agent-host namespace once its turns are restored. Isolated so a failure
@@ -3236,10 +3253,13 @@ export class AgentService extends Disposable implements IAgentService {
 		// sessions that were not created in the current process lifetime.
 		// Overlay any values the user previously selected (persisted via
 		// `SessionConfigChanged`) on top of the provider's resolved defaults.
+		const restoredConfigValues = persistedConfigValues ?? (meta.workingDirectories?.length
+			? { [SessionConfigKey.Isolation]: 'folder' }
+			: undefined);
 		const [restoredConfig, restoredCustomizations] = await Promise.all([
 			this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
-				config: persistedConfigValues,
+				config: restoredConfigValues,
 			}),
 			agent.getSessionCustomizations
 				? agent.getSessionCustomizations(session).catch(err => {

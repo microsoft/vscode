@@ -15,6 +15,7 @@ import {
 	type ToolCallResponsePart,
 	type ToolResultContent,
 	type Turn,
+	type ModelSelection,
 } from '../../common/state/sessionState.js';
 import {
 	describeFileChange,
@@ -50,10 +51,10 @@ import type { Turn as CodexTurn } from './protocol/generated/v2/Turn.js';
  * pre-flight coalescing (see {@link codexMapAppServerEvents}) — so restored
  * sessions render identically to active ones.
  */
-export function replayThreadToTurns(thread: Thread): Turn[] {
+export function replayThreadToTurns(thread: Thread, modelsByTurnId?: ReadonlyMap<string, ModelSelection>): Turn[] {
 	const turns: Turn[] = [];
 	for (const codexTurn of thread.turns ?? []) {
-		const turn = replayTurnToTurn(codexTurn);
+		const turn = replayTurnToTurn(codexTurn, modelsByTurnId?.get(codexTurn.id));
 		if (turn) {
 			turns.push(turn);
 		}
@@ -64,7 +65,7 @@ export function replayThreadToTurns(thread: Thread): Turn[] {
 /** A completed `commandExecution` item narrowed to its terminal fields. */
 type CommandExecutionItem = Extract<ThreadItem, { type: 'commandExecution' }>;
 
-function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
+function replayTurnToTurn(codexTurn: CodexTurn, model: ModelSelection | undefined): Turn | undefined {
 	let userText = '';
 	const parts: ResponsePart[] = [];
 	// Separate consecutive agent messages so the chat model's separator-less
@@ -151,9 +152,9 @@ function replayTurnToTurn(codexTurn: CodexTurn): Turn | undefined {
 	return {
 		id: codexTurn.id,
 		...codexTurnTiming(codexTurn),
-		message: { text: userText, origin: { kind: MessageKind.User } },
+		message: { text: userText, origin: { kind: MessageKind.User }, ...(model ? { model } : {}) },
 		responseParts: parts,
-		usage: undefined,
+		usage: model ? { model: model.id } : undefined,
 		state: turnStateFromStatus(codexTurn.status),
 		...(codexTurn.status === 'failed' && codexTurn.error ? { error: mapCodexTurnError(codexTurn.error) } : {}),
 	};
