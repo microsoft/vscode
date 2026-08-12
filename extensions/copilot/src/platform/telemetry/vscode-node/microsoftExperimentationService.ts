@@ -281,14 +281,14 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 			const wrappedMemento = new ExpMementoWrapper(globalState, envService);
 			const exp = copilotTokenStore.copilotToken?.endpoints?.exp;
 			const assignmentsEndpoint = exp ? `${exp.replace(/\/+$/, '')}/api/v1/assignments` : undefined;
-			// Route the assignments request through the extension's fetcher service so it gets
-			// proxy handling, retries/fallback, and the standard user-agent for free.
-			const assignmentsFetch = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }) =>
+			// Route both the legacy (GET) and assignments (POST) requests through the extension's
+			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
+			const tasFetch = (url: string, init: { method: 'GET' | 'POST'; headers: Record<string, string>; body?: string }) =>
 				fetcherService.fetch(url, {
 					method: init.method,
 					headers: init.headers,
 					body: init.body,
-					callSite: 'exp.assignments',
+					callSite: init.method === 'POST' ? 'exp.assignments' : 'exp.legacy',
 				});
 			return getExperimentationServiceFromConfig({
 				extensionName: id,
@@ -306,9 +306,9 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 					new PlatformAndReleaseDateFilterProvider(logService),
 					new WindowKindFilterProvider(logService),
 				],
+				fetch: tasFetch,
 				assignmentsEndpoint,
 				assignmentsFilterProviders: assignmentsEndpoint ? [new CopilotAssignmentsFilterProvider(copilotTokenStore, logService)] : undefined,
-				assignmentsFetch: assignmentsEndpoint ? assignmentsFetch : undefined,
 			});
 		};
 
