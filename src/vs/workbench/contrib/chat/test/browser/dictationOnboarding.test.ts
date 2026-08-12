@@ -129,7 +129,7 @@ suite('Dictation onboarding', () => {
 				telemetryEvents,
 			},
 			{
-				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close',
+				shownFirstTime: true, shown: true, closeIcon: 'codicon codicon-close-compact',
 				hasMicrophoneControls: true,
 				hasWaveform: true,
 				visibleAfterClose: false,
