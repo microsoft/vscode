@@ -119,10 +119,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return DefaultQuickAccessFilterValue.LAST;
 		}
 
-		// Prefer the current editor selection as default filter, same as workspace symbol search (Ctrl+T)
+		// Prefer the current editor selection as default filter, but only an explicit selection (unlike Ctrl+T, an idle cursor's word would fire on nearly every invocation)
 		const editor = this.codeEditorService.getFocusedCodeEditor();
 		if (editor) {
-			return getSelectionSearchString(editor) ?? undefined;
+			return getSelectionSearchString(editor, 'single', true) ?? undefined;
 		}
 
 		return undefined;
