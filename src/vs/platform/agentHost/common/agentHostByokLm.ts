@@ -171,6 +171,11 @@ export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
 		: model.id;
 }
 
+/** Returns the provider-qualified model id advertised by the agent host. */
+export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
+	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
+}
+
 export const IAgentHostByokLmHandler = createDecorator<IAgentHostByokLmHandler>('agentHostByokLmHandler');
 
 /**

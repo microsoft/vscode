@@ -408,7 +408,7 @@ export abstract class BaseLayoutController extends Disposable {
 						{
 							id: Menus.TitleBarSessionMenu,
 							group: 'navigation',
-							order: 11, // After Open in VS Code (7), Run Script (8), and Open Terminal (10)
+							order: 11, // After Open in VS Code (7), Run Script (8), and Toggle Panel (10)
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 						}
 					]

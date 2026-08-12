@@ -36,7 +36,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_RECONNECTING } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -102,9 +102,11 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		const connectedKey = AGENTS_VOICE_CONNECTED.bindTo(contextKeyService);
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
+		const reconnectingKey = AGENTS_VOICE_RECONNECTING.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
+			reconnectingKey.set(voiceSessionController.isReconnecting.read(reader));
 			listeningKey.set(voiceSessionController.voiceState.read(reader) === 'listening');
 		}));
 	}
@@ -187,7 +189,10 @@ registerAction2(class extends Action2 {
 			icon: Codicon.loadingCompact,
 			precondition: ContextKeyExpr.and(
 				AGENTS_VOICE_ENABLED,
-				AGENTS_VOICE_CONNECTING.isEqualTo(true),
+				ContextKeyExpr.or(
+					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					AGENTS_VOICE_RECONNECTING.isEqualTo(true),
+				),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -196,7 +201,10 @@ registerAction2(class extends Action2 {
 					AGENTS_VOICE_ENABLED,
 					ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false),
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					AGENTS_VOICE_CONNECTING.isEqualTo(true),
+					ContextKeyExpr.or(
+						AGENTS_VOICE_CONNECTING.isEqualTo(true),
+						AGENTS_VOICE_RECONNECTING.isEqualTo(true),
+					),
 					VOICE_ACTIVE_ON_SURFACE,
 				),
 				group: 'navigation',
@@ -226,6 +234,7 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.currentlyEditing.negate(),
 					AGENTS_VOICE_LISTENING.negate(),
 					AGENTS_VOICE_CONNECTING.negate(),
+					AGENTS_VOICE_RECONNECTING.negate(),
 					// Hide Voice Mode while dictation is active (recording or the
 					// model is loading) so the two mic affordances never compete.
 					ChatContextKeys.speechToTextRecording.negate(),

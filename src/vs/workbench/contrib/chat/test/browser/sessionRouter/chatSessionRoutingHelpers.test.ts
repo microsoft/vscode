@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
+import { parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, selectBestSessionRoute, selectRouterShortlist } from '../../../browser/sessionRouter/chatSessionRoutingHelpers.js';
 
 suite('Chat session routing helpers', () => {
 
@@ -17,15 +17,17 @@ suite('Chat session routing helpers', () => {
 	const docs = folder('vscode-docs', '/work/vscode-docs', 1);
 
 	test('chooses an explicitly mentioned workspace folder', () => {
-		const result = resolveNewSessionWorkspaceFolder(
-			'update the vscode-docs API reference',
-			[vscode, docs],
-			[],
-			[],
-			vscode.uri,
-		);
-
-		assert.strictEqual(result?.toString(), docs.uri.toString());
+		assert.deepStrictEqual([
+			resolveNewSessionWorkspaceFolder('update the vscode-docs API reference', [vscode, docs], [], [], vscode.uri)?.toString(),
+			resolveNewSessionWorkspaceFolder('update the vscode docs API reference', [vscode, docs], [], [], vscode.uri)?.toString(),
+			resolveNewSessionWorkspaceFolder('update the VS Code docs API reference', [vscode, docs], [], [], vscode.uri)?.toString(),
+			resolveNewSessionWorkspaceFolder('update the VSCODE DOCS API reference', [vscode, docs], [], [], vscode.uri)?.toString(),
+		], [
+			docs.uri.toString(),
+			docs.uri.toString(),
+			docs.uri.toString(),
+			docs.uri.toString(),
+		]);
 	});
 
 	test('uses a related session working directory when starting a new session', () => {
@@ -50,6 +52,25 @@ suite('Chat session routing helpers', () => {
 		);
 
 		assert.strictEqual(result?.toString(), docs.uri.toString());
+	});
+
+	test('explicit folder mention constrains existing session routing', () => {
+		const mentionedFolder = resolveMentionedWorkspaceFolder('fix the API in vscode-docs', [vscode, docs]);
+		const candidates = [
+			{ sessionId: 'vscode', label: 'API work', cwd: '/work/vscode/src' },
+			{ sessionId: 'docs', label: 'Documentation', cwd: '/WORK/VSCODE-DOCS/GUIDES' },
+			{ sessionId: 'unknown', label: 'Unknown folder' },
+		];
+
+		assert.deepStrictEqual({
+			mentionedFolder: mentionedFolder?.name,
+			matchingCandidates: candidates
+				.filter(candidate => resolveSessionWorkspaceFolder(candidate, [vscode, docs]) === mentionedFolder)
+				.map(candidate => candidate.sessionId),
+		}, {
+			mentionedFolder: 'vscode-docs',
+			matchingCandidates: ['docs'],
+		});
 	});
 
 	test('bounds transcript enrichment after every candidate receives model scoring', () => {

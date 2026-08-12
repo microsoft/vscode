@@ -13,12 +13,14 @@ export const FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS = 3 * 60 * 1000;
 
 export interface ISessionsWindowOpenViewState {
 	readonly workspacePreselected: boolean | undefined;
+	readonly workspacePreselectionSource: string | undefined;
 }
 
 type FirstTimeWindowOpenEvent = {
 	source: string;
 	signInDialogShown: boolean;
 	workspacePreselected: boolean | undefined;
+	workspacePreselectionSource: string | undefined;
 	windowCloseDurationMs: number | undefined;
 };
 
@@ -26,6 +28,7 @@ type FirstTimeWindowOpenClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor entry point used to open the Agents window.' };
 	signInDialogShown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial Agents setup flow showed a sign-in dialog.' };
 	workspacePreselected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial new-session view had a workspace selected. Undefined when a created session was visible.' };
+	workspacePreselectionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the initial new-session workspace was selected: checked workspace, recent workspace, existing sessions, provided workspace, user selection, none, or unknown. Undefined when a created session was visible.' };
 	windowCloseDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds before the Agents window closed, capped at three minutes.' };
 	owner: 'benibenj';
 	comment: 'Tracks how users who have never started an Agents session enter and initially experience the Agents window.';
@@ -80,6 +83,7 @@ export class SessionsWindowOpenTelemetry extends Disposable {
 			source: this._source,
 			signInDialogShown: this._getSignInDialogShown(),
 			workspacePreselected: this._viewState?.workspacePreselected,
+			workspacePreselectionSource: this._viewState?.workspacePreselectionSource,
 			windowCloseDurationMs,
 		});
 	}

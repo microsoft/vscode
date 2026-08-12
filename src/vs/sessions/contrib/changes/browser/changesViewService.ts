@@ -11,6 +11,7 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -27,7 +28,7 @@ export const ChangesetHasOperationsContext = new RawContextKey<boolean>('session
 
 const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.freeze({
 	otherFiles: false,
-	checks: false,
+	checks: true,
 });
 
 export class ChangesViewService extends Disposable implements IChangesViewService {
@@ -165,9 +166,17 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return changeset?.isLoadingChanges.read(reader) ?? false;
 		});
 
+		const activeSessionBaseBranchProtected = derived(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			return activeSession?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected === true;
+		});
+
 		this.activeSessionChangesetOperationsObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
-			return changeset?.operations.read(reader) ?? [];
+			const operations = changeset?.operations.read(reader) ?? [];
+			return activeSessionBaseBranchProtected.read(reader)
+				? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID)
+				: operations;
 		});
 
 		// Changes
@@ -224,7 +233,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}
 
 		const next = { ...current, [section]: collapsed };
-		if (!next.otherFiles && !next.checks) {
+		if (next.otherFiles === DEFAULT_SECTION_COLLAPSE_STATE.otherFiles && next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
 			this._sectionCollapseStateBySession.delete(sessionResource);
 		} else {
 			this._sectionCollapseStateBySession.set(sessionResource, next);
@@ -376,7 +385,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				return lastValue ?? 0;
 			}
 
-			const operations = changeset.operations.read(reader);
+			const operations = this.activeSessionChangesetOperationsObs.read(reader);
 			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset)).length;
 		});
 
