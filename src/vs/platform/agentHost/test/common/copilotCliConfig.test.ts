@@ -5,53 +5,17 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { applyModelFamilyAlias, CopilotCliConfigKey, copilotCliConfigSchema, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import type { ModelSelection } from '../../common/state/protocol/state.js';
 
 suite('copilotCliConfig', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('applyModelFamilyAlias substitutes a usable alias and ignores everything else', () => {
-		const model: ModelSelection = { id: 'preview-model-x', config: { thinkingLevel: 'high' } };
+	test('normalizeModelFamilyAlias accepts plausible model ids and rejects non-ids', () => {
 		assert.deepStrictEqual(
-			[
-				// usable alias: id substituted, picker config preserved
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'claude-opus-4.8' } }),
-				// wildcard alias applies to any model; a specific entry wins over it
-				applyModelFamilyAlias(model, { '*': { family: 'gpt-5' } }),
-				applyModelFamilyAlias(model, { '*': { family: 'gpt-5' }, 'preview-model-x': { family: 'claude-opus-4.8' } }),
-				// an invalid specific field is ignored, so it cannot mask the wildcard
-				applyModelFamilyAlias(model, { '*': { family: 'gpt-5' }, 'preview-model-x': { family: '' } }),
-				// no overrides / override for another id / no usable family → unchanged
-				applyModelFamilyAlias(model, undefined),
-				applyModelFamilyAlias(model, { 'other-model': { family: 'claude-opus-4.8' } }),
-				applyModelFamilyAlias(model, { 'preview-model-x': {} }),
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: '' } }),
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: ' padded ' } }),
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'has\u0000nul' } }),
-				// the runtime owns which ids exist, so any plausible id shape passes
-				applyModelFamilyAlias(model, { 'preview-model-x': { family: 'openai/gpt-5' } }),
-				// no model: a wildcard family becomes the session model; a specific entry cannot match
-				applyModelFamilyAlias(undefined, { '*': { family: 'gpt-5' } }),
-				applyModelFamilyAlias(undefined, { 'preview-model-x': { family: 'claude-opus-4.8' } }),
-			],
-			[
-				{ id: 'claude-opus-4.8', config: { thinkingLevel: 'high' } },
-				{ id: 'gpt-5', config: { thinkingLevel: 'high' } },
-				{ id: 'claude-opus-4.8', config: { thinkingLevel: 'high' } },
-				{ id: 'gpt-5', config: { thinkingLevel: 'high' } },
-				model,
-				model,
-				model,
-				model,
-				model,
-				model,
-				{ id: 'openai/gpt-5', config: { thinkingLevel: 'high' } },
-				{ id: 'gpt-5' },
-				undefined,
-			]
+			['claude-opus-4.8', 'openai/gpt-5', '', ' padded ', 'has\u0000nul', 'x'.repeat(129)].map(normalizeModelFamilyAlias),
+			['claude-opus-4.8', 'openai/gpt-5', undefined, undefined, undefined, undefined]
 		);
 	});
 

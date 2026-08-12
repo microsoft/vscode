@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from '@github/copilot-sdk';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
@@ -198,14 +198,13 @@ suite('AgentHostPromptRegistry', () => {
 	});
 
 	suite('model capability overrides (family alias)', () => {
-		// The launcher composes `applyModelFamilyAlias` with the registry (see
-		// `_buildSessionConfig`); this guards that composition end-to-end using
-		// the real Opus contributor, whose custom `matchesModel` checks the id.
-		// The alias helper's own behavior is covered in copilotCliConfig.test.ts.
+		// Mirrors the launcher's composition in `_buildSessionConfig`: the
+		// resolved family becomes the effective model id handed to the registry.
 		test('an aliased preview model routes to the family contributor', () => {
 			const overrides = { 'preview-model-x': { family: 'claude-opus-4.8' } };
+			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
-				applyModelFamilyAlias({ id: 'preview-model-x' }, overrides),
+				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
 				context({ [CopilotCliConfigKey.Opus48Prompt]: true })
 			);
 			assert.strictEqual(result.mode, 'customize');

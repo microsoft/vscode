@@ -121,8 +121,7 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 		return names;
 	}
 	const matches = (patterns: readonly string[], name: string) => {
-		const overridesBuiltIn = name === CLIENT_TOOL_SEARCH_REFERENCE_NAME;
-		const sdkName = overridesBuiltIn ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+		const sdkName = toSdkClientToolName(name);
 		return patterns.some(pattern =>
 			pattern === name ||
 			pattern === sdkName ||
@@ -141,6 +140,11 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	return result;
 }
 
+/** The SDK-registered name for a client tool; only the tool-search tool differs. */
+function toSdkClientToolName(name: string): string {
+	return name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+}
+
 /** Maps Agent Host reference names to the names registered with the SDK. */
 export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined): string[] | undefined {
 	if (!patterns) {
@@ -148,10 +152,10 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 	}
 	return [...new Set(patterns.map(pattern => {
 		if (pattern === CLIENT_TOOL_SEARCH_REFERENCE_NAME) {
-			return RUNTIME_TOOL_SEARCH_TOOL_NAME;
+			return toSdkClientToolName(pattern);
 		}
 		if (pattern === `custom:${CLIENT_TOOL_SEARCH_REFERENCE_NAME}`) {
-			return `custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`;
+			return `custom:${toSdkClientToolName(CLIENT_TOOL_SEARCH_REFERENCE_NAME)}`;
 		}
 		return pattern;
 	}))];
@@ -341,29 +345,12 @@ export function resolveCopilotReasoningEffort(model: ModelSelection | undefined,
 	return resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model);
 }
 
-/** Validates a family alias before it is used for prompt routing. */
-function getModelFamilyOverride(value: unknown, modelId: string, logService: ILogService, sessionId: string): string | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	const family = normalizeModelFamilyAlias(value);
-	if (family === undefined) {
-		const description = typeof value === 'string' ? JSON.stringify(value.slice(0, 40)) : typeof value;
-		logService.warn(`[Copilot:${sessionId}] Ignoring invalid 'family' capability override ${description} for '${modelId}'; expected a model id of at most 128 characters`);
-	}
-	return family;
-}
-
 /**
  * Shape-checked only: the SDK deep-merges this over its own defaults and ignores
  * unrecognized keys, so field-level validation belongs at that boundary.
  */
-function getModelCapabilitiesOverride(value: unknown, modelId: string, logService: ILogService, sessionId: string): ModelCapabilitiesOverride | undefined {
+function getModelCapabilitiesOverride(value: Record<string, unknown> | undefined, modelId: string, logService: ILogService, sessionId: string): ModelCapabilitiesOverride | undefined {
 	if (value === undefined) {
-		return undefined;
-	}
-	if (!isObject(value)) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying 'modelCapabilities' capability override for '${modelId}'`);
@@ -390,17 +377,15 @@ export function normalizeToolFilterPatterns(value: unknown): string[] | undefine
 	return [...new Set(list.flatMap(pattern => pattern === '*' ? TOOL_FILTER_SOURCE_WILDCARDS : [pattern]))];
 }
 
-/** {@link normalizeToolFilterPatterns} plus the launch-time diagnostics. */
-function getToolFilterOverride(value: unknown, field: string, modelId: string, logService: ILogService, sessionId: string): string[] | undefined {
-	if (value === undefined) {
-		return undefined;
+/**
+ * {@link normalizeToolFilterPatterns} plus the launch-time log line. The field
+ * resolver already rejected unusable values, so the input normalizes cleanly.
+ */
+function getToolFilterOverride(value: string | readonly string[] | undefined, field: string, modelId: string, logService: ILogService, sessionId: string): string[] | undefined {
+	const patterns = value !== undefined ? normalizeToolFilterPatterns(value) : undefined;
+	if (patterns !== undefined) {
+		logService.info(`[Copilot:${sessionId}] Applying '${field}' capability override for '${modelId}': ${patterns.join(', ')}`);
 	}
-	const patterns = normalizeToolFilterPatterns(value);
-	if (patterns === undefined) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring unusable '${field}' capability override for '${modelId}'; expected an array of tool patterns`);
-		return undefined;
-	}
-	logService.info(`[Copilot:${sessionId}] Applying '${field}' capability override for '${modelId}': ${patterns.join(', ')}`);
 	return patterns;
 }
 
@@ -725,11 +710,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// matches the `*` entry only.
 		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
 		const modelId = describeModelId(model);
-		const modelFamilyOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined, value => {
+		const modelFamily = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined, value => {
 			const description = typeof value === 'string' ? JSON.stringify(value.slice(0, 40)) : typeof value;
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'family' capability override ${description} for '${modelId}'; expected a model id of at most 128 characters`);
 		});
-		const modelFamily = getModelFamilyOverride(modelFamilyOverride, modelId, this._logService, plan.sessionId);
 		// Re-applied on every launch and resume, but NOT on a mid-session model
 		// change: a session keeps the filters of the model it launched with.
 		const availableToolsOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'availableTools', (value): value is string | readonly string[] => normalizeToolFilterPatterns(value) !== undefined, () => {
@@ -742,7 +726,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
 		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
-		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', isObject, () => {
+		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
 		const modelCapabilities = getModelCapabilitiesOverride(modelCapabilitiesOverride, modelId, this._logService, plan.sessionId);

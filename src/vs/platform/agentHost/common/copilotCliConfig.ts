@@ -7,7 +7,6 @@ import { isObject } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
-import type { ModelSelection } from './state/protocol/state.js';
 
 /**
  * Root-config keys consumed exclusively by the Copilot CLI provider
@@ -174,13 +173,13 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'array',
 					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.availableTools.item.title', "Tool Name or Pattern") },
 					title: localize('agentHost.config.modelCapabilityOverrides.availableTools.title', "Available Tools"),
-					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names; a bare `*` expands to all three sources. Applied when the session launches or resumes."),
+					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Patterns: bare tool names, `builtin:*` or `builtin:<name>` (Copilot runtime tools), `mcp:*` or `mcp:<name>` (MCP server tools), and `custom:*` or `custom:<name>` (every tool VS Code registers with the SDK, including the agent host's own terminal tools); a bare `*` expands to all three sources. Applied when the session launches or resumes."),
 				},
 				excludedTools: {
 					type: 'array',
 					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.excludedTools.item.title', "Tool Name or Pattern") },
 					title: localize('agentHost.config.modelCapabilityOverrides.excludedTools.title', "Excluded Tools"),
-					description: localize('agentHost.config.modelCapabilityOverrides.excludedTools.description', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it. Applied when the session launches or resumes."),
+					description: localize('agentHost.config.modelCapabilityOverrides.excludedTools.description', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it. Note that `custom:*` and a bare `*` also disable the agent host's own terminal tools registered with the SDK. Applied when the session launches or resumes."),
 				},
 				modelCapabilities: {
 					type: 'object',
@@ -206,20 +205,4 @@ export function normalizeModelFamilyAlias(value: unknown): string | undefined {
 		return undefined;
 	}
 	return value.trim() === value && !MODEL_FAMILY_CONTROL_CHARS.test(value) ? value : undefined;
-}
-
-/** Returns the configured family alias for `modelId`, or `undefined`. Malformed entries are treated as unset. */
-function getModelFamilyAlias(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): string | undefined {
-	const family = resolveModelCapabilityOverrideField(overrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
-	return normalizeModelFamilyAlias(family);
-}
-
-/**
- * Substitutes a configured family alias for the model id so an aliased preview model
- * routes to a known family's prompt contributor. `model.config` picker values are
- * preserved; returns the input unchanged when no alias applies.
- */
-export function applyModelFamilyAlias(model: ModelSelection | undefined, overrides: CopilotCliModelCapabilityOverrides | undefined): ModelSelection | undefined {
-	const family = getModelFamilyAlias(overrides, model?.id);
-	return family ? { ...model, id: family } : model;
 }

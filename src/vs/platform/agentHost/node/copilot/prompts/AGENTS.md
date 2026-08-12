@@ -163,7 +163,9 @@ alias, so a preview model resolves through another family's contributor),
 `'*'` entry to pin every model, re-applied on session resume and mid-session
 model change),
 `availableTools`/`excludedTools` (SDK tool filters; applied on launch and
-resume, but not on a mid-session model change),
+resume, but not on a mid-session model change — and enforced against every
+SDK-registered tool, including the host's shell and server tools, not just the
+forwarded client tools),
 and `modelCapabilities` (per-property overrides passed through to the SDK's
 `modelCapabilities` field — e.g. vision support, token limits — applied on
 every launch and resume).
@@ -181,11 +183,12 @@ layered on top. Aliasing the runtime's half too would need
 `COPILOT_MODEL_FAMILY`, which is process-scoped and would leak across every
 session in the window.
 
-> **Security note.** The setting is workspace-configurable and forwarded to the
-> agent host, so entries must never carry content that reaches the prompt or
-> the host filesystem directly (e.g. a prompt-file path). Prompt experiments
-> are code-managed: add a contributor (Lever 2) gated on its own opt-in setting,
-> like `anthropicPrompt.ts` with `chat.agentHost.opus48Prompt.enabled`.
+> **Security note.** The setting is application-scoped (not workspace-
+> configurable) and forwarded to the agent host; entries must still never carry
+> content that reaches the prompt or the host filesystem directly (e.g. a
+> prompt-file path). Prompt experiments are code-managed: add a contributor
+> (Lever 2) gated on its own opt-in setting, like `anthropicPrompt.ts` with
+> `chat.agentHost.opus48Prompt.enabled`.
 
 ## Reference
 

@@ -931,6 +931,34 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('tool search gates on the flag, model support, and the family alias', async () => {
+		const store = new DisposableStore();
+		const searchSnapshot = {
+			tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object' as const, properties: {} } }],
+			plugins: [],
+			mcpServers: {},
+		};
+		const toolSearchOf = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, model: ModelSelection) =>
+			(await buildResumeConfig(createLauncher(store, values), model, searchSnapshot)).toolSearch;
+
+		assert.deepStrictEqual(
+			[
+				// flag off → disabled even on a supported model
+				await toolSearchOf({ toolSearchEnabled: false }, { id: 'claude-opus-4.8' }),
+				// unsupported model → disabled even with the flag on
+				await toolSearchOf({ toolSearchEnabled: true }, { id: 'preview-model-x' }),
+				// a family alias makes an unsupported preview model tool-search-capable
+				await toolSearchOf({ toolSearchEnabled: true, modelCapabilityOverrides: { 'preview-model-x': { family: 'claude-opus-4.8' } } }, { id: 'preview-model-x' }),
+			],
+			[
+				{ enabled: false },
+				{ enabled: false },
+				{ enabled: true, deferThreshold: 1 },
+			]
+		);
+		store.dispose();
+	});
+
 	test('uses one launch-time tool-search decision for the config and client tools', async () => {
 		const store = new DisposableStore();
 		const decisions: boolean[] = [];
