@@ -31,6 +31,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { IHostService } from '../../../host/browser/host.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { WorkbenchExtensionGalleryManifestService } from '../../electron-browser/extensionGalleryManifestService.js';
+import { ExtensionGalleryAccountService, IExtensionGalleryAccountService } from '../../electron-browser/extensionGalleryAccountService.js';
 
 function mockResponse(statusCode: number, body: object): IRequestContext {
 	return {
@@ -201,6 +202,9 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 	function createService(): WorkbenchExtensionGalleryManifestService {
+		// Built here (not in setup) so the account service resolves the effective auth provider after
+		// each test sets it; registered to the store because it is injected, not owned by the manifest.
+		instantiationService.stub(IExtensionGalleryAccountService, disposableStore.add(instantiationService.createInstance(ExtensionGalleryAccountService)));
 		return disposableStore.add(instantiationService.createInstance(WorkbenchExtensionGalleryManifestService));
 	}
 

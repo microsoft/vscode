@@ -10,7 +10,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
@@ -76,13 +77,42 @@ export interface IExtensionGalleryAccount {
 	readonly manifest?: IExtensionGalleryManifest;
 }
 
+export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
+
+/**
+ * Resolves "which account may access the Private Marketplace" and owns the durable access verdict
+ * plus the in-process service-index cache. Registered as an {@link InstantiationType.Delayed}
+ * singleton so the host manifest service can inject it without eagerly pulling in the
+ * {@link IAuthenticationService} graph, which transitively re-enters the manifest service.
+ */
+export interface IExtensionGalleryAccountService {
+	readonly _serviceBrand: undefined;
+
+	/** Fires when the effective account may have changed, so the host can re-run validation. */
+	readonly onDidChangeAccount: Event<void>;
+
+	/** Live eligibility verdict for the current account; `undefined` means sign-in required. */
+	getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined>;
+
+	/** Durable (cached) verdict for the current account without a live network round-trip. */
+	getCachedAccess(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined>;
+
+	/** Drops the memoized service index so the next validation generation re-fetches it. */
+	invalidateServiceIndexCache(): void;
+
+	/** Drops the durable access verdict. */
+	clearCache(): void;
+}
+
 /**
  * Abstracts "which account may access the Private Marketplace" behind an API deliberately shaped
  * like {@link IDefaultAccountService} (a silent `getAccount()` plus `onDidChangeAccount`) so the
  * host manifest service stays close to its upstream shape. Selects the effective provider (GitHub
  * default account vs Microsoft/Entra session), runs the eligibility check, and owns the verdict cache.
  */
-export class ExtensionGalleryAccountService extends Disposable {
+export class ExtensionGalleryAccountService extends Disposable implements IExtensionGalleryAccountService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly authProvider: ExtensionGalleryAccessProviderId;
 
@@ -435,3 +465,5 @@ export class ExtensionGalleryAccountService extends Disposable {
 		this.storageService.remove(CACHED_ACCESS_KEY, StorageScope.APPLICATION);
 	}
 }
+
+registerSingleton(IExtensionGalleryAccountService, ExtensionGalleryAccountService, InstantiationType.Delayed);

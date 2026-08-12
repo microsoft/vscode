@@ -12,7 +12,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus, CONTEXT_MARKETPLACE_AUTH_PROVIDER } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -21,7 +20,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
-import { ExtensionGalleryAccountService, IExtensionGalleryAccount } from './extensionGalleryAccountService.js';
+import { IExtensionGalleryAccount, IExtensionGalleryAccountService } from './extensionGalleryAccountService.js';
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
@@ -36,9 +35,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
 
 	// Resolves which account may access the Private Marketplace and owns the durable verdict +
-	// in-process service-index caches. Created lazily (not in the ctor) because it injects
-	// IAuthenticationService, whose graph transitively re-enters this service.
-	private galleryAccountService: ExtensionGalleryAccountService | undefined;
+	// in-process service-index caches. Injected as a Delayed singleton, so the proxy only
+	// instantiates the real service (and its IAuthenticationService dependency) on first non-event
+	// access — see the microtask deferral in the constructor.
+
+	// Set once the private-marketplace path activates the account service; guards the config-change
+	// handler below from instantiating it when no private marketplace was ever configured.
+	private galleryAccountServiceActive = false;
 
 	// Guards a time-of-check/time-of-use race: a stale in-flight eligibility check must not restore
 	// access for an account that is no longer current (after sign-out, account switch, or config
@@ -58,7 +61,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionGalleryAccountService private readonly galleryAccountService: IExtensionGalleryAccountService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(productService);
@@ -110,13 +113,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
 			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
-			this.galleryAccountService = this._register(this.instantiationService.createInstance(ExtensionGalleryAccountService));
+			this.galleryAccountServiceActive = true;
 			// Registered before the initial validation below: that validation may await a slow network
 			// call, and a sign-out/switch during that window needs a live listener to supersede it.
 			// Revoke the current manifest before revalidating so a transient failure for the new
 			// (possibly ineligible) account cannot leak the prior account's Available state.
 			this._register(this.galleryAccountService.onDidChangeAccount(() => {
-				this.galleryAccountService?.clearCache();
+				this.galleryAccountService.clearCache();
 				this.update(null);
 				this.validateCurrentAccess(configuredServiceUrl, this.beginValidation());
 			}));
@@ -134,8 +137,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			// Supersede any in-flight validation so its late result cannot repopulate the cache we
 			// clear here (the restart prompt is dismissable, so the process may keep running).
 			this.cancel();
-			this.galleryAccountService?.clearCache();
-			this.galleryAccountService?.invalidateServiceIndexCache();
+			if (this.galleryAccountServiceActive) {
+				this.galleryAccountService.clearCache();
+				this.galleryAccountService.invalidateServiceIndexCache();
+			}
 			this.requestRestart();
 		}));
 	}
@@ -150,7 +155,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		const token = this.beginValidation();
 		let appliedFromCache = false;
 		try {
-			const cached = await this.galleryAccountService!.getCachedAccess(configuredServiceUrl, token);
+			const cached = await this.galleryAccountService.getCachedAccess(configuredServiceUrl, token);
 			if (!token.isCancellationRequested && cached) {
 				this.applyAccess(cached, token);
 				appliedFromCache = true;
@@ -175,7 +180,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	 */
 	private async validateCurrentAccess(configuredServiceUrl: string, token: CancellationToken): Promise<void> {
 		try {
-			const account = await this.galleryAccountService!.getAccount(configuredServiceUrl, token);
+			const account = await this.galleryAccountService.getAccount(configuredServiceUrl, token);
 			if (!token.isCancellationRequested) {
 				this.applyAccess(account, token);
 			}
@@ -248,7 +253,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	 * each status/cache/manifest mutation so a superseded validation cannot commit a stale verdict.
 	 */
 	private beginValidation(): CancellationToken {
-		this.galleryAccountService?.invalidateServiceIndexCache();
+		this.galleryAccountService.invalidateServiceIndexCache();
 		// MutableDisposable disposes the previous source on assignment, but dispose() does not cancel;
 		// cancel explicitly so any in-flight continuation is superseded first.
 		this._validationTokenSource.value?.cancel();
