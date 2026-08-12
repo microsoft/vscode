@@ -51,11 +51,11 @@ function createDefaultAccount(overrides: Partial<IDefaultAccount> = {}): IDefaul
 	};
 }
 
-function createMicrosoftSession(accessToken = 'ms-token'): AuthenticationSession {
+function createMicrosoftSession(accessToken = 'ms-token', accountId = 'ms-account-1', sessionId = 'ms-session-1'): AuthenticationSession {
 	return {
-		id: 'ms-session-1',
+		id: sessionId,
 		accessToken,
-		account: { id: 'ms-account-1', label: 'user@contoso.com' },
+		account: { id: accountId, label: `${accountId}@contoso.com` },
 		scopes: ['openid', 'profile', 'email', 'offline_access'],
 	};
 }
@@ -463,6 +463,102 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(parsed.accountId, 'ms-account-1');
 		assert.strictEqual(parsed.eligible, false);
 		assert.strictEqual(parsed.serviceUrl, 'https://marketplace.example.com');
+	});
+
+	test('Microsoft — single signed-in account, no stored preference → adopted and persisted', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		// Exactly one signed-in account and no remembered choice: the selection is unambiguous, so
+		// it is adopted for the check AND persisted so later windows reuse the same account instead
+		// of re-deriving it.
+		microsoftSessions = [createMicrosoftSession()];
+		requestHandler = (options) => {
+			if (options.url?.includes('eligibility')) {
+				return mockResponse(200, { eligible: true, reason: 'EntraID' });
+			}
+			return mockResponse(200, createGalleryManifest(true));
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.deepStrictEqual(JSON.parse(storageData.get('marketplace.account')!), { authProvider: 'microsoft', id: 'ms-account-1' });
+	});
+
+	test('Microsoft — multiple signed-in accounts, no stored preference → RequiresSignIn (never guesses)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		// Several accounts are signed in and none was ever chosen. Picking one arbitrarily could grant
+		// access under the wrong identity, so selection is refused: no index request is made, no
+		// account is persisted, and the user is sent to an explicit sign-in.
+		microsoftSessions = [
+			createMicrosoftSession('token-1', 'ms-account-1', 'ms-session-1'),
+			createMicrosoftSession('token-2', 'ms-account-2', 'ms-session-2'),
+		];
+		let indexRequests = 0;
+		requestHandler = (options) => {
+			if (!options.url?.includes('eligibility')) {
+				indexRequests++;
+			}
+			return mockResponse(200, createGalleryManifest(true));
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(indexRequests, 0);
+		assert.ok(!storageData.has('marketplace.account'));
+	});
+
+	test('Microsoft — multiple accounts, stored preference selects that account (not sessions[0])', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		// Two accounts signed in; the remembered choice is the second, so the first (`sessions[0]`)
+		// must NOT be used. The bearer token threaded into the check — and hence the cached account —
+		// proves the remembered account was selected.
+		storageData.set('marketplace.account', JSON.stringify({ authProvider: 'microsoft', id: 'ms-account-2' }));
+		microsoftSessions = [
+			createMicrosoftSession('token-1', 'ms-account-1', 'ms-session-1'),
+			createMicrosoftSession('token-2', 'ms-account-2', 'ms-session-2'),
+		];
+		let seenAuthHeader: string | undefined;
+		requestHandler = (options) => {
+			if (options.url?.includes('eligibility')) {
+				return mockResponse(200, { eligible: true, reason: 'EntraID' });
+			}
+			seenAuthHeader = options.headers?.['Authorization'];
+			return mockResponse(200, createGalleryManifest(true));
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(seenAuthHeader, 'Bearer token-2');
+		assert.strictEqual(JSON.parse(storageData.get('marketplace.cachedAccess')!).accountId, 'ms-account-2');
+	});
+
+	test('Microsoft — stored preference no longer signed in, several remain → RequiresSignIn (no silent switch)', async () => {
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
+		// The remembered account is gone, but two others remain. Rather than silently switching to a
+		// different identity, selection is refused and the user must choose again.
+		storageData.set('marketplace.account', JSON.stringify({ authProvider: 'microsoft', id: 'ms-account-gone' }));
+		microsoftSessions = [
+			createMicrosoftSession('token-1', 'ms-account-1', 'ms-session-1'),
+			createMicrosoftSession('token-2', 'ms-account-2', 'ms-session-2'),
+		];
+		let indexRequests = 0;
+		requestHandler = (options) => {
+			if (!options.url?.includes('eligibility')) {
+				indexRequests++;
+			}
+			return mockResponse(200, createGalleryManifest(true));
+		};
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(indexRequests, 0);
 	});
 
 	test('Microsoft provider — service index returns a non-manifest 200 → Unreachable (not a crash, not cached)', async () => {

@@ -28,6 +28,15 @@ import { ExtensionGalleryServiceIndexService } from './extensionGalleryServiceIn
 const CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
 
 /**
+ * Storage key for the account the user settled on for the Private Marketplace
+ * ({@link IPreferredAccount}). Shares the `APPLICATION`/`MACHINE` lifecycle of the verdict cache so
+ * the choice is remembered across windows. Grounds session selection when the Microsoft provider has
+ * several signed-in accounts, so a specific remembered account — not an arbitrary `sessions[0]` — is
+ * used across restarts.
+ */
+const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
+
+/**
  * The eligibility endpoint's JSON response. Only `eligible` is authoritative; `reason` is diagnostic
  * and deliberately never persisted (it could carry account/tenant text) — see {@link ExtensionGalleryAccountService.getMicrosoftAccount}.
  */
@@ -66,6 +75,16 @@ type AccountResolution =
 	| { readonly kind: 'account'; readonly accountId: string; readonly token?: string }
 	| { readonly kind: 'none' }
 	| { readonly kind: 'error' };
+
+/**
+ * The account the user settled on for the Private Marketplace, persisted so a remembered choice
+ * survives restarts. `authProvider` scopes the preference so it is ignored after a provider switch;
+ * `id` is the stable account id (never a display label).
+ */
+interface IPreferredAccount {
+	readonly authProvider: string;
+	readonly id: string;
+}
 
 /**
  * A resolved access verdict. `undefined` from {@link ExtensionGalleryAccountService.getAccount}/
@@ -197,17 +216,17 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	}
 
 	private async getMicrosoftAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
-		// Acquire an existing session silently — `getSessions` never prompts. A throw is a transient
-		// auth-service failure: propagate so the host preserves cache.
-		const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
+		// Resolve the remembered account silently — never prompts. A throw is a transient auth-service
+		// failure: propagate so the host preserves cache.
+		const session = await this.getMicrosoftSession();
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const session = sessions[0];
 		if (!session) {
-			// No token. A 'microsoft'-configured index MAY itself be auth-gated, so an anonymous probe
-			// would at best return a guaranteed 401. Go straight to sign-in; there is deliberately NO
-			// fallback to GitHub.
+			// No usable account (none signed in, or several signed in with no remembered choice). A
+			// 'microsoft'-configured index MAY itself be auth-gated, so an anonymous probe would at best
+			// return a guaranteed 401. Go straight to sign-in; there is deliberately NO fallback to
+			// GitHub.
 			this.clearCache();
 			return undefined;
 		}
@@ -394,8 +413,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	private async resolveCurrentAccount(): Promise<AccountResolution> {
 		try {
 			if (this.authProvider === 'microsoft') {
-				const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
-				const session = sessions[0];
+				const session = await this.getMicrosoftSession();
 				return session ? { kind: 'account', accountId: session.account.id, token: session.accessToken } : { kind: 'none' };
 			}
 			const account = await this.defaultAccountService.getDefaultAccount();
@@ -403,6 +421,69 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		} catch {
 			return { kind: 'error' };
 		}
+	}
+
+	/**
+	 * The single grounded selector for the effective Microsoft session, shared by the live check
+	 * ({@link getMicrosoftAccount}) and cache validation ({@link resolveCurrentAccount}) so neither
+	 * picks an arbitrary `sessions[0]`. The Microsoft provider can have several accounts signed in, so
+	 * selection is anchored to the persisted {@link IPreferredAccount}:
+	 * - remembered account still signed in → use it;
+	 * - no usable preference and exactly one account → adopt and persist it (unambiguous);
+	 * - no usable preference and several accounts → return `undefined` (require an explicit choice)
+	 *   rather than guessing.
+	 * Returns `undefined` when no account can be grounded. Never prompts; `getSessions` throws only on
+	 * a transient auth-service failure, which propagates to the caller.
+	 */
+	private async getMicrosoftSession(): Promise<AuthenticationSession | undefined> {
+		const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
+		if (sessions.length === 0) {
+			return undefined;
+		}
+		const preferredId = this.readPreferredAccountId();
+		if (preferredId) {
+			const remembered = sessions.find(session => session.account.id === preferredId);
+			// If the remembered account is no longer signed in, fall through rather than silently
+			// switching to a different account.
+			if (remembered) {
+				return remembered;
+			}
+		}
+		if (sessions.length === 1) {
+			this.storePreferredAccountId(sessions[0].account.id);
+			return sessions[0];
+		}
+		return undefined;
+	}
+
+	/** Reads the remembered account id, scoped to the effective provider; `undefined` if none/other. */
+	private readPreferredAccountId(): string | undefined {
+		const raw = this.storageService.get(PREFERRED_ACCOUNT_KEY, StorageScope.APPLICATION);
+		if (!raw) {
+			return undefined;
+		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(raw);
+		} catch {
+			this.storageService.remove(PREFERRED_ACCOUNT_KEY, StorageScope.APPLICATION);
+			return undefined;
+		}
+		if (!parsed || typeof parsed !== 'object') {
+			return undefined;
+		}
+		const candidate = parsed as Partial<IPreferredAccount>;
+		// Scoped to the effective provider so a provider switch ignores a stale preference.
+		if (candidate.authProvider !== this.authProvider || typeof candidate.id !== 'string') {
+			return undefined;
+		}
+		return candidate.id;
+	}
+
+	/** Remembers `accountId` as the chosen account for the effective provider. */
+	private storePreferredAccountId(accountId: string): void {
+		const preferred: IPreferredAccount = { authProvider: this.authProvider, id: accountId };
+		this.storageService.store(PREFERRED_ACCOUNT_KEY, JSON.stringify(preferred), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	/**
