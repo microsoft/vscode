@@ -220,6 +220,27 @@ suite('PromptsService', () => {
 		instaService.stub(IPromptsService, service);
 	});
 
+	test('lists local prompt files relative to an explicit root and its parent repository', async () => {
+		const parentRoot = URI.file('/parent-repo');
+		const explicitRoot = URI.joinPath(parentRoot, 'packages/explicit-root');
+		const siblingRoot = URI.file('/sibling-root');
+		workspaceContextService.setWorkspace(testWorkspace(explicitRoot, siblingRoot));
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+		await mockFiles(fileService, [
+			{ path: '/parent-repo/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			{ path: '/parent-repo/.github/prompts/parent.prompt.md', contents: ['parent'] },
+			{ path: '/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md', contents: ['explicit'] },
+			{ path: '/sibling-root/.github/prompts/sibling.prompt.md', contents: ['sibling'] },
+		]);
+
+		const files = await service.listPromptFilesForStorage(PromptsType.prompt, PromptsStorage.local, CancellationToken.None, explicitRoot);
+
+		assert.deepStrictEqual(files.map(file => file.uri.path), [
+			'/parent-repo/packages/explicit-root/.github/prompts/explicit.prompt.md',
+			'/parent-repo/.github/prompts/parent.prompt.md',
+		]);
+	});
+
 	suite('IAgentSource.isEquals', () => {
 		test('returns true for equivalent local sources', () => {
 			const left: IAgentSource = { storage: PromptsStorage.local };
@@ -2363,6 +2384,44 @@ suite('PromptsService', () => {
 			// After disposal, the agent should no longer be listed
 			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actualAfterDispose.length, 0);
+		});
+
+		test('Canceled prompt file provider is skipped without logging', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new CancellationError(); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 0 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
+		});
+
+		test('Prompt file provider error is logged and skipped', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const logErrorSpy = sinon.spy(logService, 'error');
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => { throw new Error('provider failed'); }
+			});
+
+			try {
+				const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+				assert.deepStrictEqual({ files, errorCalls: logErrorSpy.callCount }, { files: [], errorCalls: 1 });
+			} finally {
+				registered.dispose();
+				logErrorSpy.restore();
+			}
 		});
 
 		test('Contributed agent file that does not exist should not crash', async () => {

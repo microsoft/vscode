@@ -90,9 +90,13 @@ suite('getDynamicVariablesForWidget', () => {
 		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
 	});
 
-	test('returns empty when file references not supported', () => {
-		const widget = createMockWidget({ supportsFileReferences: false });
-		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
+	test('returns only attachment references when file references are not supported', () => {
+		const attachmentReference = createMockVariable({ id: 'attachment', isAttachmentReference: true });
+		const widget = createMockWidget({
+			supportsFileReferences: false,
+			contribVariables: [createMockVariable(), attachmentReference],
+		});
+		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), [attachmentReference]);
 	});
 
 	test('returns contrib model variables when not editing', () => {
