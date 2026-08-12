@@ -22,6 +22,8 @@ suite('copilotCliConfig', () => {
 				// wildcard alias applies to any model; a specific entry wins over it
 				applyModelFamilyAlias(model, { '*': { family: 'gpt-5' } }),
 				applyModelFamilyAlias(model, { '*': { family: 'gpt-5' }, 'preview-model-x': { family: 'claude-opus-4.8' } }),
+				// an invalid specific field is ignored, so it cannot mask the wildcard
+				applyModelFamilyAlias(model, { '*': { family: 'gpt-5' }, 'preview-model-x': { family: '' } }),
 				// no overrides / override for another id / no usable family → unchanged
 				applyModelFamilyAlias(model, undefined),
 				applyModelFamilyAlias(model, { 'other-model': { family: 'claude-opus-4.8' } }),
@@ -39,6 +41,7 @@ suite('copilotCliConfig', () => {
 				{ id: 'claude-opus-4.8', config: { thinkingLevel: 'high' } },
 				{ id: 'gpt-5', config: { thinkingLevel: 'high' } },
 				{ id: 'claude-opus-4.8', config: { thinkingLevel: 'high' } },
+				{ id: 'gpt-5', config: { thinkingLevel: 'high' } },
 				model,
 				model,
 				model,

@@ -28,7 +28,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -49,8 +49,8 @@ import { ActionType, isChatAction, type ChatAction, type SessionAction } from '.
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, isSubagentSession, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
-import { clientToolNamesFromSnapshot, filterClientToolNames, normalizeToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
+import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
@@ -823,8 +823,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _clientReachesChat: (clientId: string, chat: URI) => boolean;
 	/** Tool names that are client-provided, derived from snapshot. */
 	private readonly _clientToolNames: ReadonlySet<string>;
-	/** Launch-time tool-search decision; kept stable for the lifetime of the SDK session. */
-	private readonly _toolSearchActive: boolean;
+	/** Tool-search decision supplied by the launcher that built this SDK session. */
+	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** Pending SDK MCP auth handler promises, keyed by SDK auth request id. */
@@ -936,20 +936,6 @@ export class CopilotAgentSession extends Disposable {
 		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
 		// Routing keeps the unfiltered set — the runtime is the enforcement point.
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
-		const model = this._launchPlan.kind === 'create' ? this._launchPlan.model : this._launchPlan.fallback.model;
-		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-		const capabilityOverride = resolveModelCapabilityOverride(capabilityOverrides, model?.id);
-		// Gated on the FILTERED set, exactly as the launcher gates the prompt and
-		// the SDK's `toolSearch` config, so the two halves cannot disagree.
-		const gateToolNames = filterClientToolNames(
-			this._clientToolNames,
-			normalizeToolFilterPatterns(capabilityOverride?.availableTools),
-			normalizeToolFilterPatterns(capabilityOverride?.excludedTools),
-		);
-		const effectiveModel = applyModelFamilyAlias(model, capabilityOverrides);
-		this._toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
-			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
-			&& gateToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		// Share the agent's live ActiveClientToolSet when provided so client
 		// contributions (and owner identity) are observed at stamp time.
 		// Standalone / test construction uses a fresh empty registry, which
@@ -1436,7 +1422,7 @@ export class CopilotAgentSession extends Disposable {
 		if (mcpServerName) {
 			return 'mcp';
 		}
-		if (this._clientToolNames.has(toolName)) {
+		if (this._clientToolNames.has(this._clientToolName(toolName))) {
 			return 'client';
 		}
 		return 'internal';
@@ -1552,12 +1538,12 @@ export class CopilotAgentSession extends Disposable {
 	 * `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createClientSdkTools(): Tool<any>[] {
+	private _createClientSdkTools(toolSearchActive: boolean): Tool<any>[] {
+		this._toolSearchActive = toolSearchActive;
 		const tools = this._appliedSnapshot.tools;
 		if (tools.length === 0) {
 			return [];
 		}
-		const toolSearchActive = this._isToolSearchActive();
 		const sessionTools = toolSearchActive
 			? tools
 			: tools.filter(def => def.name !== CLIENT_TOOL_SEARCH_REFERENCE_NAME);
@@ -1857,7 +1843,7 @@ export class CopilotAgentSession extends Disposable {
 			handleElicitationRequest: this._guarded(context => this._handleElicitationRequest(context), { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
 			handleMcpAuthRequest: this._guarded(request => this._handleMcpAuthRequest(request), { kind: 'cancelled' } satisfies McpAuthResult, 'mcp-auth'),
 			requestUnsandboxedCommandConfirmation: this._guarded(request => this._requestUnsandboxedCommandConfirmation(request), false, 'unsandboxed-command-confirmation'),
-			createClientSdkTools: () => this._createClientSdkTools(),
+			createClientSdkTools: toolSearchActive => this._createClientSdkTools(toolSearchActive),
 			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),

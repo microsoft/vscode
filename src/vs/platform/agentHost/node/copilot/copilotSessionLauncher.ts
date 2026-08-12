@@ -10,7 +10,7 @@ import { isObject, isStringArray } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { AgentSession } from '../../common/agent.js';
@@ -112,19 +112,16 @@ export function clientToolNamesFromSnapshot(snapshot: IActiveClientSnapshot): Re
 /**
  * Narrows the names that gate prompt content so the system message never
  * advertises a tool the filters disabled. Client tools reach the SDK through its
- * `tools` option (`custom:` source), so only those three pattern forms can match.
- * Routing keeps the unfiltered set — the runtime is the enforcement point.
+ * `tools` option (`custom:` source), so bare-name and `custom:` forms match —
+ * plus, for the tool-search tool only, `builtin:` forms when excluding (see the
+ * matcher below). Routing keeps the unfiltered set — the runtime is the
+ * enforcement point.
  */
 export function filterClientToolNames(names: ReadonlySet<string>, availableTools: readonly string[] | undefined, excludedTools: readonly string[] | undefined): ReadonlySet<string> {
 	if (!availableTools && !excludedTools) {
 		return names;
 	}
-	// The tool-search tool is registered with `overridesBuiltInTool`, so which
-	// source the runtime files it under is ambiguous. `builtin:` forms therefore
-	// count only when EXCLUDING: that way the gate is never more permissive than
-	// the runtime under either classification. Honouring them in an allowlist
-	// would do the opposite — admit a tool a `custom:`-classifying runtime strips.
-	const matches = (patterns: readonly string[], name: string, builtInCounts: boolean) => {
+	const matches = (patterns: readonly string[], name: string) => {
 		const overridesBuiltIn = name === CLIENT_TOOL_SEARCH_REFERENCE_NAME;
 		const sdkName = overridesBuiltIn ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
 		return patterns.some(pattern =>
@@ -132,14 +129,13 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 			pattern === sdkName ||
 			pattern === `custom:${name}` ||
 			pattern === `custom:${sdkName}` ||
-			pattern === 'custom:*' ||
-			(builtInCounts && overridesBuiltIn && (pattern === `builtin:${sdkName}` || pattern === 'builtin:*'))
+			pattern === 'custom:*'
 		);
 	};
 	const result = new Set<string>();
 	for (const name of names) {
-		const allowed = !availableTools || matches(availableTools, name, false);
-		if (allowed && !(excludedTools && matches(excludedTools, name, true))) {
+		const allowed = !availableTools || matches(availableTools, name);
+		if (allowed && !(excludedTools && matches(excludedTools, name))) {
 			result.add(name);
 		}
 	}
@@ -172,7 +168,7 @@ export interface ICopilotSessionRuntime {
 	handlePreToolUse(input: PreToolUseHookInput): Promise<void>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createClientSdkTools(): Tool<any>[];
+	createClientSdkTools(toolSearchActive: boolean): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(): Tool<any>[];
 }
@@ -328,15 +324,13 @@ function describeModelId(model: ModelSelection | undefined): string {
  */
 export function resolveConfiguredReasoningEffortOverride(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
 	const overrides = configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-	const effort = resolveModelCapabilityOverride(overrides, model?.id)?.reasoningEffort;
-	if (effort === undefined) {
-		return undefined;
-	}
-	if (isCopilotReasoningEffort(effort)) {
+	const effort = resolveModelCapabilityOverrideField(overrides, model?.id, 'reasoningEffort', isCopilotReasoningEffort, value => {
+		logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${value}' for '${describeModelId(model)}'; expected one of [${ReasoningEfforts.join(', ')}]`);
+	});
+	if (effort !== undefined) {
 		logService.info(`[Copilot:${sessionId}] Applying reasoning-effort override '${effort}' for '${describeModelId(model)}'`);
 		return toSdkReasoningEffort(effort);
 	}
-	logService.warn(`[Copilot:${sessionId}] Ignoring invalid reasoning-effort override '${effort}' for '${describeModelId(model)}'; expected one of [${ReasoningEfforts.join(', ')}]`);
 	return undefined;
 }
 
@@ -348,7 +342,7 @@ export function resolveCopilotReasoningEffort(model: ModelSelection | undefined,
 	return resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model);
 }
 
-/** Validates a family alias before it is used for prompt routing or sent to the SDK. */
+/** Validates a family alias before it is used for prompt routing. */
 function getModelFamilyOverride(value: unknown, modelId: string, logService: ILogService, sessionId: string): string | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -734,15 +728,28 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Keyed by the real, un-aliased model id; a model-less "Auto" session
 		// matches the `*` entry only.
 		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
-		const capabilityOverride = resolveModelCapabilityOverride(capabilityOverrides, model?.id);
-		const modelFamily = getModelFamilyOverride(capabilityOverride?.family, describeModelId(model), this._logService, plan.sessionId);
+		const modelId = describeModelId(model);
+		const modelFamilyOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined, value => {
+			const description = typeof value === 'string' ? JSON.stringify(value.slice(0, 40)) : typeof value;
+			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'family' capability override ${description} for '${modelId}'; expected a model id of at most 128 characters`);
+		});
+		const modelFamily = getModelFamilyOverride(modelFamilyOverride, modelId, this._logService, plan.sessionId);
 		// Re-applied on every launch and resume, but NOT on a mid-session model
 		// change: a session keeps the filters of the model it launched with.
-		const availableTools = getToolFilterOverride(capabilityOverride?.availableTools, 'availableTools', describeModelId(model), this._logService, plan.sessionId);
-		const excludedTools = getToolFilterOverride(capabilityOverride?.excludedTools, 'excludedTools', describeModelId(model), this._logService, plan.sessionId);
+		const availableToolsOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'availableTools', (value): value is string | readonly string[] => normalizeToolFilterPatterns(value) !== undefined, () => {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring unusable 'availableTools' capability override for '${modelId}'; expected an array of tool patterns`);
+		});
+		const excludedToolsOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'excludedTools', (value): value is string | readonly string[] => normalizeToolFilterPatterns(value) !== undefined, () => {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring unusable 'excludedTools' capability override for '${modelId}'; expected an array of tool patterns`);
+		});
+		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
+		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
 		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
-		const modelCapabilities = getModelCapabilitiesOverride(capabilityOverride?.modelCapabilities, describeModelId(model), this._logService, plan.sessionId);
+		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', isObject, () => {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
+		});
+		const modelCapabilities = getModelCapabilitiesOverride(modelCapabilitiesOverride, modelId, this._logService, plan.sessionId);
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
 		// Host-side routing only — the prompt contributor and the tool-search gate
 		// below. The wire model stays the selected one, so the session still runs
@@ -814,7 +821,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			excludedTools: sdkExcludedTools,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
-			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
+			tools: [...shellTools, ...runtime.createClientSdkTools(toolSearchActive), ...runtime.createServerSdkTools()],
 			// Pass the GitHub token at the session level. The SDK's
 			// client-level `gitHubToken` authenticates the CLI process,
 			// but each session also needs its own token resolved into a

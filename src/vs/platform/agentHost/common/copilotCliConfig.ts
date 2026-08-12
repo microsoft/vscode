@@ -95,6 +95,34 @@ export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabil
 	return { ...(isObject(wildcard) ? wildcard : undefined), ...(isObject(entry) ? entry : undefined) };
 }
 
+/**
+ * Resolves one field from the specific entry and then the wildcard. Invalid
+ * specific values are ignored rather than masking a usable wildcard default.
+ */
+export function resolveModelCapabilityOverrideField<K extends keyof ICopilotCliModelCapabilityOverride, T>(
+	overrides: CopilotCliModelCapabilityOverrides | undefined,
+	modelId: string | undefined,
+	field: K,
+	isUsable: (value: unknown) => value is T,
+	onInvalid?: (value: unknown) => void,
+): T | undefined {
+	const entryKeys = modelId === undefined || modelId === MODEL_CAPABILITY_OVERRIDE_WILDCARD
+		? [MODEL_CAPABILITY_OVERRIDE_WILDCARD]
+		: [modelId, MODEL_CAPABILITY_OVERRIDE_WILDCARD];
+	for (const entryKey of entryKeys) {
+		const entry = overrides?.[entryKey];
+		const value = isObject(entry) ? entry[field] : undefined;
+		if (value === undefined) {
+			continue;
+		}
+		if (isUsable(value)) {
+			return value;
+		}
+		onInvalid?.(value);
+	}
+	return undefined;
+}
+
 export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -155,7 +183,7 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'string',
 					enum: [...reasoningEffortLevels],
 					title: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.title', "Reasoning Effort"),
-					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; wins over the global reasoning-effort override. Unrecognized values are ignored."),
+					description: localize('agentHost.config.modelCapabilityOverrides.reasoningEffort.description', "Reasoning effort for sessions on this model; overrides the model picker's thinking level. Unrecognized values are ignored."),
 				},
 				availableTools: {
 					type: 'array',
@@ -180,9 +208,10 @@ export const copilotCliConfigSchema = createSchema({
 	}),
 });
 
-// The alias travels as the SDK's session `model` field, so the runtime is the
-// authority on which ids exist; an allow-list of id shapes here would silently
-// reject valid ones (`vendor/model`). Reject only what cannot be an id at all.
+// The alias only feeds the host's prompt registry, whose contributors match on
+// model-id shapes of their own choosing; an allow-list of id shapes here would
+// silently reject valid ones (`vendor/model`). Reject only what cannot be an
+// id at all.
 const MODEL_FAMILY_MAX_LENGTH = 128;
 const MODEL_FAMILY_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 
@@ -196,7 +225,7 @@ export function normalizeModelFamilyAlias(value: unknown): string | undefined {
 
 /** Returns the configured family alias for `modelId`, or `undefined`. Malformed entries are treated as unset. */
 function getModelFamilyAlias(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): string | undefined {
-	const family = resolveModelCapabilityOverride(overrides, modelId)?.family;
+	const family = resolveModelCapabilityOverrideField(overrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
 	return normalizeModelFamilyAlias(family);
 }
 

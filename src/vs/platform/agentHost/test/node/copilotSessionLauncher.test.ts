@@ -634,6 +634,8 @@ suite('resolveCopilotReasoningEffort', () => {
 				// the wildcard applies to any model; a specific entry wins over it
 				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' } } }), log, 's1'),
 				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' }, 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// an invalid specific value is ignored, so it cannot mask the wildcard
+				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' }, 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
 				// an invalid value falls through to the picker
 				resolveCopilotReasoningEffort(model, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'turbo' } } }), log, 's1'),
 				// nothing configured → picker value
@@ -643,7 +645,7 @@ suite('resolveCopilotReasoningEffort', () => {
 				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
 				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
 			],
-			['low', 'high', 'low', 'medium', 'medium', 'low', undefined]
+			['low', 'high', 'low', 'high', 'medium', 'medium', 'low', undefined]
 		);
 	});
 
@@ -700,9 +702,6 @@ suite('filterClientToolNames', () => {
 			]
 		);
 
-		// A `builtin:` pattern reaches the tool-search tool only when EXCLUDING:
-		// honouring it in an allowlist would admit a tool a `custom:`-classifying
-		// runtime strips, leaving the prompt advertising a tool that is not there.
 		const withSearch = new Set([CLIENT_TOOL_SEARCH_REFERENCE_NAME, 'runTask']);
 		const resolveSearch = (excluded: string[]) => [...filterClientToolNames(withSearch, undefined, excluded)].sort();
 		assert.deepStrictEqual(
@@ -710,12 +709,12 @@ suite('filterClientToolNames', () => {
 				resolveSearch([`builtin:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]),
 				resolveSearch(['builtin:*']),
 				resolveSearch([RUNTIME_TOOL_SEARCH_TOOL_NAME]),
-				// ...but a `builtin:` allowlist does NOT admit it
+				// Client tools are custom-source even when they override a built-in.
 				[...filterClientToolNames(withSearch, ['builtin:*'], undefined)],
 			],
 			[
-				['runTask'],
-				['runTask'],
+				['runTask', 'toolSearch'],
+				['runTask', 'toolSearch'],
 				['runTask'],
 				[],
 			]
@@ -799,21 +798,26 @@ suite('CopilotSessionLauncher resume config', () => {
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */
-	function buildResumeConfig(launcher: CopilotSessionLauncher, model: ModelSelection | undefined): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> {
+	function buildResumeConfig(
+		launcher: CopilotSessionLauncher,
+		model: ModelSelection | undefined,
+		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
+		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
 			sessionId: 'sess-1',
 			workingDirectory: URI.file('/workspace'),
 			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			snapshot,
 			activeClientToolSet: new ActiveClientToolSet(),
 			shellManager: undefined,
 			githubToken: 'token',
 			fallback: { model },
 		};
-		const runtime = { createClientSdkTools: () => [], createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown> }> })._buildSessionConfig(plan, runtime);
+		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime);
 	}
 
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
@@ -867,11 +871,43 @@ suite('CopilotSessionLauncher resume config', () => {
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
 		const valid = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { modelCapabilities: { supports: { vision: false } } } } }), model);
 		const invalid = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { modelCapabilities: 'oops' as never } } }), model);
+		const wildcardFallback = await buildResumeConfig(createLauncher(store, {
+			modelCapabilityOverrides: {
+				'*': {
+					availableTools: ['custom:*'],
+					excludedTools: ['mcp:*'],
+					modelCapabilities: { supports: { vision: true } },
+				},
+				'gpt-5': {
+					availableTools: 42 as never,
+					excludedTools: 42 as never,
+					modelCapabilities: 'oops' as never,
+				},
+			},
+		}), model);
 		const none = await buildResumeConfig(createLauncher(store, {}), model);
 
 		assert.deepStrictEqual(
-			[valid.modelCapabilities, invalid.modelCapabilities, none.modelCapabilities],
-			[{ supports: { vision: false } }, undefined, undefined]
+			[
+				valid.modelCapabilities,
+				invalid.modelCapabilities,
+				{
+					availableTools: wildcardFallback.availableTools,
+					excludedTools: wildcardFallback.excludedTools,
+					modelCapabilities: wildcardFallback.modelCapabilities,
+				},
+				none.modelCapabilities,
+			],
+			[
+				{ supports: { vision: false } },
+				undefined,
+				{
+					availableTools: ['custom:*'],
+					excludedTools: ['mcp:*'],
+					modelCapabilities: { supports: { vision: true } },
+				},
+				undefined,
+			]
 		);
 		store.dispose();
 	});
@@ -892,6 +928,34 @@ suite('CopilotSessionLauncher resume config', () => {
 			[config.availableTools, config.excludedTools],
 			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]]
 		);
+		store.dispose();
+	});
+
+	test('uses one launch-time tool-search decision for the config and client tools', async () => {
+		const store = new DisposableStore();
+		const decisions: boolean[] = [];
+		const model: ModelSelection = { id: 'claude-opus-4.8', config: { thinkingLevel: 'medium' } };
+		const config = await buildResumeConfig(
+			createLauncher(store, {
+				toolSearchEnabled: true,
+				modelCapabilityOverrides: { 'claude-opus-4.8': { availableTools: ['custom:*'] } },
+			}),
+			model,
+			{
+				tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: {} } }],
+				plugins: [],
+				mcpServers: {},
+			},
+			toolSearchActive => {
+				decisions.push(toolSearchActive);
+				return [];
+			},
+		);
+
+		assert.deepStrictEqual({ config: config.toolSearch, decisions }, {
+			config: { enabled: true, deferThreshold: 1 },
+			decisions: [true],
+		});
 		store.dispose();
 	});
 });
