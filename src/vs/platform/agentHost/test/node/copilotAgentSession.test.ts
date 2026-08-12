@@ -2827,6 +2827,14 @@ suite('CopilotAgentSession', () => {
 			});
 			assert.strictEqual(result2.kind, 'approve-once');
 
+			// Layout 3: <timestamp>-copilot-tool-output-<process-id>-<uuid>.txt
+			const result3 = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', '1786499016779-copilot-tool-output-44600-1a0a63b8-4548-4fb8-a507-da72473e0556.txt'),
+				toolCallId: 'tc-tool-output-3',
+			});
+			assert.strictEqual(result3.kind, 'approve-once');
+
 			assert.strictEqual(signals.length, 0);
 		});
 

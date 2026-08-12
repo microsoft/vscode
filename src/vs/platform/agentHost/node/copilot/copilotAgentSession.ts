@@ -61,7 +61,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type CopilotSandboxConfig } from './sandboxConfigForSdk.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
@@ -349,20 +349,6 @@ function getCopilotCLISessionStateDir(userHome: string): string {
 	return join(getCopilotHomePath(userHome, process.env), SESSION_STATE_DIRECTORY);
 }
 
-/**
- * Matches the temp file names the Copilot SDK uses when spilling large tool
- * results to disk. The SDK writes these into `os.tmpdir()` and references the
- * path back to the model so it can read the output in a follow-up turn.
- *
- * Two layouts are emitted by the SDK depending on the codepath:
- *  - `<timestamp>-copilot-tool-output-<6-char-id>.txt` (large tool result)
- *  - `copilot-tool-output-<timestamp>-<6-char-id>.txt` (streaming output buffer)
- *
- * Both live directly inside `os.tmpdir()`, so we additionally require the
- * file's parent directory to be the OS temp directory before auto-approving.
- */
-const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-[a-z0-9]{6}|copilot-tool-output-\d{10,}-[a-z0-9]{6})\.txt$/i;
-
 function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
 	const fileUri = normalizePath(URI.file(filePath));
 	const tmpDirUri = normalizePath(URI.file(tmpDir));
@@ -370,9 +356,7 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 	if (!extUriBiasedIgnorePathCase.isEqual(parentUri, tmpDirUri)) {
 		return false;
 	}
-	const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
-	const basename = lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
-	return COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE.test(basename);
+	return isCopilotSdkToolOutputFile(filePath);
 }
 
 /**
