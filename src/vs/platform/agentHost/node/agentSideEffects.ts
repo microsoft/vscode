@@ -306,6 +306,8 @@ export class AgentSideEffects extends Disposable {
 						this._cancelledTurnIds.set(envelope.channel, turnIds);
 					}
 					turnIds.add(envelope.action.turnId);
+					const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
+					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(envelope.channel), envelope.action.turnId);
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
 				this._trackTurnUsage(envelope.channel, envelope.action);
@@ -559,11 +561,13 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionInputNeededSet, request });
 		// Record the blocker on the turn so a hang reported while the request is
 		// outstanding is tagged as an expected wait on the user rather than as
-		// an unexplained stall. A `ChatInput` elicitation carries no `turnId`,
-		// so fall back to the chat's active turn.
+		// an unexplained stall, and so the report can name the tool it gates. A
+		// `ChatInput` elicitation carries neither `turnId` nor a tool call, so
+		// fall back to the chat's active turn.
 		const blockedTurnId = hasKey(request, { turnId: true }) ? request.turnId : this._stateManager.getActiveTurnId(chatUri);
 		if (blockedTurnId) {
-			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind);
+			const blockedToolCallId = hasKey(request, { toolCall: true }) ? request.toolCall.toolCallId : undefined;
+			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind, blockedToolCallId);
 		}
 		if (request.kind !== SessionInputRequestKind.ChatInput) {
 			const agent = this._options.getAgent(sessionUri);
@@ -768,7 +772,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._stateManager.dispatchServerAction(sessionKey, action);
 			if (action.type === ActionType.ChatTurnComplete) {
-				this._runTurnCompleteSideEffects(sessionKey, undefined);
+				this._runTurnCompleteSideEffects(sessionKey, action.turnId);
 			}
 		}
 	}
@@ -869,7 +873,9 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.ChatToolCallStart) {
-			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId);
+			this._turnTracker.toolCallStarted(sessionKey, turnId, action.toolCallId, action.toolName, action.contributor);
+		} else if (action.type === ActionType.ChatToolCallReady) {
+			this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, action.toolCallId, action.contributor);
 		}
 
 		// A denied confirmation is a terminal transition to `cancelled`: the
@@ -914,6 +920,7 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatError) {
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
+			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
 			this._markSessionUnread(sessionUri);
 		}
 	}
@@ -954,20 +961,7 @@ export class AgentSideEffects extends Disposable {
 		// completion since those have always been fire-and-forget; the
 		// ordering guarantee we care about is checkpoint-then-changeset.
 		if (turnId !== undefined) {
-			// Resolved here rather than inside the checkpoint service so the
-			// repositories a checkpoint acts on are always explicit at the
-			// call site. Note the changeset service below deliberately keeps
-			// its own resolution: `onTurnComplete` only schedules deferred
-			// recomputes that are shared with subscription, truncation and
-			// mid-turn-debounce entry points, so it has no single point at
-			// which a caller-supplied set would apply.
-			const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
-			this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), turnId, workingDirectories).then(() => {
-				this._changesets.onTurnComplete(sessionUri, turnId);
-			}, err => {
-				this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
-				this._changesets.onTurnComplete(sessionUri, turnId);
-			});
+			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
 		} else {
 			this._changesets.onTurnComplete(sessionUri, turnId);
 		}
@@ -987,6 +981,17 @@ export class AgentSideEffects extends Disposable {
 		// complete after the parent turn). Each client keeps its active session
 		// read; `_markSessionUnread` is idempotent.
 		this._markSessionUnread(sessionUri);
+	}
+
+	private _captureTurnCheckpointAndRefresh(sessionKey: ProtocolURI, turnId: string): void {
+		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
+		this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => {
+			this._changesets.onTurnComplete(sessionUri, turnId);
+		}, err => {
+			this._logService.warn(`[AgentSideEffects] Turn checkpoint capture failed for ${sessionUri}/${turnId}: ${err instanceof Error ? err.message : String(err)}`);
+			this._changesets.onTurnComplete(sessionUri, turnId);
+		});
 	}
 
 	private _markSessionUnread(session: ProtocolURI): void {
@@ -1337,6 +1342,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const readyAction = this._permissionManager.createToolReadyAction(effective, sessionKey, turnId);
 		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
+		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
 		}
@@ -1394,8 +1400,8 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, action.turnId, state, 'direct', attachments);
-				const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
-				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel);
+				const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
 				void this._sendTurnMessage({
 					agent,
 					sessionChannel,
@@ -1533,6 +1539,7 @@ export class AgentSideEffects extends Disposable {
 				const survivingIds = new Set((this._stateManager.getChatState(chatChannel)?.turns ?? []).map(t => t.id));
 				const removed = this._options.localTurns.getLocalTurnIds(chatChannel).filter(id => !survivingIds.has(id));
 				this._options.localTurns.deleteLocals(sessionChannel, removed);
+				void this._checkpointService.discardChatTurnStartCheckpoints(URI.parse(sessionChannel), URI.parse(chatChannel));
 				// Turns removed by the truncation will never complete, so their
 				// hang watchdogs must not survive to report a turn that no
 				// longer exists. The active turn is tracked separately from
@@ -1837,8 +1844,8 @@ export class AgentSideEffects extends Disposable {
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
 		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, turnId, queuedState, 'queued', attachments);
-		const { model, modelTelemetryKind, permissionLevel } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
-		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel);
+		const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
 		// Selection travels on the queued message; it is applied before sending.
 		void this._sendTurnMessage({
 			agent,
@@ -1853,14 +1860,14 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
-
-	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined } {
+	private _getTurnTelemetryContext(agent: IAgent, state: SessionState | undefined, modelId: string | undefined): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined; permissionLevel: string | undefined; interactionMode: SessionMode | undefined } {
 		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
 		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
+		const interactionMode = getConfiguredSessionMode(state?.config);
 		const modelContext = modelId === undefined
 			? { model: undefined, modelTelemetryKind: undefined }
 			: this._getModelTelemetryContext(agent, modelId);
-		return { ...modelContext, permissionLevel };
+		return { ...modelContext, permissionLevel, interactionMode };
 	}
 
 	private _getModelTelemetryContext(agent: IAgent, modelId: string): { model: string; modelTelemetryKind: AgentHostModelTelemetryKind } {
@@ -1950,6 +1957,14 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				return;
+			}
+			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId, resolvedWorkingDirectories);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId);
+				return;
+			}
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
@@ -1963,6 +1978,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			this._completeTurn(turnChannel, turnId, 'error', failure);
 			this._toolCallTracker.clearSession(turnChannel);
+			void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(turnChannel), turnId);
 			this._failSessionCreationIfStillCreating(sessionChannel, error);
 		}
 	}

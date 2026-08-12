@@ -21,10 +21,17 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 
 // #region --- New Chat In Session Widget ---
 
 const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
+
+/**
+ * Marks the tip container while the banner is the notice on screen, so the seam
+ * with the input is styled only when the two are actually adjacent.
+ */
+const SHOWING_SUB_SESSION_TIP_CLASS = 'showing-sub-session-tip';
 
 /**
  * A widget for composing a secondary chat within an existing session.
@@ -98,6 +105,8 @@ export class NewChatInSessionWidget extends Disposable {
 		const tipWidget = dom.append(tipContainer, dom.$('.sub-session-tip-widget'));
 		tipWidget.setAttribute('role', 'status');
 		tipWidget.setAttribute('aria-label', localize('subSessionTip.ariaLabel', "New chat tip"));
+		// Reachable by the notice focus command, like every other notice above an input.
+		tipWidget.tabIndex = 0;
 
 		// Tip icon
 		const iconEl = dom.append(tipWidget, renderIcon(Codicon.lightbulb));
@@ -117,9 +126,15 @@ export class NewChatInSessionWidget extends Disposable {
 		dom.append(dismissBtn, renderIcon(Codicon.close));
 
 		const dismiss = () => {
+			// Removing the banner would strand keyboard focus on <body>, which also
+			// drops the context keys the chat keybindings depend on.
+			const hadFocus = dom.isAncestorOfActiveElement(tipWidget);
 			this.storageService.store(STORAGE_KEY_SUB_SESSION_TIP_DISMISSED, true, StorageScope.PROFILE, StorageTarget.USER);
 			tipContainer.remove();
 			this._tipDisposable.clear();
+			if (hadFocus) {
+				this._newChatInput.focus();
+			}
 		};
 
 		const handleDismiss = (e: Event) => {
@@ -131,6 +146,25 @@ export class NewChatInSessionWidget extends Disposable {
 		store.add(Gesture.addTarget(dismissBtn));
 		store.add(dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, handleDismiss));
 		store.add(dom.addDisposableListener(dismissBtn, TouchEventType.Tap, handleDismiss));
+
+		// Claims the tip lane above this input, so the banner yields to a
+		// notification or a first-run introduction instead of stacking with them.
+		// Hidden until the claim leads, which it does immediately when nothing
+		// else holds the space.
+		let leading = false;
+		dom.setVisibility(false, tipContainer);
+		store.add(this._newChatInput.noticeHost.occupy(ChatInputNoticeLane.Tip, {
+			focusTarget: {
+				hasFocus: () => dom.isAncestorOfActiveElement(tipWidget),
+				focus: () => tipWidget.focus(),
+				canFocus: () => leading,
+			},
+			onDidChangeLeading: isLeading => {
+				leading = isLeading;
+				tipContainer.classList.toggle(SHOWING_SUB_SESSION_TIP_CLASS, isLeading);
+				dom.setVisibility(isLeading, tipContainer);
+			},
+		}));
 		this._tipDisposable.value = store;
 	}
 

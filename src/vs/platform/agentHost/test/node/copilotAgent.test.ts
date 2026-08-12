@@ -32,23 +32,25 @@ import type { IByokLmBridgeConnection, IByokLmModelInfo } from '../../common/age
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
-import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type IAgentCreateChatForkSource, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_READ_DB_KEY, type ClientPluginCustomization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
-import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, CopilotSessionEntry, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
 import { COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/copilot/prompts/systemMessage.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION } from '../../node/copilot/prompts/toolInstructions.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -181,6 +183,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
 	async commitAll(): Promise<void> { }
+	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
 	async pull(): Promise<void> { }
@@ -415,6 +418,11 @@ class TestCopilotClient implements ITestCopilotClient {
 class RecordingTelemetryService extends NullTelemetryServiceShape {
 	readonly events: Array<{ eventName: string; data: unknown }> = [];
 	readonly errorEvents: Array<{ eventName: string; data: unknown }> = [];
+	readonly experimentProperties: Record<string, string> = {};
+
+	override setExperimentProperty(name?: string, value?: string): void {
+		this.experimentProperties[name ?? ''] = value ?? '';
+	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
 		this.events.push({ eventName: eventName ?? '', data });
@@ -533,6 +541,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -541,7 +550,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, managedSettingsService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -565,6 +574,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -573,7 +583,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, managedSettingsService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -624,15 +634,17 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
+	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
@@ -671,7 +683,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const agent = options?.copilotClient
 		? instantiationService.createInstance(options.useRealResumePath ? ResumePathCopilotAgent : TestableCopilotAgent, options.copilotClient)
 		: instantiationService.createInstance(CopilotAgent);
-	return { agent, instantiationService, configurationService: configService, fileService, stateManager };
+	return { agent, instantiationService, configurationService: configService, managedSettingsService, fileService, stateManager };
 }
 
 function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry }): CopilotAgent {
@@ -755,6 +767,55 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('threads the assignment context from root config into forwarded CLI telemetry, sticky across a wipe', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: unknown): void {
+				this.events.push({ eventName: eventName ?? '', data });
+			}
+		}();
+		const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, telemetryService });
+		try {
+			await agent.listSessions();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+
+			const notification = (sessionId: string): GitHubTelemetryNotification => ({
+				sessionId,
+				restricted: false,
+				event: { kind: 'response.success', properties: {}, metrics: {} },
+			});
+			configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'experiment:1' });
+			await forward(notification('set'));
+			configurationService.updateRootConfig({}, true);
+			await forward(notification('wiped-sticky'));
+			configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: '' });
+			await forward(notification('cleared'));
+
+			const expectedData = (sessionId: string, assignmentContext?: string) => ({
+				created_at: undefined,
+				model_call_id: undefined,
+				exp_assignment_context: undefined,
+				session_id: sessionId,
+				sdk_session_id: sessionId,
+				copilot_tracking_id: undefined,
+				kind: 'response.success',
+				restricted: false,
+				...(assignmentContext ? { 'abexp.assignmentcontext': assignmentContext } : {}),
+			});
+			assert.deepStrictEqual({ events: telemetryService.events, experimentProperties: telemetryService.experimentProperties }, {
+				events: [
+					{ eventName: 'copilotSdk/response.success', data: expectedData('set', 'experiment:1') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('wiped-sticky', 'experiment:1') },
+					{ eventName: 'copilotSdk/response.success', data: expectedData('cleared') },
+				],
+				experimentProperties: {},
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('routes exact legacy targets exclusively and falls back to generic forwarding', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
@@ -817,7 +878,7 @@ suite('CopilotAgent', () => {
 				enhanced: telemetryService.enhancedEvents,
 				internal: telemetryService.internalEvents,
 			}, {
-				generic: ['copilotCli/unknown_restricted', 'copilotCli/tool_call_executed'],
+				generic: ['copilotSdk/unknown_restricted', 'copilotSdk/tool_call_executed'],
 				enhanced: ['engine.messages.length'],
 				internal: ['engine.messages.length'],
 			});
@@ -1169,6 +1230,40 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	test('queries managed settings with pre-resolved token authentication', async () => {
+		let receivedInput: { authInfo?: { type: 'token'; host: string; token: string }; token?: string; signal?: AbortSignal } | undefined;
+		const runtimeSdk = {
+			getManagedSettings: async (input?: typeof receivedInput) => {
+				receivedInput = input;
+				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
+			},
+		};
+		const signal = new AbortController().signal;
+
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal);
+
+		assert.deepStrictEqual({
+			authInfo: receivedInput?.authInfo,
+			token: receivedInput?.token,
+			signalForwarded: receivedInput?.signal === signal,
+		}, {
+			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
+			token: 'token',
+			signalForwarded: true,
+		});
+	});
+
+	test('identifies a stalled managed settings query', async () => {
+		const runtimeSdk = {
+			getManagedSettings: () => new Promise<never>(() => { }),
+		};
+
+		await assert.rejects(
+			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
+			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
+		);
 	});
 
 	test('returns empty models and lists sessions before authentication', async () => {
@@ -2059,6 +2154,33 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('enables the rubber duck CLI feature by default', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], 'true');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not enable the rubber duck CLI feature when explicitly disabled', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('restarts the client when the Copilot SDK log level changes', async () => {
 			const client = new StopCountingClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -2082,6 +2204,28 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts sessions when managed permission contributions change or are removed', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, managedSettingsService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				const restricted = { disableBypassPermissionsMode: 'disable' as const };
+				managedSettingsService.setClientPermissions('client', restricted);
+				await Promise.resolve();
+				await agent.listSessions();
+				managedSettingsService.setClientPermissions('client', restricted);
+				await Promise.resolve();
+				managedSettingsService.removeClientPermissions('client');
+				await Promise.resolve();
+
+				assert.strictEqual(client.stopCount, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('re-enumerates models after a startup-config restart', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -2093,7 +2237,7 @@ suite('CopilotAgent', () => {
 
 				// The catalog belonged to the subprocess being torn down, and the
 				// replacement may point at a different CAPI endpoint entirely.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
 					await timeout(1);
 				}
@@ -2122,7 +2266,7 @@ suite('CopilotAgent', () => {
 				const requestsBefore = client.modelListRequests.length;
 				client.stopGate = stopGate.p;
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await agent.authenticate('https://api.github.com', 'token-b');
 				await timeout(10);
 				assert.strictEqual(client.modelListRequests.length, requestsBefore, 'model refresh must wait for the old client to stop');
@@ -2156,7 +2300,7 @@ suite('CopilotAgent', () => {
 				await agent.listSessions();
 				client.stopGate = stopGate.p;
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				const listPromise = agent.listSessions();
 				await timeout(10);
 				assert.strictEqual(client.startCallCount, 1, 'replacement client must wait for the old client to stop');
@@ -2186,7 +2330,7 @@ suite('CopilotAgent', () => {
 				const requestsBefore = client.modelListRequests.length;
 				client.stopError = new Error('stop failed');
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(10);
 				client.stopError = undefined;
 				await agent.refreshModels();
@@ -2218,7 +2362,7 @@ suite('CopilotAgent', () => {
 					await timeout(1);
 				}
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 2; i++) {
 					await timeout(1);
 				}
@@ -2243,7 +2387,7 @@ suite('CopilotAgent', () => {
 				// Force the client to start so a subsequent config change has something to restart.
 				await agent.listSessions();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await Promise.resolve();
 
 				assert.strictEqual(client.stopCount, 1);
@@ -2262,7 +2406,7 @@ suite('CopilotAgent', () => {
 				let disposed = false;
 				setDefaultSessionStub(agent, 'active', { dispose() { disposed = true; } });
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await Promise.resolve();
 
 				assert.deepStrictEqual({
@@ -2323,7 +2467,7 @@ suite('CopilotAgent', () => {
 				const chat = busyChatStub();
 				setDefaultSessionStub(agent, 'busy', chat);
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
 
@@ -2355,7 +2499,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, 'busy-1', first);
 				setDefaultSessionStub(agent, 'busy-2', second);
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 
 				first.hasActiveTurn = false;
@@ -2382,7 +2526,7 @@ suite('CopilotAgent', () => {
 
 				setDefaultSessionStub(agent, 'busy', busyChatStub());
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 				const duringTurn = client.stopCount;
 
@@ -2408,7 +2552,7 @@ suite('CopilotAgent', () => {
 
 				// Two startup values change while the turn runs; the first
 				// restart to actually run satisfies both.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' });
 				await timeout(0);
 
@@ -2635,6 +2779,49 @@ suite('CopilotAgent', () => {
 				{ id: 'acme/valid-default', thinkingLevel: { enum: ['low', 'medium', 'high'], default: 'medium' } },
 				{ id: 'acme/minimal-only', thinkingLevel: { enum: ['minimal'], default: 'minimal' } },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('BYOK models make Copilot authentication optional only while signed-out operation is enabled', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent, configurationService } = createTestAgentContext(disposables, { byokBridgeRegistry });
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		const connection: IByokLmBridgeConnection = {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		};
+		disposables.add(byokBridgeRegistry.register('renderer', connection));
+		const copilotRequired = () => agent.getProtectedResources()
+			.find(resource => resource.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource)?.required !== false;
+
+		try {
+			const initiallyRequired = copilotRequired();
+			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+			const requiredWithoutByok = copilotRequired();
+			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
+			await waitForState(agent.models, models => models.length === 1);
+			const optionalWithByok = copilotRequired();
+			modelSnapshots.fire([]);
+			await waitForState(agent.models, models => models.length === 0);
+			const requiredAfterHide = copilotRequired();
+			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: false });
+			const requiredAfterDisable = copilotRequired();
+
+			assert.deepStrictEqual({
+				initiallyRequired,
+				requiredWithoutByok,
+				optionalWithByok,
+				requiredAfterHide,
+				requiredAfterDisable,
+			}, {
+				initiallyRequired: true,
+				requiredWithoutByok: true,
+				optionalWithByok: false,
+				requiredAfterHide: true,
+				requiredAfterDisable: true,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -3065,7 +3252,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3121,7 +3308,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, changedResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3170,7 +3357,7 @@ suite('CopilotAgent', () => {
 				results: [firstResult, duplicateResult, thirdResult],
 				pendingPermissionCount,
 			}, {
-				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'denied-interactively-by-user' }],
+				results: [{ kind: 'approve-once' }, { kind: 'approve-once' }, { kind: 'reject', feedback: 'The user denied permission.' }],
 				pendingPermissionCount: 2,
 			});
 		} finally {
@@ -3484,6 +3671,52 @@ suite('CopilotAgent', () => {
 					importFork: undefined,
 					importedTurnIds: [forkedTurnId],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('materializes restored provider history without a persisted turn event mapping', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const source = AgentSession.uri('copilotcli', 'restored-source-session');
+			const target = AgentSession.uri('copilotcli', 'restored-target-session');
+			const sourceTurnId = '00000000-0000-4000-8000-000000000000';
+			const sourceTurn: Turn = {
+				id: sourceTurnId,
+				state: TurnState.Complete,
+				message: { text: 'Remember FORK_ALPHA.', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
+				usage: {},
+			};
+			setDefaultSessionStub(agent, AgentSession.id(source), {
+				getMessages: async () => [sourceTurn],
+				getTurnEventId: async () => undefined,
+				workingDirectory: URI.file('/source-workspace'),
+				dispose: () => { },
+			});
+
+			let importedTurnIds: readonly string[] | undefined;
+			const internals = agent as unknown as {
+				_importConversation(config: IAgentCreateSessionConfig, sessionId: string, directory: URI): Promise<IAgentCreateSessionResult>;
+			};
+			internals._importConversation = async config => {
+				importedTurnIds = config.importConversation?.turns.map(turn => turn.id);
+				return { session: target, resolvedWorkingDirectory: URI.file('/source-workspace') };
+			};
+
+			try {
+				const forkedTurnId = '11111111-1111-4111-8111-111111111111';
+				await agent.createSession({
+					session: target,
+					fork: {
+						session: source,
+						turnIndex: 0,
+						turnId: sourceTurnId,
+						turnIdMapping: new Map([[sourceTurnId, forkedTurnId]]),
+					},
+				});
+
+				assert.deepStrictEqual(importedTurnIds, [forkedTurnId]);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -6942,6 +7175,35 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(
 					{ adopted, customTitle },
 					{ adopted: { adopted: true, eligible: true }, customTitle: 'My Legacy Session' },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('marks the adopted session read so it is not surfaced as unread on open', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-read';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await writeExtensionHostMarker(userHome, sessionId);
+
+				const adopted = await agent.ensureSessionAdopted(session);
+
+				const db = await sessionDataService.tryOpenDatabase(session);
+				const isRead = await db?.object.getMetadata(AH_META_IS_READ_DB_KEY);
+				db?.dispose();
+
+				assert.deepStrictEqual(
+					{ adopted, isRead },
+					{ adopted: { adopted: true, eligible: true }, isRead: 'true' },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });

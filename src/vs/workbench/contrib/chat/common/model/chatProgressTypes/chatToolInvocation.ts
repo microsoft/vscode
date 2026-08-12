@@ -356,6 +356,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public async didExecuteTool(result: IToolResult | undefined, final?: boolean, checkIfResultAutoApproved?: () => Promise<ConfirmedReason | undefined>): Promise<IChatToolInvocation.State> {
+		const currentState = this._state.get();
+		if (currentState.type === IChatToolInvocation.StateKind.Completed || currentState.type === IChatToolInvocation.StateKind.Cancelled) {
+			return currentState;
+		}
+
 		if (result?.toolSpecificData) {
 			this.toolSpecificData = result.toolSpecificData;
 		}

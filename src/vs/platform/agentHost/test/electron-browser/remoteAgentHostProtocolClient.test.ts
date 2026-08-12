@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -29,7 +30,8 @@ import { CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKi
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
@@ -103,6 +105,12 @@ function getRootConfig(notification: JsonRpcNotification): Record<string, RootCo
 
 function findLastRootConfigNotification(messages: readonly ProtocolTransportMessage[], configKey: string): JsonRpcNotification {
 	return findRootConfigNotification([...messages].reverse(), configKey);
+}
+
+function findLastManagedSettingsNotification(messages: readonly ProtocolTransportMessage[]): ProtocolTransportMessage {
+	const match = [...messages].reverse().find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+	assert.ok(match, 'Expected a setClientManagedSettingsPermissions notification');
+	return match;
 }
 
 /** The value forwarded for `configKey` in the first root-config notification carrying it. */
@@ -736,6 +744,28 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('liveness watchdog does not time out local child-process connections', async () => {
+		const clock = sinon.useFakeTimers();
+		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.Local));
+		const { client } = createClient(transport);
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
+		try {
+			await clock.tickAsync(60_000);
+
+			assert.deepStrictEqual({
+				sentPing: transport.sentMessages.some(isPingRequest),
+				closeCount,
+			}, {
+				sentPing: true,
+				closeCount: 0,
+			});
+		} finally {
+			client.dispose();
+			clock.restore();
+		}
+	});
+
 	test('liveness stops after the connection is closed', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const lowLoad = { hasHighLoad: () => false };
@@ -928,6 +958,47 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const enabled = findLastRootConfigNotification(transport.sentMessages, AgentHostDisableRepoInfoTelemetryConfigKey);
 		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostDisableRepoInfoTelemetryConfigKey]: false });
+	});
+
+	test('forwards and clears legacy managed permissions for the local host', async () => {
+		const configurationService = new TestConfigurationService({
+			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+		});
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: {
+				permissions: {
+					disableBypassPermissionsMode: 'disable',
+					ask: ['Shell'],
+				},
+			},
+		});
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, true);
+		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+
+		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		});
 	});
 
 	test('forwards terminal auto-approve rules on connect', async () => {
@@ -1603,6 +1674,18 @@ suite('RemoteAgentHostProtocolClient', () => {
 			}
 		}
 
+		async function waitForRequestAt(transport: TestProtocolTransport, method: string, index: number): Promise<JsonRpcRequest> {
+			while (true) {
+				const requests = transport.sentMessages.filter(
+					(message): message is JsonRpcRequest => 'method' in message && message.method === method && 'id' in message,
+				);
+				if (requests[index]) {
+					return requests[index];
+				}
+				await Promise.resolve();
+			}
+		}
+
 		/** Wait for the next time the new transport is created by the factory. */
 		async function waitForTransport(transports: TestClientProtocolTransport[], index: number): Promise<TestClientProtocolTransport> {
 			while (transports.length <= index) {
@@ -1707,9 +1790,13 @@ suite('RemoteAgentHostProtocolClient', () => {
 		test('falls back to initialize with client info when the server forgot the client', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(createPermissionService(), agentsWindowAgentHostClientInfo);
+			let connectedRequest = Disposable.None;
 			try {
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
+				connectedRequest = Event.once(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected))(() => {
+					void client.listSessions().catch(() => { });
+				});
 
 				transports[0].fireClose();
 				await waitForReconnecting(client);
@@ -1730,10 +1817,102 @@ suite('RemoteAgentHostProtocolClient', () => {
 					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
 				});
 				await flushMicrotasks();
+				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
 			} finally {
+				connectedRequest.dispose();
 				client.dispose();
 			}
+		});
+
+		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const sessionUri = URI.parse('copilot:/test-session');
+			const chatUri = URI.parse('ahp-chat://default/test-session');
+			const connectPromise = client.connect();
+			await completeHandshake(transports[0], connectPromise);
+
+			const sessionRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
+			const initialSessionSubscribe = await waitForRequestAt(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialSessionSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 5 } },
+			});
+			const chatRef = client.getSubscription(StateComponents.Chat, chatUri, 'test');
+			const initialChatSubscribe = await waitForRequestAt(transports[0], 'subscribe', 1);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialChatSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 5 } },
+			});
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token' });
+			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+			await authentication;
+			await flushMicrotasks();
+
+			client.dispatch(chatUri.toString(), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-after-restart',
+				startedAt: '2026-08-09T00:00:00.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+			const initialDispatch = findDispatchAction(transports[0], ActionType.ChatTurnStarted);
+			assert.ok(initialDispatch);
+
+			transports[0].fireClose();
+			await waitForReconnecting(client);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'Reconnect client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION,
+					serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 0 }, fromSeq: 0 }],
+				},
+			});
+
+			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
+			assert.ok(
+				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),
+				'managed settings should be restored before authentication and subscriptions',
+			);
+			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: restoredAuthenticate.id, result: {} });
+			const restoredSessionSubscribe = await waitForRequestAt(reconnectTransport, 'subscribe', 0);
+			assert.strictEqual((restoredSessionSubscribe.params as { channel: string }).channel, sessionUri.toString());
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredSessionSubscribe.id,
+				result: { snapshot: { resource: sessionUri.toString(), state: { lifecycle: 'ready' }, fromSeq: 1 } },
+			});
+			const restoredChatSubscribe = await waitForRequestAt(reconnectTransport, 'subscribe', 1);
+			assert.strictEqual((restoredChatSubscribe.params as { channel: string }).channel, chatUri.toString());
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0', id: restoredChatSubscribe.id,
+				result: { snapshot: { resource: chatUri.toString(), state: { turns: [] }, fromSeq: 2 } },
+			});
+			await flushMicrotasks();
+
+			const replayed = findDispatchAction(reconnectTransport, ActionType.ChatTurnStarted);
+			assert.ok(replayed, 'pending turn should replay after the session and chat are restored');
+			assert.ok(
+				reconnectTransport.sentMessages.indexOf(replayed) > reconnectTransport.sentMessages.indexOf(restoredChatSubscribe),
+				'pending turn should be sent after subscription restoration',
+			);
+
+			chatRef.dispose();
+			sessionRef.dispose();
+			client.dispose();
 		});
 
 		test('replays pending optimistic actions after reconnect', async function () {

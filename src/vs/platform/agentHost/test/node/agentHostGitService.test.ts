@@ -5,13 +5,33 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('maps branches and GitHub pull request refs to origin tracking refs', () => {
+		assert.deepStrictEqual({
+			branch: getRemoteTrackingRef('feature'),
+			pullRequest: getRemoteTrackingRef('refs/pull/42/head'),
+		}, {
+			branch: {
+				branchName: 'feature',
+				remoteBranch: 'origin/feature',
+				remoteRef: 'refs/remotes/origin/feature',
+				sourceRef: 'refs/heads/feature',
+			},
+			pullRequest: {
+				branchName: 'pull/42/head',
+				remoteBranch: 'origin/pull/42/head',
+				remoteRef: 'refs/remotes/origin/pull/42/head',
+				sourceRef: 'refs/pull/42/head',
+			},
+		});
+	});
 
 	test('sorts the current and default branches before recent branches and applying the limit', () => {
 		assert.deepStrictEqual(
@@ -494,9 +514,11 @@ suite('AgentHostGitService', () => {
 					resolveDiffBaseBranchName('persisted', 'gitState'),
 					resolveDiffBaseBranchName(undefined, 'gitState'),
 					resolveDiffBaseBranchName('persisted', undefined),
+					resolveDiffBaseBranchName('origin/main', undefined),
+					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
 					resolveDiffBaseBranchName(undefined, undefined),
 				],
-				['persisted', 'gitState', 'persisted', undefined],
+				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
 			);
 		});
 	});
