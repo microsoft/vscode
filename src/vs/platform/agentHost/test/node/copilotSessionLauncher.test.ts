@@ -758,8 +758,9 @@ suite('normalizeToolFilterPatterns', () => {
 				normalizeToolFilterPatterns(['mcp:*', '*']),
 				// a lone string reads as a one-element list
 				normalizeToolFilterPatterns('mcp:*'),
-				// nothing to apply
+				// an empty allowlist means "no tools", so it must not read as unset
 				normalizeToolFilterPatterns([]),
+				// not a list at all → unusable
 				normalizeToolFilterPatterns(undefined),
 				normalizeToolFilterPatterns(42),
 				normalizeToolFilterPatterns(['ok', 7]),
@@ -768,7 +769,7 @@ suite('normalizeToolFilterPatterns', () => {
 				['builtin:*', 'mcp:*', 'custom:*'],
 				['mcp:*', 'builtin:*', 'custom:*'],
 				['mcp:*'],
-				undefined,
+				[],
 				undefined,
 				undefined,
 				undefined,

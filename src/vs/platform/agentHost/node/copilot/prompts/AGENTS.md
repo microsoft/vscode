@@ -162,7 +162,8 @@ alias, so a preview model resolves through another family's contributor),
 `reasoningEffort` (wins over the model picker's thinking level; set it on the
 `'*'` entry to pin every model, re-applied on session resume and mid-session
 model change),
-`availableTools`/`excludedTools` (SDK tool filters; launch-frozen),
+`availableTools`/`excludedTools` (SDK tool filters; applied on launch and
+resume, but not on a mid-session model change),
 and `modelCapabilities` (per-property overrides passed through to the SDK's
 `modelCapabilities` field — e.g. vision support, token limits — applied on
 every launch and resume).

@@ -381,8 +381,8 @@ function getModelCapabilitiesOverride(value: unknown, modelId: string, logServic
 const TOOL_FILTER_SOURCE_WILDCARDS = ['builtin:*', 'mcp:*', 'custom:*'];
 
 /**
- * The usable patterns in a tool-filter override, or `undefined` when it carries
- * none. A bare `'*'` is EXPANDED rather than dropped: the SDK's
+ * The patterns in a tool-filter override, or `undefined` when the value is not a
+ * list at all. A bare `'*'` is EXPANDED rather than dropped: the SDK's
  * `validateToolFilterList` throws on it, but silently ignoring it would turn an
  * `excludedTools: ['*']` into "exclude nothing" — the opposite of what was
  * asked. A lone string is read as a one-element list for the same reason.
@@ -392,9 +392,11 @@ const TOOL_FILTER_SOURCE_WILDCARDS = ['builtin:*', 'mcp:*', 'custom:*'];
  */
 export function normalizeToolFilterPatterns(value: unknown): string[] | undefined {
 	const list = typeof value === 'string' ? [value] : value;
-	if (!isStringArray(list) || list.length === 0) {
+	if (!isStringArray(list)) {
 		return undefined;
 	}
+	// `[]` is preserved, not collapsed to "unset": an empty allowlist means "no
+	// tools", and dropping it would enable every tool instead.
 	return [...new Set(list.flatMap(pattern => pattern === '*' ? TOOL_FILTER_SOURCE_WILDCARDS : [pattern]))];
 }
 
@@ -405,7 +407,7 @@ function getToolFilterOverride(value: unknown, field: string, modelId: string, l
 	}
 	const patterns = normalizeToolFilterPatterns(value);
 	if (patterns === undefined) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring unusable '${field}' capability override for '${modelId}'; expected a non-empty array of tool patterns`);
+		logService.warn(`[Copilot:${sessionId}] Ignoring unusable '${field}' capability override for '${modelId}'; expected an array of tool patterns`);
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying '${field}' capability override for '${modelId}': ${patterns.join(', ')}`);
@@ -575,22 +577,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
-				// Last resort before the session becomes unopenable. A configured
-				// effort is validated against the canonical level list, not against
-				// what this model accepts, so the runtime may reject it — and unlike
-				// a create there is a good fallback: the effort it already journaled.
-				// Derived from `config` so a failed agent retry above cannot compound.
-				if (config.reasoningEffort !== undefined) {
-					this._logService.warn(`[Copilot:${plan.sessionId}] Retrying resume without the configured reasoning effort '${config.reasoningEffort}' before surfacing the failure`);
-					try {
-						const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, { ...config, reasoningEffort: undefined }));
-						this._logService.info(`[Copilot:${plan.sessionId}] Resume succeeded without the configured reasoning effort; the session keeps the effort the runtime journaled`);
-						await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
-						return new CopilotSessionWrapper(raw);
-					} catch (retryErr) {
-						this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without a configured reasoning effort failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
-					}
-				}
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
@@ -750,8 +736,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
 		const capabilityOverride = resolveModelCapabilityOverride(capabilityOverrides, model?.id);
 		const modelFamily = getModelFamilyOverride(capabilityOverride?.family, describeModelId(model), this._logService, plan.sessionId);
-		// Frozen at launch, like the system message: a mid-session model change
-		// cannot re-apply them.
+		// Re-applied on every launch and resume, but NOT on a mid-session model
+		// change: a session keeps the filters of the model it launched with.
 		const availableTools = getToolFilterOverride(capabilityOverride?.availableTools, 'availableTools', describeModelId(model), this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(capabilityOverride?.excludedTools, 'excludedTools', describeModelId(model), this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
