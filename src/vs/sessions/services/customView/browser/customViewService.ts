@@ -27,7 +27,7 @@ export interface ICustomViewService {
 	/** The view that should currently be rendered, or `undefined` for none. */
 	readonly activeCustomView: IObservable<ICustomViewDescriptor | undefined>;
 
-	registerCustomView(descriptor: ICustomViewDescriptor): IDisposable;
+	registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }): IDisposable;
 
 	/** Shows the registered view with the given id, replacing any shown view. */
 	showCustomView(id: string): void;
@@ -53,14 +53,19 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 		this._desiredCustomViewId = this._storageService.get(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, StorageScope.WORKSPACE);
 	}
 
-	registerCustomView(descriptor: ICustomViewDescriptor): IDisposable {
+	registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }): IDisposable {
 		if (this._descriptors.has(descriptor.id)) {
 			throw new Error(`A custom view with id '${descriptor.id}' is already registered`);
 		}
 
 		this._descriptors.set(descriptor.id, descriptor);
 		if (this._desiredCustomViewId === descriptor.id) {
-			this._activeCustomView.set(descriptor, undefined);
+			if (options?.restore === false) {
+				this._desiredCustomViewId = undefined;
+				this._storageService.remove(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, StorageScope.WORKSPACE);
+			} else {
+				this._activeCustomView.set(descriptor, undefined);
+			}
 		}
 
 		return toDisposable(() => {

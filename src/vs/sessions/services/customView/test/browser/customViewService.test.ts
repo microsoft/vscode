@@ -111,6 +111,28 @@ suite('Sessions - CustomViewService', () => {
 		assert.strictEqual(restoredService.activeCustomView.get(), undefined);
 	});
 
+	test('ineligible registration clears only its matching restoration intent', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const firstService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(firstService.registerCustomView(descriptor('automations')));
+		firstService.showCustomView('automations');
+
+		const restoredService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(restoredService.registerCustomView(descriptor('other'), { restore: false }));
+		disposables.add(restoredService.registerCustomView(descriptor('automations'), { restore: false }));
+
+		const nextService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(nextService.registerCustomView(descriptor('automations')));
+
+		assert.deepStrictEqual({
+			restored: restoredService.activeCustomView.get(),
+			nextReload: nextService.activeCustomView.get(),
+		}, {
+			restored: undefined,
+			nextReload: undefined,
+		});
+	});
+
 	test('unregistering clears the effective view but preserves restoration intent', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const service = disposables.add(new CustomViewService(new NullLogService(), storageService));
