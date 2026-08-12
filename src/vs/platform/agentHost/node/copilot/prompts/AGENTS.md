@@ -36,7 +36,7 @@ data the SDK accepts directly.
 2. **`_withUniversalSections`** — layers the model-agnostic tool instructions on
    top, **composing** with — never clobbering — any per-model override for that
    section. For a `replace` base the lines are appended after the replacement
-   content instead (`appendUniversalToolInstructions`).
+   content instead.
 3. **Workspaceless scratch + file-link contract** — appended as trailing
    `content` for every mode, including `replace`, so a full replacement owns the
    prompt body but not the host's response-format plumbing.
@@ -157,8 +157,8 @@ layering is a known follow-up.
 
 `chat.agentHost.copilot.modelCapabilityOverrides` entries (keyed by model id; `'*'`
 matches every model, a specific entry wins field-by-field) carry the non-prompt
-experimentation knobs the launcher applies: `family` (prompt-routing alias, so
-a preview model resolves through another family's contributor),
+experimentation knobs the launcher applies: `family` (prompt and tool-profile
+alias, so a preview model resolves through another family's contributor),
 `reasoningEffort` (wins over the model picker's thinking level; set it on the
 `'*'` entry to pin every model, re-applied on session resume and mid-session
 model change),
@@ -167,16 +167,18 @@ and `modelCapabilities` (per-property overrides passed through to the SDK's
 `modelCapabilities` field — e.g. vision support, token limits — applied on
 every launch and resume).
 
-`family` has a second, runtime-side half. The Copilot runtime keys its *own*
-per-model config (system-prompt parts, model capabilities, reasoning-effort
-profile) off the model id, and family values such as `claude-opus-4.8` are model
-ids in that config. `CopilotSessionLauncher` therefore passes the resolved
-wildcard/per-model `family` through the SDK's existing `model` field on every
-create and resume, and `CopilotAgent._changeModel` sends the same aliased id on
-a mid-session model change (stored metadata keeps the un-aliased selection, so
-the alias is re-resolved on every relaunch). The host prompt and runtime use the
-same effective model id without a process-wide environment override or client
-restart.
+`family` is host-side only: it selects the prompt contributor and the
+tool-search capability gate, and the model id sent to the runtime is unchanged,
+so the session still runs on the selected model. That is the point — a preview
+model can be evaluated against a known family's prompt and tool profile while
+still hitting its own endpoint.
+
+The runtime keeps its *own* per-model config (system-prompt parts, capabilities,
+reasoning-effort profile) keyed off the model id it receives, so an aliased
+session gets the real model's runtime config with the family's host overrides
+layered on top. Aliasing the runtime's half too would need
+`COPILOT_MODEL_FAMILY`, which is process-scoped and would leak across every
+session in the window.
 
 > **Security note.** The setting is workspace-configurable and forwarded to the
 > agent host, so entries must never carry content that reaches the prompt or

@@ -8,7 +8,7 @@ import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
-import { appendUniversalToolInstructions, resolveToolInstructionsOverride, toolSearchInstructionLines } from './toolInstructions.js';
+import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions } from './toolInstructions.js';
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
 
@@ -197,7 +197,8 @@ export class AgentHostPromptRegistry {
 	 */
 	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
 		if (config.mode === 'replace') {
-			return { ...config, content: appendUniversalToolInstructions(config.content, name => context.hasClientTool(name), toolSearchInstructionLines(context.toolSearchActive)) };
+			const lines = universalToolInstructions(name => context.hasClientTool(name), toolSearchInstructionLines(context.toolSearchActive));
+			return lines ? appendSystemMessageContent(config, lines) : config;
 		}
 		if (config.mode !== 'customize') {
 			return config;

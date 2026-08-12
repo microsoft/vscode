@@ -62,7 +62,7 @@ export function normalizeToolSearchDeferThreshold(value: number | undefined): nu
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 export interface ICopilotCliModelCapabilityOverride {
-	/** Family alias (e.g. `"claude-opus-4.8"`), passed to the SDK as the session model id. */
+	/** Family alias (e.g. `"claude-opus-4.8"`) for prompt and tool-capability routing. */
 	readonly family?: string;
 	/** Wins over the model picker's thinking level; unrecognized values are ignored. */
 	readonly reasoningEffort?: string;
@@ -81,15 +81,10 @@ export type CopilotCliModelCapabilityOverrides = Record<string, ICopilotCliModel
 export const MODEL_CAPABILITY_OVERRIDE_WILDCARD = '*';
 
 /**
- * The wildcard entry merged field-by-field under the model's own entry, so a
- * specific entry's fields win and the wildcard fills the gaps.
- *
- * `modelId` is optional because a session can run without a chosen model
- * (server-side "Auto"); the wildcard still applies to it, since exempting such
- * sessions would make `*` mean "every model except Auto".
- *
- * Field values are NOT validated here — the root-config validator does not
- * descend into `additionalProperties`, so use sites validate defensively.
+ * The wildcard entry merged field-by-field under the model's own entry. `modelId`
+ * is optional because a session can run without a chosen model (server-side
+ * "Auto"), and the wildcard still applies to it. Field values are NOT validated
+ * here — the root-config validator does not descend into `additionalProperties`.
  */
 export function resolveModelCapabilityOverride(overrides: CopilotCliModelCapabilityOverrides | undefined, modelId: string | undefined): ICopilotCliModelCapabilityOverride | undefined {
 	const wildcard = overrides?.[MODEL_CAPABILITY_OVERRIDE_WILDCARD];
@@ -145,7 +140,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({
 		type: 'object',
 		title: localize('agentHost.config.modelCapabilityOverrides.title', "Model Capability Overrides"),
-		description: localize('agentHost.config.modelCapabilityOverrides.description', "Per-model capability overrides for Copilot SDK sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field). Aliasing a model id to a known `family` launches the SDK session with that family as its model id so the runtime applies the family's prompt and capabilities; the remaining fields override reasoning effort, tool enablement, and model capability limits per model. Only affects Copilot SDK sessions; intended for experimentation."),
+		description: localize('agentHost.config.modelCapabilityOverrides.description', "Per-model capability overrides for Copilot SDK sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field). Aliasing a model id to a known `family` routes it to that family's tuned system prompt and tool profile without changing the model id sent to the runtime; the remaining fields override reasoning effort, tool enablement, and model capability limits per model. Only affects Copilot SDK sessions; intended for experimentation."),
 		additionalProperties: {
 			type: 'object',
 			title: localize('agentHost.config.modelCapabilityOverrides.entry.title', "Capability Override"),
@@ -154,7 +149,7 @@ export const copilotCliConfigSchema = createSchema({
 				family: {
 					type: 'string',
 					title: localize('agentHost.config.modelCapabilityOverrides.family.title', "Family"),
-					description: localize('agentHost.config.modelCapabilityOverrides.family.description', "Alias the SDK session's model id for prompt and runtime capability routing (e.g. `claude-opus-4.8`). Applied when the session launches or resumes."),
+					description: localize('agentHost.config.modelCapabilityOverrides.family.description', "Route the model to another family's tuned system prompt and tool profile (e.g. `claude-opus-4.8`). The model id sent to the runtime is unaffected, so the session still runs on the selected model."),
 				},
 				reasoningEffort: {
 					type: 'string',
@@ -185,11 +180,9 @@ export const copilotCliConfigSchema = createSchema({
 	}),
 });
 
-// Rejects only what cannot be a model id: the empty string, surrounding
-// whitespace, control characters, and absurd lengths. The alias travels as the
-// SDK's session `model` field, so the runtime is the authority on which ids
-// exist — an allow-list of id shapes here would silently reject valid ones
-// (provider-qualified `vendor/model`, say) with no UI signal.
+// The alias travels as the SDK's session `model` field, so the runtime is the
+// authority on which ids exist; an allow-list of id shapes here would silently
+// reject valid ones (`vendor/model`). Reject only what cannot be an id at all.
 const MODEL_FAMILY_MAX_LENGTH = 128;
 const MODEL_FAMILY_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 

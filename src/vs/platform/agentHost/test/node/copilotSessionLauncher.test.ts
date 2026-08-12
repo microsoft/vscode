@@ -544,49 +544,6 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
-
-	test('drops the pinned model and retries before surfacing a resume failure', async () => {
-		// A resume pins the stored model id even with no capability override
-		// configured, so a model retired since the session was created would
-		// otherwise make the session permanently unopenable. The retry is keyed on
-		// having pinned a model at all, not on the runtime's error prose — an
-		// unrecognized message must still reach it.
-		const models: (string | undefined)[] = [];
-		let createSessionCalls = 0;
-		const session = { sessionId: 'session-1', on: () => () => { }, disconnect: async () => { } } as unknown as CopilotSession;
-		const client = {
-			createSession: async () => { createSessionCalls++; return session; },
-			resumeSession: async (_id: string, config: { model?: string }) => {
-				models.push(config.model);
-				if (config.model !== undefined) {
-					throw new TestSdkError('Request session.resume failed: model rejected by policy', -32603);
-				}
-				return session;
-			},
-		};
-		const launcher = createTestLauncher();
-		const plan = {
-			client,
-			sessionId: 'session-1',
-			workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(),
-			shellManager: undefined,
-			githubToken: undefined,
-			kind: 'resume',
-			fallback: { model: { id: 'retired-model' } },
-		} as unknown as CopilotSessionLaunchPlan;
-
-		const sessions = new DisposableStore();
-		try {
-			sessions.add(await launcher.launch(plan, testRuntime));
-			assert.deepStrictEqual({ models, createSessionCalls }, { models: ['retired-model', undefined], createSessionCalls: 0 });
-		} finally {
-			sessions.dispose();
-			await launcher.disposeByokProxyHandle();
-		}
-	});
 });
 
 suite('CopilotSessionLauncher verbosity', () => {
@@ -656,12 +613,7 @@ suite('getCopilotReasoningEffort', () => {
 	});
 });
 
-/**
- * Covers the full config-driven precedence chain: the per-model capability
- * override (specific id, then the `*` wildcard) wins over the global override,
- * which wins over the picker's thinking level; an invalid value at either
- * stage falls through to the next.
- */
+/** A specific entry wins over `*`, which wins over the picker; invalid falls through. */
 suite('resolveCopilotReasoningEffort', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -713,10 +665,8 @@ suite('resolveCopilotReasoningEffort', () => {
 });
 
 /**
- * Covers the prompt-gate view of the per-model tool filters: client tools are
- * all `custom:`-source, so a tool is excluded by its bare name, `custom:<name>`,
- * or `custom:*` — and `excludedTools` wins over `availableTools`, mirroring
- * the SDK. Ensures the system message never advertises a filtered-out tool.
+ * Client tools are all `custom:`-source, so only a bare name, `custom:<name>` or
+ * `custom:*` matches, and `excludedTools` wins — mirroring the SDK.
  */
 suite('filterClientToolNames', () => {
 
@@ -749,6 +699,23 @@ suite('filterClientToolNames', () => {
 				['readPage', 'runTask'],
 			]
 		);
+
+		// The tool-search tool is registered with `overridesBuiltInTool`, so a
+		// `builtin:` pattern reaches it where it never reaches a plain client tool.
+		const withSearch = new Set([CLIENT_TOOL_SEARCH_REFERENCE_NAME, 'runTask']);
+		const resolveSearch = (excluded: string[]) => [...filterClientToolNames(withSearch, undefined, excluded)].sort();
+		assert.deepStrictEqual(
+			[
+				resolveSearch([`builtin:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]),
+				resolveSearch(['builtin:*']),
+				resolveSearch([RUNTIME_TOOL_SEARCH_TOOL_NAME]),
+			],
+			[
+				['runTask'],
+				['runTask'],
+				['runTask'],
+			]
+		);
 	});
 
 	test('keeps Agent Host and SDK tool-search names consistent', () => {
@@ -771,10 +738,8 @@ suite('filterClientToolNames', () => {
 });
 
 /**
- * Covers the session config the launcher hands to `resumeSession`: a resumed
- * session keeps the effort the runtime persisted for it unless the host has an
- * override configured, in which case the override re-applies at resume (create
- * always resolves the full effort in `_createSession`).
+ * A resumed session keeps the effort the runtime journaled unless an override is
+ * configured; `_createSession` resolves the full effort for a create.
  */
 suite('CopilotSessionLauncher resume config', () => {
 
@@ -830,42 +795,17 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
-	test('resets the context tier on resume only when a family alias applies', async () => {
-		const store = new DisposableStore();
-		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };
-		// The runtime restores the tier from the session journal, so an alias added
-		// to an existing session has to clear the previous model's long-context pin.
-		const aliased = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { family: 'claude-opus-4.8' } } }), model);
-		// Without an alias the journaled tier is left exactly as it was.
-		const invalidAlias = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'gpt-5': { family: ' not an id ' } } }), model);
-		const none = await buildResumeConfig(createLauncher(store, {}), model);
-
-		assert.deepStrictEqual(
-			[aliased.contextTier, invalidAlias.contextTier, none.contextTier],
-			['default', undefined, undefined]
-		);
-		store.dispose();
-	});
-
-	test('uses the resolved per-model family as the SDK model on resume', async () => {
+	test('never sends the model or context tier on resume, aliased or not', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'preview-model', config: { thinkingLevel: 'medium' } };
-		const specific = await buildResumeConfig(createLauncher(store, {
-			modelCapabilityOverrides: {
-				'*': { family: 'gpt-5' },
-				'preview-model': { family: 'claude-opus-4.8' },
-			},
-		}), model);
-		const invalid = await buildResumeConfig(createLauncher(store, {
-			modelCapabilityOverrides: { 'preview-model': { family: ' not an id ' } },
-		}), model);
+		// A `family` alias routes the host prompt only, so the resumed session keeps
+		// the model and tier the runtime journaled for it.
+		const aliased = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-4.8' } } }), model);
 		const none = await buildResumeConfig(createLauncher(store, {}), model);
 
-		// Unlike the effort, the model IS re-sent without an override — the
-		// resumed session is pinned to the selection the picker shows.
 		assert.deepStrictEqual(
-			[specific.model, invalid.model, none.model],
-			['claude-opus-4.8', 'preview-model', 'preview-model']
+			[aliased.model, aliased.contextTier, none.model, none.contextTier],
+			[undefined, undefined, undefined, undefined]
 		);
 		store.dispose();
 	});
@@ -875,12 +815,12 @@ suite('CopilotSessionLauncher resume config', () => {
 		// Sessions created without an explicit model (server-side "Auto") resume
 		// with `fallback.model === undefined`; `*` means every session, so
 		// exempting them would make the entry mean "every model except Auto".
-		const launcher = createLauncher(store, { modelCapabilityOverrides: { '*': { family: 'claude-opus-4.8', reasoningEffort: 'high', excludedTools: ['mcp:*'] }, 'gpt-5': { reasoningEffort: 'low' } } });
+		const launcher = createLauncher(store, { modelCapabilityOverrides: { '*': { reasoningEffort: 'high', excludedTools: ['mcp:*'] }, 'gpt-5': { reasoningEffort: 'low' } } });
 		const config = await buildResumeConfig(launcher, undefined);
 
 		assert.deepStrictEqual(
-			[config.model, config.reasoningEffort, config.excludedTools],
-			['claude-opus-4.8', 'high', ['mcp:*']]
+			[config.reasoningEffort, config.excludedTools],
+			['high', ['mcp:*']]
 		);
 		store.dispose();
 	});

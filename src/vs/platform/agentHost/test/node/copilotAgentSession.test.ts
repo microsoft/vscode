@@ -7549,6 +7549,29 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(invalidAlias.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
 		});
 
+		test('a tool filter that removes the tool-search tool also turns tool search off', async () => {
+			const toolSearchSnapshot: IActiveClientSnapshot = {
+				tools: [
+					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: {} } },
+					{ name: 'my_tool', description: 'Regular tool', inputSchema: { type: 'object', properties: {} } },
+				],
+				plugins: [],
+				mcpServers: {},
+			};
+			// The launcher gates the prompt and the SDK's `toolSearch` config on the
+			// filtered set; the session has to agree or it would defer every client
+			// tool behind a search tool the runtime was told to disable.
+			const filtered = await createAgentSession(disposables, {
+				clientSnapshot: toolSearchSnapshot,
+				modelId: 'claude-opus-4.8',
+				rootValues: {
+					[CopilotCliConfigKey.ToolSearchEnabled]: true,
+					[CopilotCliConfigKey.ModelCapabilityOverrides]: { '*': { excludedTools: ['custom:toolSearch'] } },
+				},
+			});
+			assert.deepStrictEqual(filtered.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
+		});
+
 		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {
 			const agentSnapshot: IActiveClientSnapshot = {
 				tools: [{ name: 'list_agents', description: 'List agents', inputSchema: { type: 'object', properties: {} } }],

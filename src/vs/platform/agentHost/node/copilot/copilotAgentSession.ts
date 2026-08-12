@@ -28,7 +28,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath } from '../../common/copilotHome.js';
-import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, applyModelFamilyAlias, copilotCliConfigSchema, resolveModelCapabilityOverride } from '../../common/copilotCliConfig.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { gitHubMcpServerUrl } from '../../common/githubEndpoints.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
@@ -49,7 +49,7 @@ import { ActionType, isChatAction, type ChatAction, type SessionAction } from '.
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, isSubagentSession, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
-import { clientToolNamesFromSnapshot, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { clientToolNamesFromSnapshot, filterClientToolNames, normalizeToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { agentHostModelSupportsToolSearch, CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter } from '../agentHostTelemetryReporter.js';
@@ -934,13 +934,22 @@ export class CopilotAgentSession extends Disposable {
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
+		// Routing keeps the unfiltered set — the runtime is the enforcement point.
 		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
 		const model = this._launchPlan.kind === 'create' ? this._launchPlan.model : this._launchPlan.fallback.model;
-		// Aliased, to agree with the model id the launcher sends to the SDK.
-		const effectiveModel = applyModelFamilyAlias(model, this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides));
+		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+		const capabilityOverride = resolveModelCapabilityOverride(capabilityOverrides, model?.id);
+		// Gated on the FILTERED set, exactly as the launcher gates the prompt and
+		// the SDK's `toolSearch` config, so the two halves cannot disagree.
+		const gateToolNames = filterClientToolNames(
+			this._clientToolNames,
+			normalizeToolFilterPatterns(capabilityOverride?.availableTools),
+			normalizeToolFilterPatterns(capabilityOverride?.excludedTools),
+		);
+		const effectiveModel = applyModelFamilyAlias(model, capabilityOverrides);
 		this._toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
-			&& this._clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
+			&& gateToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		// Share the agent's live ActiveClientToolSet when provided so client
 		// contributions (and owner identity) are observed at stamp time.
 		// Standalone / test construction uses a fresh empty registry, which

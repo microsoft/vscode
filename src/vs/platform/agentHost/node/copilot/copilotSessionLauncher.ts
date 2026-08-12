@@ -120,13 +120,17 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 		return names;
 	}
 	const matches = (patterns: readonly string[], name: string) => {
-		const sdkName = name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+		// The tool-search tool is the one client tool registered with
+		// `overridesBuiltInTool`, so a `builtin:` pattern can reach it too.
+		const overridesBuiltIn = name === CLIENT_TOOL_SEARCH_REFERENCE_NAME;
+		const sdkName = overridesBuiltIn ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
 		return patterns.some(pattern =>
 			pattern === name ||
 			pattern === sdkName ||
 			pattern === `custom:${name}` ||
 			pattern === `custom:${sdkName}` ||
-			pattern === 'custom:*'
+			pattern === 'custom:*' ||
+			(overridesBuiltIn && (pattern === `builtin:${sdkName}` || pattern === 'builtin:*'))
 		);
 	};
 	const result = new Set<string>();
@@ -371,15 +375,23 @@ function getModelCapabilitiesOverride(value: unknown, modelId: string, logServic
 }
 
 /**
- * The validation point for a tool-filter override: the root-config validator does
- * not descend into the setting's entries.
+ * The usable patterns in a tool-filter override, or `undefined` when it is
+ * malformed or empty. A bare `'*'` is stripped because the SDK's
+ * `validateToolFilterList` throws on it; anything left empty reads as unset,
+ * which fails OPEN so a bad experiment value cannot break a launch.
  *
- * A bare `'*'` is stripped because the SDK's `validateToolFilterList` throws on
- * it, and a bad experiment value must never break a session launch. Anything
- * left empty reads as unset, which fails OPEN — for `excludedTools` that
- * knowingly degrades "exclude everything" to "exclude nothing", accepted so the
- * session stays usable and the prompt stays consistent with the runtime.
+ * Pure so the launcher and {@link CopilotAgentSession} gate on the same set
+ * without logging the same warnings twice per launch.
  */
+export function normalizeToolFilterPatterns(value: unknown): string[] | undefined {
+	if (!isStringArray(value)) {
+		return undefined;
+	}
+	const patterns = value.filter(pattern => pattern !== '*');
+	return patterns.length > 0 ? patterns : undefined;
+}
+
+/** {@link normalizeToolFilterPatterns} plus the launch-time diagnostics. */
 function getToolFilterOverride(value: unknown, field: string, modelId: string, logService: ILogService, sessionId: string): string[] | undefined {
 	if (value === undefined) {
 		return undefined;
@@ -388,11 +400,11 @@ function getToolFilterOverride(value: unknown, field: string, modelId: string, l
 		logService.warn(`[Copilot:${sessionId}] Ignoring invalid '${field}' capability override for '${modelId}'; expected an array of strings`);
 		return undefined;
 	}
-	const patterns = value.filter(pattern => pattern !== '*');
-	if (patterns.length < value.length) {
+	const patterns = normalizeToolFilterPatterns(value);
+	if (value.some(pattern => pattern === '*')) {
 		logService.warn(`[Copilot:${sessionId}] Ignoring '*' in '${field}' capability override for '${modelId}'; there is no bare wildcard — use 'builtin:*', 'mcp:*', or 'custom:*'`);
 	}
-	if (patterns.length === 0) {
+	if (patterns === undefined) {
 		if (value.length === 0) {
 			logService.warn(`[Copilot:${sessionId}] Ignoring empty '${field}' capability override for '${modelId}'; list one or more patterns, or remove the entry`);
 		}
@@ -565,24 +577,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
-				// Last resort before the session becomes unopenable: a resume pins
-				// the stored model id, which the runtime may no longer accept (a
-				// retired, renamed, or out-of-policy model). Dropping it is lossless
-				// — the runtime falls back to the model it journaled — so it is worth
-				// one attempt whatever the failure was, rather than matching on error
-				// prose the runtime is free to reword.
-				if (fallbackConfig.model !== undefined) {
-					fallbackConfig = { ...fallbackConfig, model: undefined };
-					this._logService.warn(`[Copilot:${plan.sessionId}] Retrying resume without the pinned model '${config.model}' before surfacing the failure`);
-					try {
-						const raw = await this._withTraceContext(fallbackPlan.sessionId, () => fallbackPlan.client.resumeSession(fallbackPlan.sessionId, fallbackConfig));
-						this._logService.info(`[Copilot:${plan.sessionId}] Resume succeeded without the pinned model; the session keeps the model the runtime journaled`);
-						await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
-						return new CopilotSessionWrapper(raw);
-					} catch (retryErr) {
-						this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without a pinned model failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
-					}
-				}
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}
@@ -606,26 +600,20 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: ResumeSessionConfig, sandboxConfig: CopilotSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
-		const modelFamilyAliased = config.model !== undefined && config.model !== plan.model?.id;
-		// Effort and context tier are both tuned for the selected model, which says
-		// nothing about what an aliased family supports — so an alias drops them and
-		// takes that family's runtime defaults, unless an override pins the effort.
-		const reasoningEffort = modelFamilyAliased
-			? resolveConfiguredReasoningEffortOverride(plan.model, this._configurationService, this._logService, plan.sessionId)
-			: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId);
 		const raw = await this._withTraceContext(plan.sessionId, () => plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
 			streaming: true,
-			reasoningEffort,
-			contextTier: modelFamilyAliased ? undefined : getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
+			model: plan.model?.id,
+			reasoningEffort: resolveCopilotReasoningEffort(plan.model, this._configurationService, this._logService, plan.sessionId),
+			contextTier: getCopilotContextTier(plan.model, plan.longContextWindow, plan.freeLongContext),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		}));
 		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 		// TODO: Remove this post-create update once the SDK exposes verbosity in
 		// SessionConfig, alongside create-session options such as reasoningEffort.
-		if (isGpt56Model(config.model)) {
+		if (isGpt56Model(plan.model?.id)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
 
@@ -756,11 +744,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const sdkExcludedTools = toSdkToolFilterPatterns(excludedTools);
 		const modelCapabilities = getModelCapabilitiesOverride(capabilityOverride?.modelCapabilities, describeModelId(model), this._logService, plan.sessionId);
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
-		// Derived from the validated alias above rather than resolved a second
-		// time, so the id logged is always the id sent.
+		// Host-side routing only — the prompt contributor and the tool-search gate
+		// below. The wire model stays the selected one, so the session still runs
+		// on the real model with the aliased family's prompt and tool profile.
 		const effectiveModel = modelFamily ? { ...model, id: modelFamily } : model;
 		if (modelFamily) {
-			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: launching '${describeModelId(model)}' as family '${modelFamily}'`);
+			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
 		const toolSearchActive = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
@@ -787,24 +776,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return {
 			...byok,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-			// Re-sent on resume too: the stored selection is what the picker shows,
-			// so pinning it keeps the UI and the runtime in agreement.
-			model: effectiveModel?.id,
-			// Resume only, and only when configured — otherwise a resumed session
-			// keeps the effort the runtime persisted for it. `_createSession`
-			// re-resolves the full effort for a create.
-			//
-			// The tier is reset alongside an alias: the runtime restores it from the
-			// session journal, so without this an alias added to an existing session
-			// would pair the new family with the previous model's long-context pin.
-			// The effort has no such reset value in the SDK — pair `family` with
-			// `reasoningEffort` to re-pin it on an existing session.
-			...(plan.kind === 'resume'
-				? {
-					reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId),
-					...(modelFamily ? { contextTier: 'default' as const } : {}),
-				}
-				: {}),
+			// Resume only: `_createSession` re-resolves the full effort for a create,
+			// while a resumed session keeps the effort the runtime journaled unless
+			// an override is configured.
+			...(plan.kind === 'resume' ? { reasoningEffort: resolveConfiguredReasoningEffortOverride(model, this._configurationService, this._logService, plan.sessionId) } : {}),
 			modelCapabilities,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

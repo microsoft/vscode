@@ -5825,7 +5825,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('materialization applies the per-model capability overrides (family, effort, tool filters)', async () => {
+		test('materialization applies the per-model capability overrides without changing the wire model', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
@@ -5860,62 +5860,14 @@ suite('CopilotAgent', () => {
 					excludedTools: capturedConfig?.excludedTools,
 					modelCapabilities: capturedConfig?.modelCapabilities,
 				}, {
-					model: 'claude-opus-4.8',
+					// the alias routes the prompt only; the session still runs on the
+					// selected model
+					model: 'claude-sonnet',
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
 					availableTools: undefined,
 					excludedTools: ['mcp:*'],
 					modelCapabilities: { supports: { vision: false } },
-				});
-			} finally {
-				await disposeAgent(agent);
-			}
-		});
-
-		test('a family alias does not forward tuning from the original model', async () => {
-			const sessionDataService = disposables.add(new TestSessionDataService());
-			const client = new TestCopilotClient([], [{ id: 'preview-model', name: 'Preview Model' }]);
-			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
-			const verbosityUpdates: unknown[] = [];
-			client.createSession = async config => {
-				capturedConfig = config;
-				const session = new MockCopilotSession() as unknown as CopilotSession;
-				session.rpc.options.update = async options => {
-					if (options.verbosity !== undefined) {
-						verbosityUpdates.push({ verbosity: options.verbosity });
-					}
-					return { success: true };
-				};
-				return session;
-			};
-
-			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
-			try {
-				configurationService.updateRootConfig({
-					modelCapabilityOverrides: {
-						'preview-model': { family: 'gpt-5.6-sol' },
-					},
-				});
-				await agent.authenticate('https://api.github.com', 'token');
-				await waitForState(agent.models, m => m.length > 0);
-
-				const result = await agent.createSession({
-					session: AgentSession.uri('copilotcli', 'family-tuning-session'),
-					workingDirectories: [URI.file('/workspace')],
-					model: { id: 'preview-model', config: { thinkingLevel: 'minimal' } },
-				});
-				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined);
-
-				assert.deepStrictEqual({
-					model: capturedConfig?.model,
-					reasoningEffort: capturedConfig?.reasoningEffort,
-					contextTier: capturedConfig?.contextTier,
-					verbosityUpdates,
-				}, {
-					model: 'gpt-5.6-sol',
-					reasoningEffort: undefined,
-					contextTier: undefined,
-					verbosityUpdates: [{ verbosity: 'medium' }],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -7442,14 +7394,13 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('changeModel sends the family alias as the model id and drops the picker tuning', async () => {
+		test('changeModel keeps the selected model id and tuning through a family alias', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables);
 			try {
 				configurationService.updateRootConfig({
 					modelCapabilityOverrides: {
 						'preview-model': { family: 'claude-opus-4.8' },
 						'pinned-model': { family: 'gpt-5', reasoningEffort: 'high' },
-						'bad-model': { family: ' not an id ' },
 					},
 				});
 				const session = AgentSession.uri('copilotcli', 'model-family');
@@ -7459,15 +7410,12 @@ suite('CopilotAgent', () => {
 
 				await agent.chats.changeModel(chatA, { id: 'preview-model', config: { thinkingLevel: 'medium' } });
 				await agent.chats.changeModel(chatA, { id: 'pinned-model' });
-				await agent.chats.changeModel(chatA, { id: 'bad-model', config: { thinkingLevel: 'medium' } });
 
 				assert.deepStrictEqual(a.rec.modelCalls, [
-					// aliased: the family's defaults replace the picker's thinking level
-					{ id: 'claude-opus-4.8', effort: undefined, tier: undefined },
-					// an override still pins the effort through the alias
-					{ id: 'gpt-5', effort: 'high', tier: undefined },
-					// a malformed alias falls through to the un-aliased model
-					{ id: 'bad-model', effort: 'medium', tier: undefined },
+					// the alias never reaches the wire; the picker's level survives
+					{ id: 'preview-model', effort: 'medium', tier: undefined },
+					// a per-model effort override still applies
+					{ id: 'pinned-model', effort: 'high', tier: undefined },
 				]);
 			} finally {
 				await disposeAgent(agent);

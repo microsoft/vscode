@@ -90,15 +90,6 @@ export function universalToolInstructions(hasTool: (name: string) => boolean, li
 }
 
 /**
- * The `replace`-mode counterpart of {@link resolveToolInstructionsOverride},
- * for system messages with no sections to compose into.
- */
-export function appendUniversalToolInstructions(content: string, hasTool: (name: string) => boolean, lines: readonly ToolInstructionLine[] = TOOL_INSTRUCTION_LINES): string {
-	const instructions = universalToolInstructions(hasTool, lines);
-	return instructions === undefined ? content : `${content}\n\n${instructions}`;
-}
-
-/**
  * Folds universal tool-instructions `content` into a per-model contributor's
  * `existing` `tool_instructions` override (if any), so a contributor's section
  * is preserved rather than clobbered.
