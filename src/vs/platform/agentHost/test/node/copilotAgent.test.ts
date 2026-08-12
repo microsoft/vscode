@@ -7206,6 +7206,31 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('does not adopt a session whose marker originates from another Copilot host', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const sessionId = 'github-copilot-app';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// The GitHub Copilot app writes the same marker with `origin: 'other'`.
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
+
+				const adopted = await agent.ensureSessionAdopted(session);
+
+				assert.deepStrictEqual(
+					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [], openedDatabases: [] },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not re-adopt a session that already has stored working-directory metadata', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
 			const sessionId = 'already-adopted';

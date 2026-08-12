@@ -480,6 +480,19 @@ export function resolveCopilotOtlpMetricsEndpoint(endpoint: string, protocol: 'h
 	}
 }
 
+/** `origin` value written by the VS Code extension-host Copilot CLI feature. */
+const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
+
+/**
+ * Shape of the `vscode.metadata.json` marker written next to a Copilot CLI
+ * session's SDK event log. Other Copilot CLI hosts (e.g. the GitHub Copilot
+ * app) write the same file with a non-`vscode` `origin`.
+ */
+interface IExtensionHostCliMarker {
+	readonly origin?: string;
+	readonly customTitle?: string;
+}
+
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
@@ -2420,25 +2433,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Whether an on-disk Copilot session was created by the VS Code extension-host
 	 * Copilot CLI feature — identified by its `vscode.metadata.json` marker under
-	 * `~/.copilot/session-state/<id>/`. Distinguishes EH CLI sessions (the only
-	 * ones we migrate) from other Copilot SDK sessions that share the same store
-	 * (standalone `copilot` CLI runs, Local agent sessions, …).
+	 * `~/.copilot/session-state/<id>/` carrying `origin: 'vscode'`. Distinguishes EH
+	 * CLI sessions (the only ones we migrate) from other Copilot SDK sessions that
+	 * share the same store (standalone `copilot` CLI runs, the GitHub Copilot app,
+	 * Local agent sessions, …).
 	 */
 	/** Absolute path of the extension-host Copilot CLI `vscode.metadata.json` marker for `sessionId`. */
 	private _extensionHostCliMarkerPath(sessionId: string): string {
 		return join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sessionId, 'vscode.metadata.json');
 	}
 
-	/** Memoizes the (stable) marker check so repeated `listSessions` calls don't re-stat the disk. */
-	private readonly _isExtensionHostCliSessionCache = new Map<string, Promise<boolean>>();
+	/** Memoizes the (stable) marker read so repeated `listSessions` calls don't re-read the disk. */
+	private readonly _extensionHostCliMarkerCache = new Map<string, Promise<IExtensionHostCliMarker | undefined>>();
 
-	private _isExtensionHostCliSession(sessionId: string): Promise<boolean> {
-		let cached = this._isExtensionHostCliSessionCache.get(sessionId);
+	/**
+	 * Reads and parses the `vscode.metadata.json` marker for `sessionId`, or
+	 * `undefined` when it is missing/unreadable/malformed.
+	 */
+	private _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
+		let cached = this._extensionHostCliMarkerCache.get(sessionId);
 		if (!cached) {
-			cached = fs.access(this._extensionHostCliMarkerPath(sessionId)).then(() => true, () => false);
-			this._isExtensionHostCliSessionCache.set(sessionId, cached);
+			cached = fs.readFile(this._extensionHostCliMarkerPath(sessionId), 'utf8')
+				.then(raw => {
+					const parsed = JSON.parse(raw) as unknown;
+					return parsed && typeof parsed === 'object' ? parsed as IExtensionHostCliMarker : undefined;
+				})
+				.catch(() => undefined);
+			this._extensionHostCliMarkerCache.set(sessionId, cached);
 		}
 		return cached;
+	}
+
+	private async _isExtensionHostCliSession(sessionId: string): Promise<boolean> {
+		const marker = await this._readExtensionHostCliMarker(sessionId);
+		if (!marker) {
+			return false;
+		}
+		// The marker file name is shared with other Copilot CLI hosts (e.g. the
+		// GitHub Copilot app writes `origin: 'other'`). Only VS Code-originated
+		// sessions are adoptable. Markers written before `origin` existed have no
+		// field at all and stay eligible.
+		return marker.origin === undefined || marker.origin === EXTENSION_HOST_CLI_MARKER_ORIGIN;
 	}
 
 	/**
@@ -2448,13 +2483,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `undefined` when the marker is absent/unreadable or has no custom title.
 	 */
 	private async _readExtensionHostCliCustomTitle(sessionId: string): Promise<string | undefined> {
-		try {
-			const raw = await fs.readFile(this._extensionHostCliMarkerPath(sessionId), 'utf8');
-			const title = (JSON.parse(raw) as { customTitle?: unknown }).customTitle;
-			return typeof title === 'string' && title.trim() ? title : undefined;
-		} catch {
-			return undefined;
-		}
+		const title = (await this._readExtensionHostCliMarker(sessionId))?.customTitle;
+		return typeof title === 'string' && title.trim() ? title : undefined;
 	}
 
 	/**
