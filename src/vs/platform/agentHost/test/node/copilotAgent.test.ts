@@ -457,8 +457,14 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 }
 
 class TestCopilotClient implements ITestCopilotClient {
+	sessionForkCallCount = 0;
 	readonly rpc: ITestCopilotClient['rpc'] = {
-		sessions: { fork: async () => ({ sessionId: 'forked-session' }) },
+		sessions: {
+			fork: async () => {
+				this.sessionForkCallCount++;
+				return { sessionId: 'forked-session' };
+			}
+		},
 		models: {
 			list: async params => {
 				this.modelListRequests.push(params);
@@ -3997,10 +4003,10 @@ suite('CopilotAgent', () => {
 			const launches: { kind: string; sessionId: string; workingDirectory: string | undefined; chatChannelUri: string | undefined; resource: string | undefined }[] = [];
 			const remaps: ReadonlyMap<string, string>[] = [];
 			const internals = agent as unknown as {
-				_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
+				_forkSdkChat: (sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 				_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI; resource?: URI }) => CopilotAgentSession;
 			};
-			internals._forkSdkChat = async (_client, sourceEntry, turnId, targetDbDir) => {
+			internals._forkSdkChat = async (sourceEntry, turnId, targetDbDir) => {
 				const sessionId = forks.length === 0 ? forkedSdkId : `${forkedSdkId}-${forks.length + 1}`;
 				forks.push({ sourceEntry, turnId, targetDbDir: targetDbDir.toString() });
 				return { sessionId, inheritedTurnCount: 1 };
@@ -4052,6 +4058,58 @@ suite('CopilotAgent', () => {
 			responseParts: [{ kind: ResponsePartKind.Markdown, id: 'response', content: 'ready' }],
 			usage: {},
 		};
+
+		test('seeds a bounded fork without calling the SDK fork RPC', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/chat-fork-home-`));
+			const workingDirectory = URI.file(await fs.mkdtemp(`${os.tmpdir()}/chat-fork-cwd-`));
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			const sourceSession = AgentSession.uri('copilotcli', 'bounded-fork-source');
+			const sourceTurns = [sourceTurn, {
+				...sourceTurn,
+				id: 'fork-boundary',
+				message: { text: 'Keep FORK_BETA.', origin: { kind: MessageKind.User } },
+			}, {
+					...sourceTurn,
+					id: 'excluded-turn',
+					message: { text: 'Exclude FORK_GAMMA.', origin: { kind: MessageKind.User } },
+				}];
+			const sourceEntry = {
+				sessionUri: sourceSession,
+				sessionId: AgentSession.id(sourceSession),
+				workingDirectory,
+				getMessages: async () => sourceTurns,
+			} as unknown as CopilotAgentSession;
+			const target = AgentSession.uri('copilotcli', 'bounded-fork-target');
+			const internals = agent as unknown as {
+				_forkSdkChat: (sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
+			};
+
+			try {
+				const result = await internals._forkSdkChat(sourceEntry, 'fork-boundary', sessionDataService.getSessionDataDir(target));
+				const eventsPath = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', result.sessionId, 'events.jsonl');
+				const events = await fs.readFile(eventsPath, 'utf8');
+
+				assert.deepStrictEqual({
+					inheritedTurnCount: result.inheritedTurnCount,
+					includesFirst: events.includes('FORK_ALPHA'),
+					includesBoundary: events.includes('FORK_BETA'),
+					includesExcluded: events.includes('FORK_GAMMA'),
+					sessionForkCallCount: client.sessionForkCallCount,
+				}, {
+					inheritedTurnCount: 2,
+					includesFirst: true,
+					includesBoundary: true,
+					includesExcluded: false,
+					sessionForkCallCount: 0,
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
 
 		test('rejects a fork whose source is the chat being created', async () => {
 			const client = new TestCopilotClient([]);
@@ -6161,7 +6219,7 @@ suite('CopilotAgent', () => {
 			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI }) => CopilotAgentSession;
 			_resumeSession: (sessionId: string) => Promise<CopilotAgentSession>;
 			_getOrCreateSessionLifetime: (sessionId: string) => { queueSession<T>(task: () => Promise<T>): Promise<T> } | undefined;
-			_forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
+			_forkSdkChat: (sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
 			_resolveChatContext: (chat: URI, context: IAgentChatContext) => unknown;
 		};
@@ -6736,7 +6794,8 @@ suite('CopilotAgent', () => {
 
 		test('createChat forks the source chat into a new addressed chat and returns the forked chat providerData', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
-			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: new TestCopilotClient([]) });
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'fork-peer');
@@ -6751,7 +6810,7 @@ suite('CopilotAgent', () => {
 				// Stub the SDK/fs fork seam: assert the inputs and hand back a
 				// deterministic forked chat id.
 				let forkArgs: { sourceEntry: unknown; turnId: string } | undefined;
-				internals._forkSdkChat = async (_client, sourceEntry, turnId) => {
+				internals._forkSdkChat = async (sourceEntry, turnId) => {
 					forkArgs = { sourceEntry, turnId };
 					return { sessionId: 'forked-sdk-id', inheritedTurnCount: 0 };
 				};
@@ -6777,6 +6836,7 @@ suite('CopilotAgent', () => {
 					backing: internals._chatBackings.get(chatUri.toString()),
 					providerData: result ? JSON.parse(result.providerData!) : undefined,
 					legacyCatalogWritten: raw !== undefined,
+					sessionForkCallCount: client.sessionForkCallCount,
 				}, {
 					sourceIsDefaultSession: true,
 					forkedTurnId: 't1',
@@ -6786,6 +6846,7 @@ suite('CopilotAgent', () => {
 					backing: { sdkSessionId: 'forked-sdk-id' },
 					providerData: { sdkSessionId: 'forked-sdk-id' },
 					legacyCatalogWritten: false,
+					sessionForkCallCount: 0,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -6904,7 +6965,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), source.fake, defaultChatUri(session));
 				const internals = agent as unknown as ChatInternals;
 				let forkTurnId: string | undefined;
-				internals._forkSdkChat = async (_client, _sourceEntry, turnId) => {
+				internals._forkSdkChat = async (_sourceEntry, turnId) => {
 					forkTurnId = turnId;
 					return { sessionId: 'side-sdk-id', inheritedTurnCount: 1 };
 				};
@@ -7460,7 +7521,7 @@ suite('CopilotAgent', () => {
 				installFake(agent, AgentSession.id(session), 'session', session);
 
 				const forkArgs: { turnId: string }[] = [];
-				(agent as unknown as { _forkSdkChat: (client: unknown, sourceEntry: unknown, turnId: string) => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async (_c, _s, turnId) => {
+				(agent as unknown as { _forkSdkChat: (sourceEntry: unknown, turnId: string) => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async (_sourceEntry, turnId) => {
 					forkArgs.push({ turnId });
 					return { sessionId: 'forked-sdk-id', inheritedTurnCount: 0 };
 				};

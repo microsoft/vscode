@@ -3132,7 +3132,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!sourceEntry) {
 					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
-				const forked = await this._forkSdkChat(client, sourceEntry, fork.turnId, this._sessionDataService.getSessionDataDir(storageScope));
+				const forked = await this._forkSdkChat(sourceEntry, fork.turnId, this._sessionDataService.getSessionDataDir(storageScope));
 				sdkSessionId = forked.sessionId;
 				launchPlan = {
 					kind: 'resume',
@@ -3151,7 +3151,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!sideChatSource) {
 					throw new Error(`[Copilot] createChat side chat: source chat ${options.sideChat.source.toString()} not found`);
 				}
-				const forked = await this._forkSdkChat(client, sideChatSource, options.sideChat.providerAnchorTurnId ?? options.sideChat.turnId, this._sessionDataService.getSessionDataDir(storageScope));
+				const forked = await this._forkSdkChat(sideChatSource, options.sideChat.providerAnchorTurnId ?? options.sideChat.turnId, this._sessionDataService.getSessionDataDir(storageScope));
 				sdkSessionId = forked.sessionId;
 				sideChat = {
 					source: options.sideChat.source.toString(),
@@ -3289,23 +3289,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Forks {@link sourceEntry}'s SDK chat at {@link turnId} via the
-	 * SDK `sessions.fork` RPC and copies its database into {@link targetDbDir}
-	 * so the forked chat inherits turn event IDs and file-edit
-	 * snapshots. Returns the new SDK session id.
+	 * Seeds a bounded SDK chat from {@link sourceEntry} and copies its database
+	 * into {@link targetDbDir}. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(client: CopilotClient, sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+	private async _forkSdkChat(sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
 		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
 		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
-		// toEventId is exclusive — events before it are included. If there's no
-		// next turn, omit it to include all events.
-		const toEventId = await sourceEntry.getNextTurnEventId(turnId);
-		const forkResult = await client.rpc.sessions.fork({
-			sessionId: sourceEntry.sessionId,
-			...(toEventId ? { toEventId } : {}),
+		const newSessionId = generateUuid();
+		const eventsPath = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', newSessionId, 'events.jsonl');
+		const jsonl = buildSessionEventLogFromTurns(sourceTurns.slice(0, inheritedTurnCount), {
+			sessionId: newSessionId,
+			workingDirectory: sourceEntry.workingDirectory.fsPath,
 		});
-		const newSessionId = forkResult.sessionId;
+		await fs.mkdir(dirname(eventsPath), { recursive: true });
+		await fs.writeFile(eventsPath, jsonl, 'utf8');
 
 		// VACUUM INTO is safe even while the source DB is open.
 		const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
