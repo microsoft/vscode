@@ -51,6 +51,7 @@ suite('Chat Accessibility Help', () => {
 			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
+			petThrowing: helpText.includes('flick it horizontally to throw it toward a wall') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
 			petRevival: helpText.includes('automatically returns to the input'),
 		}, {
 			keybinding: true,
@@ -58,6 +59,7 @@ suite('Chat Accessibility Help', () => {
 			actions: true,
 			petMovement: true,
 			petHopping: true,
+			petThrowing: true,
 			petRevival: true,
 		});
 	});
