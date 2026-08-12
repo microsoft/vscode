@@ -100,7 +100,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostActiveAgentTitleGenerationSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names new sessions and chats using rename tools. When disabled, a utility model generates titles. Changes apply to sessions and chats created afterward."),
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
