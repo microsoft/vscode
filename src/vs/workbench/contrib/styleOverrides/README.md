@@ -9,8 +9,10 @@ Modern UI uses the standard workbench color theme system. Theme authors can use 
 | `surface.border` | Border shared by floating side bars and panels | A translucent `foreground` in dark and light themes; `contrastBorder` in high contrast themes |
 | `editor.border` | Border of the editor surface in the modern layout | `surface.border` |
 | `modernTab.activeBackground` | Background of active Modern UI tabs | `list.inactiveSelectionBackground` |
+| `modernTab.activeActionBackground` | Opaque background of actions on active Modern UI editor tabs | `modernTab.activeBackground` composited over `editor.background` |
 | `modernTab.activeForeground` | Foreground of active Modern UI tabs | `list.inactiveSelectionForeground`, then `foreground` |
 | `modernTab.hoverBackground` | Background of hovered Modern UI tabs | `list.hoverBackground` |
+| `modernTab.hoverActionBackground` | Opaque background of actions on hovered Modern UI editor tabs | `modernTab.hoverBackground` composited over `editor.background` |
 | `modernTab.hoverForeground` | Foreground of hovered Modern UI tabs | `list.hoverForeground`, then `foreground` |
 | `modernActivityBar.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
 | `modernActivityBar.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
@@ -29,8 +31,10 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
     "surface.border": "#3a3a3a",
     "editor.border": "#505050",
     "modernTab.activeBackground": "#3d3d3d",
+    "modernTab.activeActionBackground": "#3d3d3d",
     "modernTab.activeForeground": "#f0f0f0",
     "modernTab.hoverBackground": "#292929",
+    "modernTab.hoverActionBackground": "#292929",
     "modernTab.hoverForeground": "#f0f0f0",
     "modernActivityBar.activeBackground": "#3d3d3d",
     "modernActivityBar.activeForeground": "#f0f0f0",

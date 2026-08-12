@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { registerColor, editorBackground, contrastBorder, transparent, oneOf, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, listHoverBackground, listHoverForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
+import { registerColor, editorBackground, contrastBorder, transparent, opaque, oneOf, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, listHoverBackground, listHoverForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { IColorTheme } from '../../platform/theme/common/themeService.js';
 import { Color } from '../../base/common/color.js';
@@ -688,9 +688,13 @@ export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, loca
 
 export const MODERN_TAB_ACTIVE_BACKGROUND = registerColor('modernTab.activeBackground', listInactiveSelectionBackground, localize('modernTabActiveBackground', "Background color of active tabs when the modern tab style is enabled."));
 
+export const MODERN_TAB_ACTIVE_ACTION_BACKGROUND = registerColor('modernTab.activeActionBackground', opaque(MODERN_TAB_ACTIVE_BACKGROUND, editorBackground), localize('modernTabActiveActionBackground', "Opaque background color of tab actions on active tabs when the modern tab style is enabled."));
+
 export const MODERN_TAB_ACTIVE_FOREGROUND = registerColor('modernTab.activeForeground', oneOf(listInactiveSelectionForeground, foreground), localize('modernTabActiveForeground', "Foreground color of active tabs when the modern tab style is enabled."));
 
 export const MODERN_TAB_HOVER_BACKGROUND = registerColor('modernTab.hoverBackground', listHoverBackground, localize('modernTabHoverBackground', "Background color of tabs when hovering and the modern tab style is enabled."));
+
+export const MODERN_TAB_HOVER_ACTION_BACKGROUND = registerColor('modernTab.hoverActionBackground', opaque(MODERN_TAB_HOVER_BACKGROUND, editorBackground), localize('modernTabHoverActionBackground', "Opaque background color of tab actions when hovering and the modern tab style is enabled."));
 
 export const MODERN_TAB_HOVER_FOREGROUND = registerColor('modernTab.hoverForeground', oneOf(listHoverForeground, foreground), localize('modernTabHoverForeground', "Foreground color of tabs when hovering and the modern tab style is enabled."));
 

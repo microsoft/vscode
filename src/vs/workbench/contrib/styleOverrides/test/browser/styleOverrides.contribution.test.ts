@@ -12,9 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ThemingExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, Extensions as ThemingExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_ACTION_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, SURFACE_BORDER } from '../../../../common/theme.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -409,8 +409,10 @@ suite('StyleOverridesContribution', () => {
 	test('uses the registered modern tab colors', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--vscode-modernTab-activeActionBackground', '#112233');
 		root.style.setProperty('--vscode-modernTab-activeBackground', '#123456');
 		root.style.setProperty('--vscode-modernTab-activeForeground', '#abcdef');
+		root.style.setProperty('--vscode-modernTab-hoverActionBackground', '#332211');
 		root.style.setProperty('--vscode-modernTab-hoverBackground', '#654321');
 		root.style.setProperty('--vscode-modernTab-hoverForeground', '#fedcba');
 		document.body.appendChild(root);
@@ -430,21 +432,29 @@ suite('StyleOverridesContribution', () => {
 		const hoverColorProbe = appendElement(root, 'hover-color-probe');
 		hoverColorProbe.style.backgroundColor = 'var(--modern-ui-tab-hover-background)';
 		hoverColorProbe.style.color = 'var(--vscode-modernTab-hoverForeground)';
+		const activeActionColorProbe = appendElement(root, 'active-action-color-probe');
+		activeActionColorProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-action-active-background)';
+		const hoverActionColorProbe = appendElement(root, 'hover-action-color-probe');
+		hoverActionColorProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-action-hover-background)';
 		const settingsEditor = appendElement(root, 'settings-editor');
 		const settingsTabsWidget = appendElement(settingsEditor, 'settings-tabs-widget');
 		const settingsActionBar = appendElement(settingsTabsWidget, 'monaco-action-bar');
 		const settingsActionItem = appendElement(settingsActionBar, 'action-item');
 		const settingsActionLabel = appendElement(settingsActionItem, 'action-label checked');
 		const activeColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_ACTIVE_BACKGROUND);
+		const activeActionColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_ACTIVE_ACTION_BACKGROUND);
 		const activeForeground = colorRegistry.getColors().find(color => color.id === MODERN_TAB_ACTIVE_FOREGROUND);
 		const hoverColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_HOVER_BACKGROUND);
+		const hoverActionColor = colorRegistry.getColors().find(color => color.id === MODERN_TAB_HOVER_ACTION_BACKGROUND);
 		const hoverForeground = colorRegistry.getColors().find(color => color.id === MODERN_TAB_HOVER_FOREGROUND);
 
 		assert.deepStrictEqual({
-			registeredColors: [MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
+			registeredColors: [MODERN_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_ACTION_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND].map(id => colorRegistry.getColors().some(color => color.id === id)),
 			activeDefault: activeColor?.defaults,
+			activeActionDefault: activeActionColor?.defaults,
 			activeForegroundDefault: activeForeground?.defaults,
 			hoverDefault: hoverColor?.defaults,
+			hoverActionDefault: hoverActionColor?.defaults,
 			hoverForegroundDefault: hoverForeground?.defaults,
 			paneTabBackground: getWindow(paneAction.indicator).getComputedStyle(paneAction.indicator).backgroundColor,
 			paneTabForeground: getWindow(paneAction.actionLabel).getComputedStyle(paneAction.actionLabel).color,
@@ -452,13 +462,17 @@ suite('StyleOverridesContribution', () => {
 			editorTabForeground: getWindow(tabLabelAnchor).getComputedStyle(tabLabelAnchor).color,
 			hoverTabBackground: getWindow(hoverColorProbe).getComputedStyle(hoverColorProbe).backgroundColor,
 			hoverTabForeground: getWindow(hoverColorProbe).getComputedStyle(hoverColorProbe).color,
+			activeActionBackground: getWindow(activeActionColorProbe).getComputedStyle(activeActionColorProbe).backgroundColor,
+			hoverActionBackground: getWindow(hoverActionColorProbe).getComputedStyle(hoverActionColorProbe).backgroundColor,
 			settingsTabBackground: getWindow(settingsActionLabel).getComputedStyle(settingsActionLabel).backgroundColor,
 			settingsTabForeground: getWindow(settingsActionLabel).getComputedStyle(settingsActionLabel).color,
 		}, {
-			registeredColors: [true, true, true, true],
+			registeredColors: [true, true, true, true, true, true],
 			activeDefault: listInactiveSelectionBackground,
+			activeActionDefault: opaque(MODERN_TAB_ACTIVE_BACKGROUND, editorBackground),
 			activeForegroundDefault: oneOf(listInactiveSelectionForeground, foreground),
 			hoverDefault: listHoverBackground,
+			hoverActionDefault: opaque(MODERN_TAB_HOVER_BACKGROUND, editorBackground),
 			hoverForegroundDefault: oneOf(listHoverForeground, foreground),
 			paneTabBackground: 'rgb(18, 52, 86)',
 			paneTabForeground: 'rgb(171, 205, 239)',
@@ -466,6 +480,8 @@ suite('StyleOverridesContribution', () => {
 			editorTabForeground: 'rgb(171, 205, 239)',
 			hoverTabBackground: 'rgb(101, 67, 33)',
 			hoverTabForeground: 'rgb(254, 220, 186)',
+			activeActionBackground: 'rgb(17, 34, 51)',
+			hoverActionBackground: 'rgb(51, 34, 17)',
 			settingsTabBackground: 'rgb(18, 52, 86)',
 			settingsTabForeground: 'rgb(171, 205, 239)',
 		});

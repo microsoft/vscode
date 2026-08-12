@@ -18,8 +18,8 @@
 .modern-ui-tabs.monaco-workbench {
 	--modern-ui-tab-active-background: var(--vscode-modernTab-activeBackground);
 	--modern-ui-tab-hover-background: var(--vscode-modernTab-hoverBackground);
-	--modern-ui-editor-tab-action-active-background: var(--vscode-modernTab-activeBackground);
-	--modern-ui-editor-tab-action-hover-background: var(--vscode-modernTab-hoverBackground);
+	--modern-ui-editor-tab-action-active-background: var(--vscode-modernTab-activeActionBackground);
+	--modern-ui-editor-tab-action-hover-background: var(--vscode-modernTab-hoverActionBackground);
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs {
@@ -197,10 +197,10 @@
 	display: none !important;
 }
 
-/* The fill shares the tab action button's opaque background so the two blend seamlessly. High
- * contrast themes keep the fill transparent and communicate state through its stroke instead. */
+/* Tab fills retain the theme's transparency. The action overlay uses a separately flattened
+ * version of the same color so labels beneath the close button cannot show through. */
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill {
-	background-color: var(--modern-ui-editor-tab-action-hover-background);
+	background-color: var(--modern-ui-tab-hover-background);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active) > .tab-fill {
@@ -208,7 +208,7 @@
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active > .tab-fill {
-	background-color: var(--modern-ui-editor-tab-action-active-background);
+	background-color: var(--modern-ui-tab-active-background);
 }
 
 /* The selected / multi-selected stroke hugs the pill, so it lives on the fill rather than the
