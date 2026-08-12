@@ -10,6 +10,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { ChatResponseResource } from '../../../../common/model/chatModel.js';
+import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { type IChatCodeBlockInfo } from '../../../chat.js';
 import { type IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -47,6 +48,25 @@ export function getGeneratedImageResultParts(
 	return parts;
 }
 
+function getGeneratedImageResultDetails(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): IToolResultInputOutputDetails | undefined {
+	const resultDetails = toolInvocation.kind === 'toolInvocation'
+		? IChatToolInvocation.resultDetails(toolInvocation)
+		: toolInvocation.resultDetails;
+	return isToolResultInputOutputDetails(resultDetails) ? resultDetails : undefined;
+}
+
+export function getGeneratedImageResultCount(content: ReadonlyArray<IChatRendererContent>): number {
+	let count = 0;
+	for (const part of content) {
+		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'generatedImage') {
+			continue;
+		}
+		const details = getGeneratedImageResultDetails(part);
+		count += details?.output.filter(output => output.mimeType?.startsWith('image/') && (output.type === 'ref' || !output.isText)).length ?? 0;
+	}
+	return count;
+}
+
 /** Renders generated images as response outcomes using the shared image preview affordances. */
 export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -60,13 +80,13 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
-		const resultDetails = toolInvocation.kind === 'toolInvocation'
-			? IChatToolInvocation.resultDetails(toolInvocation)
-			: toolInvocation.resultDetails;
-		const details = isToolResultInputOutputDetails(resultDetails) ? resultDetails : undefined;
+		const details = getGeneratedImageResultDetails(toolInvocation);
 		const parts = getGeneratedImageResultParts(details, context.element.sessionResource, toolInvocation.toolCallId);
 		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this.domNode = dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode);
+		const hasMultipleGeneratedImages = getGeneratedImageResultCount(context.content) > 1;
+		this.domNode.classList.toggle('multiple', hasMultipleGeneratedImages);
+		context.container.classList.toggle('has-multiple-generated-image-results', hasMultipleGeneratedImages);
 	}
 }

@@ -3879,6 +3879,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		max-height: min(60vh, 640px);
 		object-fit: contain;
 	}
+
+	&.multiple .chat-attached-context {
+		max-width: 512px;
+	}
+
+	&.multiple .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+		flex: 1 1 calc(50% - 4px);
+		width: calc(50% - 4px);
+		max-width: 252px;
+	}
+}
+
+.interactive-response.has-multiple-generated-image-results > .value {
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: 8px;
+
+	> * {
+		flex: 1 0 100%;
+		min-width: 0;
+	}
+
+	> .generated-image-tool-invocation {
+		flex: 0 1 252px;
+		max-width: 252px;
+	}
 }
 
 .interactive-session .chat-scroll-down {

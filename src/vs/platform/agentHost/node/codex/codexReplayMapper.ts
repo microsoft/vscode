@@ -20,6 +20,7 @@ import {
 	describeFileChange,
 	describeWebSearch,
 	codexCompactionLabels,
+	codexImageGenerationLabels,
 	fileChangeOutput,
 	mapCodexTurnError,
 	turnStateFromStatus,
@@ -232,20 +233,21 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 
 function imageGenerationToolCallPart(item: Extract<ThreadItem, { type: 'imageGeneration' }>): ToolCallResponsePart {
 	const success = item.status === 'completed' && item.result.length > 0;
+	const labels = codexImageGenerationLabels(item.status);
 	return {
 		kind: ResponsePartKind.ToolCall,
 		toolCall: {
 			status: ToolCallStatus.Completed,
 			toolCallId: generateUuid(),
 			toolName: 'image_gen.imagegen',
-			displayName: 'Generate image',
-			invocationMessage: 'Generating image',
-			toolInput: JSON.stringify({ prompt: item.revisedPrompt ?? 'Generate image' }),
+			displayName: labels.displayName,
+			invocationMessage: labels.invocationMessage,
+			toolInput: JSON.stringify({ prompt: item.revisedPrompt ?? labels.displayName }),
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success,
-			pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+			pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
 			content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: item.result, contentType: 'image/png' }] : undefined,
-			error: success ? undefined : { message: `Image generation ${item.status}` },
+			error: success ? undefined : { message: labels.errorMessage },
 		},
 	};
 }

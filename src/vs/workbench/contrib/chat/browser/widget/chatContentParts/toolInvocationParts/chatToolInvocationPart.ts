@@ -124,6 +124,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			isResponseVM(context.element) && context.element.isComplete,
 		);
 		this.domNode = dom.$('.chat-tool-invocation-part');
+		this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}

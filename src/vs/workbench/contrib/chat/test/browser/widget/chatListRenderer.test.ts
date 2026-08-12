@@ -1097,7 +1097,7 @@ suite('ChatListRenderer', () => {
 		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 
-		const imageTool = new ChatToolInvocation({
+		const createImageTool = (toolCallId: string) => new ChatToolInvocation({
 			invocationMessage: 'Generating image',
 			pastTenseMessage: 'Generated image',
 		}, {
@@ -1105,18 +1105,23 @@ suite('ChatListRenderer', () => {
 			displayName: 'Generate image',
 			modelDescription: 'Generate image',
 			source: ToolDataSource.Internal,
-		}, 'image-call', undefined, {}, {}, request.id);
-		model.acceptResponseProgress(request, imageTool);
+		}, toolCallId, undefined, {}, {}, request.id);
+		const imageTools = [createImageTool('image-call-1'), createImageTool('image-call-2')];
+		for (const imageTool of imageTools) {
+			model.acceptResponseProgress(request, imageTool);
+		}
 		renderer.renderElement(node, 0, template);
 
-		await imageTool.didExecuteTool({
-			content: [],
-			toolSpecificData: { kind: 'generatedImage' },
-			toolResultDetails: {
-				input: '{"prompt":"Draw a fox"}',
-				output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
-			},
-		});
+		for (const [index, imageTool] of imageTools.entries()) {
+			await imageTool.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: {
+					input: '{"prompt":"Draw a fox"}',
+					output: [{ type: 'embed', value: `aW1hZ2U${index}`, mimeType: 'image/png' }],
+				},
+			});
+		}
 		renderer.renderElement(node, 0, template);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is the image.') });
 		renderer.renderElement(node, 0, template);
@@ -1126,9 +1131,17 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({
 			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
 			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
+			multipleImageOutcomes: template.value.querySelectorAll('.chat-generated-image-result.multiple').length,
+			multipleImageContainers: template.rowContainer.matches(
+				'.interactive-response.has-multiple-generated-image-results'
+			) ? 1 : 0,
+			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
 		}, {
-			resourceGroups: 1,
-			largeOutcomes: 1,
+			resourceGroups: 2,
+			largeOutcomes: 2,
+			multipleImageOutcomes: 2,
+			multipleImageContainers: 1,
+			generatedImageInvocations: 2,
 		});
 
 		disposables.dispose();

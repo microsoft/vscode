@@ -296,6 +296,16 @@ export function codexCompactionLabels(): { readonly displayName: string; readonl
 	};
 }
 
+export function codexImageGenerationLabels(status?: string): { readonly displayName: string; readonly invocationMessage: string; readonly pastTenseMessage: string; readonly failedMessage: string; readonly errorMessage: string } {
+	return {
+		displayName: localize('codex.imageGeneration.displayName', "Generate image"),
+		invocationMessage: localize('codex.imageGeneration.inProgress', "Generating image"),
+		pastTenseMessage: localize('codex.imageGeneration.completed', "Generated image"),
+		failedMessage: localize('codex.imageGeneration.failed', "Failed to generate image"),
+		errorMessage: localize('codex.imageGeneration.error', "Image generation {0}", status ?? ''),
+	};
+}
+
 function jsonValueToText(value: JsonValue): string {
 	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
@@ -617,6 +627,7 @@ function mapItemStartedBody(
 	}
 	if (params.item.type === 'imageGeneration') {
 		const toolCallId = generateUuid();
+		const labels = codexImageGenerationLabels();
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
 			turnId: params.turnId,
@@ -629,14 +640,14 @@ function mapItemStartedBody(
 				turnId: params.turnId,
 				toolCallId,
 				toolName: 'image_gen.imagegen',
-				displayName: 'Generate image',
+				displayName: labels.displayName,
 			},
 			{
 				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
-				invocationMessage: 'Generating image',
-				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? 'Generate image' }),
+				invocationMessage: labels.invocationMessage,
+				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? labels.displayName }),
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 		];
@@ -1049,19 +1060,20 @@ export function mapItemCompleted(
 	}
 	if (params.item.type === 'imageGeneration') {
 		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const labels = codexImageGenerationLabels(params.item.status);
 		return [{
 			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
 				success,
-				pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
 				content: success ? [{
 					type: ToolResultContentType.EmbeddedResource,
 					data: params.item.result,
 					contentType: 'image/png',
 				}] : undefined,
-				...(success ? {} : { error: { message: `Image generation ${params.item.status}` } }),
+				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
 		}];
 	}
