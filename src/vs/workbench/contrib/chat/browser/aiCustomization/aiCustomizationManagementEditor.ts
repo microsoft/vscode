@@ -102,7 +102,7 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
 import { type CustomizationMigrationTargetFolders, getCustomizationMigrationTargetType, migrateCustomizations } from './customizationMigration.js';
-import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, getCustomizationMigrationSourceTypes, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, getCustomizationMigrationSourceTypes, type ICustomizationMigrationBanner, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
@@ -336,6 +336,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private migrationSearchInput: InputBox | undefined;
 	private migrationTitleElement: HTMLElement | undefined;
 	private migrationDescriptionElement: HTMLElement | undefined;
+	private migrationBannerContainer: HTMLElement | undefined;
 	private migrationLinkElement: HTMLAnchorElement | undefined;
 	private migrationSearchQuery = '';
 	private activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
@@ -861,6 +862,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			e.preventDefault();
 			this.openerService.open(URI.parse(sectionLink.href));
 		}));
+
+		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
+		this.migrationBannerContainer.style.display = 'none';
 
 		const actions = DOM.append(this.migrationContentContainer, $('.list-search-and-button-container.prompt-migration-actions'));
 		const searchContainer = DOM.append(actions, $('.list-search-container'));
@@ -1446,13 +1450,47 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.migrationTitleElement) {
 			this.migrationTitleElement.textContent = category.pageTitle;
 		}
+
+		// The banner carries the full explanation, so the description would only repeat it.
+		const banner = candidates.length > 0 ? category.getBanner?.(candidates, this.getActiveHarnessLabel()) : undefined;
+		this.renderCustomizationMigrationBanner(banner);
 		if (this.migrationDescriptionElement) {
-			this.migrationDescriptionElement.textContent = category.getPageDescription(candidates, this.getActiveHarnessLabel());
+			this.migrationDescriptionElement.textContent = banner ? '' : category.getPageDescription(candidates, this.getActiveHarnessLabel());
+			this.migrationDescriptionElement.style.display = banner ? 'none' : '';
 		}
+
 		if (this.migrationLinkElement) {
 			this.migrationLinkElement.textContent = category.pageLinkLabel;
 			this.migrationLinkElement.href = category.pageLinkUrl;
 		}
+	}
+
+	private renderCustomizationMigrationBanner(banner: ICustomizationMigrationBanner | undefined): void {
+		const container = this.migrationBannerContainer;
+		if (!container) {
+			return;
+		}
+
+		DOM.clearNode(container);
+		if (!banner) {
+			container.style.display = 'none';
+			return;
+		}
+
+		container.style.display = '';
+		const icon = DOM.append(container, $('span.customization-migration-banner-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.setAttribute('aria-hidden', 'true');
+
+		const content = DOM.append(container, $('.customization-migration-banner-content'));
+		DOM.append(content, $('h3.customization-migration-banner-title')).textContent = banner.title;
+		DOM.append(content, $('p.customization-migration-banner-message')).textContent = banner.message;
+
+		const consequence = DOM.append(content, $('p.customization-migration-banner-consequence'));
+		const consequenceIcon = DOM.append(consequence, $('span.customization-migration-banner-consequence-icon'));
+		consequenceIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.sync));
+		consequenceIcon.setAttribute('aria-hidden', 'true');
+		DOM.append(consequence, $('span')).textContent = banner.consequence;
 	}
 
 	private updateCustomizationMigrationActionState(): void {

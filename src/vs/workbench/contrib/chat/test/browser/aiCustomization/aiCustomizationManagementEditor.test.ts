@@ -42,6 +42,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationMigrateButton: { enabled: boolean; label: string } | undefined;
 		migrationTitleElement: HTMLElement | undefined;
 		migrationDescriptionElement: HTMLElement | undefined;
+		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
 		migrationSearchQuery: string;
 		selectedCustomizationMigrationUris: ResourceSet;
@@ -98,6 +99,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationMigrateButton = undefined;
 		editor.migrationTitleElement = undefined;
 		editor.migrationDescriptionElement = undefined;
+		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
 		editor.migrationSearchQuery = '';
 		editor.selectedCustomizationMigrationUris = new ResourceSet();
@@ -263,6 +265,87 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.PromptFiles, CustomizationMigrationCategoryId.UserData],
 		]);
 		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('user data migration banner states the Settings Sync trade-off and replaces the description', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const userDataCustomizations = [
+			{
+				uri: URI.file('/user-data/prompts/legacy.agent.md'),
+				name: 'legacy.agent.md',
+				storage: PromptsStorage.user,
+				type: PromptsType.agent,
+				source: PromptFileSource.UserData,
+			} as IPromptPath,
+			{
+				uri: URI.file('/user-data/prompts/style.instructions.md'),
+				name: 'style.instructions.md',
+				storage: PromptsStorage.user,
+				type: PromptsType.instructions,
+				source: PromptFileSource.UserData,
+			} as IPromptPath,
+		];
+		const promptFiles = [
+			{
+				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+				name: 'review.prompt.md',
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+			} as IPromptPath,
+		];
+		editor.customizationsByMigrationCategory = new Map([
+			[CustomizationMigrationCategoryId.UserData, userDataCustomizations],
+			[CustomizationMigrationCategoryId.PromptFiles, promptFiles],
+		]);
+		editor.selectedCustomizationMigrationUris = new ResourceSet();
+		editor.migrationListContainer = document.createElement('div');
+		editor.migrationTitleElement = document.createElement('h2');
+		editor.migrationDescriptionElement = document.createElement('p');
+		editor.migrationBannerContainer = document.createElement('div');
+		editor.migrationLinkElement = document.createElement('a');
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		document.body.appendChild(editor.migrationListContainer);
+
+		const readBanner = () => ({
+			title: editor.migrationBannerContainer!.querySelector('.customization-migration-banner-title')?.textContent ?? '',
+			consequenceMentionsSync: (editor.migrationBannerContainer!.querySelector('.customization-migration-banner-consequence')?.textContent ?? '').includes('Settings Sync'),
+			bannerHidden: editor.migrationBannerContainer!.style.display === 'none',
+			descriptionHidden: editor.migrationDescriptionElement!.style.display === 'none',
+		});
+
+		try {
+			editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.UserData;
+			editor.renderCustomizationMigrationPage();
+			const userData = readBanner();
+
+			// The prompt-file migration keeps its plain description, with no banner.
+			editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
+			editor.renderCustomizationMigrationPage();
+			const prompts = readBanner();
+
+			assert.deepStrictEqual({ userData, prompts }, {
+				userData: {
+					title: '2 customizations are not available to Copilot [Agent Host]',
+					consequenceMentionsSync: true,
+					bannerHidden: false,
+					descriptionHidden: true,
+				},
+				prompts: {
+					title: '',
+					consequenceMentionsSync: false,
+					bannerHidden: true,
+					descriptionHidden: false,
+				},
+			});
+		} finally {
+			editor.migrationListContainer.remove();
+			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
 	});
 
 	test('customization migration groups can be collapsed independently', () => {

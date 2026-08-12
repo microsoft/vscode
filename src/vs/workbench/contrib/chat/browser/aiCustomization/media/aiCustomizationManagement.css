@@ -885,6 +885,75 @@
 	min-height: 0;
 }
 
+/*
+ * Migration banner — an Inner-tier callout that states the trade-off before the
+ * user commits to a migration that deletes the originals by default.
+ */
+.ai-customization-management-editor .customization-migration-banner {
+	flex-shrink: 0;
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size100);
+	margin: 0 0 var(--vscode-spacing-size120) 0;
+	padding: var(--vscode-spacing-size120);
+	background-color: var(--vscode-textBlockQuote-background, transparent);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .customization-migration-banner-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	/* Line up optically with the first line of the title. */
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
+}
+
+.ai-customization-management-editor .customization-migration-banner-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.ai-customization-management-editor .customization-migration-banner-title {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-message {
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-consequence {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size60);
+	margin: 0;
+	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-management-editor .customization-migration-banner-consequence-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+}
+
 .ai-customization-management-editor .prompt-migration-list {
 	position: absolute;
 	inset: 0;

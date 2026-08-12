@@ -27,6 +27,17 @@ export interface ICustomizationMigrationConfirmation {
 }
 
 /**
+ * Prominent explanation shown above the migration list, for migrations whose
+ * trade-off needs stating before the user commits.
+ */
+export interface ICustomizationMigrationBanner {
+	readonly title: string;
+	readonly message: string;
+	/** What the user gives up by migrating, so the choice is made knowingly. */
+	readonly consequence: string;
+}
+
+/**
  * A self-contained migration flow. Each category owns its candidates, grouping,
  * and user-visible copy so the two migrations stay focused and independently readable.
  */
@@ -54,6 +65,8 @@ export interface ICustomizationMigrationCategory {
 	getShortcutAriaLabel(count: number): string;
 	getCardDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
 	getPageDescription(customizations: readonly IPromptPath[], harnessLabel: string): string;
+	/** When present, replaces the page description with a prominent banner. */
+	getBanner?(customizations: readonly IPromptPath[], harnessLabel: string): ICustomizationMigrationBanner;
 	getConfirmation(customizations: readonly IPromptPath[], harnessLabel: string): ICustomizationMigrationConfirmation;
 	getMigratedMessage(migratedCount: number): string;
 	getMigratedWithReviewMessage?(migratedCount: number, unsupportedHeaderKeys: string): string;
@@ -203,18 +216,18 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	sourceTypes: [PromptsType.agent, PromptsType.instructions],
 	enablementSetting: ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled,
 	shortcutLabel: localize('userDataMigrationShortcutLabel', "Migrate User Data"),
-	shortcutTooltip: localize('userDataMigrationShortcutTooltip', "Move User Data agents and instructions to the active harness"),
-	cardLabel: localize('userDataMigrationCardLabel', "Migrate User Data"),
+	shortcutTooltip: localize('userDataMigrationShortcutTooltip', "Move user data agents and instructions to the active harness"),
+	cardLabel: localize('userDataMigrationCardLabel', "Migrate User Data Customizations"),
 	cardActionLabel: localize('userDataMigrationCardAction', "Migrate..."),
-	cardActionAriaLabel: localize('userDataMigrationCardActionAriaLabel', "Migrate User Data customizations to the active harness"),
-	pageTitle: localize('userDataMigrationPageTitle', "Migrate User Data"),
+	cardActionAriaLabel: localize('userDataMigrationCardActionAriaLabel', "Migrate user data customizations to the active harness"),
+	pageTitle: localize('userDataMigrationPageTitle', "Migrate User Data Customizations"),
 	pageLinkLabel: localize('userDataMigrationLearnMore', "Learn more about agent customizations"),
 	pageLinkUrl: CUSTOMIZATION_DOCUMENTATION_URL,
-	pageEmptyMessage: localize('userDataMigrationPageEmpty', "No User Data customizations are available to migrate."),
-	searchEmptyMessage: localize('userDataMigrationSearchEmpty', "No User Data customizations match your search."),
-	migrateButtonTooltip: localize('userDataMigrationPageButtonTooltip', "Move the selected User Data customizations to the active harness"),
-	backLabel: localize('backToUserDataMigration', "Back to Migrate User Data"),
-	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No User Data customizations were migrated."),
+	pageEmptyMessage: localize('userDataMigrationPageEmpty', "No user data customizations are available to migrate."),
+	searchEmptyMessage: localize('userDataMigrationSearchEmpty', "No user data customizations match your search."),
+	migrateButtonTooltip: localize('userDataMigrationPageButtonTooltip', "Move the selected user data customizations to the active harness"),
+	backLabel: localize('backToUserDataMigration', "Back to Migrate User Data Customizations"),
+	noFilesMigratedMessage: localize('userDataMigrationNoFilesMigrated', "No user data customizations were migrated."),
 
 	isCandidate(customization) {
 		return customization.source === PromptFileSource.UserData
@@ -237,7 +250,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	},
 
 	getShortcutAriaLabel(count) {
-		return localize('userDataMigrationShortcutAriaLabelWithCount', "User Data, {0} customizations need migration", count);
+		return localize('userDataMigrationShortcutAriaLabelWithCount', "User data, {0} customizations need migration", count);
 	},
 
 	getCardDescription(customizations, harnessLabel) {
@@ -245,46 +258,67 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 		if (agentCount > 0 && instructionsCount > 0) {
 			return localize(
 				'userDataMigrationCardDescriptionAgentsAndInstructions',
-				"User Data customizations are only used by VS Code. Found {0} files ({1} agents, {2} instructions) that {3} ignores. Move them to keep them available.",
+				"User data customizations are only used by VS Code. Found {0} files ({1} agents, {2} instructions) that {3} ignores. Move them to keep them available.",
 				totalCount, agentCount, instructionsCount, harnessLabel,
 			);
 		}
 		if (agentCount > 0) {
 			return localize(
 				'userDataMigrationCardDescriptionAgents',
-				"User Data customizations are only used by VS Code. Found {0} agents that {1} ignores. Move them to keep them available.",
+				"User data customizations are only used by VS Code. Found {0} agents that {1} ignores. Move them to keep them available.",
 				agentCount, harnessLabel,
 			);
 		}
 		return localize(
 			'userDataMigrationCardDescriptionInstructions',
-			"User Data customizations are only used by VS Code. Found {0} instruction files that {1} ignores. Move them to keep them available.",
+			"User data customizations are only used by VS Code. Found {0} instruction files that {1} ignores. Move them to keep them available.",
 			instructionsCount, harnessLabel,
 		);
+	},
+
+	getBanner(customizations, harnessLabel) {
+		const { totalCount } = countUserDataTypes(customizations);
+
+		return {
+			title: totalCount === 1
+				? localize('userDataMigrationBannerTitleSingle', "1 customization is not available to {0}", harnessLabel)
+				: localize('userDataMigrationBannerTitle', "{0} customizations are not available to {1}", totalCount, harnessLabel),
+			// The grouped list below already breaks these down by type, so the
+			// message explains the move rather than repeating the counts.
+			message: localize(
+				'userDataMigrationBannerMessage',
+				"They are stored in user data, which only VS Code reads. Migrating moves them into the folders {0} reads, keeping their name, type, and content, so you can keep using them.",
+				harnessLabel,
+			),
+			consequence: localize(
+				'userDataMigrationBannerConsequence',
+				"Customizations in user data roam between your devices with Settings Sync. Once migrated they live on this machine only, so consider committing them to a repository if you need them elsewhere.",
+			),
+		};
 	},
 
 	getPageDescription(customizations, harnessLabel) {
 		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
 		if (totalCount === 0) {
-			return localize('userDataMigrationPageDescription', "Select User Data customizations to move to the active harness.");
+			return localize('userDataMigrationPageDescription', "Select user data customizations to move to the active harness.");
 		}
 		if (agentCount > 0 && instructionsCount > 0) {
 			return localize(
 				'userDataMigrationPageDescriptionAgentsAndInstructions',
-				"Found {0} customizations ({1} agents, {2} instructions) in User Data that local VS Code can still use, but {3} ignores. Move them to the harness folders to keep them available. They keep their type and content.",
+				"Found {0} customizations ({1} agents, {2} instructions) in user data that local VS Code can still use, but {3} ignores. Move them to the harness folders to keep them available. They keep their type and content.",
 				totalCount, agentCount, instructionsCount, harnessLabel,
 			);
 		}
 		if (agentCount > 0) {
 			return localize(
 				'userDataMigrationPageDescriptionAgents',
-				"Found {0} agents in User Data that local VS Code can still use, but {1} ignores. Move them to the harness agents folder to keep them available.",
+				"Found {0} agents in user data that local VS Code can still use, but {1} ignores. Move them to the harness agents folder to keep them available.",
 				agentCount, harnessLabel,
 			);
 		}
 		return localize(
 			'userDataMigrationPageDescriptionInstructions',
-			"Found {0} instruction files in User Data that local VS Code can still use, but {1} ignores. Move them to the harness instructions folder to keep them available.",
+			"Found {0} instruction files in user data that local VS Code can still use, but {1} ignores. Move them to the harness instructions folder to keep them available.",
 			instructionsCount, harnessLabel,
 		);
 	},
@@ -292,26 +326,26 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	getConfirmation(customizations, harnessLabel) {
 		const { agentCount, instructionsCount } = countUserDataTypes(customizations);
 		const detail = agentCount > 0 && instructionsCount > 0
-			? localize('userDataMigrationConfirmDetailAgentsAndInstructions', "This moves {0} agents and {1} instruction files out of User Data.", agentCount, instructionsCount)
+			? localize('userDataMigrationConfirmDetailAgentsAndInstructions', "This moves {0} agents and {1} instruction files out of user data.", agentCount, instructionsCount)
 			: agentCount > 0
-				? localize('userDataMigrationConfirmDetailAgents', "This moves {0} agents out of User Data.", agentCount)
-				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of User Data.", instructionsCount);
+				? localize('userDataMigrationConfirmDetailAgents', "This moves {0} agents out of user data.", agentCount)
+				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of user data.", instructionsCount);
 		return {
-			message: localize('userDataMigrationConfirmMessage', "Migrate User Data customizations to {0}?", harnessLabel),
+			message: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
 			detail,
 			primaryButton: localize('userDataMigrationConfirmButton', "Migrate"),
-			deleteOriginalsLabel: localize('userDataMigrationDeleteOriginalFilesCheckbox', "Delete the original files from User Data after migration"),
+			deleteOriginalsLabel: localize('userDataMigrationDeleteOriginalFilesCheckbox', "Delete the original files from user data after migration"),
 		};
 	},
 
 	getMigratedMessage(migratedCount) {
-		return localize('userDataMigrationCompleted', "Migrated {0} User Data customizations.", migratedCount);
+		return localize('userDataMigrationCompleted', "Migrated {0} user data customizations.", migratedCount);
 	},
 
 	getFailedMessage(failedFileNames, hiddenFileCount) {
 		return hiddenFileCount > 0
-			? localize('userDataMigrationFilesFailedWithRemainder', "Failed to migrate {0} User Data customizations: {1}, and {2} more.", failedFileNames.length + hiddenFileCount, failedFileNames.join(', '), hiddenFileCount)
-			: localize('userDataMigrationFilesFailed', "Failed to migrate {0} User Data customizations: {1}.", failedFileNames.length, failedFileNames.join(', '));
+			? localize('userDataMigrationFilesFailedWithRemainder', "Failed to migrate {0} user data customizations: {1}, and {2} more.", failedFileNames.length + hiddenFileCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('userDataMigrationFilesFailed', "Failed to migrate {0} user data customizations: {1}.", failedFileNames.length, failedFileNames.join(', '));
 	},
 };
 
