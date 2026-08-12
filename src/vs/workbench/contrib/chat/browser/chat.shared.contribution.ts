@@ -16,7 +16,7 @@ import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSet
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
-import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../../../platform/chat/common/chatSettings.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -728,7 +728,11 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: {
 				type: 'boolean',
 			},
-			agentHost: { key: AgentHostEditAutoApprovePatternsConfigKey },
+			scope: ConfigurationScope.APPLICATION,
+			agentHost: {
+				key: AgentHostEditAutoApprovePatternsConfigKey,
+				transform: mergeChatEditAutoApprovePatterns,
+			},
 		},
 		[ChatConfiguration.AutoApprovedUrls]: {
 			default: {

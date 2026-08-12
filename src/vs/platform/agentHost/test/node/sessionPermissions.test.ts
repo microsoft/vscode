@@ -14,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -148,6 +149,27 @@ suite('SessionPermissionManager', () => {
 			await permissions.getAutoApproval(writeEvent(join(workDir, 'README.md')), sessionUri),
 			await permissions.getAutoApproval(writeEvent(join(workDir, '.github', 'hooks', 'pre-tool.json')), sessionUri),
 		], [ToolCallConfirmationReason.NotNeeded, undefined, undefined]);
+	});
+
+	test('merges configured edit auto-approve patterns with defaults', () => {
+		assert.deepStrictEqual(mergeChatEditAutoApprovePatterns({
+			'**/generated/**': false,
+		}), {
+			...DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
+			'**/generated/**': false,
+		});
+	});
+
+	test('malformed edit auto-approve values fail closed', async () => {
+		configService.updateRootConfig({
+			[AgentHostEditAutoApprovePatternsConfigKey]: {
+				'**/*': 'false',
+			},
+		});
+
+		const result = await permissions.getAutoApproval(writeEvent(join(workDir, 'src', 'app.ts')), sessionUri);
+
+		assert.strictEqual(result, undefined);
 	});
 
 	test('requires confirmation for files that can register lifecycle hooks', async () => {

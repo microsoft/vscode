@@ -623,7 +623,8 @@ export class SessionPermissionManager extends Disposable {
 		const patterns = this._configService.getRootValue(platformRootSchema, AgentHostEditAutoApprovePatternsConfigKey) ?? DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
 		const ignoreCase = extUriBiasedIgnorePathCase.ignorePathCasing(resource);
 		for (const patternSet of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS]) {
-			for (const [pattern, isApproved] of Object.entries(patternSet)) {
+			for (const [pattern, configuredApproval] of Object.entries(patternSet)) {
+				const isApproved = configuredApproval === true;
 				if (isApproved !== approved && globMatch(pattern, resource.fsPath, { ignoreCase })) {
 					approved = isApproved;
 				}

@@ -31,3 +31,14 @@ export const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: ChatEditAutoApprovePatterns = {
 	'**/*-lock.{yaml,json}': false,
 	...ALWAYS_CHECKED_EDIT_PATTERNS,
 };
+
+export function mergeChatEditAutoApprovePatterns(value: unknown): ChatEditAutoApprovePatterns {
+	const patterns: Record<string, boolean> = { ...DEFAULT_EDIT_AUTO_APPROVE_PATTERNS };
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return patterns;
+	}
+	for (const [pattern, isApproved] of Object.entries(value)) {
+		patterns[pattern] = isApproved === true;
+	}
+	return patterns;
+}
