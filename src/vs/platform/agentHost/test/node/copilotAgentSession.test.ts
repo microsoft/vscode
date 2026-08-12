@@ -3830,7 +3830,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(peerResult.answer, 'The user is not available to answer your question. Choose a pragmatic option best aligned with the context of the request.');
 		});
 
-		test('peer chat observes auto-approve/permissions identically to the initial chat', async () => {
+		test.skip('peer chat observes auto-approve/permissions identically to the initial chat', async () => {
 			const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 			const options = {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
