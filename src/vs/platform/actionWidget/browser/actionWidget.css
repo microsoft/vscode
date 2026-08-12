@@ -224,6 +224,11 @@
 	white-space: nowrap;
 }
 
+.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) .detail {
+	color: inherit;
+	opacity: 1;
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0px 6px;
 	border-radius: 10px;
