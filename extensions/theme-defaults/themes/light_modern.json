@@ -147,6 +147,8 @@
 		"titleBar.inactiveBackground": "#F8F8F8",
 		"titleBar.inactiveForeground": "#8B949E",
 		"welcomePage.tileBackground": "#F3F3F3",
-		"widget.border": "#E5E5E5"
+		"widget.border": "#E5E5E5",
+		// modern ui
+		"surface.border": "#E0E0E0",
 	},
 }

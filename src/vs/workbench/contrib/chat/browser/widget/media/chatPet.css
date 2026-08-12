@@ -40,6 +40,7 @@
 
 .chat-pet-button.dragging,
 .chat-pet-button.falling,
+.chat-pet-button.throwing,
 .chat-pet-revive-sign,
 .chat-pet-respawn-effect {
 	z-index: 1;
@@ -49,6 +50,13 @@
 	cursor: default;
 	pointer-events: none;
 	transition: top 180ms cubic-bezier(0.42, 0, 1, 1);
+}
+
+.chat-pet-button.throwing {
+	cursor: default;
+	pointer-events: none;
+	transition: none;
+	will-change: left, top, transform;
 }
 
 .chat-pet-button.dragging.soft-resisting {
@@ -131,9 +139,12 @@
 	display: none;
 }
 
-.chat-pet-button.wide-sprite-left .chat-pet-sprite {
+.chat-pet-button[data-facing='left'] .chat-pet-sprite {
 	right: 0;
 	left: auto;
+}
+
+.chat-pet-button[data-facing='left'] .chat-pet-sprite > .chat-pet-canvas {
 	transform: scaleX(-1);
 }
 
@@ -205,7 +216,8 @@
 	transform: scaleX(-1);
 }
 
-.chat-pet-button.dragging .chat-pet-speech-bubble {
+.chat-pet-button.dragging .chat-pet-speech-bubble,
+.chat-pet-button.throwing .chat-pet-speech-bubble {
 	display: none;
 }
 
@@ -214,8 +226,12 @@
 	animation: chat-pet-complete-motion 960ms steps(1, end);
 }
 
-.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite {
+.chat-pet-button[data-state='jump'][data-hop-direction='left'] .chat-pet-sprite > .chat-pet-canvas {
 	transform: scaleX(-1);
+}
+
+.chat-pet-button[data-state='jump'][data-hop-direction='right'] .chat-pet-sprite > .chat-pet-canvas {
+	transform: none;
 }
 
 .chat-pet-button[data-state='yapping'] .chat-pet-sprite,
@@ -278,6 +294,14 @@
 	left: 30px;
 }
 
+.chat-pet-button[data-facing='left'] .chat-pet-eye.left {
+	left: 22px;
+}
+
+.chat-pet-button[data-facing='left'] .chat-pet-eye.right {
+	left: 10px;
+}
+
 .chat-pet-pupil {
 	position: absolute;
 	top: 2px;
@@ -287,8 +311,29 @@
 	background: #191a1b;
 }
 
+.chat-pet-button[data-state='idle'] .chat-pet-eye,
+.chat-pet-button[data-state='rendering'] .chat-pet-eye,
+.chat-pet-button[data-state='clapping'] .chat-pet-eye,
+.chat-pet-button[data-state='yapping'] .chat-pet-eye {
+	height: 12px;
+}
+
+.chat-pet-button[data-state='idle'] .chat-pet-pupil,
+.chat-pet-button[data-state='rendering'] .chat-pet-pupil,
+.chat-pet-button[data-state='clapping'] .chat-pet-pupil,
+.chat-pet-button[data-state='yapping'] .chat-pet-pupil {
+	height: 8px;
+}
+
 .chat-pet-eyes.animated .chat-pet-pupil {
 	animation: chat-pet-eye-blink 2s steps(1, end) infinite;
+}
+
+.chat-pet-button[data-state='idle'] .chat-pet-eyes.animated .chat-pet-pupil,
+.chat-pet-button[data-state='rendering'] .chat-pet-eyes.animated .chat-pet-pupil,
+.chat-pet-button[data-state='clapping'] .chat-pet-eyes.animated .chat-pet-pupil,
+.chat-pet-button[data-state='yapping'] .chat-pet-eyes.animated .chat-pet-pupil {
+	animation-name: chat-pet-tall-eye-blink;
 }
 
 .chat-pet-button.dragging .chat-pet-pupil {
@@ -299,9 +344,9 @@
 .chat-pet-button.dragging .chat-pet-eye::after {
 	content: '';
 	position: absolute;
-	top: 3px;
-	left: 1px;
-	width: 6px;
+	top: 5px;
+	left: 0;
+	width: 8px;
 	height: 2px;
 	background: #191a1b;
 }
@@ -431,6 +476,20 @@
 	46%,
 	55.999% {
 		clip-path: inset(1px 0);
+	}
+}
+
+@keyframes chat-pet-tall-eye-blink {
+	0%,
+	45.999%,
+	56%,
+	100% {
+		clip-path: inset(0);
+	}
+
+	46%,
+	55.999% {
+		clip-path: inset(3px 0);
 	}
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionModelInfo } from './state/protocol/state.js';
-import type { IAgentModelInfo } from './agentService.js';
+import type { IAgentModelInfo } from './agent.js';
 
 /**
  * Well-known model picker metadata carried under a model's open `_meta` bag (see {@link IAgentModelInfo._meta} /

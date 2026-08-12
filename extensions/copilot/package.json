@@ -3574,23 +3574,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.cloudAgentBackend.version": {
-            "type": "string",
-            "default": "v1",
-            "enum": [
-              "v1",
-              "v2"
-            ],
-            "enumDescriptions": [
-              "%github.copilot.config.cloudAgentBackend.version.v1%",
-              "%github.copilot.config.cloudAgentBackend.version.v2%"
-            ],
-            "markdownDescription": "%github.copilot.config.cloudAgentBackend.version%",
-            "tags": [
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.switchAgent.enabled": {
             "type": "boolean",
             "default": false,
@@ -7112,7 +7095,7 @@
     "markdown-it": "^14.2.0",
     "minimatch": "^10.2.1",
     "undici": "^7.24.1",
-    "vscode-tas-client": "^0.3.0",
+    "vscode-tas-client": "^0.1.84",
     "web-tree-sitter": "^0.23.0"
   },
   "overrides": {

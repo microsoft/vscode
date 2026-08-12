@@ -11,6 +11,9 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions as ThemingExtensions, IColorRegistry } from '../../../../../platform/theme/common/colorRegistry.js';
+import { EDITOR_BORDER, SURFACE_BORDER } from '../../../../common/theme.js';
 import { TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
@@ -56,11 +59,13 @@ function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	return element;
 }
 
-function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; indicator: HTMLElement } {
+function createCompositeAction(root: HTMLElement, titleHeight: number, checked: boolean, icon = false): { actionItem: HTMLElement; actionLabel: HTMLElement; indicator: HTMLElement } {
 	root.style.setProperty('--vscode-spacing-size20', '2px');
 	root.style.setProperty('--vscode-spacing-size40', '4px');
 	root.style.setProperty('--vscode-spacing-size240', '24px');
 	root.style.setProperty('--vscode-spacing-size320', '32px');
+	root.style.setProperty('--vscode-fontWeight-regular', '400');
+	root.style.setProperty('--vscode-fontWeight-semiBold', '600');
 	const part = appendElement(root, 'part pane-composite-part');
 	const title = appendElement(part, 'title');
 	title.style.height = `${titleHeight}px`;
@@ -70,17 +75,21 @@ function createCompositeAction(root: HTMLElement, titleHeight: number, checked: 
 	const actionsContainer = appendElement(actionBar, 'actions-container');
 	const actionItem = appendElement(actionsContainer, `action-item${checked ? ' checked' : ''}${icon ? ' icon' : ''}`);
 	actionItem.tabIndex = 0;
-	appendElement(actionItem, 'action-label');
+	const actionLabel = appendElement(actionItem, 'action-label');
 	const indicator = appendElement(actionItem, 'active-item-indicator');
-	return { actionItem, indicator };
+	return { actionItem, actionLabel, indicator };
 }
 
 suite('StyleOverridesContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const colorRegistry = Registry.as<IColorRegistry>(ThemingExtensions.ColorContribution);
 
 	test('applies startup values without relayout and relayouts once when toggled', async () => {
-		const configurationService = new TestConfigurationService({ [LayoutSettings.MODERN_UI]: true });
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: true,
+			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: true,
+		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const layoutService = new StyleOverridesTestLayoutService();
 		store.add(layoutService.onDidAddContainerEmitter);
@@ -100,8 +109,10 @@ suite('StyleOverridesContribution', () => {
 		const startupState = {
 			mainEnabled: layoutService.mainContainer.classList.contains('style-override'),
 			mainTabsEnabled: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
+			mainUppercaseViewHeaders: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			auxiliaryEnabled: auxiliaryContainer.classList.contains('style-override'),
 			auxiliaryTabsEnabled: auxiliaryContainer.classList.contains('modern-ui-tabs'),
+			auxiliaryUppercaseViewHeaders: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSize: pane.minimumSize,
 			paneHeaderLineHeight: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeight: pane.draggableElement!.style.lineHeight,
@@ -120,8 +131,10 @@ suite('StyleOverridesContribution', () => {
 			startupState,
 			mainEnabledAfterToggle: layoutService.mainContainer.classList.contains('style-override'),
 			mainTabsEnabledAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-tabs'),
+			mainUppercaseViewHeadersAfterToggle: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			auxiliaryEnabledAfterToggle: auxiliaryContainer.classList.contains('style-override'),
 			auxiliaryTabsEnabledAfterToggle: auxiliaryContainer.classList.contains('modern-ui-tabs'),
+			auxiliaryUppercaseViewHeadersAfterToggle: auxiliaryContainer.classList.contains('modern-ui-uppercase-view-headers'),
 			paneHeaderSizeAfterToggle: pane.minimumSize,
 			paneHeaderLineHeightAfterToggle: getWindow(pane.draggableElement!).getComputedStyle(pane.draggableElement!).lineHeight,
 			paneHeaderInlineLineHeightAfterToggle: pane.draggableElement!.style.lineHeight,
@@ -130,8 +143,10 @@ suite('StyleOverridesContribution', () => {
 			startupState: {
 				mainEnabled: true,
 				mainTabsEnabled: true,
+				mainUppercaseViewHeaders: true,
 				auxiliaryEnabled: true,
 				auxiliaryTabsEnabled: true,
+				auxiliaryUppercaseViewHeaders: true,
 				paneHeaderSize: 28,
 				paneHeaderLineHeight: '28px',
 				paneHeaderInlineLineHeight: '',
@@ -139,12 +154,86 @@ suite('StyleOverridesContribution', () => {
 			},
 			mainEnabledAfterToggle: false,
 			mainTabsEnabledAfterToggle: false,
+			mainUppercaseViewHeadersAfterToggle: false,
 			auxiliaryEnabledAfterToggle: false,
 			auxiliaryTabsEnabledAfterToggle: false,
+			auxiliaryUppercaseViewHeadersAfterToggle: false,
 			paneHeaderSizeAfterToggle: 22,
 			paneHeaderLineHeightAfterToggle: '22px',
 			paneHeaderInlineLineHeightAfterToggle: '',
 			layoutCountAfterToggle: 1,
+		});
+	});
+
+	test('toggles uppercase view headers without relayout', async () => {
+		const configurationService = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: true,
+			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const layoutService = new StyleOverridesTestLayoutService();
+		store.add(layoutService.onDidAddContainerEmitter);
+		store.add(new StyleOverridesContribution(configurationService, layoutService));
+
+		layoutService.mainContainer.classList.add('monaco-workbench');
+		const paneView = appendElement(layoutService.mainContainer, 'monaco-pane-view');
+		const paneHeader = appendElement(appendElement(paneView, 'pane'), 'pane-header');
+		const paneTitle = appendElement(paneHeader, 'title');
+
+		const explorerPart = appendElement(layoutService.mainContainer, 'part');
+		explorerPart.dataset.activeComposite = 'workbench.view.explorer';
+		const explorerTitleLabel = appendElement(appendElement(explorerPart, 'title'), 'title-label');
+		const explorerTitle = document.createElement('h2');
+		explorerTitleLabel.appendChild(explorerTitle);
+		const extensionsPart = appendElement(layoutService.mainContainer, 'part');
+		const extensionsTitleLabel = appendElement(appendElement(extensionsPart, 'title'), 'title-label');
+		const extensionsTitle = document.createElement('h2');
+		extensionsTitleLabel.appendChild(extensionsTitle);
+		const panelTab = createCompositeAction(layoutService.mainContainer, 35, true).actionLabel;
+
+		document.body.appendChild(layoutService.mainContainer);
+		store.add(toDisposable(() => layoutService.mainContainer.remove()));
+		const targetWindow = getWindow(layoutService.mainContainer);
+		const beforeToggle = {
+			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
+			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
+			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
+			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
+			layoutCount: layoutService.layoutCount,
+		};
+
+		await configurationService.setUserConfiguration(LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]),
+			change: { keys: [LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS], overrides: [] }
+		});
+
+		assert.deepStrictEqual({
+			beforeToggle,
+			classApplied: layoutService.mainContainer.classList.contains('modern-ui-uppercase-view-headers'),
+			paneTitleTransform: targetWindow.getComputedStyle(paneTitle).textTransform,
+			explorerTitleTransform: targetWindow.getComputedStyle(explorerTitle).textTransform,
+			extensionsTitleTransform: targetWindow.getComputedStyle(extensionsTitle).textTransform,
+			panelTabTransform: targetWindow.getComputedStyle(panelTab).textTransform,
+			layoutCount: layoutService.layoutCount,
+		}, {
+			beforeToggle: {
+				classApplied: false,
+				paneTitleTransform: 'capitalize',
+				explorerTitleTransform: 'none',
+				extensionsTitleTransform: 'capitalize',
+				panelTabTransform: 'capitalize',
+				layoutCount: 0,
+			},
+			classApplied: true,
+			paneTitleTransform: 'uppercase',
+			explorerTitleTransform: 'uppercase',
+			extensionsTitleTransform: 'uppercase',
+			panelTabTransform: 'uppercase',
+			layoutCount: 0,
 		});
 	});
 
@@ -202,6 +291,47 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('pane composite actions use regular label weight', () => {
+		const regularRoot = document.createElement('div');
+		regularRoot.className = 'monaco-workbench style-override modern-ui-tabs';
+		document.body.appendChild(regularRoot);
+		store.add(toDisposable(() => regularRoot.remove()));
+		const regular = createCompositeAction(regularRoot, 40, true);
+		const auxiliary = createCompositeAction(regularRoot, 40, true);
+		auxiliary.actionItem.closest('.part')?.classList.add('auxiliarybar');
+
+		const agentsRoot = document.createElement('div');
+		agentsRoot.className = 'monaco-workbench modern-ui-tabs';
+		document.body.appendChild(agentsRoot);
+		store.add(toDisposable(() => agentsRoot.remove()));
+		const agents = createCompositeAction(agentsRoot, 35, true);
+
+		const targetWindow = getWindow(regular.actionLabel);
+		assert.deepStrictEqual({
+			regularLabelWeight: targetWindow.getComputedStyle(regular.actionLabel).fontWeight,
+			auxiliaryLabelWeight: targetWindow.getComputedStyle(auxiliary.actionLabel).fontWeight,
+			agentsLabelWeight: targetWindow.getComputedStyle(agents.actionLabel).fontWeight,
+		}, {
+			regularLabelWeight: '400',
+			auxiliaryLabelWeight: '400',
+			agentsLabelWeight: '400',
+		});
+	});
+
+	test('pane composite overflow uses the icon foreground', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override modern-ui-tabs';
+		root.style.setProperty('--vscode-icon-foreground', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const overflow = createCompositeAction(root, 40, false, true);
+		overflow.actionLabel.classList.add('codicon', 'codicon-more');
+		overflow.actionLabel.style.color = 'rgba(231, 231, 231, 0.6)';
+
+		assert.strictEqual(getWindow(overflow.actionLabel).getComputedStyle(overflow.actionLabel).color, 'rgb(18, 52, 86)');
+	});
+
 	test('preserves Modern UI activity badges and horizontal pane dividers', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override modern-ui-tabs';
@@ -237,6 +367,55 @@ suite('StyleOverridesContribution', () => {
 			headerBorderWidth: '0px',
 			headerOverflow: 'visible',
 			footerBorderWidth: '0px',
+		});
+	});
+
+	test('uses the editor surface border color', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override floating-panels';
+		root.style.setProperty('--vscode-editor-border', '#123456');
+		root.style.setProperty('--vscode-surface-border', '#654321');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor');
+		const contribution = colorRegistry.getColors().find(color => color.id === EDITOR_BORDER);
+
+		assert.deepStrictEqual({
+			registeredDefault: contribution?.defaults,
+			borderColor: getWindow(editor).getComputedStyle(editor).borderColor,
+		}, {
+			registeredDefault: SURFACE_BORDER,
+			borderColor: 'rgb(18, 52, 86)',
+		});
+	});
+
+	test('keeps panel global actions above overflowing title actions', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench style-override';
+		root.style.setProperty('--vscode-panel-background', '#123456');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const panel = appendElement(root, 'part basepanel bottom');
+		const title = appendElement(panel, 'composite title');
+		const titleActions = appendElement(title, 'title-actions');
+		const globalActions = appendElement(title, 'global-actions');
+		const targetWindow = getWindow(root);
+
+		assert.deepStrictEqual({
+			titleActionsMinWidth: targetWindow.getComputedStyle(titleActions).minWidth,
+			globalActionsPosition: targetWindow.getComputedStyle(globalActions).position,
+			globalActionsZIndex: targetWindow.getComputedStyle(globalActions).zIndex,
+			globalActionsFlexShrink: targetWindow.getComputedStyle(globalActions).flexShrink,
+			globalActionsBackground: targetWindow.getComputedStyle(globalActions).backgroundColor,
+		}, {
+			titleActionsMinWidth: '0px',
+			globalActionsPosition: 'relative',
+			globalActionsZIndex: '1',
+			globalActionsFlexShrink: '0',
+			globalActionsBackground: 'rgb(18, 52, 86)',
 		});
 	});
 });

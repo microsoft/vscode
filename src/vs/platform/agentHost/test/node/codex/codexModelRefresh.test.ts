@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,7 +15,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
@@ -39,7 +41,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Pr
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, { _serviceBrand: undefined, getNativeSdkTelemetryConfig: async () => undefined });
-	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostSessionTitleSignal, { _serviceBrand: undefined, onDidChangeSessionTitle: Event.None });
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
@@ -59,8 +61,15 @@ suite('CodexAgent model refresh', () => {
 			displayName: 'GPT-5.6-Sol',
 			description: 'Latest frontier agentic coding model.',
 			hidden: false,
-			supportedReasoningEfforts: [],
-			defaultReasoningEffort: 'medium',
+			supportedReasoningEfforts: [
+				{ reasoningEffort: 'low', description: 'Fast responses with lighter reasoning' },
+				{ reasoningEffort: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+				{ reasoningEffort: 'high', description: 'Greater reasoning depth for complex problems' },
+				{ reasoningEffort: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+				{ reasoningEffort: 'max', description: 'Maximum reasoning depth for the hardest problems' },
+				{ reasoningEffort: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
+			],
+			defaultReasoningEffort: 'low',
 			inputModalities: ['text', 'image'],
 			supportsPersonality: true,
 			additionalSpeedTiers: [],
@@ -88,6 +97,61 @@ suite('CodexAgent model refresh', () => {
 		await agent.refreshModels();
 
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), [toCodexModelSelectionId('vscode-proxy', 'gpt-5.5')]);
+	});
+
+	test('uses the reasoning efforts advertised by Copilot models', async () => {
+		const model: CCAModel = {
+			billing: { is_premium: true, multiplier: 1, restricted_to: [] },
+			capabilities: {
+				family: 'gpt-5.6',
+				limits: { max_context_window_tokens: 272_000, max_output_tokens: 32_000, max_prompt_tokens: 240_000 },
+				object: 'model_capabilities',
+				supports: { parallel_tool_calls: true, streaming: true, tool_calls: true, vision: true },
+				tokenizer: 'o200k_base',
+				type: 'chat',
+			},
+			id: 'gpt-5.6-sol',
+			is_chat_default: true,
+			is_chat_fallback: false,
+			model_picker_category: 'advanced',
+			model_picker_enabled: true,
+			name: 'GPT-5.6-Sol',
+			object: 'model',
+			policy: { state: 'enabled', terms: '' },
+			preview: false,
+			supported_endpoints: ['/responses'],
+			vendor: 'OpenAI',
+			version: 'gpt-5.6-sol',
+		};
+		(model.capabilities.supports as { reasoning_effort?: string[] }).reasoning_effort = ['none', 'low', 'medium', 'high', 'xhigh', 'max'];
+		const agent = createAgent(disposables, async () => [model]);
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+
+		assert.deepStrictEqual(agent.models.get().map(model => ({
+			id: model.id,
+			thinkingLevel: model.configSchema?.properties.thinkingLevel && {
+				enum: model.configSchema.properties.thinkingLevel.enum,
+				default: model.configSchema.properties.thinkingLevel.default,
+			},
+		})), [{
+			id: toCodexModelSelectionId('vscode-proxy', 'gpt-5.6-sol'),
+			thinkingLevel: {
+				enum: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
+				default: 'medium',
+			},
+		}]);
+	});
+
+	test('omits the thinking level when a Copilot model advertises no reasoning efforts', async () => {
+		const model = { id: 'gpt-5.5', name: 'GPT-5.5', supported_endpoints: ['/responses'] } as CCAModel;
+		const agent = createAgent(disposables, async () => [model]);
+
+		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+		await agent.refreshModels();
+
+		assert.strictEqual(agent.models.get()[0].configSchema, undefined);
 	});
 
 	test('applies authentication received while the connection is starting to the proxy', async () => {
@@ -143,13 +207,51 @@ suite('CodexAgent model refresh', () => {
 			provider: model.provider,
 			id: model.id,
 			name: model.name,
+			thinkingLevel: model.configSchema?.properties.thinkingLevel && {
+				enum: model.configSchema.properties.thinkingLevel.enum,
+				default: model.configSchema.properties.thinkingLevel.default,
+			},
 			meta: model._meta,
 		})), [{
 			provider: 'chatgpt',
 			id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 			name: 'GPT-5.6-Sol',
+			thinkingLevel: {
+				enum: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+				default: 'low',
+			},
 			meta: { modelSourceId: 'chatgptSubscription' },
 		}]);
+	});
+
+	test('omits the thinking level when a Codex model advertises no reasoning efforts', async () => {
+		const agent = createAgent(disposables, async () => []);
+		agent['_connection'] = {
+			kind: 'ready',
+			client: {
+				request: async (method: string) => {
+					if (method === 'account/read') {
+						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
+					}
+					if (method === 'config/read') {
+						return { config: { model_provider: 'openai' } };
+					}
+					if (method === 'model/list') {
+						return {
+							...modelListResponse,
+							data: modelListResponse.data.map(model => ({ ...model, supportedReasoningEfforts: [] })),
+						};
+					}
+					throw new Error(`Unexpected request: ${method}`);
+				},
+			},
+			proxyHandle: { dispose() { } },
+			child: { kill: () => true },
+		} as never;
+
+		await agent.refreshModels();
+
+		assert.strictEqual(agent.models.get()[0].configSchema, undefined);
 	});
 
 	test('removes ChatGPT models when account/read reports signed out', async () => {
