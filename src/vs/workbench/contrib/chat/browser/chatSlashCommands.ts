@@ -77,10 +77,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}, async () => {
 			chatPetService.toggle();
 		}));
-		// The Agents window registers its own `/clear` (see
-		// `sessions/contrib/chat/browser/clearSlashCommand.contribution.ts`) because
-		// archiving and starting a new session there go through the sessions
-		// services, not `IAgentSessionsService` / `ACTION_ID_NEW_CHAT`.
+		// The Agents window registers its own `/clear` in `sessions/contrib/chat/browser/clearSlashCommand.contribution.ts`.
 		if (!this.environmentService.isSessionsWindow) {
 			const clearCommandRegistration = this._register(new MutableDisposable());
 			const registerClearCommand = () => {

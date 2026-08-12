@@ -20,15 +20,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
- * `/clear` for the Agents window.
- *
- * The classic workbench registers its own `/clear` in
- * `workbench/contrib/chat/browser/chatSlashCommands.ts`, but that one archives
- * through `IAgentSessionsService` and starts a new chat through
- * `ACTION_ID_NEW_CHAT` — neither of which reaches the Agents window, whose
- * sessions are owned by the sessions providers and whose new-session flow is
- * `ISessionsService.openNewSession`. The core registration is skipped in this
- * window so this one can take its place.
+ * `/clear` for the Agents window. The core registration is skipped here so this
+ * one, which archives and starts a new session through the sessions services, can take its place.
  */
 export class ClearSlashCommandContribution extends Disposable implements IWorkbenchContribution {
 
@@ -60,9 +53,7 @@ export class ClearSlashCommandContribution extends Disposable implements IWorkbe
 					: localize('clear.archive', "Start a new chat and archive the current one"),
 				sortText: 'z2_clear',
 				executeImmediately: true,
-				// Archiving hides the session, so adding a `/clear` turn to it
-				// would only leave a stray request behind.
-				silent: true,
+				silent: true, // archiving hides the session, so a `/clear` turn would only be stranded in it
 				locations: [ChatAgentLocation.Chat],
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
