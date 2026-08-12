@@ -103,6 +103,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
 		},
 		[AgentHostSystemProxyEnabledSettingId]: {
