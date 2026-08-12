@@ -95,26 +95,23 @@ export function buildSandboxConfigForSdk(
 
 	const allowNetwork = sandbox[AgentHostSandboxKey.AllowNetwork];
 	const allowBypass = sandbox[AgentHostSandboxKey.AllowUnsandboxedCommands];
+	const filesystem = hasFileSystemPolicy
+		? {
+			...(denied.size ? { deniedPaths: [...denied] } : {}),
+			...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+			...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+		}
+		: undefined;
+	const network = typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : undefined;
+	const userPolicy = filesystem || network
+		? {
+			...(filesystem ? { filesystem } : {}),
+			...(network ? { network } : {}),
+		}
+		: undefined;
 	return {
-		enabled: enabledRaw === AgentSandboxEnabledValue.On,
+		enabled: true,
 		...(typeof allowBypass === 'boolean' ? { allowBypass } : {}),
-		...(hasFileSystemPolicy || typeof allowNetwork === 'boolean'
-			? {
-				userPolicy: {
-					...(hasFileSystemPolicy
-						? {
-							filesystem: {
-								...(denied.size ? { deniedPaths: [...denied] } : {}),
-								...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-								...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-							},
-						}
-						: {}),
-					...(typeof allowNetwork === 'boolean'
-						? { network: { allowOutbound: allowNetwork } }
-						: {}),
-				},
-			}
-			: {}),
+		...(userPolicy ? { userPolicy } : {}),
 	};
 }
