@@ -3409,9 +3409,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('adopts an already-surfaced legacy session on open even when the migrate setting is off', async () => {
-			// Surfacing (setting on) then toggling the setting off must not leave a
-			// listed adoptable session that dead-ends on "not found": opening it
-			// still adopts, because it is marked adoptable in its summary _meta.
+			// The surfaced adoptable marker stays authoritative after migration is disabled.
 			class AdoptOnOpenAgent extends MockAgent {
 				adoptCalls = 0;
 				private _adopted = false;

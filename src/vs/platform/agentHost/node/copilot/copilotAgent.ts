@@ -3983,9 +3983,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (model) {
 				work.push(db.setMetadata(CopilotAgent._META_MODEL, this._serializeModelSelection(model)));
 			}
-			// Seed agent-host read ownership for adopted legacy sessions: without a
-			// persisted flag the restored summary reports unread, flipping a
-			// previously-seen session back to unread on open. See Issue 1.
+			// Persist read ownership so the adopted session isn't reported unread on open.
 			if (markRead) {
 				work.push(db.setMetadata(AH_META_IS_READ_DB_KEY, 'true'));
 			}

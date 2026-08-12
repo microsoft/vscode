@@ -392,12 +392,7 @@ export class AgentHostStateManager extends Disposable {
 		return entry ? this._toSummary(session, entry) : undefined;
 	}
 
-	/**
-	 * The summary a session was surfaced/announced with (e.g. an adoptable-legacy
-	 * session) while it has no full state yet. Returns `undefined` once the
-	 * session is restored into state. Lets callers honour a still-listed
-	 * adoptable session even if the migrate setting was toggled off after surfacing.
-	 */
+	/** Returns an unrestored session's last surfaced summary, if any. */
 	getSurfacedSessionSummary(session: string): SessionSummary | undefined {
 		return this._sessionStates.has(session) ? undefined : this._summaryNotifier.getAnnounced(session);
 	}

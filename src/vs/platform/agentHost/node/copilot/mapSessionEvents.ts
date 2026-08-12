@@ -464,10 +464,7 @@ export async function mapSessionEvents(
 				}
 				break;
 			case 'session.start': {
-				// Seed the model from the session's initial selection so restored
-				// (e.g. adopted legacy Copilot CLI) turns carry the right model —
-				// and the last turn's model backs the session's model picker —
-				// instead of resetting to auto. Later `model_change` events win.
+				// Restore the initial model; later model-change events take precedence.
 				if (!e.agentId && e.data.selectedModel) {
 					currentModel = { id: e.data.selectedModel };
 				}
