@@ -6511,7 +6511,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				toolCallId: 'tu_shape',
 				toolName: 'Read',
 				displayName: 'Read file',
-				invocationMessage: { markdown: 'Reading [foo.txt](file:///tmp/foo.txt)' },
+				invocationMessage: { markdown: 'Read [foo.txt](file:///tmp/foo.txt)' },
 				toolInput: '{\n  "file_path": "/tmp/foo.txt"\n}',
 				confirmationTitle: 'Read file?',
 				_meta: { toolKind: 'read' },
