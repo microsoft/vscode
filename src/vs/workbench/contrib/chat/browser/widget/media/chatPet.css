@@ -40,6 +40,7 @@
 
 .chat-pet-button.dragging,
 .chat-pet-button.falling,
+.chat-pet-button.throwing,
 .chat-pet-respawn-effect {
 	z-index: 1;
 }
@@ -48,6 +49,13 @@
 	cursor: default;
 	pointer-events: none;
 	transition: top 180ms cubic-bezier(0.42, 0, 1, 1);
+}
+
+.chat-pet-button.throwing {
+	cursor: default;
+	pointer-events: none;
+	transition: none;
+	will-change: left, top, transform;
 }
 
 .chat-pet-button.dragging.soft-resisting {
@@ -192,7 +200,8 @@
 	transform: scaleX(-1);
 }
 
-.chat-pet-button.dragging .chat-pet-speech-bubble {
+.chat-pet-button.dragging .chat-pet-speech-bubble,
+.chat-pet-button.throwing .chat-pet-speech-bubble {
 	display: none;
 }
 

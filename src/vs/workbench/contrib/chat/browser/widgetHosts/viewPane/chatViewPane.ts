@@ -1044,6 +1044,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				renderFollowups: true,
 				supportsFileReferences: true,
 				clear: () => this.clear(),
+				enableFind: true,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
 						return true;

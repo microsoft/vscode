@@ -76,7 +76,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -85,6 +85,7 @@ import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
+import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
 import { IChatTipService } from '../chatTipService.js';
@@ -309,6 +310,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeEmptyState = this._register(new Emitter<void>());
 	readonly onDidChangeEmptyState = this._onDidChangeEmptyState.event;
 
+	private readonly _onDidChangeFindableContent = this._register(new Emitter<void>());
+
 	contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private listContainer!: HTMLElement;
@@ -322,6 +325,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	get domNode() { return this.container; }
 
 	private listWidget!: ChatListWidget;
+	private _findController: ChatFindWidget | undefined;
 	private inputPartMaxHeightOverride: number | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -552,6 +556,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
 		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
+		ChatContextKeys.findSupported.bindTo(contextKeyService).set(!!this.viewOptions.enableFind);
+		this._register(this.onDidChangeViewModel(() => this._onDidChangeFindableContent.fire()));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 		this.hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
@@ -913,6 +919,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			...this.viewOptions.rendererOptions,
 			renderStyle
 		});
+
+		if (this.viewOptions.enableFind) {
+			const host: IChatFindHost = {
+				transcriptDomNode: this.listWidget.domNode,
+				getItems: () => this.viewModel?.getItems() ?? [],
+				onDidChangeContent: this._onDidChangeFindableContent.event,
+				reveal: (item, relativeTop) => this.reveal(item, relativeTop),
+				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
+				onDidRerenderRow: this.onDidRerenderRow,
+				editorsInUse: () => this.listWidget.editorsInUse(),
+			};
+			this._findController = this._register(this.instantiationService.createInstance(ChatFindWidget, host));
+			// Focusing the Find widget must count as focusing this widget, so
+			// focus-targeted commands (Escape, F3, toolbar actions) always
+			// resolve to the pane the user is actually typing/searching in.
+			this._register(this._findController.focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+			if (this.bodyDimension) {
+				this._findController.layout(this.bodyDimension.width);
+			}
+		}
 
 		// Forward wheel events that target the chat container itself (the margins
 		// around the list and input) to the chat list.
@@ -2126,6 +2152,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
+			modelPickerSessionType: this.viewOptions.modelPickerSessionType,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
 			onDidChangeModelPickerVisibility: this.viewOptions.onDidChangeModelPickerVisibility,
@@ -2433,6 +2460,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible && !this.listWidget.isAutoScrollHeld) {
 				this.listWidget.scrollToEnd();
 			}
+			this._onDidChangeFindableContent.fire();
 		})));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
@@ -3301,6 +3329,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.getElementFromNode(node);
 	}
 
+	getFindController(): IChatFindController | undefined {
+		return this._findController;
+	}
+
+	/** @internal Used by {@link ChatFindWidget} to locate a row's rendered template. Not part of `IChatWidget`. */
+	getTemplateDataForRequestId(requestId: string | undefined): IChatListItemTemplate | undefined {
+		return this.listWidget.getTemplateDataForRequestId(requestId);
+	}
+
+	/** @internal Used by {@link ChatFindWidget} to know when a row remounts. Not part of `IChatWidget`. */
+	get onDidRerenderRow(): Event<IChatListItemTemplate> {
+		return this.listWidget.onDidRerender;
+	}
+
 	focusResponseItem(lastFocused?: boolean): void {
 		this.listWidget.focusLastItem(lastFocused);
 	}
@@ -3313,6 +3355,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 
 		this.bodyDimension = new dom.Dimension(width, height);
+		this._findController?.layout(width);
 
 		if (this.viewModel?.editing) {
 			this.inlineInputPart?.layout(width);

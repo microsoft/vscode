@@ -40,6 +40,7 @@ import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostManagedSettingsService, type IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostTerminalManager, IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
@@ -268,12 +269,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
+	private readonly _managedSettingsService = this._register(new AgentHostManagedSettingsService());
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
 	get stateManager(): AgentHostStateManager { return this._stateManager; }
 
 	/** Exposes the configuration service so agent providers can share root config plumbing. */
 	get configurationService(): IAgentConfigurationService { return this._configurationService; }
+
+	get managedSettingsService(): IAgentHostManagedSettingsService { return this._managedSettingsService; }
 
 	/** Exposes the GitHub endpoint service so agent providers share GitHub (Enterprise) resource resolution. */
 	get gitHubEndpointService(): IAgentHostGitHubEndpointService { return this._gitHubEndpointService; }
@@ -1192,7 +1196,12 @@ export class AgentService extends Disposable implements IAgentService {
 			resource: meta.session.toString(),
 			provider,
 			title: meta.summary ?? '',
-			status: meta.status ?? SessionStatus.Idle,
+			// Surfaced legacy sessions predate agent-host read ownership, which has
+			// no per-session read flag for them yet. Default them to read: the
+			// client trusts the provider's read state once it owns it, so an
+			// unflagged summary would otherwise flip every previously-seen session
+			// to unread the moment migration is turned on.
+			status: withSessionStatusFlag(meta.status ?? SessionStatus.Idle, SessionStatus.IsRead, true),
 			createdAt: new Date(meta.startTime).toISOString(),
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
@@ -1632,6 +1641,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		const sessionKey = session.toString();
 		const provider = this._findProviderForSession(session);
+		await this._checkpointService.discardChatTurnStartCheckpoints(session, chat);
 		this._sideEffects.clearQueuedMessageSenders(chat.toString());
 		this._sideEffects.cancelSubagentSessions(chat.toString());
 		this._sideEffects.clearChannelTelemetry(chat.toString());
@@ -2630,11 +2640,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
+		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -2650,6 +2661,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
+			}
+			if (action.type === ActionType.ChatTurnStarted) {
+				await this._resolvePeerChatsForTurnValidation(sessionChannel);
 			}
 			const rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
 				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
@@ -2673,6 +2687,29 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 
 		this._clientDispatchQueues.set(clientId, next);
+	}
+
+	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
+		return this._stateManager.getSessionState(sessionChannel)?.chats
+			.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource))
+			.map(chat => chat.resource);
+	}
+
+	private async _resolvePeerChatsForTurnValidation(sessionChannel: string): Promise<void> {
+		while (true) {
+			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel);
+			if (!unresolvedChats) {
+				throw new Error(`Cannot validate turn id for unknown session: ${sessionChannel}`);
+			}
+			if (unresolvedChats.length === 0) {
+				return;
+			}
+			await Promise.all(unresolvedChats.map(async chat => {
+				if (!await this._stateManager.resolveChatState(chat)) {
+					throw new Error(`Cannot resolve peer chat for turn id validation: ${chat}`);
+				}
+			}));
+		}
 	}
 
 	/**
@@ -2707,6 +2744,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.ChatTurnStarted && this._isTurnIdUsedByAnotherChat(sessionChannel, channel, action.turnId)) {
+			this._stateManager.rejectClientAction(channel, action, origin, `Turn id '${action.turnId}' is already used by another chat in this session.`);
+			return;
+		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved) {
 			if (clientContext.clientType !== AgentHostClientType.EditorWindow) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Session working-directory actions require an Editor Window client.');
@@ -2732,6 +2773,28 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
+	}
+
+	private _isTurnIdUsedByAnotherChat(sessionChannel: string, chatChannel: string, turnId: string): boolean {
+		const sessionState = this._stateManager.getSessionState(sessionChannel);
+		if (!sessionState) {
+			return false;
+		}
+
+		if (sessionState.defaultChat !== chatChannel
+			&& (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId))) {
+			return true;
+		}
+		for (const chat of sessionState.chats ?? []) {
+			if (chat.resource === chatChannel || isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			const chatState = this._stateManager.getChatState(chat.resource);
+			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
@@ -2964,13 +3027,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session: seed its
 		// VS Code-layer metadata in place (reusing the on-disk event log) so the
-		// restore below can hydrate it. Gated on the migrate setting so the common
-		// (non-migration) restore path does no extra work; a no-op for native /
-		// already-adopted sessions.
+		// restore below can hydrate it. A no-op for native / already-adopted sessions.
+		// Adopt when the migrate setting is on OR the session is already surfaced as
+		// adoptable — the latter so an entry the user can see in the list never
+		// dead-ends on "not found" if the setting was toggled off after surfacing.
 		const migrateLegacyEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+		const surfacedAdoptable = readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionStr)?._meta);
 		const migrationStartTime = Date.now();
 		let adoption: IAgentSessionAdoptionResult = { adopted: false, eligible: false };
-		if (migrateLegacyEnabled && agent.ensureSessionAdopted) {
+		if ((migrateLegacyEnabled || surfacedAdoptable) && agent.ensureSessionAdopted) {
 			try {
 				adoption = await agent.ensureSessionAdopted(session);
 			} catch (err) {
