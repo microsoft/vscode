@@ -37,7 +37,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
@@ -2762,7 +2762,7 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
+	test('should preserve conversation context for background completion notifications', async () => {
 		const termId = 'test-completion-model-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
@@ -2780,7 +2780,15 @@ suite('RunInTerminalTool', () => {
 
 		const previousModelId = 'claude-opus-4-8';
 		const previousAgentId = 'local-agent';
-		const previousRequest = { modelId: previousModelId, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const previousTools = { tool1: true };
+		const previousModeInfo: IChatRequestModeInfo = {
+			kind: ChatModeKind.Agent,
+			isBuiltin: true,
+			modeInstructions: undefined,
+			telemetryModeId: 'agent',
+			applyCodeBlockSuggestionId: undefined,
+		};
+		const previousRequest = { modelId: previousModelId, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
 		const chatService = instantiationService.get(IChatService) as unknown as {
 			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
 		};
@@ -2810,6 +2818,8 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
 		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
 		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
+		strictEqual(capturedSteeringRequests[0].options?.instructionContext?.modeKind, ChatModeKind.Agent, 'Completion notification should collect instructions for the previous mode');
+		strictEqual(capturedSteeringRequests[0].options?.instructionContext?.enabledTools, previousTools, 'Completion notification should collect instructions for the previous tools');
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {
