@@ -199,6 +199,21 @@ async fn preload_extensions(
 	sb.install_extensions().await
 }
 
+/// Options controlling how a tunnel serves the agent host, all supplied by the
+/// editor that started the tunnel.
+#[derive(Clone, Debug, Default)]
+pub struct AgentHostServeOptions {
+	/// Overrides the user data directory whose agent-host endpoint registry the
+	/// selection gateway reads. `None` uses the platform default.
+	pub user_data_dir: Option<String>,
+	/// Serves only the agent-host port, without the control port.
+	pub agent_host_only: bool,
+	/// Pins the selection gateway to the live editor agent host.
+	pub delegate_to_editor: bool,
+	/// Emits machine-readable status lines for the parent process.
+	pub machine_status_enabled: bool,
+}
+
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -208,12 +223,15 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
-	user_data_dir: Option<String>,
-	agent_host_only: bool,
-	delegate_to_editor: bool,
-	machine_status_enabled: bool,
+	agent_host_options: AgentHostServeOptions,
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
+	let AgentHostServeOptions {
+		user_data_dir,
+		agent_host_only,
+		delegate_to_editor,
+		machine_status_enabled,
+	} = agent_host_options;
 	let mut port = if agent_host_only {
 		None
 	} else {
@@ -307,7 +325,6 @@ pub async fn serve(
 				let active_agent_host = active_agent_host.clone();
 				let launcher_paths = launcher_paths.clone();
 				let user_data_path = agent_host_user_data_path.clone();
-				let delegate_to_editor = delegate_to_editor;
 				tokio::spawn(async move {
 					serve_agent_host_tunnel_connection(
 						log,

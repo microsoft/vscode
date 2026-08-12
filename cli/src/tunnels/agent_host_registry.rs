@@ -412,16 +412,42 @@ fn read_entry_files(
 
 	let mut out = Vec::new();
 	for dir_entry in read_dir {
-		let dir_entry = dir_entry?;
+		// A failure to stat one directory entry must not hide every other
+		// endpoint, so skip it rather than failing the whole read.
+		let dir_entry = match dir_entry {
+			Ok(e) => e,
+			Err(error) => {
+				warning!(
+					log,
+					"Ignoring unreadable agent host endpoint directory entry: {}",
+					error
+				);
+				continue;
+			}
+		};
 		let file_name = dir_entry.file_name();
 		let name = file_name.to_string_lossy();
 		if !name.ends_with(".json") {
 			continue;
 		}
 		let path = dir_entry.path();
-		let entry = match read_entry_file(log, &path)? {
-			Some(entry) => entry,
-			None => continue,
+		let entry = match read_entry_file(log, &path) {
+			Ok(Some(entry)) => entry,
+			Ok(None) => continue,
+			// An entry we cannot read is an entry we cannot use, but it must
+			// not hide the ones we can. This is reached routinely on Windows:
+			// a file deleted by a concurrent prune stays listed in the
+			// directory until its last handle closes, and opening it in that
+			// window fails with `PermissionDenied` rather than `NotFound`.
+			Err(error) => {
+				warning!(
+					log,
+					"Ignoring unreadable agent host endpoint entry at {}: {}",
+					path.display(),
+					error
+				);
+				continue;
+			}
 		};
 		// A valid entry must live under its own canonical identity file name;
 		// otherwise a misnamed copy could shadow or delete the real entry.
@@ -1290,9 +1316,55 @@ mod tests {
 		assert_eq!(entries, vec![live]);
 	}
 
+	/// An entry file that cannot be opened must be skipped rather than
+	/// aborting the whole read. This is a real race on Windows, where a file
+	/// removed by a concurrent prune stays listed in the directory until its
+	/// last handle closes and opening it meanwhile fails with
+	/// `PermissionDenied` instead of `NotFound`.
 	#[test]
-	fn read_ignores_entry_files_whose_name_mismatches_identity() {
+	fn read_skips_unreadable_entry_files_without_hiding_readable_ones() {
 		let dir = tempfile::tempdir().unwrap();
+		let log = log::Logger::test();
+		let live = standalone(std::process::id(), "live", 8080);
+		publish_agent_host_endpoint(&log, dir.path(), &live).unwrap();
+
+		let blocked = standalone(std::process::id(), "blocked", 9090);
+		publish_agent_host_endpoint(&log, dir.path(), &blocked).unwrap();
+		let blocked_path = entries_directory(dir.path()).join(entry_file_name(&blocked.identity()));
+
+		let _guard = make_unreadable(&blocked_path);
+		if fs::read(&blocked_path).is_ok() {
+			// Some environments (notably running as root) can read the file
+			// anyway, which would make this assert the opposite of its intent.
+			return;
+		}
+
+		let entries = read_registry(&log::Logger::test(), dir.path()).unwrap();
+		assert_eq!(entries, vec![live]);
+	}
+
+	/// Makes `path` fail to open for the lifetime of the returned guard, using
+	/// whatever mechanism the platform offers.
+	#[cfg(windows)]
+	fn make_unreadable(path: &Path) -> impl std::any::Any {
+		use std::os::windows::fs::OpenOptionsExt;
+		// Zero share mode: any other open of this path fails with
+		// `PermissionDenied`, exactly as a delete-pending file does.
+		fs::OpenOptions::new()
+			.read(true)
+			.share_mode(0)
+			.open(path)
+			.unwrap()
+	}
+
+	#[cfg(unix)]
+	fn make_unreadable(path: &Path) -> impl std::any::Any {
+		use std::os::unix::fs::PermissionsExt;
+		fs::set_permissions(path, fs::Permissions::from_mode(0o000)).unwrap();
+	}
+
+	#[test]
+	fn read_ignores_entry_files_whose_name_mismatches_identity() {		let dir = tempfile::tempdir().unwrap();
 		let log = log::Logger::test();
 		let legit = standalone(std::process::id(), "legit", 8080);
 		publish_agent_host_endpoint(&log, dir.path(), &legit).unwrap();

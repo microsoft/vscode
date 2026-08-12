@@ -856,10 +856,7 @@ pub fn get_tunnel_web_url(tunnel_name: &str) -> Option<url::Url> {
 		current_dir
 	};
 
-	let base_web_url = match EDITOR_WEB_URL {
-		Some(u) => u,
-		None => return None,
-	};
+	let base_web_url = EDITOR_WEB_URL?;
 
 	let mut addr = url::Url::parse(base_web_url).unwrap();
 	{

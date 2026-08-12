@@ -10,7 +10,7 @@ use std::{
 
 use super::{
 	code_server::CodeServerArgs,
-	control_server::ServerTermination,
+	control_server::{AgentHostServeOptions, ServerTermination},
 	dev_tunnels::{ActiveTunnel, StatusLock},
 	protocol,
 	shutdown_signal::{ShutdownRequest, ShutdownSignal},
@@ -169,10 +169,12 @@ pub async fn start_singleton_server(
 		args.paths,
 		args.code_server_args,
 		args.platform,
-		args.user_data_dir,
-		args.agent_host_only,
-		args.delegate_to_editor,
-		args.machine_status_enabled,
+		AgentHostServeOptions {
+			user_data_dir: args.user_data_dir,
+			agent_host_only: args.agent_host_only,
+			delegate_to_editor: args.delegate_to_editor,
+			machine_status_enabled: args.machine_status_enabled,
+		},
 		shutdown_rx,
 	);
 

@@ -2081,8 +2081,8 @@ async fn run_gateway_session<S>(
 	}
 
 	match target {
-		GatewayTargetWs::Tcp(t) => proxy_gateway_frames(&log, client, t).await,
-		GatewayTargetWs::Socket(t) => proxy_gateway_frames(&log, client, t).await,
+		GatewayTargetWs::Tcp(t) => proxy_gateway_frames(&log, client, *t).await,
+		GatewayTargetWs::Socket(t) => proxy_gateway_frames(&log, client, *t).await,
 	}
 }
 
@@ -2111,8 +2111,11 @@ where
 /// `Socket`; [`proxy_gateway_frames`] is generic so each variant is
 /// proxied via its own monomorphization.
 enum GatewayTargetWs {
-	Tcp(WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>),
-	Socket(WebSocketStream<AsyncPipe>),
+	// Both variants are boxed: these streams carry large inline buffers (and a
+	// TLS state for TCP), so leaving either unboxed makes every value of this
+	// enum as large as the biggest one.
+	Tcp(Box<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>),
+	Socket(Box<WebSocketStream<AsyncPipe>>),
 }
 
 /// Opens a raw WebSocket connection to a selected registry endpoint,
@@ -2139,7 +2142,7 @@ async fn dial_gateway_target(
 			let (ws, _) = tokio_tungstenite::connect_async(url)
 				.await
 				.map_err(|e| wrap(e, "Failed to connect to selected agent host"))?;
-			Ok(GatewayTargetWs::Tcp(ws))
+			Ok(GatewayTargetWs::Tcp(Box::new(ws)))
 		}
 		AgentHostEndpointAddress::Socket { path } => {
 			let pipe = get_socket_rw_stream(std::path::Path::new(path))
@@ -2161,7 +2164,7 @@ async fn dial_gateway_target(
 						),
 					)
 				})?;
-			Ok(GatewayTargetWs::Socket(ws))
+			Ok(GatewayTargetWs::Socket(Box::new(ws)))
 		}
 	}
 }
