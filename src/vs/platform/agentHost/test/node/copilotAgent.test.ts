@@ -44,6 +44,7 @@ import { CustomizationType, SessionStatus, ToolCallContributorKind, type AgentSe
 import { ActionType, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -540,6 +541,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -548,7 +550,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, managedSettingsService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(): CopilotClient {
@@ -572,6 +574,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostManagedSettingsService managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostStateManager stateManager: AgentHostStateManager,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -580,7 +583,7 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
 		@ICopilotApiService copilotApiService: ICopilotApiService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, managedSettingsService, stateManager, createTestGitHubEndpointService(), new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, environmentService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -631,15 +634,17 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry }): { agent: CopilotAgent; instantiationService: IInstantiationService; configurationService: IAgentConfigurationService; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
 	services.set(IAgentConfigurationService, configService);
+	services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	services.set(IAgentHostStateManager, stateManager);
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
@@ -678,7 +683,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const agent = options?.copilotClient
 		? instantiationService.createInstance(options.useRealResumePath ? ResumePathCopilotAgent : TestableCopilotAgent, options.copilotClient)
 		: instantiationService.createInstance(CopilotAgent);
-	return { agent, instantiationService, configurationService: configService, fileService, stateManager };
+	return { agent, instantiationService, configurationService: configService, managedSettingsService, fileService, stateManager };
 }
 
 function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; byokBridgeRegistry?: IByokLmBridgeRegistry }): CopilotAgent {
@@ -2149,6 +2154,33 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('enables the rubber duck CLI feature by default', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], 'true');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not enable the rubber duck CLI feature when explicitly disabled', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['RUBBER_DUCK_AGENT'], undefined);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('restarts the client when the Copilot SDK log level changes', async () => {
 			const client = new StopCountingClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -2172,6 +2204,28 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts sessions when managed permission contributions change or are removed', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, managedSettingsService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listSessions();
+
+				const restricted = { disableBypassPermissionsMode: 'disable' as const };
+				managedSettingsService.setClientPermissions('client', restricted);
+				await Promise.resolve();
+				await agent.listSessions();
+				managedSettingsService.setClientPermissions('client', restricted);
+				await Promise.resolve();
+				managedSettingsService.removeClientPermissions('client');
+				await Promise.resolve();
+
+				assert.strictEqual(client.stopCount, 2);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('re-enumerates models after a startup-config restart', async () => {
 			const client = new StopCountingClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
@@ -2183,7 +2237,7 @@ suite('CopilotAgent', () => {
 
 				// The catalog belonged to the subprocess being torn down, and the
 				// replacement may point at a different CAPI endpoint entirely.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
 					await timeout(1);
 				}
@@ -2212,7 +2266,7 @@ suite('CopilotAgent', () => {
 				const requestsBefore = client.modelListRequests.length;
 				client.stopGate = stopGate.p;
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await agent.authenticate('https://api.github.com', 'token-b');
 				await timeout(10);
 				assert.strictEqual(client.modelListRequests.length, requestsBefore, 'model refresh must wait for the old client to stop');
@@ -2246,7 +2300,7 @@ suite('CopilotAgent', () => {
 				await agent.listSessions();
 				client.stopGate = stopGate.p;
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				const listPromise = agent.listSessions();
 				await timeout(10);
 				assert.strictEqual(client.startCallCount, 1, 'replacement client must wait for the old client to stop');
@@ -2276,7 +2330,7 @@ suite('CopilotAgent', () => {
 				const requestsBefore = client.modelListRequests.length;
 				client.stopError = new Error('stop failed');
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(10);
 				client.stopError = undefined;
 				await agent.refreshModels();
@@ -2308,7 +2362,7 @@ suite('CopilotAgent', () => {
 					await timeout(1);
 				}
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 2; i++) {
 					await timeout(1);
 				}
@@ -2333,7 +2387,7 @@ suite('CopilotAgent', () => {
 				// Force the client to start so a subsequent config change has something to restart.
 				await agent.listSessions();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await Promise.resolve();
 
 				assert.strictEqual(client.stopCount, 1);
@@ -2352,7 +2406,7 @@ suite('CopilotAgent', () => {
 				let disposed = false;
 				setDefaultSessionStub(agent, 'active', { dispose() { disposed = true; } });
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await Promise.resolve();
 
 				assert.deepStrictEqual({
@@ -2413,7 +2467,7 @@ suite('CopilotAgent', () => {
 				const chat = busyChatStub();
 				setDefaultSessionStub(agent, 'busy', chat);
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
 
@@ -2445,7 +2499,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, 'busy-1', first);
 				setDefaultSessionStub(agent, 'busy-2', second);
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 
 				first.hasActiveTurn = false;
@@ -2472,7 +2526,7 @@ suite('CopilotAgent', () => {
 
 				setDefaultSessionStub(agent, 'busy', busyChatStub());
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				await timeout(0);
 				const duringTurn = client.stopCount;
 
@@ -2498,7 +2552,7 @@ suite('CopilotAgent', () => {
 
 				// Two startup values change while the turn runs; the first
 				// restart to actually run satisfies both.
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' });
 				await timeout(0);
 

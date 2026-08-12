@@ -424,6 +424,9 @@ export const AgentHostTerminalAutoApproveEnabledConfigKey = 'terminalAutoApprove
  */
 export const TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID = 'chat.tools.terminal.enableAutoApprove';
 
+/** The VS Code setting ID for global auto approve enablement. */
+export const GLOBAL_AUTO_APPROVE_SETTING_ID = 'chat.tools.global.autoApprove';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.global.autoApprove` setting changes. When `true`, the global
