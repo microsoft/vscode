@@ -7,7 +7,7 @@ import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 
 /* __GDPR__FRAGMENT__
-	"CopilotCliForwardedTelemetry": {
+	"CopilotSdkForwardedTelemetry": {
 		"created_at": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Timestamp when the SDK created the event." },
 		"model_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "SDK identifier for the model call." },
 		"exp_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Experiment assignment context from the Copilot CLI runtime." },
@@ -34,10 +34,10 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 */
 
 /* __GDPR__
-	"copilotCli/response.success": {
+	"copilotSdk/response.success": {
 		"owner": "amunger",
 		"comment": "Reports performance and usage details for successful Copilot CLI model responses forwarded by the Copilot SDK.",
-		"${include}": [ "${CopilotCliForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
 		"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reason the response completed." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
@@ -45,6 +45,9 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
+		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
+		"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model-call transport, either HTTP or WebSocket." },
+		"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective reasoning-summary setting." },
 		"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool-call counts keyed by telemetry-safe tool name." },
 		"initiatorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the response was initiated by a user or an agent." },
 		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
@@ -59,6 +62,12 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 		"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens used by tool definitions.", "isMeasurement": true },
 		"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools available to the model.", "isMeasurement": true },
 		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
+		"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether bring-your-own-key authentication was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether automatic model selection was used, encoded as 1 for true and -1 for false.", "isMeasurement": true },
+		"totalTokenMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective maximum number of prompt tokens.", "isMeasurement": true },
+		"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Requested maximum number of output tokens.", "isMeasurement": true },
+		"acceptedPredictionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of accepted speculative prediction tokens.", "isMeasurement": true },
+		"rejectedPredictionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of rejected speculative prediction tokens.", "isMeasurement": true },
 		"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Turn number within the session.", "isMeasurement": true },
 		"timeToFirstToken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time until the first response token.", "isMeasurement": true },
 		"timeToComplete": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time until the response completed.", "isMeasurement": true }
@@ -66,10 +75,10 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 */
 
 /* __GDPR__
-	"copilotCli/response.error": {
+	"copilotSdk/response.error": {
 		"owner": "amunger",
 		"comment": "Reports performance and usage details for failed Copilot CLI model responses forwarded by the Copilot SDK.",
-		"${include}": [ "${CopilotCliForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
 		"type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Type of response failure." },
 		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model selected for the response." },
 		"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type used for the response." },
@@ -84,10 +93,10 @@ import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/tel
 */
 
 /* __GDPR__
-	"copilotCli/task_complete_todo_state": {
+	"copilotSdk/task_complete_todo_state": {
 		"owner": "amunger",
 		"comment": "Reports the aggregate state of the Copilot CLI todo list when task completion is recorded. Contains only todo-status counts and derived boolean indicators; it does not contain todo text or other user content.",
-		"${include}": [ "${CopilotCliForwardedTelemetry}" ],
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
 		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
@@ -118,6 +127,7 @@ export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
 		private readonly _isRestrictedTelemetryEnabled: () => boolean,
+		private readonly _getVSCodeAssignmentContext: () => string | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
@@ -141,6 +151,14 @@ export class CopilotGitHubTelemetryForwarder {
 			restricted: notification.restricted,
 		};
 
+		// VS Code's TAS assignment context, scoped to forwarded Copilot CLI
+		// events only — deliberately not a telemetry-service-wide experiment
+		// property, so Claude/Codex/host events stay unstamped.
+		const assignmentContext = this._getVSCodeAssignmentContext();
+		if (assignmentContext) {
+			data['abexp.assignmentcontext'] = assignmentContext;
+		}
+
 		if (event.features) {
 			for (const [key, value] of Object.entries(event.features)) {
 				if (value !== undefined) {
@@ -149,6 +167,6 @@ export class CopilotGitHubTelemetryForwarder {
 			}
 		}
 
-		this._telemetryService.publicLog(`copilotCli/${event.kind}`, data);
+		this._telemetryService.publicLog(`copilotSdk/${event.kind}`, data);
 	}
 }

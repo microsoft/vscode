@@ -7,12 +7,18 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
+import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { type IAgentService } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -43,6 +49,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
+import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
 	buildOtlpLogsChannelUri,
@@ -57,6 +64,8 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
+import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionTelemetryTracker } from './agentHostClientConnectionTelemetry.js';
+import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -192,8 +201,13 @@ type ChannelSubscription =
 interface IConnectedClient {
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
+	readonly telemetryContext: IAgentHostClientTelemetryContext;
 	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
+	readonly connectionStopWatch: StopWatch;
+	readonly telemetryTransportToken: object;
+	readonly isReconnect: boolean;
+	telemetryConnectionActive: boolean;
 	/**
 	 * Every channel the client is currently subscribed to, keyed by the
 	 * canonical channel URI. OTLP channel URIs are canonicalised to
@@ -202,6 +216,7 @@ interface IConnectedClient {
 	 */
 	readonly subscriptions: Map<string, ChannelSubscription>;
 	readonly disposables: DisposableStore;
+	readonly initializationDisposables: DisposableStore;
 }
 
 /**
@@ -240,6 +255,8 @@ interface IActiveClientRecord {
 interface IGraceClientRecord {
 	readonly state: 'grace';
 	readonly clientInfo: Implementation | undefined;
+	readonly telemetryContext: IAgentHostClientTelemetryContext | undefined;
+	readonly protocolVersion: string | undefined;
 	/**
 	 * Epoch ms when the client last had a live transport, or when this record
 	 * was created for a never-connected orphan tool-call stamp. Pins the grace
@@ -288,6 +305,11 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
  * Configuration for protocol-level concerns outside of IAgentService.
  */
 export interface IProtocolServerConfig {
+	/** Process launcher that owns this agent host. */
+	readonly hostLaunchKind?: AgentHostLaunchKind;
+	/** Process-wide client count tracker shared by every listener in this host. */
+	readonly connectionTelemetryTracker?: AgentHostClientConnectionTelemetryTracker;
+
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
 	/**
@@ -333,6 +355,9 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _clients = new Map<string, IClientRecord>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
+	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+	private readonly _connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker;
+	private readonly _managedSettingsOwnerId = generateUuid();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -346,8 +371,12 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 	) {
 		super();
+		this._telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		this._connectionTelemetryTracker = this._config.connectionTelemetryTracker ?? this._register(new AgentHostClientConnectionTelemetryTracker());
 
 		this._register(this._server.onConnection(transport => {
 			this._handleNewConnection(transport);
@@ -450,6 +479,17 @@ export class ProtocolServerHandler extends Disposable {
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
+					if (client) {
+						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
+						if (isManagedSettingsPermissions(permissions)) {
+							this._managedSettingsService.setClientPermissions(this._managedSettingsContributionId(client.clientId), permissions);
+						} else {
+							this._logService.warn('[ProtocolServer] Ignoring invalid managed settings permissions contribution.');
+						}
+					}
+					return;
+				}
 				// Notification — fire-and-forget
 				switch (msg.method) {
 					case 'unsubscribe':
@@ -472,7 +512,7 @@ export class ProtocolServerHandler extends Disposable {
 									`Unsupported action: ${action.type}`,
 								);
 							} else if (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || action.type === ActionType.RootConfigChanged) {
-								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, getAgentHostClientType(client.clientInfo));
+								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq, client.telemetryContext);
 							}
 						}
 						break;
@@ -505,10 +545,18 @@ export class ProtocolServerHandler extends Disposable {
 					this._rejectPendingReverseRequestsForConnection(client);
 					if (record.connections.length === 0) {
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
-						this._clients.set(client.clientId, { state: 'grace', clientInfo: record.clientInfo, lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() });
+						this._clients.set(client.clientId, {
+							state: 'grace',
+							clientInfo: record.clientInfo,
+							telemetryContext: client.telemetryContext,
+							protocolVersion: client.protocolVersion,
+							lastSeenAt: Date.now(),
+							disconnectTimeouts: new DisposableMap(),
+						});
 						this._handleClientDisconnected(client.clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 					}
+					this._reportClientDisconnected(client, subscriptionCount);
 				}
 			}
 			disposables.dispose();
@@ -547,41 +595,70 @@ export class ProtocolServerHandler extends Disposable {
 			);
 		}
 
+		const previousRecord = this._clients.get(params.clientId);
+		const telemetryTransportToken = {};
+		const initializationDisposables = disposables.add(new DisposableStore());
+		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
+			telemetryContext,
 			protocolVersion: negotiated,
 			transport,
+			connectionStopWatch: StopWatch.create(true),
+			telemetryTransportToken,
+			isReconnect: this._connectionTelemetryTracker.hasSeenClient(params.clientId),
+			telemetryConnectionActive: false,
 			subscriptions: new Map(),
 			disposables,
+			initializationDisposables,
 		};
 		this._attachConnection(params.clientId, client);
+		try {
+			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
-		this._registerClientFileSystemAuthority(params.clientId, disposables);
-
-
-		const snapshots: IStateSnapshot[] = [];
-		if (params.initialSubscriptions) {
-			for (const uri of params.initialSubscriptions) {
-				const snapshot = this._addInitialSubscription(client, uri.toString());
-				if (snapshot) {
-					snapshots.push(snapshot);
+			const snapshots: IStateSnapshot[] = [];
+			if (params.initialSubscriptions) {
+				for (const uri of params.initialSubscriptions) {
+					const snapshot = this._addInitialSubscription(client, uri.toString());
+					if (snapshot) {
+						snapshots.push(snapshot);
+					}
 				}
 			}
-		}
 
-		return {
-			client,
-			response: {
-				protocolVersion: negotiated,
-				serverSeq: this._stateManager.serverSeq,
-				snapshots,
-				defaultDirectory: this._config.defaultDirectory,
-				completionTriggerCharacters: this._config.completionTriggerCharacters,
-				terminalCommandPrefix: this._config.terminalCommandPrefix,
-				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
-			},
-		};
+			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
+			client.telemetryConnectionActive = true;
+			if (previousRecord?.state === 'grace') {
+				previousRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._telemetryReporter.clientConnection({
+				action: 'connected',
+				context: telemetryContext,
+				clientId: client.clientId,
+				clientImplementationName: client.clientInfo?.name,
+				clientImplementationVersion: client.clientInfo?.version,
+				protocolVersion: client.protocolVersion,
+				...counts,
+			});
+
+			return {
+				client,
+				response: {
+					protocolVersion: negotiated,
+					serverSeq: this._stateManager.serverSeq,
+					snapshots,
+					defaultDirectory: this._config.defaultDirectory,
+					completionTriggerCharacters: this._config.completionTriggerCharacters,
+					terminalCommandPrefix: this._config.terminalCommandPrefix,
+					telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
+				},
+			};
+		} catch (error) {
+			this._rollbackFailedInitialization(client, previousRecord);
+			throw error;
+		}
 	}
 
 	/**
@@ -597,8 +674,8 @@ export class ProtocolServerHandler extends Disposable {
 	 *   {@link IConnectedClient.subscriptions} map.
 	 *
 	 * Channels with unsupported shapes (e.g. `ahp-otlp://logs/verbose`
-	 * with no recognised level, or a state channel the state manager
-	 * does not know about) are silently dropped.
+	 * with no recognised level) are silently dropped. Valid state channels
+	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
 	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
 		const sub = classifyChannel(channel);
@@ -614,9 +691,6 @@ export class ProtocolServerHandler extends Disposable {
 			return undefined;
 		}
 		const snapshot = this._stateManager.getSnapshot(channel);
-		if (!snapshot) {
-			return undefined;
-		}
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
@@ -666,28 +740,62 @@ export class ProtocolServerHandler extends Disposable {
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
 		// reconnect response is only sent once `responsePromise` resolves below.
+		const priorTelemetryContext = existingRecord.state === 'active'
+			? existingRecord.connections.at(-1)?.telemetryContext
+			: existingRecord.telemetryContext;
+		const priorProtocolVersion = existingRecord.state === 'active'
+			? existingRecord.connections.at(-1)?.protocolVersion
+			: existingRecord.protocolVersion;
+		const telemetryTransportToken = {};
+		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
-			protocolVersion: PROTOCOL_VERSION,
+			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
+			protocolVersion: priorProtocolVersion ?? PROTOCOL_VERSION,
 			transport,
+			connectionStopWatch: StopWatch.create(true),
+			telemetryTransportToken,
+			isReconnect: true,
+			telemetryConnectionActive: false,
 			subscriptions: new Map(),
 			disposables,
+			initializationDisposables,
 		};
 		this._attachConnection(params.clientId, client);
+		try {
+			// Re-establish the reverse-RPC filesystem authority for this client.
+			// The prior transport's `onClose` disposed the previous registration,
+			// so without this step any subsequent `resourceRead` / `resourceWrite`
+			// / etc. from the agent host would fail with "no connection registered
+			// for authority" until the client disconnected and re-initialized.
+			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
-		// Re-establish the reverse-RPC filesystem authority for this client.
-		// The prior transport's `onClose` disposed the previous registration,
-		// so without this step any subsequent `resourceRead` / `resourceWrite`
-		// / etc. from the agent host would fail with "no connection registered
-		// for authority" until the client disconnected and re-initialized.
-		this._registerClientFileSystemAuthority(params.clientId, disposables);
+			const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
+			const canReplay = params.lastSeenServerSeq >= oldestBuffered;
+			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 
-		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
-		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
+			const counts = this._connectionTelemetryTracker.connect(params.clientId, telemetryTransportToken);
+			client.telemetryConnectionActive = true;
+			if (existingRecord.state === 'grace') {
+				existingRecord.disconnectTimeouts.dispose();
+			}
+			this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+			this._telemetryReporter.clientConnection({
+				action: 'connected',
+				context: client.telemetryContext,
+				clientId: client.clientId,
+				clientImplementationName: client.clientInfo?.name,
+				clientImplementationVersion: client.clientInfo?.version,
+				protocolVersion: client.protocolVersion,
+				...counts,
+			});
 
-		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
-		return { client, responsePromise };
+			return { client, responsePromise };
+		} catch (error) {
+			this._rollbackFailedInitialization(client, existingRecord);
+			throw error;
+		}
 	}
 
 	/**
@@ -813,6 +921,13 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _handleClientDisconnected(clientId: string): void {
+		const record = this._clients.get(clientId);
+		if (record?.state === 'grace') {
+			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
+				record.disconnectTimeouts.deleteAndDispose('managed-settings');
+				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
+		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
 			const isActive = state ? this._isActiveClient(state, clientId) : false;
@@ -966,11 +1081,29 @@ export class ProtocolServerHandler extends Disposable {
 			existing.connections.push(client);
 			existing.clientInfo = client.clientInfo ?? existing.clientInfo;
 		} else {
-			existing?.disconnectTimeouts.dispose();
 			this._clients.set(clientId, { state: 'active', clientInfo: client.clientInfo ?? existing?.clientInfo, connections: [client] });
 		}
 		this._pruneClientRecords();
-		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+	}
+
+	private _rollbackFailedInitialization(client: IConnectedClient, previousRecord: IClientRecord | undefined): void {
+		const record = this._clients.get(client.clientId);
+		if (record?.state === 'active') {
+			const connectionIndex = record.connections.indexOf(client);
+			if (connectionIndex !== -1) {
+				record.connections.splice(connectionIndex, 1);
+				this._releaseClientSubscriptions(client, record);
+				this._rejectPendingReverseRequestsForConnection(client);
+			}
+			if (record.connections.length === 0) {
+				if (previousRecord?.state === 'grace') {
+					this._clients.set(client.clientId, previousRecord);
+				} else {
+					this._clients.delete(client.clientId);
+				}
+			}
+		}
+		client.initializationDisposables.dispose();
 	}
 
 	/**
@@ -987,7 +1120,14 @@ export class ProtocolServerHandler extends Disposable {
 		if (record) {
 			return record;
 		}
-		const created: IGraceClientRecord = { state: 'grace', clientInfo: undefined, lastSeenAt: Date.now(), disconnectTimeouts: new DisposableMap() };
+		const created: IGraceClientRecord = {
+			state: 'grace',
+			clientInfo: undefined,
+			telemetryContext: undefined,
+			protocolVersion: undefined,
+			lastSeenAt: Date.now(),
+			disconnectTimeouts: new DisposableMap(),
+		};
 		this._clients.set(clientId, created);
 		return created;
 	}
@@ -1040,6 +1180,36 @@ export class ProtocolServerHandler extends Disposable {
 		return count;
 	}
 
+	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
+		const connectionKind = readClientConnectionKind(meta);
+		return {
+			clientType: getAgentHostClientType(clientInfo),
+			connectionKind: connectionKind === AgentHostClientConnectionKind.Unknown ? fallbackConnectionKind : connectionKind,
+			transportKind: transport.transportKind ?? AgentHostTransportKind.Unknown,
+			hostLaunchKind: this._config.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
+		};
+	}
+
+	private _reportClientDisconnected(client: IConnectedClient, subscriptionCount: number): void {
+		if (!client.telemetryConnectionActive) {
+			return;
+		}
+		client.telemetryConnectionActive = false;
+		const counts = this._connectionTelemetryTracker.disconnect(client.clientId, client.telemetryTransportToken);
+		this._telemetryReporter.clientConnection({
+			action: 'disconnected',
+			context: client.telemetryContext,
+			clientId: client.clientId,
+			clientImplementationName: client.clientInfo?.name,
+			clientImplementationVersion: client.clientInfo?.version,
+			protocolVersion: client.protocolVersion,
+			isReconnect: client.isReconnect,
+			...counts,
+			connectionDurationMs: client.connectionStopWatch.elapsed(),
+			subscriptionCount,
+		});
+	}
+
 	/**
 	 * Drop grace records whose timers have all fired and whose last-seen time is
 	 * stale beyond the retention window (10× the disconnect timeout). This
@@ -1050,7 +1220,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * closes.
 	 */
 	private _pruneClientRecords(): void {
-		const cutoff = Date.now() - CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT * 10;
+		const cutoff = Date.now() - AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION;
 		for (const [clientId, record] of this._clients) {
 			if (record.state === 'grace'
 				&& record.disconnectTimeouts.size === 0
@@ -1157,8 +1327,11 @@ export class ProtocolServerHandler extends Disposable {
 			let createdSession: URI;
 			// Resolve fork turnId to a 0-based index using the source session's
 			// turn list in the state manager.
-			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
+			let fork: { session: URI; chat: URI; turnIndex: number; turnId: string } | undefined;
 			if (params.fork) {
+				if (URI.parse(params.fork.session).toString() === URI.parse(params.channel).toString()) {
+					throw new ProtocolError(AhpErrorCodes.SessionAlreadyExists, `Fork target session must differ from source session: ${params.channel}`);
+				}
 				const sourceState = this._stateManager.getSessionState(params.fork.session);
 				if (!sourceState) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
@@ -1167,7 +1340,8 @@ export class ProtocolServerHandler extends Disposable {
 				if (turnIndex < 0) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
 				}
-				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
+				const sourceSession = URI.parse(params.fork.session);
+				fork = { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex, turnId: params.fork.turnId };
 			}
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.
@@ -1605,10 +1779,23 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
+	private _managedSettingsContributionId(clientId: string): string {
+		return `${this._managedSettingsOwnerId}:${clientId}`;
+	}
+
 	override dispose(): void {
-		for (const record of this._clients.values()) {
+		for (const [clientId, record] of this._clients) {
+			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
+					const subscriptionCount = connection.subscriptions.size;
+					const connectionIndex = record.connections.indexOf(connection);
+					if (connectionIndex !== -1) {
+						record.connections.splice(connectionIndex, 1);
+					}
+					this._releaseClientSubscriptions(connection, record);
+					this._rejectPendingReverseRequestsForConnection(connection);
+					this._reportClientDisconnected(connection, subscriptionCount);
 					connection.disposables.dispose();
 				}
 			} else {

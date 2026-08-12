@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
-import { extractForwardedErrorInfo } from '../shared/forwardedChatError.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, TurnState, type ErrorInfo } from '../../common/state/sessionState.js';
+import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
@@ -25,6 +26,7 @@ import type { ReasoningSummaryTextDeltaNotification } from './protocol/generated
 import type { ReasoningTextDeltaNotification } from './protocol/generated/v2/ReasoningTextDeltaNotification.js';
 import type { ThreadTokenUsageUpdatedNotification } from './protocol/generated/v2/ThreadTokenUsageUpdatedNotification.js';
 import type { TurnCompletedNotification } from './protocol/generated/v2/TurnCompletedNotification.js';
+import type { TurnError } from './protocol/generated/v2/TurnError.js';
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { WebSearchAction } from './protocol/generated/v2/WebSearchAction.js';
@@ -286,6 +288,14 @@ export function fileChangeOutput(changes: readonly FileUpdateChange[]): string {
 	return changes.map(change => `${describeFileChange([change])}\n${change.diff}`.trim()).join('\n\n');
 }
 
+export function codexCompactionLabels(): { readonly displayName: string; readonly invocationMessage: string; readonly pastTenseMessage: string } {
+	return {
+		displayName: localize('codex.compaction.displayName', "Compact conversation"),
+		invocationMessage: localize('codex.compaction.inProgress', "Compacting conversation"),
+		pastTenseMessage: localize('codex.compaction.completed', "Compacted conversation"),
+	};
+}
+
 function jsonValueToText(value: JsonValue): string {
 	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
@@ -314,11 +324,11 @@ function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string):
  * Human labels for a Codex collab-agent (subagent) tool call, mirroring the
  * reference client's phrasing. Codex surfaces subagent orchestration as
  * `collabAgentToolCall` items on the parent thread, but each spawned agent
- * ALSO runs as its own child thread that emits a full `turn/*` + `item/*`
+ * also runs as its own child thread that emits a full `turn/*` + `item/*`
  * event stream. The host ({@link CodexAgent}) renders that child stream in a
- * read-only peer chat and attaches a discovery block to the parent
+ * read-only child conversation and attaches a discovery block to the parent
  * `spawnAgent` tool call; the lifecycle collab tools (`wait`, `closeAgent`,
- * `sendInput`, …) render as plain tool calls in the parent chat.
+ * `sendInput`, …) render as plain tool calls in the parent conversation.
  */
 function collabAgentToolLabels(tool: CollabAgentTool): { readonly displayName: string; readonly present: string; readonly past: string } {
 	switch (tool) {
@@ -739,13 +749,13 @@ function mapItemStartedBody(
 			toolName,
 			output: '',
 		});
-		// `spawnAgent` opens a read-only peer chat for the child thread (the
-		// host attaches the subagent-discovery block to THIS tool call on
+		// `spawnAgent` opens a read-only child conversation for the child thread
+		// (the host attaches the subagent-discovery block to THIS tool call on
 		// `subagent_started`), so we deliberately do NOT dump the raw prompt
-		// into the tool box — it would duplicate the child chat's first user
-		// message and blow out the tool-call width. The other collab tools
-		// (`sendInput`, `wait`, `closeAgent`, …) are lifecycle ops with no peer
-		// chat, so they keep a compact prompt/model summary.
+		// into the tool box — it would duplicate the child conversation's first
+		// user message and blow out the tool-call width. The other collab tools
+		// (`sendInput`, `wait`, `closeAgent`, …) are lifecycle ops with no child
+		// conversation, so they keep a compact prompt/model summary.
 		if (params.item.tool === 'spawnAgent') {
 			return [
 				{
@@ -792,6 +802,32 @@ function mapItemStartedBody(
 				toolCallId,
 				invocationMessage: labels.present,
 				toolInput,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			},
+		];
+	}
+	if (params.item.type === 'contextCompaction') {
+		const toolCallId = generateUuid();
+		const labels = codexCompactionLabels();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'compact',
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'compact',
+				displayName: labels.displayName,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: labels.invocationMessage,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 		];
@@ -922,6 +958,17 @@ export function mapItemCompleted(
 	}
 	state.itemToToolCall.delete(params.item.id);
 	const declined = state.declinedToolCalls.delete(entry.toolCallId);
+	if (params.item.type === 'contextCompaction') {
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success: true,
+				pastTenseMessage: codexCompactionLabels().pastTenseMessage,
+			},
+		}];
+	}
 	if (params.item.type === 'commandExecution') {
 		const success = params.item.status === 'completed' && (params.item.exitCode === 0 || params.item.exitCode === null);
 		const output = params.item.aggregatedOutput ?? entry.output;
@@ -1087,7 +1134,6 @@ export function mapTurnCompleted(
 	const orphanedToolCallActions = completeOrphanedToolCalls(state, status === 'interrupted' ? 'Turn interrupted before the tool completed' : 'Turn completed before the tool reported completion');
 	const deferredResponseActions = flushDeferredResponseActions(state);
 	if (status === 'failed' && params.turn.error) {
-		const errMessage = params.turn.error.message ?? 'Codex turn failed';
 		return [
 			...recoveredToolCallActions,
 			...preflightFlush,
@@ -1097,10 +1143,7 @@ export function mapTurnCompleted(
 				type: ActionType.ChatError,
 				turnId,
 				duration,
-				error: {
-					errorType: 'CodexError',
-					...extractForwardedErrorInfo(errMessage),
-				},
+				error: mapCodexTurnError(params.turn.error),
 			},
 			{
 				type: ActionType.ChatTurnComplete,
@@ -1113,6 +1156,15 @@ export function mapTurnCompleted(
 		return [...recoveredToolCallActions, ...preflightFlush, ...orphanedToolCallActions, ...deferredResponseActions, { type: ActionType.ChatTurnCancelled, turnId, duration }];
 	}
 	return [...recoveredToolCallActions, ...preflightFlush, ...orphanedToolCallActions, ...deferredResponseActions, { type: ActionType.ChatTurnComplete, turnId, duration }];
+}
+
+/** Maps Codex's persisted turn error into the same protocol shape used live. */
+export function mapCodexTurnError(error: TurnError): ErrorInfo {
+	return {
+		errorType: 'CodexError',
+		...extractForwardedErrorInfo(error.message || 'Codex turn failed'),
+		...(error.additionalDetails ? { stack: error.additionalDetails } : {}),
+	};
 }
 
 /**

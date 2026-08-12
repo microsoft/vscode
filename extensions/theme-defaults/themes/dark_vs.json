@@ -33,7 +33,9 @@
 		"agentsPanel.border": "#303031",
 		"agentsChatInput.border": "#303031",
 		"agentsChatInput.focusBorder": "#007ACC",
-		"agentsNewSessionButton.border": "#303031"
+		"agentsNewSessionButton.border": "#303031",
+		// modern ui
+		"surface.border": "#252526",
 	},
 	"tokenColors": [
 		{

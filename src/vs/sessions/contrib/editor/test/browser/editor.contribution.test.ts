@@ -11,9 +11,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -28,6 +30,8 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -82,6 +86,7 @@ suite('Sessions - Editor Contribution', () => {
 				workspace: constObservable(workspace)
 			} as IActiveSession);
 		});
+
 		instantiationService.set(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0];
@@ -102,6 +107,43 @@ suite('Sessions - Editor Contribution', () => {
 		})), [{ isEmptyFileEditor: true, resource: workspaceFolder.toString(), pinned: true, index: 7 }]);
 	});
 
+	test('single-title Add Tab menu keeps supported managed editors visible', () => {
+		const getWhen = (action: NewFileTabAction | NewChangesTabAction): ContextKeyExpression => {
+			const menu = action.desc.menu;
+			const item = Array.isArray(menu) ? menu[0] : menu;
+			assert.ok(item?.when);
+			return item.when;
+		};
+		const evaluate = (expression: ContextKeyExpression, values: Record<string, ContextKeyValue>): boolean => expression.evaluate({
+			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined
+		} satisfies IContext);
+		const baseContext: Record<string, ContextKeyValue> = {
+			[IsSessionsWindowContext.key]: true,
+			[IsAuxiliaryWindowContext.key]: false,
+			[IsTopRightEditorGroupContext.key]: true,
+			[MainEditorAreaVisibleContext.key]: true,
+		};
+		const scenarios = (availableKey: string, missingKey: string) => {
+			const when = availableKey === SinglePaneFilesTabAvailableContext.key
+				? getWhen(new NewFileTabAction())
+				: getWhen(new NewChangesTabAction());
+			return {
+				singleTabAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: true, [missingKey]: false }),
+				multipleTabsAlreadyOpen: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: false }),
+				multipleTabsMissing: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: true, [availableKey]: true, [missingKey]: true }),
+				unsupported: evaluate(when, { ...baseContext, [EditorTabsVisibleContext.key]: false, [availableKey]: false, [missingKey]: true }),
+			};
+		};
+
+		assert.deepStrictEqual({
+			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
+			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
+		}, {
+			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
+			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, unsupported: false },
+		});
+	});
+
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
@@ -115,6 +157,41 @@ suite('Sessions - Editor Contribution', () => {
 		}, {
 			resource: URI.file('/repo/other').toString(),
 			matchesAnotherEmptyInput: true
+		});
+	});
+
+	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
+		let editorVisible = false;
+		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART && editorVisible;
+			}
+		};
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		let capabilitiesChanges = 0;
+		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
+
+		const hiddenCapabilities = input.capabilities;
+		editorVisible = true;
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		assert.deepStrictEqual({
+			hiddenCapabilities,
+			visibleCapabilities: input.capabilities,
+			capabilitiesChanges
+		}, {
+			hiddenCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.ForceReveal |
+				EditorInputCapabilities.CannotClose,
+			visibleCapabilities: EditorInputCapabilities.ExcludeFromEditorLimit |
+				EditorInputCapabilities.Readonly |
+				EditorInputCapabilities.Singleton |
+				EditorInputCapabilities.ForceReveal,
+			capabilitiesChanges: 1
 		});
 	});
 

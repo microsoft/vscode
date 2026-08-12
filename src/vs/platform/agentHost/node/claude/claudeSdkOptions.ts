@@ -16,7 +16,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientToolMcpServer } from './clientTools/claudeClientToolMcpServer.js';
-import { toSdkModelId } from './claudeModelId.js';
+import { toClaudeSdkModelId } from './claudeModelSelection.js';
 import type { IAgentHostNativeOTelConfig, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import type { ClaudeTransport } from './claudeProxyService.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
@@ -50,7 +50,7 @@ export interface IBuildOptionsInput {
 	 * {@link isResume}; truncates the loaded transcript to this anchor so
 	 * the next turn continues from the restored point on the same session
 	 * id. Omitted in the non-resume (`sessionId`) branch and on ordinary
-	 * resumes. Set by `truncateSession` for the rebuild that immediately
+	 * resumes. Set by `truncateChat` for the rebuild that immediately
 	 * precedes the post-restore turn.
 	 */
 	readonly resumeSessionAt?: string;
@@ -149,7 +149,7 @@ export async function buildOptions(
 		includePartialMessages: true,
 		forwardSubagentText: true,
 		enableFileCheckpointing: true,
-		model: toSdkModelId(input.model?.id),
+		model: toClaudeSdkModelId(input.model),
 		effort: resolveClaudeEffort(input.model),
 		permissionMode: input.permissionMode,
 		...(input.isResume

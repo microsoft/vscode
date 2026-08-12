@@ -7,7 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { AgentHostByokModelsEnabledEnvVar, AgentHostCodexAgentEnabledSettingId, AgentSession, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, isAgentEnabled, protectedResourcesRequireGitHubCopilotSignIn, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
+import { AgentHostByokModelsEnabledEnvVar, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, buildAgentHostOTelEnv, buildAgentSdkEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -75,10 +76,8 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses provider- and window-specific availability settings', () => {
+	test('always surfaces Claude and uses window-specific Codex settings', () => {
 		const configurationService = new TestConfigurationService({
-			[ClaudePreferAgentHostAgentsSettingId]: true,
-			[ClaudePreferAgentHostEditorSettingId]: false,
 			[AgentHostCodexAgentEnabledSettingId]: true,
 			[CodexPreferAgentHostEditorSettingId]: true,
 		});
@@ -91,7 +90,7 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 			otherProvider: shouldSurfaceLocalAgentHostProvider('copilot', configurationService, true),
 		}, {
 			agentsClaude: true,
-			editorClaude: false,
+			editorClaude: true,
 			agentsCodex: true,
 			editorCodex: true,
 			otherProvider: true,

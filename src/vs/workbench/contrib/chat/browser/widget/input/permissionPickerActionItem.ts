@@ -265,7 +265,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				enabled: true,
 				run: async () => {
 					const ext = delegate.getExtensionPermissions?.();
-					const url = ext?.sessionType === SessionType.ClaudeCode
+					const url = ext?.sessionType === SessionType.AgentHostClaude
 						? 'https://code.claude.com/docs/en/permission-modes#available-modes'
 						: 'https://aka.ms/vscode/docs/permissions';
 					await openerService.open(URI.parse(url));

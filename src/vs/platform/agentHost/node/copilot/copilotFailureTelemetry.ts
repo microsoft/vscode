@@ -8,11 +8,13 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 
 export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
 export type CopilotClientFailureKind = 'clientNotConnected' | 'connectionClosed' | 'connectionDisposed' | 'runtimeConnectionClosed' | 'startupFailed';
+type CopilotStartupFailureCause = 'nativeModuleProcedureNotFound' | 'nativeModuleInitializationFailed' | 'nativeModuleNotFound' | 'permissionDenied' | 'timeout' | 'spawnFailed' | 'processExitedUnexpectedly' | 'processExited';
+type CopilotStartupFailureResource = 'runtime' | 'cliNative' | 'conpty' | 'sandbox' | 'other';
 
 export interface ICopilotFailureCorrelation {
 	readonly agentSessionId?: string;
@@ -27,6 +29,38 @@ type CopilotSessionFailureCorrelation = {
 	readonly turnId: string | undefined;
 	readonly sdkSessionId: string;
 };
+
+export type CopilotModelCallEndpointTelemetryKind = 'anthropicMessages' | 'chatCompletions' | 'other' | 'responses' | 'responsesWebSocket';
+
+const normalizedCopilotApiEndpointKinds = new Map<string, CopilotModelCallEndpointTelemetryKind>([
+	['/chat/completions', 'chatCompletions'],
+	['/responses', 'responses'],
+	['/v1/messages', 'anthropicMessages'],
+	['ws:/responses', 'responsesWebSocket'],
+]);
+
+export function normalizeCopilotApiEndpoint(endpoint: string | undefined): CopilotModelCallEndpointTelemetryKind | undefined {
+	if (!endpoint) {
+		return undefined;
+	}
+
+	const trimmedEndpoint = endpoint.trim();
+	const directMatch = normalizedCopilotApiEndpointKinds.get(trimmedEndpoint.toLowerCase());
+	if (directMatch) {
+		return directMatch;
+	}
+
+	if (URL.canParse(trimmedEndpoint)) {
+		const parsed = new URL(trimmedEndpoint);
+		const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
+		if ((parsed.protocol === 'ws:' || parsed.protocol === 'wss:') && normalizedPath === '/responses') {
+			return 'responsesWebSocket';
+		}
+		return normalizedCopilotApiEndpointKinds.get(normalizedPath.toLowerCase()) ?? 'other';
+	}
+
+	return 'other';
+}
 
 export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string): CopilotSessionFailureCorrelation {
 	return {
@@ -54,6 +88,7 @@ export function classifyCopilotClientFailure(error: unknown): CopilotClientFailu
 	return error.message.startsWith('Failed to start CLI server:')
 		|| error.message.startsWith('CLI server exited with code ')
 		|| error.message.startsWith('CLI server exited unexpectedly with code ')
+		|| error.message === 'Timeout waiting for CLI server to start'
 		? 'startupFailed'
 		: undefined;
 }
@@ -62,6 +97,9 @@ type CopilotClientFailureEvent = ICopilotFailureCorrelation & {
 	clientFailureId: string;
 	failureKind: CopilotClientFailureKind;
 	operation: CopilotClientFailureOperation;
+	startupFailureCause?: CopilotStartupFailureCause;
+	startupFailureResource?: CopilotStartupFailureResource;
+	startupExitCode?: number;
 	activeTurnCount: number;
 	recoveryStarted: boolean;
 	errorName: string | undefined;
@@ -74,6 +112,9 @@ type CopilotClientFailureClassification = {
 	clientFailureId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shared by detections and recovery telemetry for one Copilot client failure episode.' };
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded category of Copilot client failure that was detected.' };
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Copilot provider operation that detected the client failure.' };
+	startupFailureCause?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded cause extracted from a Copilot client startup failure.' };
+	startupFailureResource?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded Copilot CLI resource involved in a startup failure.' };
+	startupExitCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The Copilot CLI process exit code reported for a startup failure.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host session identifier, when the failing operation targeted a session.' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host chat identifier, when the failing operation targeted a chat.' };
 	turnId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The Agent Host turn identifier, when available.' };
@@ -87,6 +128,67 @@ type CopilotClientFailureClassification = {
 	owner: 'roblourens';
 	comment: 'Tracks detected Copilot client failures and whether recovery was started.';
 };
+
+function getCopilotStartupFailureCause(message: string): CopilotStartupFailureCause {
+	const normalizedMessage = message.toLowerCase();
+	if (normalizedMessage.includes('specified procedure could not be found')) {
+		return 'nativeModuleProcedureNotFound';
+	}
+	if (normalizedMessage.includes('dynamic link library') && normalizedMessage.includes('initialization')) {
+		return 'nativeModuleInitializationFailed';
+	}
+	if (normalizedMessage.includes('permission denied') || /\b(?:eacces|eperm)\b/.test(normalizedMessage)) {
+		return 'permissionDenied';
+	}
+	if (normalizedMessage.includes('cannot find module')) {
+		return 'nativeModuleNotFound';
+	}
+	if (message === 'Timeout waiting for CLI server to start') {
+		return 'timeout';
+	}
+	if (message.startsWith('Failed to start CLI server:')) {
+		return 'spawnFailed';
+	}
+	return message.startsWith('CLI server exited unexpectedly with code ')
+		? 'processExitedUnexpectedly'
+		: 'processExited';
+}
+
+function getCopilotStartupFailureResource(message: string): CopilotStartupFailureResource {
+	const normalizedMessage = message.toLowerCase();
+	if (normalizedMessage.includes('cli-native')) {
+		return 'cliNative';
+	}
+	if (normalizedMessage.includes('conpty')) {
+		return 'conpty';
+	}
+	if (normalizedMessage.includes('runtime.node') || normalizedMessage.includes('runtime.win32') || normalizedMessage.includes('native addon "runtime"')) {
+		return 'runtime';
+	}
+	if (normalizedMessage.includes('sandbox')
+		|| normalizedMessage.includes('lxc-exec')
+		|| normalizedMessage.includes('mxc-exec-mac')
+		|| normalizedMessage.includes('wxc-exec.exe')) {
+		return 'sandbox';
+	}
+	return 'other';
+}
+
+function getCopilotStartupFailureDetails(error: unknown): Pick<CopilotClientFailureEvent, 'startupFailureCause' | 'startupFailureResource' | 'startupExitCode'> {
+	if (!(error instanceof Error) || classifyCopilotClientFailure(error) !== 'startupFailed') {
+		return {};
+	}
+
+	const message = error.message;
+	const exitCodeMatch = /^CLI server exited(?: unexpectedly)? with code (?<exitCode>\d+)/.exec(message);
+	const parsedExitCode = exitCodeMatch?.groups?.exitCode === undefined ? undefined : Number(exitCodeMatch.groups.exitCode);
+
+	return {
+		startupFailureCause: getCopilotStartupFailureCause(message),
+		startupFailureResource: getCopilotStartupFailureResource(message),
+		startupExitCode: parsedExitCode !== undefined && Number.isSafeInteger(parsedExitCode) ? parsedExitCode : undefined,
+	};
+}
 
 export function reportCopilotClientFailure(
 	telemetryService: ITelemetryService,
@@ -103,6 +205,7 @@ export function reportCopilotClientFailure(
 		clientFailureId,
 		failureKind,
 		operation,
+		...getCopilotStartupFailureDetails(error),
 		...correlation,
 		activeTurnCount,
 		recoveryStarted,
@@ -214,7 +317,7 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	failureKind: string | undefined;
 	source: string;
 	transport: string | undefined;
-	apiEndpoint: string | undefined;
+	apiEndpoint: CopilotModelCallEndpointTelemetryKind | undefined;
 	statusCode: number | undefined;
 	durationMs: number | undefined;
 	model: string | undefined;
@@ -245,7 +348,7 @@ type CopilotModelCallFailureClassification = {
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the SDK model call failed at the API or transport boundary.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the model call came from the top-level agent, a subagent, or MCP sampling.' };
 	transport: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The HTTP or WebSocket transport used by the failed model call.' };
-	apiEndpoint: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded API endpoint used by the failed model call.' };
+	apiEndpoint: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded API endpoint category used by the failed model call. Values are chatCompletions, responses, responsesWebSocket, anthropicMessages, or other.' };
 	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The HTTP status code, when available.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the failed model call in milliseconds.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider model identifier used by the failed call.' };
@@ -277,7 +380,7 @@ export function reportCopilotModelCallFailure(telemetryService: ITelemetryServic
 		failureKind: event.data.failureKind,
 		source: event.data.source,
 		transport: event.data.transport,
-		apiEndpoint: event.data.apiEndpoint,
+		apiEndpoint: normalizeCopilotApiEndpoint(event.data.apiEndpoint),
 		statusCode: event.data.statusCode,
 		durationMs: event.data.durationMs,
 		model: event.data.isByok ? 'byokModel' : event.data.model,

@@ -163,10 +163,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._handleRootStateChange(rootState);
 		}));
 
-		// Clear the auth cache whenever the local agent host (re)starts so the
-		// first post-restart authenticate RPC is never skipped as "unchanged".
-		this._register(this._agentHostService.onAgentHostStart(() => {
-			this._authTokenCache.clear();
+		this._register(this._agentHostService.onDidNotification(notification => {
+			if (notification.type !== NotificationType.AuthRequired) {
+				return;
+			}
+			this._authTokenCache.clear(notification.resource);
+			this._authenticateWithServer(this._getRootAgents())
+				.catch(() => { /* best-effort */ });
 		}));
 
 		// Surface the agent host's lazy, first-use SDK download as a progress
@@ -282,11 +285,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
+		// The management UI remains ambient while individual sessions use their working-directory scopes.
+		const ambientScope = store.add(agentRegistration.acquireScope([]));
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
-			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
-		itemProvider.setDraftCustomAgents(this._activeClientService.getCustomAgents(sessionType));
-		itemProvider.setDraftCustomizations(this._activeClientService.getCustomizations(sessionType));
+			syncedUri => agentRegistration.getOrigin(syncedUri)));
+		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
@@ -316,11 +321,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// Language model provider.
 		// Order matters: `updateModels` must be called after
 		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
-		const vendorDescriptors = [
-			{ vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined },
-		];
-		this._languageModelsService.deltaLanguageModelChatProviderDescriptors(vendorDescriptors, []);
-		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], vendorDescriptors)));
+		// One vendor descriptor for this harness. Claude's `anthropic`/`copilot`
+		// model groups (per-session provider selection) resolve their display names
+		// from the Copilot extension's pre-existing vendors, so registering them
+		// here would add nothing and risk clobbering those shared vendors on dispose.
+		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
+		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
+		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
 		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));

@@ -356,6 +356,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	public async didExecuteTool(result: IToolResult | undefined, final?: boolean, checkIfResultAutoApproved?: () => Promise<ConfirmedReason | undefined>): Promise<IChatToolInvocation.State> {
+		const currentState = this._state.get();
+		if (currentState.type === IChatToolInvocation.StateKind.Completed || currentState.type === IChatToolInvocation.StateKind.Cancelled) {
+			return currentState;
+		}
+
 		if (result?.toolSpecificData) {
 			this.toolSpecificData = result.toolSpecificData;
 		}
@@ -395,7 +400,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this._state.set({
 			type: IChatToolInvocation.StateKind.WaitingForAuthentication,
 			server,
-			cancel,
+			// Agent-host status can refresh while the same authentication request
+			// remains pending. Keep the callback that identifies and cancels this
+			// occurrence; replace it only after authentication resolves and the tool
+			// enters a new WaitingForAuthentication state.
+			cancel: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.cancel : cancel,
 			confirmed: state.confirmed,
 			parameters: state.parameters,
 			confirmationMessages: state.confirmationMessages,

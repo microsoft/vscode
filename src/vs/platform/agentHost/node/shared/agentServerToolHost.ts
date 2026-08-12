@@ -57,13 +57,21 @@ export interface IServerToolGroup {
 	/** Whether a contributed tool is currently enabled for advertisement and execution. */
 	isEnabled?(toolName: string): boolean;
 	/**
-	 * Whether {@link toolName} (one of this group's {@link definitions}) must be
-	 * confirmed by the user before it runs. Providers exclude such tools from
-	 * their server-tool auto-approve lists so the call surfaces a confirmation.
-	 * Absent or `false` means the tool is auto-approved like every other server
-	 * tool.
+	 * Whether {@link toolName} (one of this group's {@link definitions}) can
+	 * ever prompt for confirmation. Providers exclude such tools from their
+	 * server-tool auto-approve lists so the call routes through a confirmation
+	 * path. Absent or `false` means the tool is auto-approved like every other
+	 * server tool.
 	 */
-	requiresConfirmation?(toolName: string): boolean;
+	canRequireConfirmation?(toolName: string): boolean;
+	/**
+	 * Whether {@link toolName} needs to prompt for the invocation currently
+	 * being made against {@link sessionUri}. Implement this for
+	 * state-dependent confirmation (e.g. nothing to confirm yet) while keeping
+	 * {@link canRequireConfirmation} stable for provider allow-lists. Absent
+	 * falls back to {@link canRequireConfirmation}.
+	 */
+	requiresConfirmation?(stateManager: AgentHostStateManager, sessionUri: URI, toolName: string): boolean;
 	/**
 	 * Executes {@link toolName} (one of this group's {@link definitions})
 	 * against the session's state, dispatching any resulting actions through
@@ -135,9 +143,19 @@ export class AgentServerToolHost implements IAgentServerToolHost {
 		});
 	}
 
-	requiresConfirmation(toolName: string): boolean {
+	canRequireConfirmation(toolName: string): boolean {
 		const group = this._groupByToolName.get(toolName);
-		return group?.isEnabled?.(toolName) !== false && (group?.requiresConfirmation?.(toolName) ?? false);
+		return group?.isEnabled?.(toolName) !== false && (group?.canRequireConfirmation?.(toolName) ?? false);
+	}
+
+	requiresConfirmation(sessionUri: URI, toolName: string): boolean {
+		const group = this._groupByToolName.get(toolName);
+		if (group?.isEnabled?.(toolName) === false) {
+			return false;
+		}
+		return group?.requiresConfirmation?.(this._stateManager, sessionUri, toolName)
+			?? group?.canRequireConfirmation?.(toolName)
+			?? false;
 	}
 
 	executeTool(sessionUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {

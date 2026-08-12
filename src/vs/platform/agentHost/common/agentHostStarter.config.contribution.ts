@@ -143,14 +143,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider (subject to the Claude SDK being reachable). Independent of `#chat.agents.claude.preferAgentHost#` and `#chat.editor.claude.preferAgentHost#`, which choose which integration surfaces Claude. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider, subject to the Claude SDK being reachable. The agent host process must be restarted for changes to take effect."),
 			default: true,
 			tags: ['experimental', 'advanced'],
-			// Owns the `Claude3PIntegration` policy; gating here disables Claude across all surfaces.
-			// The user-facing copilot-chat setting `github.copilot.chat.claudeAgent.enabled` attaches
-			// to this policy via a `policyReference` declared in the distro `product.json`. Ownership
-			// lives here (not in `product.json`) so the policy can carry a `value` callback that honors
-			// the account-side editor preview-features flag.
+			// Owns the policy so the account-side preview-features flag can disable Claude across all surfaces.
 			policy: {
 				name: 'Claude3PIntegration',
 				category: PolicyCategory.InteractiveSession,

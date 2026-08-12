@@ -108,7 +108,7 @@ suite('Dictation onboarding', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, undefined, telemetryEvents);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		const shownFirstTime = service.showIfNeeded();
 		const shown = host.container.classList.contains('has-dictation-onboarding');
@@ -244,7 +244,7 @@ suite('Dictation onboarding', () => {
 	test('escape dismisses the card', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-banner')!
@@ -262,7 +262,7 @@ suite('Dictation onboarding', () => {
 	test('showing again replaces the card rather than hiding it', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.show();
 		service.show();
@@ -283,7 +283,7 @@ suite('Dictation onboarding', () => {
 	test('reset shows the introduction on the next dictation', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.showIfNeeded();
 		host.container.querySelector<HTMLElement>('.dictation-onboarding-close')!.click();
@@ -296,8 +296,8 @@ suite('Dictation onboarding', () => {
 		const service = createService(disposables);
 		const first = createHost(disposables);
 		const second = createHost(disposables);
-		disposables.add(service.registerHost(first.container, first.root));
-		disposables.add(service.registerHost(second.container, second.root));
+		disposables.add(service.registerHost({ container: first.container, focusRoot: first.root }));
+		disposables.add(service.registerHost({ container: second.container, focusRoot: second.root }));
 
 		// The renderer running these tests does not reliably hand out real focus,
 		// so raise the same event the focus tracker listens for.
@@ -318,7 +318,7 @@ suite('Dictation onboarding', () => {
 		const telemetryEvents: ITelemetryEvent[] = [];
 		const service = createService(disposables, executed, telemetryEvents);
 		const host = createHost(disposables);
-		disposables.add(service.registerHost(host.container, host.root));
+		disposables.add(service.registerHost({ container: host.container, focusRoot: host.root }));
 
 		service.show();
 		const links = host.container.querySelectorAll<HTMLAnchorElement>('.dictation-onboarding-description a');
@@ -347,7 +347,7 @@ suite('Dictation onboarding', () => {
 	test('disposing the host it is docked to takes the card down with it', () => {
 		const service = createService(disposables);
 		const host = createHost(disposables);
-		const registration = service.registerHost(host.container, host.root);
+		const registration = service.registerHost({ container: host.container, focusRoot: host.root });
 
 		service.show();
 		registration.dispose();

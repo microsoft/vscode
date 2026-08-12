@@ -5,13 +5,16 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { MessageKind, SessionLifecycle, type AgentInfo, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -191,7 +194,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -231,14 +234,23 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
-		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
-		override getCustomAgents = () => constObservable([]);
+		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
+			customizations: constObservable([]),
+			customAgents: constObservable([]),
+			tools: constObservable([]),
+			isResolved: constObservable(true),
+			whenResolved: () => Promise.resolve(),
+			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
+			dispose: () => { },
+		});
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
 		preferenceKey: overrides?.preferenceKey,
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
+		omitHostFromWorkspaceLabel: overrides?.omitHostFromWorkspaceLabel,
+		workspaceTypeIcon: overrides?.workspaceTypeIcon,
 	};
 
 	const providerCtor = overrides?.isWebPlatform !== undefined
@@ -378,7 +390,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('session type icons use per-agent codicons', () => {
 		connection.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
-			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude', displayName: 'Claude', description: '', models: [] } as AgentInfo,
 			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
 			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
 		]);
@@ -387,7 +399,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
 			[
 				{ id: CopilotCLISessionType.id, icon: 'copilot' },
-				{ id: 'claude-code', icon: 'claude' },
+				{ id: 'claude', icon: 'claude' },
 				{ id: 'openai', icon: 'openai' },
 				{ id: 'unknown-agent', icon: 'remote' },
 			],
@@ -1251,6 +1263,114 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Desc Web');
 		assert.strictEqual(session?.description.get(), undefined);
+	}));
+
+	test('a session first seen while its repository lookup failed is fixed by a later discovery pass', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Seeds run after the constructor has hydrated `_sessionCache`, so the cached entry is what
+		// a later pass meets. Skipping cached entries would make retrying the lookup pointless.
+		const storageService = disposables.add(new InMemoryStorageService());
+		const seed = (provider: RemoteAgentHostSessionsProvider, project?: { uri: URI; displayName: string }) => provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'seeded-1'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Seeded Session',
+			...(project ? { project } : {}),
+		}]);
+
+		// Pass 1: the lookup failed, so the session is seeded and persisted with no project.
+		const first = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		seed(first);
+		await storageService.flush();
+		const afterFailedLookup = first.getSessions()[0].workspace.get()?.label;
+
+		// Pass 2: the cached project-less entry is hydrated first, then the lookup succeeds.
+		const second = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		const restoredBeforeSeed = second.getSessions()[0].workspace.get()?.label;
+		seed(second, { uri: URI.parse('https://github.com/osortega/simple-server'), displayName: 'osortega/simple-server' });
+		const afterBackfill = second.getSessions()[0].workspace.get()?.label;
+
+		// The recovered project must reach the snapshot, or every reload re-strands the session.
+		await storageService.flush();
+		const third = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+
+		assert.deepStrictEqual({
+			afterFailedLookup,
+			restoredBeforeSeed,
+			afterBackfill,
+			survivesReload: third.getSessions()[0].workspace.get()?.label,
+		}, {
+			afterFailedLookup: undefined,
+			restoredBeforeSeed: undefined,
+			afterBackfill: 'osortega/simple-server',
+			survivesReload: 'osortega/simple-server',
+		});
+	}));
+
+	test('seedSessions never overwrites a project the host already reported', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('authoritative-1', {
+			summary: 'Authoritative',
+			project: { uri: URI.parse('vscode-agent-host://localhost__4321/home/user/real?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0'), displayName: 'real-repo' },
+		}));
+		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		provider.getSessions();
+		await timeout(0);
+
+		provider.seedSessions([{
+			session: AgentSession.uri('copilotcli', 'authoritative-1'),
+			startTime: 0,
+			modifiedTime: 0,
+			summary: 'Stale Seed',
+			project: { uri: URI.parse('https://github.com/someone/stale'), displayName: 'someone/stale' },
+		}]);
+
+		assert.deepStrictEqual({
+			label: provider.getSessions()[0].workspace.get()?.label,
+			title: provider.getSessions()[0].title.get(),
+		}, {
+			label: 'real-repo',
+			title: 'Authoritative',
+		});
+	}));
+
+	test('non-web: omitHostFromWorkspaceLabel drops the [host] suffix so sessions group by repository', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		connection.addSession(createSession('sandbox-1', {
+			summary: 'Sandbox Session',
+			project: { uri: projectUri, displayName: 'osortega/simple-server' },
+		}));
+
+		const provider = createProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
+		provider.getSessions();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			session: provider.getSessions()[0].workspace.get()?.label,
+			browsed: provider.resolveWorkspace(URI.parse('vscode-agent-host://localhost__4321/home/user/project'))?.label,
+		}, {
+			session: 'osortega/simple-server',
+			browsed: 'project',
+		});
+	}));
+
+	test('workspaceTypeIcon reaches the built workspace, and is absent by default', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('sandbox-icon', {
+			summary: 'Sandbox Session',
+			project: { uri: URI.parse('https://github.com/osortega/simple-server'), displayName: 'osortega/simple-server' },
+		}));
+
+		const withIcon = createProvider(disposables, connection, { isWebPlatform: false, workspaceTypeIcon: Codicon.package });
+		const withoutIcon = createProvider(disposables, new MockAgentConnection(), { isWebPlatform: false, noConnection: true });
+		withIcon.getSessions();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			declared: withIcon.getSessions()[0].workspace.get()?.typeIcon?.id,
+			// Other hosts leave it unset so the icon stays inferred from the workspace shape.
+			browsed: withoutIcon.resolveWorkspace(URI.parse('vscode-agent-host://localhost__4321/home/user/project'))?.typeIcon,
+		}, {
+			declared: Codicon.package.id,
+			browsed: undefined,
+		});
 	}));
 
 });
