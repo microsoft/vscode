@@ -1629,6 +1629,32 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('revoking authentication disposes the Copilot proxy and clears its models', async () => {
+		const { agent, proxy } = createTestContext(disposables);
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		assert.ok(agent.models.get().length > 0);
+
+		const accepted = await agent.authenticate('https://api.github.com', '');
+		await tick();
+
+		assert.deepStrictEqual({
+			accepted,
+			githubToken: agent['_githubToken'],
+			proxyHandle: agent['_proxyHandle'],
+			startTokens: proxy.startCalls.map(call => call.token),
+			disposeCount: proxy.disposeCount,
+			models: agent.models.get(),
+		}, {
+			accepted: true,
+			githubToken: undefined,
+			proxyHandle: undefined,
+			startTokens: ['tok'],
+			disposeCount: 1,
+			models: [],
+		});
+	});
+
 	test('authenticate retries proxy startup after a transient failure', async () => {
 		// Regression: a previous implementation set `_githubToken = token`
 		// before awaiting `start()`. If start threw, the token was recorded

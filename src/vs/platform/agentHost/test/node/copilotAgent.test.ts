@@ -1336,6 +1336,31 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('revoking authentication clears the token and model catalog', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'model-token');
+			await waitForState(agent.models, models => models.length > 0);
+
+			await agent.authenticate('https://api.github.com', '');
+			await waitForState(agent.models, models => models.length === 0);
+
+			assert.deepStrictEqual({
+				githubToken: agent['_githubToken'],
+				models: agent.models.get(),
+			}, {
+				githubToken: undefined,
+				models: [],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('does not stop the client when the auth token changes', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { IObservable, runOnChange } from '../../base/common/observable.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
 import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -26,7 +27,7 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { ConditionalAuthState, conditionalAuthState, observeAllowSignedOutWhenUsable, shouldForceGitHubSignIn } from './sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, observeAllowSignedOutWhenUsable, resolveSignedOutWindowGate, SignedOutWindowGate } from './sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -37,6 +38,7 @@ import { MarkdownString } from '../../base/common/htmlContent.js';
 import { localize } from '../../nls.js';
 import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from './sessionsSignInDialog.js';
 import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
+import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 
@@ -73,6 +75,7 @@ class SessionsSetUpWidget extends Disposable {
 
 	private readonly dialogRef = this._register(new MutableDisposable<DisposableStore>());
 	private readonly watcherRef = this._register(new MutableDisposable());
+	private readonly signInSetupCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _initialSetupFlow = true;
 	/** True while the window is open for a signed-out user via the conditional-auth opt-in. */
 	private _proceedingSignedOut = false;
@@ -85,6 +88,7 @@ class SessionsSetUpWidget extends Disposable {
 	 * startup gap — one nothing can retire, since the account resolves silently.
 	 */
 	private _accountResolved = false;
+	private _waitingForSessionTypes = false;
 	/** Whether the window may proceed without GitHub sign-in. */
 	private readonly _allowSignedOutWhenUsable: IObservable<boolean>;
 
@@ -108,11 +112,20 @@ class SessionsSetUpWidget extends Disposable {
 		@IHostService private readonly hostService: IHostService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._allowSignedOutWhenUsable = observeAllowSignedOutWhenUsable(this.configurationService);
-		this._register(runOnChange(this._allowSignedOutWhenUsable, allow => this._onAllowSignedOutWhenUsableChanged(allow)));
+		this._register(runOnChange(this._allowSignedOutWhenUsable, () => this._onAllowSignedOutWhenUsableChanged()));
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._onSessionTypesChanged()));
 		this._start();
+	}
+
+	private _onSessionTypesChanged(): void {
+		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
+		if (conditionalAuthState(this._accountResolved, signedIn) === ConditionalAuthState.SignedOut) {
+			this._reevaluateSignedOut();
+		}
 	}
 
 	/**
@@ -122,20 +135,14 @@ class SessionsSetUpWidget extends Disposable {
 	 * raised before the account resolved); turning it off falls back to demanding
 	 * sign-in.
 	 */
-	private _onAllowSignedOutWhenUsableChanged(allow: boolean): void {
+	private _onAllowSignedOutWhenUsableChanged(): void {
 		// Only act once the account has resolved AND the user is signed out; while
 		// unresolved or signed in, the sign-in watch owns the decision.
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
 		if (conditionalAuthState(this._accountResolved, signedIn) !== ConditionalAuthState.SignedOut) {
 			return;
 		}
-		if (!allow) {
-			this._proceedingSignedOut = false;
-			void this._showWelcome(false);
-			return;
-		}
-		this.dialogRef.clear();
-		void this._proceedWithoutGitHub();
+		this._reevaluateSignedOut();
 	}
 
 	private _start(): void {
@@ -165,7 +172,7 @@ class SessionsSetUpWidget extends Disposable {
 			// the opt-in after they await the account). With the opt-in off, the
 			// initial setup flow still owns the dialog, so there is nothing to replay.
 			if (this._allowSignedOutWhenUsable.get()) {
-				this._onAllowSignedOutWhenUsableChanged(true);
+				this._onAllowSignedOutWhenUsableChanged();
 			}
 		});
 
@@ -263,18 +270,14 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	/**
-	 * The **window gate**: whether the Agents window must fall back to forcing
-	 * GitHub sign-in before showing any of the sessions UI. Every caller is on a
-	 * signed-out path, so this is simply the inverse of the opt-in — always true
-	 * while the opt-in is off, which is today's mandatory-sign-in behavior.
-	 *
-	 * Deliberately a *last resort*, not the primary gate. With the opt-in on the
-	 * window opens immediately and per-type on-demand sign-in carries the rest —
-	 * so this never blocks a user who has their own credentials. See
-	 * `sessionsAuthGate.ts` for the window-gate vs per-type-gate distinction.
+	 * Resolve the window-level signed-out gate from the opt-in and the live auth
+	 * requirement of every advertised session type.
 	 */
-	private _mustForceGitHubSignIn(): boolean {
-		return shouldForceGitHubSignIn(this._allowSignedOutWhenUsable.get());
+	private _signedOutWindowGate(): SignedOutWindowGate {
+		return resolveSignedOutWindowGate(
+			this._allowSignedOutWhenUsable.get(),
+			this.sessionsManagementService.getAllProviderSessionTypes().map(({ sessionType }) => sessionType.authRequirement),
+		);
 	}
 
 	/**
@@ -283,13 +286,24 @@ class SessionsSetUpWidget extends Disposable {
 	 * while a dialog is up — that dialog owns the next transition.
 	 */
 	private _reevaluateSignedOut(): void {
-		if (this.dialogRef.value) {
+		const gate = this._signedOutWindowGate();
+		if (gate === SignedOutWindowGate.Unresolved) {
+			this._waitingForSessionTypes = true;
 			return;
 		}
-		if (this._mustForceGitHubSignIn()) {
+		if (this._waitingForSessionTypes) {
+			this._waitingForSessionTypes = false;
+			this.dialogRef.clear();
+		}
+		if (gate === SignedOutWindowGate.ForceGitHubSignIn) {
+			if (this.dialogRef.value) {
+				return;
+			}
 			this._proceedingSignedOut = false;
 			void this._showWelcome(false);
 		} else {
+			this.signInSetupCancellation.value?.cancel();
+			this.dialogRef.clear();
 			void this._proceedWithoutGitHub();
 		}
 	}
@@ -369,9 +383,16 @@ class SessionsSetUpWidget extends Disposable {
 		// A non-first-launch _showWelcome means the user is signed out. Consult the
 		// last-resort GitHub gate before forcing sign-in: with the opt-in on, open
 		// the window instead.
-		if (!isFirstLaunch && !this._mustForceGitHubSignIn()) {
-			await this._proceedWithoutGitHub();
-			return;
+		if (!isFirstLaunch) {
+			const gate = this._signedOutWindowGate();
+			if (gate === SignedOutWindowGate.Unresolved) {
+				this._waitingForSessionTypes = true;
+				return;
+			}
+			if (gate === SignedOutWindowGate.Proceed) {
+				await this._proceedWithoutGitHub();
+				return;
+			}
 		}
 
 		this.watcherRef.clear();
@@ -387,6 +408,11 @@ class SessionsSetUpWidget extends Disposable {
 
 			const account = await this.defaultAccountService.getDefaultAccount();
 			if (this._store.isDisposed) {
+				return;
+			}
+			const signedOutGate = account ? undefined : this._signedOutWindowGate();
+			if (signedOutGate === SignedOutWindowGate.Unresolved) {
+				this._waitingForSessionTypes = true;
 				return;
 			}
 
@@ -407,13 +433,13 @@ class SessionsSetUpWidget extends Disposable {
 				}
 
 				await this._showWelcomeDialog();
-			} else if (this._mustForceGitHubSignIn()) {
-				await this._showSignInDialog();
-			} else {
+			} else if (signedOutGate === SignedOutWindowGate.Proceed) {
 				// Signed-out first launch, but the opt-in permits proceeding.
 				this.dialogRef.clear();
 				await this._proceedWithoutGitHub();
 				return;
+			} else {
+				await this._showSignInDialog();
 			}
 		} else {
 			await this._showSignInDialog();
@@ -439,6 +465,8 @@ class SessionsSetUpWidget extends Disposable {
 		}
 		this.logService.info('[sessions welcome] Showing sign-in dialog');
 
+		const setupCancellation = new CancellationTokenSource();
+		this.signInSetupCancellation.value = setupCancellation;
 		while (true) {
 			const attemptDisposables = new DisposableStore();
 			const signingInDialogRef = attemptDisposables.add(new MutableDisposable<SessionsSigningInDialog>());
@@ -449,6 +477,7 @@ class SessionsSetUpWidget extends Disposable {
 			try {
 				success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
 					...createSessionsSignInDialogOptions(this.commandService, showReturnToVSCodeEditor),
+					cancellationToken: setupCancellation.token,
 					onSignInStarted: (cancel: () => void) => {
 						signingInDialogRef.value = this.instantiationService.createInstance(SessionsSigningInDialog, () => {
 							canceled = true;
@@ -458,6 +487,11 @@ class SessionsSetUpWidget extends Disposable {
 				});
 			} finally {
 				attemptDisposables.dispose();
+			}
+			if (setupCancellation.token.isCancellationRequested) {
+				this.logService.info('[sessions welcome] Sign-in dialog retired because another agent became usable');
+				this.signInSetupCancellation.clear();
+				return;
 			}
 
 			if (canceled) {
@@ -472,6 +506,7 @@ class SessionsSetUpWidget extends Disposable {
 			} else {
 				this.logService.info('[sessions welcome] Sign-in was canceled or failed');
 			}
+			this.signInSetupCancellation.clear();
 			return;
 		}
 	}

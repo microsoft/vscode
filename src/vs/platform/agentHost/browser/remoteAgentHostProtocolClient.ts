@@ -1041,7 +1041,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params, scopes: params.scopes ? [...params.scopes] : undefined });
-		this._authentication.set(`${params.resource}\0${JSON.stringify(params.scopes ?? [])}`, params);
+		const key = `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+		if (params.token) {
+			this._authentication.set(key, params);
+		} else {
+			this._authentication.delete(key);
+		}
 		return { authenticated: true };
 	}
 

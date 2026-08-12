@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { buildUpgradeUrlWithRedirect } from '../../../browser/chatSetup/chatSetup.js';
+import { buildUpgradeUrlWithRedirect, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
+import { showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 /**
  * Parses the final URL and extracts the decoded return_to value,
@@ -83,5 +85,32 @@ suite('buildUpgradeUrlWithRedirect', () => {
 		assert.ok(result.startsWith('https://github.example.com/github-copilot/upgrade?utm_source=vscode&return_to='));
 		const { vscodeUri } = parseRedirectUrl(result);
 		assert.strictEqual(vscodeUri, 'vscode://GitHub.copilot-chat/upgrade-success');
+	});
+});
+
+suite('Chat setup dialog cancellation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('disposes an open dialog when the caller cancels', async () => {
+		const cancellation = new CancellationTokenSource();
+		let disposed = false;
+		let resolveShow: ((value: ChatSetupStrategy) => void) | undefined;
+		const dialog = {
+			show: () => new Promise<ChatSetupStrategy>(resolve => resolveShow = resolve),
+			dispose: () => {
+				if (!disposed) {
+					disposed = true;
+					resolveShow?.(ChatSetupStrategy.Canceled);
+				}
+			},
+		};
+
+		const result = showChatSetupDialogWithCancellation(dialog, cancellation.token);
+		cancellation.cancel();
+
+		assert.strictEqual(await result, ChatSetupStrategy.Canceled);
+		assert.strictEqual(disposed, true);
+		cancellation.dispose();
 	});
 });
