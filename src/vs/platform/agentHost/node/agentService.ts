@@ -3834,7 +3834,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const promises: Promise<unknown>[] = [];
-		this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
+		await this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
@@ -5314,7 +5314,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
 
-	private _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void {
+	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> {
 		const parentSessionStr = parentSession.toString();
 		const parentChat = buildDefaultChatUri(parentSession);
 		const discovered = new Map<string, { title: string; toolCallId: string }>();
@@ -5341,14 +5341,20 @@ export class AgentService extends Disposable implements IAgentService {
 				continue;
 			}
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
+			const existing = this._stateManager.getSessionState(parentSessionStr)?.chats.find(chat => chat.resource === chatUri);
+			const persistedTitle = await this._readPersistedChatTitle(parentSession, URI.parse(chatUri));
+			const title = persistedTitle ?? child.title;
 			this._stateManager.registerRestoredChatSummary(parentSessionStr, chatUri, {
-				title: child.title,
+				title,
 				origin,
 				interactivity: ChatInteractivity.ReadOnly,
 				resolver: async () => ({
 					turns: [...await this._resolveRestoredSubagentTurns(agent, parentSession, chatUri, origin)],
 				}),
 			});
+			if (existing && (!existing.title || existing.title === subagentChatTitle(undefined, undefined))) {
+				this._stateManager.updateChatTitle(parentSessionStr, chatUri, title);
+			}
 		}
 	}
 

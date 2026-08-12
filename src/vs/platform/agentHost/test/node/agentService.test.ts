@@ -5094,6 +5094,60 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(service.stateManager.getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')), undefined);
 		});
 
+		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
+			service.registerProvider(copilotAgent);
+			const parent = await service.createSession({ provider: 'copilot' });
+			const parentChat = buildDefaultChatUri(parent);
+			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
+			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' } as const;
+			service.stateManager.registerRestoredChatSummary(parent.toString(), childChat, {
+				title: 'Subagent',
+				origin,
+				interactivity: ChatInteractivity.ReadOnly,
+			});
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session: parent, role: 'user', messageId: 'msg-1', content: 'Delegate this', toolRequests: [] },
+				{ type: 'message', session: parent, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session: parent, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent', subagentDescription: 'Summarize agent service', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session: parent, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_complete', session: parent, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [] } },
+			];
+			const turns = await copilotAgent.getSessionMessages(parent);
+
+			await (service as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, turns);
+			const reconstructedTitle = service.stateManager.getSessionState(parent.toString())?.chats.find(chat => chat.resource === childChat)?.title;
+			service.stateManager.updateChatTitle(parent.toString(), childChat, 'My Custom Worker');
+			await (service as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, turns);
+
+			assert.deepStrictEqual({
+				reconstructedTitle,
+				titleAfterCustomRename: service.stateManager.getSessionState(parent.toString())?.chats.find(chat => chat.resource === childChat)?.title,
+			}, {
+				reconstructedTitle: 'Summarize agent service',
+				titleAfterCustomRename: 'My Custom Worker',
+			});
+		});
+
+		test('legacy subagent reconstruction restores a persisted custom title', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(copilotAgent);
+			const parent = await localService.createSession({ provider: 'copilot' });
+			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
+			await db.setMetadata(`customChatTitle:${childChat}`, 'Persisted Worker');
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session: parent, role: 'user', messageId: 'msg-1', content: 'Delegate this', toolRequests: [] },
+				{ type: 'message', session: parent, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session: parent, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent', subagentDescription: 'Generated Worker', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session: parent, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_complete', session: parent, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [] } },
+			];
+
+			await (localService as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, await copilotAgent.getSessionMessages(parent));
+
+			assert.strictEqual(localService.stateManager.getSessionState(parent.toString())?.chats.find(chat => chat.resource === childChat)?.title, 'Persisted Worker');
+		});
+
 		test('subscribing to a restored canonical subagent chat reconstructs it on demand', async () => {
 			service.registerProvider(copilotAgent);
 			const { session } = await createAgentSession(copilotAgent);
