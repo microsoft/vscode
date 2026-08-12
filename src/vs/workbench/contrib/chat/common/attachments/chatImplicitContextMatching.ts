@@ -12,6 +12,12 @@ import { IChatRequestVariableEntry, isStringVariableEntry } from './chatVariable
 export interface IImplicitContextAttachmentTarget {
 	readonly uri?: URI;
 	readonly range?: IRange;
+	/**
+	 * Whether the context value this target was built from is a string context
+	 * (i.e. it satisfied `isStringImplicitContextValue`). Set by the caller, which
+	 * has the value in scope, so the matcher never infers the kind from `handle`.
+	 */
+	readonly isStringTarget: boolean;
 	readonly handle?: number;
 	readonly resourceUri?: URI;
 }
@@ -24,11 +30,10 @@ export function isImplicitContextAlreadyAttached(
 	attachments: readonly IChatRequestVariableEntry[],
 	target: IImplicitContextAttachmentTarget,
 ): boolean {
-	const { uri: targetUri, range: targetRange, handle: targetHandle, resourceUri: targetResourceUri } = target;
-	const isStringTarget = targetHandle !== undefined;
+	const { uri: targetUri, range: targetRange, isStringTarget, handle: targetHandle, resourceUri: targetResourceUri } = target;
 
 	return attachments.some(a => {
-		if (isStringTarget && isStringVariableEntry(a) && a.handle === targetHandle) {
+		if (isStringTarget && targetHandle !== undefined && isStringVariableEntry(a) && a.handle === targetHandle) {
 			return true;
 		}
 

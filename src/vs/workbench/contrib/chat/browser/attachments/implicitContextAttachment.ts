@@ -94,6 +94,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			const currentlyAttached = this.isAttachmentAlreadyAttached({
 				uri: context.uri,
 				range: isLocation(context.value) ? context.value.range : undefined,
+				isStringTarget: stringValue !== undefined,
 				handle: stringValue?.handle,
 				resourceUri: stringValue?.resourceUri,
 			});
