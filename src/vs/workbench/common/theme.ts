@@ -698,6 +698,8 @@ export const MODERN_TAB_HOVER_ACTION_BACKGROUND = registerColor('modernTab.hover
 
 export const MODERN_TAB_HOVER_FOREGROUND = registerColor('modernTab.hoverForeground', oneOf(listHoverForeground, foreground), localize('modernTabHoverForeground', "Foreground color of tabs when hovering and the modern tab style is enabled."));
 
+export const MODERN_TAB_SELECTED_ACTION_BACKGROUND = registerColor('modernTab.selectedActionBackground', opaque(TAB_SELECTED_BACKGROUND, editorBackground), localize('modernTabSelectedActionBackground', "Opaque background color of tab actions on selected tabs when the modern tab style is enabled."));
+
 // < --- Modern Activity Bar --- >
 
 export const MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('modernActivityBar.activeBackground', MODERN_TAB_ACTIVE_BACKGROUND, localize('modernActivityBarActiveBackground', "Background color of active Activity bar items in the default side position when the modern UI is enabled."));

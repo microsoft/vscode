@@ -323,17 +323,17 @@
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.close-action-off):hover > .tab-actions,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.close-action-off) > .tab-actions:focus-within {
 	--tab-border-top-color: var(--vscode-tab-selectedBorderTop);
-	background-color: var(--vscode-tab-selectedBackground);
+	background-color: var(--vscode-modernTab-selectedActionBackground);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.tab-actions-left):not(.close-action-off):hover > .tab-actions::before,
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.tab-actions-left):not(.close-action-off) > .tab-actions:focus-within::before {
-	background: linear-gradient(to right, transparent, var(--vscode-tab-selectedBackground));
+	background: linear-gradient(to right, transparent, var(--vscode-modernTab-selectedActionBackground));
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active).tab-actions-left:not(.close-action-off):hover > .tab-actions::before,
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active).tab-actions-left:not(.close-action-off) > .tab-actions:focus-within::before {
-	background: linear-gradient(to left, transparent, var(--vscode-tab-selectedBackground));
+	background: linear-gradient(to left, transparent, var(--vscode-modernTab-selectedActionBackground));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.multi-selected:not(.close-action-off):hover > .tab-actions,

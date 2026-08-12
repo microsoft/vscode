@@ -263,8 +263,6 @@
 	align-items: center;
 	height: 100%;
 	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
-	--modern-ui-editor-tab-action-active-background: var(--vscode-modernTab-activeBackground);
-	--modern-ui-editor-tab-action-hover-background: var(--vscode-modernTab-hoverBackground);
 }
 
 /* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */

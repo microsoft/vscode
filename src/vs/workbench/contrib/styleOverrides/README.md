@@ -14,6 +14,7 @@ Modern UI uses the standard workbench color theme system. Theme authors can use 
 | `modernTab.hoverBackground` | Background of hovered Modern UI tabs | `list.hoverBackground` |
 | `modernTab.hoverActionBackground` | Opaque background of actions on hovered Modern UI editor tabs | `modernTab.hoverBackground` composited over `editor.background` |
 | `modernTab.hoverForeground` | Foreground of hovered Modern UI tabs | `list.hoverForeground`, then `foreground` |
+| `modernTab.selectedActionBackground` | Opaque background of actions on selected Modern UI editor tabs | `tab.selectedBackground` composited over `editor.background` |
 | `modernActivityBar.activeBackground` | Background of active Modern UI activity bar items in the default side position | `modernTab.activeBackground` |
 | `modernActivityBar.activeForeground` | Foreground of active Modern UI activity bar items in the default side position | `modernTab.activeForeground` |
 | `modernActivityBar.hoverBackground` | Background of hovered Modern UI activity bar items in the default side position | `modernTab.hoverBackground` |
@@ -36,6 +37,7 @@ Activity bar items in non-default top or bottom positions use the `modernTab.*` 
     "modernTab.hoverBackground": "#292929",
     "modernTab.hoverActionBackground": "#292929",
     "modernTab.hoverForeground": "#f0f0f0",
+    "modernTab.selectedActionBackground": "#3d3d3d",
     "modernActivityBar.activeBackground": "#3d3d3d",
     "modernActivityBar.activeForeground": "#f0f0f0",
     "modernActivityBar.hoverBackground": "#292929",
