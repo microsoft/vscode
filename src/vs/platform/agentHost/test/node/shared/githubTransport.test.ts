@@ -11,7 +11,7 @@ import { GitHubRequestQueue } from '../../../node/shared/githubRequestQueue.js';
 import { GitHubRequestError, GitHubTransport } from '../../../node/shared/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
-import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubNotModifiedResponse, gitHubRateLimitResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubNotModifiedResponse, gitHubRateLimitResponse, gitHubRawResponse, gitHubRedirectResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
 const accountA: GitHubAccountHandle = { host: 'github.example.test', accountId: '1' };
 const accountB: GitHubAccountHandle = { host: 'github.example.test', accountId: '2' };
@@ -492,6 +492,46 @@ suite('GitHubTransport', () => {
 			}, {
 				data: { ok: true },
 				pendingDelays: 0,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('bounds downloads and rejects unsafe redirect targets', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/log',
+					response: gitHubRawResponse('abcdef'),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/o/r/unsafe',
+					response: gitHubRedirectResponse('http://example.invalid/signed-log'),
+				}),
+			);
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+
+			const bounded = await transport.download(accountA, 'token-a', {
+				url: `${server.apiBaseUrl}/repos/o/r/log`,
+				maximumBytes: 3,
+				timeout: 1_000,
+			}, signal());
+			await assert.rejects(
+				() => transport.download(accountA, 'token-a', {
+					url: `${server.apiBaseUrl}/repos/o/r/unsafe`,
+					maximumBytes: 100,
+					timeout: 1_000,
+				}, signal()),
+				error => error instanceof GitHubRequestError && error.kind === 'authorization',
+			);
+
+			assert.deepStrictEqual(bounded, {
+				text: 'abc',
+				truncated: true,
+				sourceUrl: `${server.apiBaseUrl}/repos/o/r/log`,
+				contentType: 'application/octet-stream',
 			});
 			server.assertSatisfied();
 		});

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -311,6 +311,94 @@ suite('PullRequestResourceService', () => {
 		second.dispose();
 	});
 
+	test('authoritative refresh and typed invalidation supersede older work', async () => {
+		const { clock, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, {
+			priority: 'interactive',
+			checks: { required: true },
+		});
+		await subscription.refresh('core');
+		await subscription.refresh('checks');
+
+		const authoritativeStarted = new DeferredPromise<void>();
+		const releaseAuthoritativeOld = new DeferredPromise<void>();
+		let authoritativeCall = 0;
+		let authoritativeOldSignal: AbortSignal | undefined;
+		queries.handlers.set('checks', async call => {
+			authoritativeCall++;
+			if (authoritativeCall === 1) {
+				authoritativeOldSignal = call.signal;
+				await authoritativeStarted.complete();
+				await releaseAuthoritativeOld.p;
+				return checksResult('old');
+			}
+			return checksResult('authoritative');
+		});
+		const oldRefresh = subscription.refresh('checks');
+		await authoritativeStarted.p;
+		const authoritative = subscription.refresh('checks', CancellationToken.None, { authoritative: true });
+		await authoritative;
+		await releaseAuthoritativeOld.complete();
+		await oldRefresh;
+
+		assert.deepStrictEqual({
+			oldAborted: authoritativeOldSignal?.aborted,
+			checkId: subscription.resource.snapshot.get().checks.value?.checks[0]?.id,
+			callCount: authoritativeCall,
+		}, {
+			oldAborted: true,
+			checkId: 'authoritative',
+			callCount: 2,
+		});
+
+		const invalidationStarted = new DeferredPromise<void>();
+		const releaseInvalidationOld = new DeferredPromise<void>();
+		let invalidationCall = 0;
+		let invalidationOldSignal: AbortSignal | undefined;
+		queries.handlers.set('checks', async call => {
+			invalidationCall++;
+			if (invalidationCall === 1) {
+				invalidationOldSignal = call.signal;
+				await invalidationStarted.complete();
+				await releaseInvalidationOld.p;
+				return checksResult('stale');
+			}
+			return checksResult('fresh');
+		});
+		const invalidatedRefresh = subscription.refresh('checks');
+		await invalidationStarted.p;
+		service.invalidatePullRequest(ref, ['checks']);
+		assert.deepStrictEqual({
+			oldAborted: invalidationOldSignal?.aborted,
+			status: subscription.resource.snapshot.get().checks.status,
+			complete: subscription.resource.snapshot.get().checks.complete,
+		}, {
+			oldAborted: true,
+			status: 'stale',
+			complete: false,
+		});
+		clock.flushDue();
+		await flushAsync();
+		await releaseInvalidationOld.complete();
+		await invalidatedRefresh;
+
+		assert.deepStrictEqual({
+			checkId: subscription.resource.snapshot.get().checks.value?.checks[0]?.id,
+			callCount: invalidationCall,
+		}, {
+			checkId: 'fresh',
+			callCount: 2,
+		});
+
+		subscription.update({ priority: 'background' });
+		queries.calls.length = 0;
+		service.invalidatePullRequest(ref, ['checks']);
+		clock.flushDue();
+		await flushAsync();
+		assert.strictEqual(queries.calls.length, 0);
+		subscription.dispose();
+	});
+
 	test('supersedes in-flight work when a subscriber expands the data shape', async () => {
 		const { queries, service } = setup();
 		const firstStarted = new DeferredPromise<void>();
@@ -493,6 +581,21 @@ suite('PullRequestResourceService', () => {
 		subscription.dispose();
 	});
 });
+
+function checksResult(id: string): PullRequestFragmentResult {
+	return {
+		fragment: 'checks',
+		value: {
+			headSha: 'head-1',
+			requirednessComplete: true,
+			expectedSuites: [],
+			expectedSuitesComplete: true,
+			checks: [{ id, type: 'checkRun', name: id, status: 'COMPLETED' }],
+		},
+		complete: true,
+		headSha: 'head-1',
+	};
+}
 
 async function flushAsync(): Promise<void> {
 	for (let index = 0; index < 10; index++) {

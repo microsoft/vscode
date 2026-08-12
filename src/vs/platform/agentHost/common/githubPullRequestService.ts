@@ -207,8 +207,12 @@ export interface PullRequestResource {
 	readonly snapshot: IObservable<PullRequestSnapshot>;
 }
 
+export interface PullRequestRefreshOptions {
+	readonly authoritative?: boolean;
+}
+
 export interface PullRequestSubscription extends IDisposable {
 	readonly resource: PullRequestResource;
 	update(options: PullRequestSubscriptionOptions): void;
-	refresh(fragment?: PullRequestFragment, token?: CancellationToken): Promise<void>;
+	refresh(fragment?: PullRequestFragment, token?: CancellationToken, options?: PullRequestRefreshOptions): Promise<void>;
 }

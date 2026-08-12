@@ -20,6 +20,7 @@ import {
 	PullRequestMergeability,
 	PullRequestParticipants,
 	PullRequestRef,
+	PullRequestRefreshOptions,
 	PullRequestResource,
 	PullRequestReview,
 	PullRequestReviewThread,
@@ -39,6 +40,7 @@ export const IPullRequestResourceService = createDecorator<IPullRequestResourceS
 export interface IPullRequestResourceService {
 	readonly _serviceBrand: undefined;
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription;
+	invalidatePullRequest(ref: PullRequestRef, fragments: readonly PullRequestFragment[]): void;
 	clear(): void;
 }
 
@@ -178,11 +180,15 @@ class PullRequestSubscriptionImpl implements PullRequestSubscription {
 		this._service.updateSubscription(this, options);
 	}
 
-	refresh(fragment?: PullRequestFragment, token: CancellationToken = CancellationToken.None): Promise<void> {
+	refresh(
+		fragment?: PullRequestFragment,
+		token: CancellationToken = CancellationToken.None,
+		options?: PullRequestRefreshOptions,
+	): Promise<void> {
 		if (this._disposed) {
 			return Promise.reject(new Error('Pull request subscription has been disposed'));
 		}
-		return this._service.refreshSubscription(this, fragment, token);
+		return this._service.refreshSubscription(this, fragment, token, options);
 	}
 
 	dispose(): void {
@@ -239,6 +245,26 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		return subscription;
 	}
 
+	invalidatePullRequest(ref: PullRequestRef, invalidatedFragments: readonly PullRequestFragment[]): void {
+		const entry = this._entriesByKey.get(pullRequestKey(normalizeRef(ref)));
+		if (!entry) {
+			return;
+		}
+		for (const fragment of invalidatedFragments) {
+			this._cancelFragment(entry, fragment);
+			const current = fragmentState(entry.snapshot.get(), fragment);
+			this._setFragmentState(entry, fragment, {
+				...current,
+				status: current.value ? 'stale' : 'missing',
+				complete: false,
+				error: undefined,
+			});
+			if (entry.subscriptions.size > 0 && entry.effective.has(fragment)) {
+				this._scheduleFragment(entry, fragment, this._clock.now());
+			}
+		}
+	}
+
 	updateSubscription(subscription: PullRequestSubscriptionImpl, options: PullRequestSubscriptionOptions): void {
 		if (!subscription.entry.subscriptions.has(subscription)) {
 			throw new Error('Pull request subscription is no longer active');
@@ -247,7 +273,12 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._updateEffectiveInterests(subscription.entry);
 	}
 
-	async refreshSubscription(subscription: PullRequestSubscriptionImpl, fragment: PullRequestFragment | undefined, token: CancellationToken): Promise<void> {
+	async refreshSubscription(
+		subscription: PullRequestSubscriptionImpl,
+		fragment: PullRequestFragment | undefined,
+		token: CancellationToken,
+		options?: PullRequestRefreshOptions,
+	): Promise<void> {
 		const entry = subscription.entry;
 		if (!entry.subscriptions.has(subscription)) {
 			throw new Error('Pull request subscription is no longer active');
@@ -256,13 +287,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			if (!entry.effective.has(fragment)) {
 				throw new Error(`Pull request fragment ${fragment} is not part of the subscription interests`);
 			}
-			await this._refreshFragment(entry, fragment, token);
+			await this._refreshFragment(entry, fragment, token, options?.authoritative === true);
 			return;
 		}
-		await this._refreshFragment(entry, 'core', token);
+		await this._refreshFragment(entry, 'core', token, options?.authoritative === true);
 		await Promise.all([...entry.effective.keys()]
 			.filter(candidate => candidate !== 'core')
-			.map(candidate => this._refreshFragment(entry, candidate, token)));
+			.map(candidate => this._refreshFragment(entry, candidate, token, options?.authoritative === true)));
 	}
 
 	removeSubscription(subscription: PullRequestSubscriptionImpl): void {
@@ -336,7 +367,12 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 	}
 
-	private async _refreshFragment(entry: PullRequestEntry, fragment: PullRequestFragment, token: CancellationToken): Promise<void> {
+	private async _refreshFragment(
+		entry: PullRequestEntry,
+		fragment: PullRequestFragment,
+		token: CancellationToken,
+		authoritative = false,
+	): Promise<void> {
 		if (entry.disposed || entry.subscriptions.size === 0 || !entry.effective.has(fragment)) {
 			return;
 		}
@@ -344,14 +380,14 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		const existing = entry.operations.get(fragment);
 		if (existing) {
 			const interest = entry.effective.get(fragment);
-			if (!interest || !dataInterestExpanded(existing.interest, interest)) {
+			if (!authoritative && (!interest || !dataInterestExpanded(existing.interest, interest))) {
 				await raceCancellationError(existing.promise, token);
 				return;
 			}
 			this._cancelFragment(entry, fragment);
 		}
 		if (fragment !== 'core' && entry.snapshot.get().core.status !== 'ready') {
-			await this._refreshFragment(entry, 'core', token);
+			await this._refreshFragment(entry, 'core', token, authoritative);
 			if (entry.snapshot.get().core.status !== 'ready') {
 				return;
 			}

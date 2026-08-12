@@ -96,6 +96,7 @@ import { GitHubCredentialService, IGitHubCredentialService } from './shared/gith
 import { GitHubHostCapabilitiesService, IGitHubHostCapabilitiesService } from './shared/githubHostCapabilitiesService.js';
 import { GitHubTransport, IGitHubTransport } from './shared/githubTransport.js';
 import { IPullRequestQueryService, PullRequestQueryService } from './shared/pullRequestQueryService.js';
+import { IPullRequestMutationService, PullRequestMutationService } from './shared/pullRequestMutationService.js';
 import { IPullRequestResourceService, PullRequestResourceService } from './shared/pullRequestResourceService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -586,6 +587,8 @@ export class AgentService extends Disposable implements IAgentService {
 		services.set(IPullRequestQueryService, pullRequestQueryService);
 		const pullRequestResourceService = this._register(instantiationService.createInstance(PullRequestResourceService, undefined, undefined));
 		services.set(IPullRequestResourceService, pullRequestResourceService);
+		const pullRequestMutationService = this._register(instantiationService.createInstance(PullRequestMutationService, undefined));
+		services.set(IPullRequestMutationService, pullRequestMutationService);
 		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);

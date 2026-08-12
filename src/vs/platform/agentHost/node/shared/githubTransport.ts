@@ -20,6 +20,7 @@ export interface IGitHubTransport {
 	readonly rateLimits: GitHubRateLimitCoordinator;
 	rest<T>(account: GitHubAccountHandle, token: string, request: GitHubRestRequest, signal: AbortSignal): Promise<GitHubRestResponse<T>>;
 	graphql<T>(account: GitHubAccountHandle, token: string, url: string, query: string, variables: Readonly<Record<string, unknown>>, signal: AbortSignal, priority?: GitHubRequestPriority): Promise<GitHubGraphQLResponse<T>>;
+	download(account: GitHubAccountHandle, token: string, request: GitHubDownloadRequest, signal: AbortSignal): Promise<GitHubDownloadResponse>;
 	invalidateAccount(account: GitHubAccountHandle, reason?: unknown): void;
 	clear(): void;
 }
@@ -71,6 +72,20 @@ export interface GitHubGraphQLResponse<T> {
 	readonly observedAt: number;
 }
 
+export interface GitHubDownloadRequest {
+	readonly url: string;
+	readonly maximumBytes: number;
+	readonly timeout: number;
+	readonly priority?: GitHubRequestPriority;
+}
+
+export interface GitHubDownloadResponse {
+	readonly text: string;
+	readonly truncated: boolean;
+	readonly sourceUrl: string;
+	readonly contentType?: string;
+}
+
 interface IRestCacheEntry {
 	readonly accountKey: string;
 	readonly etag: string;
@@ -114,6 +129,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	constructor(
 		fetchFn: FetchFunction | undefined,
 		private readonly _scheduler: IGitHubScheduler = systemGitHubScheduler,
+		private readonly _allowInsecureLoopbackDownloads = false,
 	) {
 		super();
 		this._fetch = fetchFn ?? globalThis.fetch;
@@ -169,6 +185,91 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		if (/^\s*mutation\b/i.test(query)) {
 			return this._executeGraphQL<T>(account, token, url, query, variables, signal, priority);
 		}
+		return this._graphqlRead(account, token, url, query, variables, signal, priority);
+	}
+
+	async download(
+		account: GitHubAccountHandle,
+		token: string,
+		request: GitHubDownloadRequest,
+		signal: AbortSignal,
+	): Promise<GitHubDownloadResponse> {
+		return this._enqueueWithRateLimit(account, 'core', request.priority ?? 'interactive', signal, async () => {
+			const controller = new AbortController();
+			const timeout = this._scheduler.schedule(
+				() => controller.abort(new GitHubRequestError('GitHub download timed out', 'network')),
+				Math.max(0, request.timeout),
+			);
+			const combinedSignal = AbortSignal.any([signal, controller.signal]);
+			try {
+				const initialOrigin = new URL(request.url).origin;
+				let url = request.url;
+				let authenticated = true;
+				for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
+					const headers: Record<string, string> = {
+						'Accept': 'text/plain, application/octet-stream',
+						'Cache-Control': 'no-store',
+						'X-GitHub-Api-Version': defaultApiVersion,
+					};
+					if (authenticated) {
+						headers['Authorization'] = `Bearer ${token}`;
+					}
+					let response: Response;
+					try {
+						response = await this._fetch(url, {
+							method: 'GET',
+							cache: 'no-store',
+							headers,
+							signal: combinedSignal,
+							redirect: 'manual',
+						});
+					} catch (error) {
+						if (combinedSignal.aborted) {
+							throw combinedSignal.reason ?? error;
+						}
+						throw new GitHubRequestError(`GitHub download network request failed: ${String(error)}`, 'network');
+					}
+					if (authenticated) {
+						this._rateLimits.updateFromResponse(account, response);
+					}
+					if ([301, 302, 307, 308].includes(response.status)) {
+						const location = response.headers.get('location');
+						if (!location) {
+							throw new GitHubRequestError('GitHub download redirect was missing a Location header', 'malformedResponse', response.status);
+						}
+						const redirected = new URL(location, url);
+						validateDownloadUrl(redirected, this._allowInsecureLoopbackDownloads);
+						authenticated = redirected.origin === initialOrigin;
+						url = redirected.href;
+						continue;
+					}
+					if (!response.ok) {
+						const body = await response.text();
+						throw this._httpError('GitHub download failed', response, body);
+					}
+					const body = await readBoundedResponse(response, request.maximumBytes, combinedSignal);
+					return {
+						text: new TextDecoder().decode(body.bytes),
+						truncated: body.truncated,
+						sourceUrl: url,
+						contentType: response.headers.get('content-type') ?? undefined,
+					};
+				}
+				throw new GitHubRequestError('GitHub download exceeded the redirect limit', 'unknown');
+			} finally {
+				timeout.dispose();
+			}
+		});
+	}
+	private async _graphqlRead<T>(
+		account: GitHubAccountHandle,
+		token: string,
+		url: string,
+		query: string,
+		variables: Readonly<Record<string, unknown>>,
+		signal: AbortSignal,
+		priority: GitHubRequestPriority,
+	): Promise<GitHubGraphQLResponse<T>> {
 		const key = `${GitHubRequestQueue.accountKey(account)}\x00${url}\x00${query}\x00${canonicalJson(variables)}`;
 		let shared = this._graphQlInFlight.get(key);
 		if (!shared) {
@@ -572,4 +673,65 @@ function canonicalJson(value: unknown): string {
 		return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(Reflect.get(value, key))}`).join(',')}}`;
 	}
 	return JSON.stringify(value) ?? 'undefined';
+}
+
+function validateDownloadUrl(url: URL, allowInsecureLoopback: boolean): void {
+	if (url.protocol === 'https:') {
+		return;
+	}
+	if (allowInsecureLoopback
+		&& url.protocol === 'http:'
+		&& (url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]')) {
+		return;
+	}
+	throw new GitHubRequestError('GitHub download redirect used an unsafe target', 'authorization');
+}
+
+async function readBoundedResponse(
+	response: Response,
+	maximumBytes: number,
+	signal: AbortSignal,
+): Promise<{ readonly bytes: Uint8Array; readonly truncated: boolean }> {
+	const limit = Math.max(0, maximumBytes);
+	if (!response.body) {
+		return { bytes: new Uint8Array(), truncated: false };
+	}
+	const reader = response.body.getReader();
+	const chunks: Uint8Array[] = [];
+	let length = 0;
+	try {
+		while (true) {
+			if (signal.aborted) {
+				throw signal.reason;
+			}
+			const result = await reader.read();
+			if (result.done) {
+				break;
+			}
+			if (length + result.value.byteLength > limit) {
+				const remaining = Math.max(0, limit - length);
+				if (remaining > 0) {
+					chunks.push(result.value.slice(0, remaining));
+					length += remaining;
+				}
+				await reader.cancel();
+				return { bytes: concatenateBytes(chunks, length), truncated: true };
+			}
+			chunks.push(result.value);
+			length += result.value.byteLength;
+		}
+		return { bytes: concatenateBytes(chunks, length), truncated: false };
+	} finally {
+		reader.releaseLock();
+	}
+}
+
+function concatenateBytes(chunks: readonly Uint8Array[], length: number): Uint8Array {
+	const result = new Uint8Array(length);
+	let offset = 0;
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return result;
 }
