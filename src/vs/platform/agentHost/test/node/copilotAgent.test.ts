@@ -966,6 +966,62 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('correlates forwarded response telemetry with active SDK session turns', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: unknown): void {
+				this.events.push({ eventName: eventName ?? '', data });
+			}
+		}();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService }) as TestableCopilotAgent;
+		try {
+			await agent.listLegacyChats();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+
+			chatEntriesBySdkId(agent).set('active-session', {
+				chatSession: { currentTurnId: 'turn-1' } as CopilotAgentSession,
+				dispose() { },
+			});
+			chatEntriesBySdkId(agent).set('second-active-session', {
+				chatSession: { currentTurnId: 'turn-2' } as CopilotAgentSession,
+				dispose() { },
+			});
+			chatEntriesBySdkId(agent).set('idle-session', {
+				chatSession: { currentTurnId: undefined } as CopilotAgentSession,
+				dispose() { },
+			});
+			const notification = (sessionId: string, turnId: string): GitHubTelemetryNotification => ({
+				sessionId,
+				restricted: false,
+				event: {
+					kind: 'response.success',
+					properties: { turnId },
+					metrics: {},
+				},
+			});
+
+			await forward(notification('active-session', 'runtime-active'));
+			await forward(notification('second-active-session', 'runtime-second-active'));
+			await forward(notification('active-session', 'runtime-active-again'));
+			await forward(notification('idle-session', 'runtime-idle'));
+			await forward(notification('unknown-session', 'runtime-unknown'));
+
+			assert.deepStrictEqual(telemetryService.events.map(event => ({
+				sessionId: (event.data as Record<string, unknown>).sdk_session_id,
+				turnId: (event.data as Record<string, unknown>).turnId,
+			})), [
+				{ sessionId: 'active-session', turnId: 'turn-1' },
+				{ sessionId: 'second-active-session', turnId: 'turn-2' },
+				{ sessionId: 'active-session', turnId: 'turn-1' },
+				{ sessionId: 'idle-session', turnId: undefined },
+				{ sessionId: 'unknown-session', turnId: undefined },
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('routes exact legacy targets exclusively and falls back to generic forwarding', async () => {
 		const client = new TestCopilotClient([]);
 		const copilotApiService = new TestCopilotApiService();
