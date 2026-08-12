@@ -27,6 +27,8 @@ import {
 	fileChangeOutput,
 	mapCodexTurnError,
 	turnStateFromStatus,
+	webSearchInvocationMessage,
+	webSearchPastTenseMessage,
 } from './codexMapAppServerEvents.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 import { parseCodexDelegation } from './codexDelegation.js';
@@ -307,11 +309,11 @@ function webSearchToolCallPart(item: Extract<ThreadItem, { type: 'webSearch' }>)
 			toolName: 'web_search',
 			displayName: 'Web search',
 			_meta: toToolCallMeta({ toolKind: 'search' }),
-			invocationMessage: query,
+			invocationMessage: webSearchInvocationMessage(query),
 			toolInput: query,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success: true,
-			pastTenseMessage: `Searched ${query}`,
+			pastTenseMessage: webSearchPastTenseMessage(query),
 		},
 	};
 }
@@ -351,7 +353,7 @@ function fileChangeToolCallPart(item: Extract<ThreadItem, { type: 'fileChange' }
 			invocationMessage: summary,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			success,
-			pastTenseMessage: success ? 'Applied file changes' : 'Failed to apply file changes',
+			pastTenseMessage: success ? summary : 'Failed to apply file changes',
 			content: textContent(output),
 			error: success ? undefined : { message: `Patch ${item.status}` },
 		},
