@@ -24,6 +24,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 import { DockedEditorInput } from '../../../../common/dockedEditorInput.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
@@ -314,9 +315,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// group is never mistaken for the user closing all tabs (which would close the side pane).
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
-			// [1] Close stale/foreign Changes editors. Compute the empty-group ensure only
-			// after this, so a group left empty by the cleanup counts as empty.
-			await this._closeForeignChangesEditors(group, changesResource);
+			// [1] Replace an outgoing session's Changes tab in place when the incoming
+			// session also wants Changes; close only additional stale tabs.
+			await this._reconcileForeignChangesEditors(group, changesResource);
 			if (generation !== this._generation) {
 				return;
 			}
@@ -407,13 +408,29 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		}
 	}
 
-	private async _closeForeignChangesEditors(group: IEditorGroup, activeChangesResource: URI | undefined): Promise<void> {
+	private async _reconcileForeignChangesEditors(group: IEditorGroup, activeChangesResource: URI | undefined): Promise<void> {
 		const foreign = group.editors.filter(editor => {
 			const resource = this.getChangesEditorResource(editor);
 			return resource && (!activeChangesResource || !isEqual(resource, activeChangesResource));
 		});
-		if (foreign.length > 0) {
+		if (foreign.length === 0) {
+			return;
+		}
+
+		if (!activeChangesResource) {
 			await this._closeManagedEditors(group, foreign);
+			return;
+		}
+
+		const [editorToReplace, ...editorsToClose] = foreign;
+		const wasActive = group.activeEditor === editorToReplace;
+		await group.replaceEditors([{
+			editor: editorToReplace,
+			replacement: this._instantiationService.createInstance(SessionChangesEditorInput, activeChangesResource),
+			options: wasActive ? CHANGES_TAB_ACTIVE_OPTIONS : CHANGES_TAB_OPTIONS,
+		}]);
+		if (editorsToClose.length > 0) {
+			await this._closeManagedEditors(group, editorsToClose);
 		}
 	}
 

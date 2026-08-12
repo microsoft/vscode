@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -30,7 +30,7 @@ import { DetailPanelTarget, SinglePaneDetailPanelCoordinator } from './singlePan
 import { SinglePaneDockedTabsCoordinator } from './singlePaneDockedTabsCoordinator.js';
 import { isChangesEditorInput, isFileEditorInput, isMainPartEmpty } from './singlePaneSharedHelpers.js';
 import { ISinglePaneLayoutContext, SinglePaneLayoutStrategy } from './singlePaneLayoutStrategy.js';
-import { PendingAuxiliaryBarRestore, SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
+import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from './singlePaneVisibilityProfileStore.js';
 
 /** Command that toggles the single-pane detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
@@ -39,12 +39,11 @@ const singlePaneHeaderToggleDetailsOrder = 10;
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
  * session:
- *  - the shared Existing Session side-pane visibility profile (editor visible, detail hidden
- *    by default), applied on entry and captured while the user adjusts it;
+ *  - the shared Existing Session Editor visibility profile, applied on entry and captured
+ *    while the user adjusts it;
  *  - detecting a New→Existing submit and, at that moment, capturing the *current* on-screen
  *    composition into **both** the New and Existing profiles so the view never jumps;
- *  - the detail-panel mapping while an Existing Session is active (defaults to Changes; hides
- *    when a created session's editor group empties, i.e. the whole side pane was closed);
+ *  - the detail-panel mapping while an Existing Session is active;
  *  - the Toggle Details command (kind-agnostic — it also applies while a New Session's docked
  *    tabs are visible — hosted here since Existing is the steady-state default);
  *  - owning (constructing/disposing) the shared {@link SinglePaneDockedTabsCoordinator}, whose
@@ -53,9 +52,9 @@ const singlePaneHeaderToggleDetailsOrder = 10;
  */
 export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy {
 
-	private _pendingAuxiliaryBarRestore: PendingAuxiliaryBarRestore | undefined;
-	private _applyingProfile = false;
 	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
+	private _detailHiddenTransiently = false;
+	private _changingDetailTransiently = false;
 
 	constructor(
 		ctx: ISinglePaneLayoutContext,
@@ -70,6 +69,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		super(ctx);
 
 		this._registerVisibility();
+		this._registerEmptyGroupClose();
 		this._registerDetailPanel();
 		this._register(this._registerToggleDetailsAction());
 	}
@@ -79,6 +79,23 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		const nowVisible = !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		this._layoutService.setPartHidden(!nowVisible, Parts.AUXILIARYBAR_PART);
 		return nowVisible;
+	}
+
+	private _registerEmptyGroupClose(): void {
+		this._register(this._editorService.onDidCloseEditor(() => {
+			const session = this._sessionsService.activeSession.get();
+			if (this._ctx.isRestoringSessionLayout
+				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
+				|| !session
+				|| session.isQuickChat?.get()
+				|| !session.isCreated.get()
+				|| !session.workspace.get()
+				|| !isMainPartEmpty(this._editorGroupsService)) {
+				return;
+			}
+
+			this._layoutService.hideSidePane();
+		}));
 	}
 
 	/**
@@ -102,10 +119,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 	// --- Side-pane visibility ------------------------------------------------------------
 
 	private _registerVisibility(): void {
-		const mainPartEmptyObs = observableFromEvent(this,
-			Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor),
-			() => isMainPartEmpty(this._editorGroupsService));
-
 		let initialized = false;
 		let wasExistingActive = false;
 		let wasQuickChatActive = false;
@@ -115,7 +128,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		this._register(autorun(reader => {
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
 			if (multipleSessionsVisible) {
-				this._pendingAuxiliaryBarRestore = undefined;
 				const activeSession = this._sessionsService.activeSession.read(reader);
 				const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 				const workspace = activeSession?.workspace.read(reader);
@@ -133,9 +145,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			}
 
 			const isQuickChat = activeSession.isQuickChat?.read(reader) ?? false;
-			const mainPartEmpty = mainPartEmptyObs.read(reader);
 			if (isQuickChat) {
-				this._pendingAuxiliaryBarRestore = undefined;
 				wasQuickChatActive = true;
 				wasExistingActive = false;
 				return;
@@ -151,21 +161,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 
 			if (isCreated) {
 				if (!isSubmit && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged)) {
-					const profile = this._visibilityStore.get(SessionVisibilityProfile.Existing);
-					this._pendingAuxiliaryBarRestore = profile.auxiliaryBarVisible
-						? (mainPartEmpty ? PendingAuxiliaryBarRestore.WaitingForContent : PendingAuxiliaryBarRestore.WaitingForEmptyGroup)
-						: undefined;
-					this._applyingProfile = true;
-					try {
-						this._ctx.withSessionLayoutRestore(() => this._apply(profile));
-					} finally {
-						this._applyingProfile = false;
-					}
-				} else if (this._pendingAuxiliaryBarRestore === PendingAuxiliaryBarRestore.WaitingForEmptyGroup && mainPartEmpty) {
-					this._pendingAuxiliaryBarRestore = PendingAuxiliaryBarRestore.WaitingForContent;
-				} else if (this._pendingAuxiliaryBarRestore === PendingAuxiliaryBarRestore.WaitingForContent && !mainPartEmpty) {
-					this._pendingAuxiliaryBarRestore = undefined;
-					this._ctx.withSessionLayoutRestore(() => this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART));
+					this._ctx.withSessionLayoutRestore(() => this._apply(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
 				}
 				wasExistingActive = true;
 			} else {
@@ -178,28 +174,11 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			initialized = true;
 		}));
 
-		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
-			if (this._applyingProfile || this._pendingAuxiliaryBarRestore !== PendingAuxiliaryBarRestore.WaitingForEmptyGroup) {
-				return;
-			}
-			if (this._ctx.multipleSessionsVisibleObs.get()) {
-				this._pendingAuxiliaryBarRestore = undefined;
-				return;
-			}
-			const activeSession = this._sessionsService.activeSession.get();
-			if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()) {
-				this._pendingAuxiliaryBarRestore = undefined;
-				return;
-			}
-			this._pendingAuxiliaryBarRestore = undefined;
-			const profile = this._visibilityStore.get(SessionVisibilityProfile.Existing);
-			if (profile.auxiliaryBarVisible) {
-				this._apply(profile);
-			}
-		}));
-
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
 			if (e.partId !== Parts.EDITOR_PART && e.partId !== Parts.AUXILIARYBAR_PART) {
+				return;
+			}
+			if (e.partId === Parts.AUXILIARYBAR_PART && this._changingDetailTransiently) {
 				return;
 			}
 			if (this._ctx.isRestoringSessionLayout) {
@@ -211,12 +190,6 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 			const activeSession = this._sessionsService.activeSession.get();
 			if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
 				|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
-				return;
-			}
-			if (e.partId === Parts.AUXILIARYBAR_PART && !e.visible && this._editorService.activeEditor instanceof BrowserEditorInput) {
-				return;
-			}
-			if (e.partId === Parts.AUXILIARYBAR_PART && !e.visible && this._pendingAuxiliaryBarRestore !== undefined) {
 				return;
 			}
 			this._visibilityStore.set(SessionVisibilityProfile.Existing, {
@@ -276,36 +249,110 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		const mainPartEmptyObs = observableFromEvent(this, Event.any(this._editorService.onDidActiveEditorChange, this._editorService.onDidEditorsChange, this._editorService.onDidCloseEditor), () => isMainPartEmpty(this._editorGroupsService));
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
+		let initialized = false;
+		let wasExistingActive = false;
+		let activeSessionKey: string | undefined;
+		let pendingSessionKey: string | undefined;
+		let pendingOutgoingEditor: EditorInput | undefined;
 
-		this._register(autorun(reader => {
+		const sync = (reader: IReader | undefined) => {
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			if (!activeSession) {
+			if (!activeSession
+				|| (activeSession.isQuickChat?.read(reader) ?? false)
+				|| !activeSession.workspace.read(reader)
+				|| !activeSession.isCreated.read(reader)) {
+				wasExistingActive = false;
 				return;
 			}
-			const isQuickChat = activeSession.isQuickChat?.read(reader) ?? false;
-			const workspace = activeSession.workspace.read(reader);
-			if (isQuickChat || !workspace || !activeSession.isCreated.read(reader)) {
-				return;
+
+			const sessionKey = activeSession.resource.toString();
+			const sessionChanged = activeSessionKey !== undefined && activeSessionKey !== sessionKey;
+			if (!wasExistingActive || sessionChanged) {
+				activeSessionKey = sessionKey;
+				wasExistingActive = true;
+				if (initialized) {
+					pendingSessionKey = sessionKey;
+					pendingOutgoingEditor = this._editorService.activeEditor;
+				}
+				initialized = true;
 			}
 
 			const activeEditor = activeEditorObs.read(reader);
-			const target = this._computeTarget(reader, activeEditor, mainPartEmptyObs, editorMaximizedObs, editorPartVisibleObs);
-			const syncTarget = this._ctx.multipleSessionsVisibleObs.read(reader) ? DetailPanelTarget.Preserve : target;
-			this._detailPanel.sync(target, syncTarget);
+			const mainPartEmpty = mainPartEmptyObs.read(reader);
+			const editorMaximized = editorMaximizedObs.read(reader);
+			const editorPartVisible = editorPartVisibleObs.read(reader);
+			if (pendingSessionKey && activeEditor && activeEditor !== pendingOutgoingEditor) {
+				pendingSessionKey = undefined;
+				pendingOutgoingEditor = undefined;
+			}
+			if (pendingSessionKey) {
+				return;
+			}
+
+			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible);
+			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
+			this._syncDetailVisibility(target, revealOnly);
+			this._detailPanel.sync(target);
+		};
+
+		this._register(autorun(sync));
+		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
+			const activeSession = this._sessionsService.activeSession.get();
+			if (!activeSession || activeSession.resource.toString() !== pendingSessionKey) {
+				return;
+			}
+			pendingSessionKey = undefined;
+			pendingOutgoingEditor = undefined;
+			sync(undefined);
+		}));
+		this._register(this._layoutService.onDidChangePartVisibility(event => {
+			if (event.partId === Parts.AUXILIARYBAR_PART && event.source !== 'resize') {
+				this._detailHiddenTransiently = false;
+			}
 		}));
 	}
 
-	private _computeTarget(reader: IReader, activeEditor: EditorInput | undefined, mainPartEmptyObs: IObservable<boolean>, editorMaximizedObs: IObservable<boolean>, editorPartVisibleObs: IObservable<boolean>): DetailPanelTarget {
+	private _syncDetailVisibility(target: DetailPanelTarget, revealOnly: boolean): void {
+		if (this._ctx.isRestoringSessionLayout || target === DetailPanelTarget.Preserve) {
+			return;
+		}
+
+		const detailVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		if (target === DetailPanelTarget.Hidden || target === DetailPanelTarget.BrowserHidden) {
+			if (!revealOnly && detailVisible) {
+				this._detailHiddenTransiently = true;
+				this._setDetailHiddenTransiently(true);
+			}
+			return;
+		}
+
+		if (!this._detailHiddenTransiently || revealOnly || !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+		this._detailHiddenTransiently = false;
+		this._setDetailHiddenTransiently(false);
+	}
+
+	private _setDetailHiddenTransiently(hidden: boolean): void {
+		this._changingDetailTransiently = true;
+		try {
+			this._layoutService.setAuxiliaryBarHiddenForResize(hidden);
+		} finally {
+			this._changingDetailTransiently = false;
+		}
+	}
+
+	private _computeTarget(activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean): DetailPanelTarget {
 		// For a created session an empty editor group means the whole side pane was closed, so
 		// hide the detail. During a session-switch / submit restore the working-set apply
 		// transiently empties the group before the managed Changes/Files tabs are re-ensured,
 		// so leave it as-is (Preserve) instead — the detail then follows the active editor once
 		// the managed tabs settle.
-		if (mainPartEmptyObs.read(reader)) {
+		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
 		}
 
-		if (editorMaximizedObs.read(reader)) {
+		if (editorMaximized) {
 			return DetailPanelTarget.Changes;
 		}
 
@@ -316,7 +363,7 @@ export class SinglePaneExistingSessionStrategy extends SinglePaneLayoutStrategy 
 		if (activeEditor instanceof BrowserEditorInput) {
 			// Browser has no detail of its own, so it only hides the panel while the editor
 			// area is visible; once hidden, fall back to Changes instead of leaving it blank.
-			if (editorPartVisibleObs.read(reader)) {
+			if (editorPartVisible) {
 				return DetailPanelTarget.BrowserHidden;
 			}
 			return DetailPanelTarget.Changes;

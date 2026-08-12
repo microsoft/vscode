@@ -19,7 +19,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -343,10 +343,24 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onWillCloseEditor = harness.onWillCloseEditor.event as IEditorGroup['onWillCloseEditor'];
 		override get count() { return harness.activeGroupEditors.length; }
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
+		override get activeEditor() { return harness.activeEditorInput ?? null; }
 		override contains(editor: EditorInput) { return harness.activeGroupEditors.includes(editor as EditorInput); }
 		override isPinned() { return true; }
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
+		override async replaceEditors(replacements: IEditorReplacement[]) {
+			for (const replacement of replacements) {
+				const index = harness.activeGroupEditors.indexOf(replacement.editor);
+				if (index === -1) {
+					continue;
+				}
+				harness.activeGroupEditors.splice(index, 1, store.add(replacement.replacement));
+				if (harness.activeEditorInput === replacement.editor) {
+					harness.activeEditorInput = replacement.replacement;
+				}
+			}
+			harness.onDidEditorsChange.fire();
+		}
 		override moveEditor(editor: EditorInput, _target: IEditorGroup, options?: { index?: number }) {
 			const currentIndex = harness.activeGroupEditors.indexOf(editor);
 			if (currentIndex === -1) {
@@ -427,6 +441,17 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			harness.editorPartAutoVisibilitySuppressionDepth++;
 			return toDisposable(() => harness.editorPartAutoVisibilitySuppressionDepth--);
 		}
+		isEditorPartAutoVisibilitySuppressed(): boolean {
+			return harness.editorPartAutoVisibilitySuppressionDepth > 0;
+		}
+		setAuxiliaryBarHiddenForResize(hidden: boolean): void {
+			const wasVisible = harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true;
+			harness.setPartHiddenCalls.push({ hidden, part: Parts.AUXILIARYBAR_PART });
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, !hidden);
+			if (wasVisible === hidden) {
+				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: !hidden, source: 'resize' });
+			}
+		}
 		isEditorRevealedExplicitly(): boolean { return harness.editorRevealedExplicitly; }
 		revealEditorPartExplicitly(): void {
 			harness.editorRevealedExplicitly = true;
@@ -443,6 +468,11 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		isSidePaneVisible(): boolean {
 			return (harness.partVisibility.get(Parts.EDITOR_PART) ?? true) || (harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
+		}
+		hideSidePane(): void {
+			if (this.isSidePaneVisible()) {
+				this.toggleSidePane();
+			}
 		}
 		toggleSidePane(): boolean {
 			harness.toggleSidePaneCalls++;
@@ -471,8 +501,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 						this.setPartHidden(!restore.auxiliaryBar, Parts.AUXILIARYBAR_PART, true);
 					} else {
 						harness.sidePaneStateBeforeHide = getState();
-						this.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 						this.setPartHidden(true, Parts.EDITOR_PART);
+						this.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 					}
 				} finally {
 					suppression.dispose();
@@ -633,6 +663,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		override get groups() {
 			return [{
+				id: 1,
 				isEmpty: !harness.editorGroupsHaveContent,
 				editors: harness.activeGroupEditors,
 				onWillCloseEditor: harness.onWillCloseEditor.event,

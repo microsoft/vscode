@@ -34,7 +34,7 @@ const SINGLE_PANE_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
  * nuance on the shared managed-docked-tabs reconcile pipeline (`SinglePaneDockedTabsCoordinator`,
  * which also performs the detail-only editor-area collapse). That coordinator, the detail
  * panel's sync mechanics (`SinglePaneDetailPanelCoordinator`), and the shared New/Existing
- * visibility-profile storage (`SinglePaneVisibilityProfileStore`) are non-strategy coordinator
+ * Editor-visibility-profile storage (`SinglePaneVisibilityProfileStore`) are non-strategy coordinator
  * objects — see `singlePane/singlePaneLayoutStrategy.ts`'s doc comment for why.
  *
  * Strategies coordinate through this controller (the {@link ISinglePaneLayoutContext}):
@@ -73,7 +73,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	protected override _registerViewStateManagement(): void {
 		const visibilityStore = this._instantiationService.createInstance(SinglePaneVisibilityProfileStore);
-		const detailPanel = this._register(this._instantiationService.createInstance(SinglePaneDetailPanelCoordinator, this._ctx));
+		const detailPanel = this._register(this._instantiationService.createInstance(SinglePaneDetailPanelCoordinator));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(SinglePaneExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
 		this._register(this._instantiationService.createInstance(SinglePaneNewSessionStrategy, this._ctx, detailPanel));

@@ -81,8 +81,8 @@ suite('SinglePane layout strategies', () => {
 		harness.visibleSessionsObs.set(session ? [session] : [], undefined);
 	}
 
-	function createDetailPanel(ctx: ISinglePaneLayoutContext): SinglePaneDetailPanelCoordinator {
-		return store.add(harness.instaService.createInstance(SinglePaneDetailPanelCoordinator, ctx));
+	function createDetailPanel(): SinglePaneDetailPanelCoordinator {
+		return store.add(harness.instaService.createInstance(SinglePaneDetailPanelCoordinator));
 	}
 
 	test('Existing Session toggles only the detail panel', () => {
@@ -93,7 +93,7 @@ suite('SinglePane layout strategies', () => {
 			SinglePaneExistingSessionStrategy,
 			ctx,
 			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
-			createDetailPanel(ctx)
+			createDetailPanel()
 		));
 		harness.setPartHiddenCalls.length = 0;
 
@@ -109,7 +109,7 @@ suite('SinglePane layout strategies', () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeGroupEditors.push(store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get())));
-		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel(ctx)));
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
 		harness.setPartHiddenCalls.length = 0;
 
 		activate(session);
@@ -119,45 +119,158 @@ suite('SinglePane layout strategies', () => {
 		]);
 	});
 
-	test('New Session close fallback replaces the last file and preserves visibility', async () => {
+	test('New Session close fallback replaces the last file and opens Details', async () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
 		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
 		harness.activeGroupEditors.push(editor);
-		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel(ctx)));
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
 		activate(session);
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 
-		harness.onWillCloseEditor.fire({ editor });
 		harness.activeGroupEditors.length = 0;
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.editorGroupsHaveContent = false;
 		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		const replacementDuringClose = harness.activeGroupEditors.find(input => input instanceof EmptyFileEditorInput);
+		harness.onDidEditorsChange.fire();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			hasEmptyFiles: harness.activeGroupEditors.some(input => input instanceof EmptyFileEditorInput),
+			replacementPreservedAfterClose: replacementDuringClose === harness.activeGroupEditors[0],
+			editorsAfterCloseCompleted: harness.activeGroupEditors.map(input => input.typeId),
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
-			hasEmptyFiles: true,
+			replacementPreservedAfterClose: true,
+			editorsAfterCloseCompleted: [EmptyFileEditorInput.ID],
 			editorVisible: true,
+			auxiliaryBarVisible: true,
+		});
+	});
+
+	test('New Session closes the side pane when Empty Files is closed', () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const editor = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
 			auxiliaryBarVisible: false,
 		});
 	});
 
-	test('Quick Chat hides both side-pane regions after a workspace session', () => {
+	test('New Session rules are inert outside the New Session view', async () => {
 		const ctx = setup();
-		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(ctx)));
+		const session = makeSession(URI.parse('session:/existing'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(SinglePaneNewSessionStrategy, ctx, createDetailPanel()));
+		activate(session);
+		harness.setPartHiddenCalls.length = 0;
+		harness.openedViewContainers.length = 0;
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		harness.onDidToggleSidePane.fire({
+			before: { editor: false, auxiliaryBar: false },
+			after: { editor: true, auxiliaryBar: false },
+		});
+		harness.onWillOpenEditor.fire({ editor, groupId: 1 });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			hasEmptyFiles: harness.activeGroupEditors.some(input => input instanceof EmptyFileEditorInput),
+			partVisibilityChanges: harness.setPartHiddenCalls,
+			openedViewContainers: harness.openedViewContainers,
+		}, {
+			hasEmptyFiles: false,
+			partVisibilityChanges: [],
+			openedViewContainers: [],
+		});
+	});
+
+	test('Existing Session closes the side pane when its last editor closes', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			createDetailPanel()
+		));
+		activate(session);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		harness.onDidEditorsChange.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+		});
+	});
+
+	test('Quick Chat hides the side pane once on entry', async () => {
+		const ctx = setup();
+		const editor = store.add(new TestStubEditorInput(URI.parse('search-editor://outgoing')));
+		harness.activeGroupEditors.push(editor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = editor;
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel()));
 		activate(makeSession(URI.parse('session:/workspace')));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls.length = 0;
 
 		activate(makeSession(URI.parse('session:/quick'), { isQuickChat: true }));
+		await Promise.resolve();
 
-		assert.deepStrictEqual(harness.setPartHiddenCalls.filter(call =>
-			call.part === Parts.EDITOR_PART || call.part === Parts.AUXILIARYBAR_PART), [
-			{ hidden: true, part: Parts.EDITOR_PART },
-			{ hidden: true, part: Parts.AUXILIARYBAR_PART },
-		]);
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			hideOrder: harness.setPartHiddenCalls.filter(call => call.hidden),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			hideOrder: [
+				{ part: Parts.EDITOR_PART, hidden: true },
+				{ part: Parts.AUXILIARYBAR_PART, hidden: true },
+			],
+		});
+
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+		harness.onDidEditorsChange.fire();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			visibilityChanges: [],
+		});
 	});
 });

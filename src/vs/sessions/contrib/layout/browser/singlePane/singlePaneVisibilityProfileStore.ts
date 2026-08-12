@@ -41,8 +41,7 @@ const DEFAULT_EXISTING_SESSION_VISIBILITY_STATE: ISidePaneVisibilityState = {
 };
 
 /**
- * Persists the Existing Session side-pane visibility profile. The combined legacy storage shape
- * is retained for compatibility, but New Sessions no longer read or write their profile.
+ * Persists the Existing Session Editor/Details visibility profile.
  */
 export class SinglePaneVisibilityProfileStore {
 

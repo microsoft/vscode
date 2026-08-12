@@ -26,7 +26,7 @@ It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT
 The Agents window keeps a single **active session** but lets the user move between many.
 Each session owns its editor working set and bottom-panel visibility. The classic layout also keeps
 auxiliary-bar and editor-part visibility per session. The single-pane layout keeps a shared
-editor/detail profile for Existing Sessions; New Sessions use a one-time opening rule instead.
+Editor/Details profile for Existing Sessions; New Sessions use a one-time Editor opening rule.
 
 `LayoutController` owns three independent pieces of per-session state, all keyed by session
 resource (`URI`) and persisted to workspace storage:
@@ -71,11 +71,12 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 
 > **Docked detail panel (experimental).** With `sessions.layout.singlePaneDetailPanel` enabled, the auxiliary
 > bar is docked inside the editor part rather than being a grid column (see [LAYOUT.md](../LAYOUT.md) §5).
-> `SinglePaneExistingSessionStrategy` persists one shared Existing Session
-> `{ editorVisible, auxiliaryBarVisible }` profile (via `SinglePaneVisibilityProfileStore`) under
-> `sessions.singlePane.sidePaneVisibility`. New Sessions do not apply or capture a profile; submitting
-> preserves the current composition and seeds the Existing profile from it. `SinglePaneQuickChatStrategy`
-> temporarily suppresses the side pane without changing either profile. The per-session rules below apply
+> `SinglePaneExistingSessionStrategy` persists one shared Existing Session Editor/Details profile
+> (via `SinglePaneVisibilityProfileStore`) under `sessions.singlePane.sidePaneVisibility`.
+> New Sessions do not apply or capture an Editor
+> profile; submitting preserves Editor visibility and seeds the Existing profile. `SinglePaneQuickChatStrategy`
+> preserves Editor visibility while hiding unsupported Details content without changing either profile.
+> The per-session rules below apply
 > to the classic layout only.
 > The docked detail panel opens at a 300px preferred width unless the user explicitly resized it; cached editor
 > node sizes and temporary sidebar-collapse growth are not allowed to widen the first/opened detail-only pane.
@@ -88,6 +89,9 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 > Bar visibility is unchanged. A completed Toggle Side Panel reopen is a separate transition: after
 > managed tabs settle, a sole Empty Files input produces dock-only Files. Closing the last non-Empty
 > input is a third, authoritative transition that restores Empty Files and the exact pre-close visibility.
+> New, Existing, and Quick Chat share one `SinglePaneDetailPanelCoordinator` for Changes/Files
+> content selection and context publication. Auxiliary Bar visibility is not shared: each lifecycle
+> strategy applies its own visibility rules before publishing its content target.
 
 ### 3.1 Switching away — capture
 
@@ -331,11 +335,15 @@ does, causing the aux bar to fall back to the default-visible logic (§3.2) on t
   the new-session default (§3.2 step 2) and stays visible when an already-visible new session is
   submitted (§3.3). A created session with no explicit "visible" choice stays closed until the user
   opens it.
-- **In single-pane, editor/detail visibility is shared by lifecycle type** — New Sessions and Existing
-  Sessions restore independent profiles; quick chats only suppress the pane temporarily while a single
-  session is visible. With multiple visible sessions, the focused session may reveal parts from its
-  matching profile, but it never automatically hides parts it does not use. This restores an existing
-  session's open side pane without letting a quick chat hide a pane used by another session.
+- **In single-pane, Existing Sessions restore a shared Editor/Details profile** while New Sessions apply their
+  entry rules. Quick Chat hides the whole side pane once on single-session entry; later explicit
+  editor opens follow normal workbench behavior. With multiple visible sessions, the focused session may reveal parts from its
+  matching profile, but it never automatically hides parts used by another session.
+- Existing→Existing detail content selection ignores the outgoing active editor. It selects content
+  only when a concrete different incoming editor activates or the incoming session-layout restore ends,
+  avoiding a Files→Changes flash.
+- Classic-layout D10 empty-Aux cleanup is disabled in single-pane mode; Quick Chat strategy is the
+  sole owner of Quick visibility and waits for entry editor restoration to settle before applying it.
 - **In the classic desktop layout, the sessions sidebar is auto-managed on a small window ([D7])** — when the main container is
   1800px wide or narrower and both the editor and auxiliary bar are open, the sidebar is hidden; it is shown
   again once either closes or the window widens, unless the user closed it themselves. Suspended while

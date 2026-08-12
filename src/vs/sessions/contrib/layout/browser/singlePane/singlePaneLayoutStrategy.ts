@@ -37,11 +37,11 @@ export interface ISinglePaneLayoutContext {
  * side-pane visibility, the detail-panel (Changes/Files) mapping, and — for the two workspace
  * stages — the managed docked tabs and detail-only editor-area collapse.
  *
- * Mechanics that must stay single-instance across a lifecycle transition (the managed-tabs
- * reconcile pipeline + editor-area collapse, the detail-panel sync sequencer, and the shared
- * New/Existing visibility-profile storage) live in non-strategy coordinator classes in this
+ * Shared mechanics (the managed-tabs reconcile pipeline + editor-area collapse and the Existing
+ * Editor-visibility-profile storage) live in non-strategy coordinator classes in this
  * folder — see `singlePaneDockedTabsCoordinator.ts`, `singlePaneDetailPanelCoordinator.ts`, and
- * `singlePaneVisibilityProfileStore.ts` — constructed once and owned by
+ * `singlePaneVisibilityProfileStore.ts`. The shared detail coordinator owns only content selection
+ * and context publication; each lifecycle strategy owns Auxiliary Bar visibility. The shared mechanics are owned by
  * {@link import('./singlePaneExistingSessionStrategy.js').SinglePaneExistingSessionStrategy}
  * (the docked-tabs coordinator, since its reconcile pipeline is shared across the New→Existing
  * submit transition) or by the controller (the visibility-profile store, since it backs one

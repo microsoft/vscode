@@ -47,7 +47,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Only **Existing Sessions** share a persisted editor/detail visibility profile. A New Session does not apply or capture side-pane visibility; on entry it hides Editor once only when the restored editor set contains no input other than Empty Files, leaving Auxiliary Bar unchanged. Submit seeds the Existing profile from the current composition. The active editor still selects the detail content: every diff editor selects Changes, every file editor selects Files, and opening the empty **Files placeholder** reveals Files because that tab's content lives in the detail panel.
+Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than Empty Files. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking
 **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses
@@ -62,7 +62,6 @@ width from its own persisted part-sizes (`workbench.sessions.partSizes`, consume
 `createDesktopGridDescriptor`), so the grid is painted at the correct size in a single pass. (At the
 workbench level, hiding the editor still collapses the grid node to the detail width and caches it, and a
 captured "Hide Editor" width `_dockedEditorSizeBeforeHide` takes precedence for the immediate re-show.)
-
 **Reopening after the sessions list is collapsed.** Closing the **whole** side pane collapses the editor
 grid node to `0px`, so its size at that moment is **not** a real user width — closing the whole pane
 therefore does **not** capture `_dockedEditorSizeBeforeHide` (and clears any stale sidebar-collapse grow
@@ -92,19 +91,21 @@ width) captures a width to restore later.
 
 **Managed Files tab.** The empty Files placeholder tab (and the Changes tab) is opened when the editor group is **empty** on a view-open trigger (a session switch or a side-pane reveal), and both remain present whenever the layout is **Detail only**. Opening a real workspace file **tidies away** the empty placeholder (a `[Changes][file]` strip) as a **one-shot reaction to that open** — not a standing rule — so the user can still add the Files tab via **`+` Files** while a real file is open (that opens an `EmptyFileEditorInput`, not a real file, so it is not tidied away). Existing Sessions do not re-add the placeholder when that file closes while Editor is visible; a New Session instead uses its close fallback to replace the last non-Empty input with Empty Files while preserving Editor/Detail visibility.
 
-**New-session transitions have separate owners.** Entry owns only the one-shot redundant-Editor hide after session restoration. A completed closed-to-open **Toggle Side Panel** transition owns only the dock-only Files conversion after managed tabs settle. Closing the last non-Empty input owns Empty Files replacement and exact pre-close visibility restoration. Generic side-pane reveal notifications never start the toggle rule, so editor opens and close-fallback restoration cannot feed back into it.
+**New-session transitions have separate owners.** Entry owns only the one-shot redundant-Editor hide after session restoration. A completed closed-to-open **Toggle Side Panel** transition owns only the dock-only Files conversion after managed tabs settle. Last-editor close listens to the editor service's did-close event and uses the shared all-main-groups-empty predicate; it ignores programmatic closes while editor-part auto-visibility is suppressed, then installs Empty Files in the exact closing group, preserves Editor visibility, and opens Files Details. Generic side-pane reveal notifications never start the toggle rule, so editor opens and close-fallback restoration cannot feed back into it.
+
+**Empty editor groups are lifecycle-owned.** `SinglePaneWorkbench` does not change visibility when all editors close. New Session replaces a last non-Empty editor with Empty Files, but closing Empty Files itself closes the whole side pane; Existing Session closes the whole side pane when its last editor closes; Quick Chat leaves the side pane open.
 
 **Layout-driven vs user editor changes.** The default docked tabs are (re)opened into an empty group on a **settled** session-switch restore — the base controller fires `onDidEndSessionLayoutRestore` once the restore epoch (working-set apply + aux restore) completes, and the strategy reconciles off that. This matters for a new session: its **empty** working set closes the previous session's docked tabs, emptying the group *after* the switch; reconciling on the settled restore-end reads the reliably-empty group and re-opens both managed tabs. Reacting to the transient editor-change *during* the async apply would race the empty state. A **user-driven** editor change (opening a file, closing a tab) does not re-open defaults while Editor is visible; in Detail only, standard close actions cannot remove the managed inputs and every reconcile restores either input removed by lifecycle work.
 
+Existing→Existing navigation replaces the outgoing session-specific Changes input in place with the incoming Changes input, preserving tab position and active state. It does not visibly close the Changes tab and open another one.
+
 **Folder-less composer to workspace draft.** Opening **New Session** first exposes a folder-less composer and then seeds its concrete workspace draft. The first step removes the previous session's Changes tab while the shared Files placeholder can keep the editor group non-empty, so the second step explicitly ensures Changes when `wantsChangesTab` becomes true. When the selected session folder differs from the new-session default folder, the workspace-gated working-set restore can settle later and remove that early Changes tab while retaining Files; the settled restore therefore repeats the one-shot Changes ensure for the uncreated session. Relying only on the empty-group rule or only on the initial eligibility transition leaves Files as the sole tab until another reveal or New Session gesture.
 
-**New-session submit.** Submit preserves the current editor/detail visibility and seeds the Existing Sessions profile from that composition, avoiding any layout jump. The Files tab remains active until the submitted session reports its first file changes; then Changes becomes active without revealing Editor. This pending activation is scoped to the submitted session, so switching away cannot activate Changes in another session.
+**New-session submit.** Submit preserves the current Editor/Details composition and seeds the Existing Sessions profile. The Files tab remains active until the submitted session reports its first file changes; then Changes becomes active without revealing Editor. This pending activation is scoped to the submitted session, so switching away cannot activate Changes in another session.
 
 **Details-only invariant.** Whenever the side pane is **Detail only** (the aux-bar detail panel is visible without the editor area — e.g. the new-session view, or a created session whose editor was hidden), the docked details panel *shows* the managed docked inputs, so Changes and Files are always present. Both inputs adopt `EditorInputCapabilities.CannotClose`, and every reconcile reads the settled, current part visibility and restores either input removed by lifecycle work even when the group is non-empty. When Editor is visible, the capability is removed and the strict "add only into an empty group" rule remains.
 
 **Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky) while Editor is visible. Those closes are respected without any dismissal bookkeeping: the default tabs are opened **only into an empty editor group** on a view-open trigger (plus the one-shot submit activation above), so closing one tab while another (or a real file) remains leaves the group non-empty and it is not re-created. In Detail only, close commands and tab affordances consistently leave the backing inputs open, while internal lifecycle work can still force-close either input during working-set application, session switches, or stale-tab cleanup. Closing the last tab while Editor is visible closes the whole side pane; reopening it (empty group) restores the defaults. While a managed tab is closed for a workspace session with Editor visible, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `SinglePaneChangesTabMissingContext`) and **Files** (gated on `SinglePaneFilesTabMissingContext`); the re-added tab makes the group non-empty, so it survives.
-
-**Per-session detail state.** A created session's detail-panel (aux-bar) visible/hidden choice is captured per session and restored on switch-back and reload (a detail-closed session stays detail-closed when returning to it), even if an external component transiently reveals the aux bar during the working-set restore or a queued detail-container sync from the previous session runs later.
 
 **Reopening after lifecycle cleanup.** If lifecycle work force-closes every tab, the whole side pane can close; the managed Changes and Files tabs are re-ensured when the side pane reopens.
 
@@ -155,18 +156,17 @@ Rules:
 
 ## 6. Layout rules (session lifecycle)
 
-Existing Sessions share an editor/detail visibility profile. New Sessions do not own visibility state; their one-time entry rule hides redundant Editor content only when Empty Files is the sole input. Submitting preserves the current composition and updates the Existing Sessions profile to match it.
+Existing Sessions share an Editor/Details visibility profile. New Sessions do not own lifecycle visibility state; their one-time entry rule hides redundant Editor content only when Empty Files is the sole input. Submitting preserves the current composition and updates the Existing profile.
 
 ### Quick chats / no workspace
-No side pane at all — the detail panel and managed tabs are not shown; the chat is
-full-width. This is a temporary effective hide: the matching New/Existing profile is
-restored when returning to a workspace session.
+Quick Chat hides the whole side pane once when it becomes active in single-session mode. It does not
+listen to editor-list or active-editor changes; later explicit editor opens use normal workbench behavior.
 
 ### Multiple visible sessions
 Visibility restoration is reveal-only while multiple sessions are visible. Focusing a workspace
 session reveals the parts enabled by its matching profile, while focusing a quick chat or another
-session without side-pane content does not hide parts used by another session. Collapsing back to
-one session restores that session type's complete shared profile.
+session without side-pane content does not hide Editor. Collapsing back to one Quick Chat keeps
+Editor visible; collapsing to a workspace session restores that session type's complete shared profile.
 Reveal-only preservation applies only to panel synchronization: active Changes/Files editors still
 publish their docked-details capability so **Toggle Details** remains available.
 
@@ -240,7 +240,7 @@ publish their docked-details capability so **Toggle Details** remains available.
 | Docked panel overlay + resize sash | `browser/dockedAuxiliaryBarController.ts` |
 | Editor tab bar kept visible when content hidden; sash-reveal trigger | `browser/parts/editorPart.ts` |
 | New Session entry-time editor hide + detail mapping; Existing Session visibility profile + detail mapping | `contrib/layout/browser/singlePane/singlePaneNewSessionStrategy.ts`, `contrib/layout/browser/singlePane/singlePaneExistingSessionStrategy.ts` |
-| Quick Chat visibility suppression | `contrib/layout/browser/singlePane/singlePaneQuickChatStrategy.ts` |
+| Quick Chat side-pane preservation | `contrib/layout/browser/singlePane/singlePaneQuickChatStrategy.ts` |
 | Managed Changes + File tabs (suppressed opens) + detail-only editor-area collapse | `contrib/layout/browser/singlePane/singlePaneDockedTabsCoordinator.ts` |
 | Detail-panel sync mechanics (sequencer, `openViewContainer`) | `contrib/layout/browser/singlePane/singlePaneDetailPanelCoordinator.ts` |
 | Existing Session visibility-profile storage (legacy combined storage shape accepted) | `contrib/layout/browser/singlePane/singlePaneVisibilityProfileStore.ts` |
