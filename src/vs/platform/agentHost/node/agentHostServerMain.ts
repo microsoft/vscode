@@ -58,6 +58,7 @@ import { IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -267,6 +268,7 @@ async function main(): Promise<void> {
 	// Narrow host seams providers consume instead of the whole state manager.
 	diServices.set(IAgentHostPromptCache, agentService.promptCache);
 	diServices.set(IAgentHostSessionTitleSignal, agentService.sessionTitleSignal);
+	diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
 	const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 	diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 	agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
@@ -367,10 +369,10 @@ async function main(): Promise<void> {
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
-	// id; the agent service fans each out to the `createSession` progress tokens
-	// of the sessions waiting on that provider's SDK, routed through the state
-	// manager so both local (IPC) and remote (WebSocket) renderers receive them
-	// via the same path as session updates.
+	// id; the agent service surfaces frames requested by a waiting session or
+	// another user-initiated flow, routed through the state manager so both local
+	// (IPC) and remote (WebSocket) renderers receive them via the same path as
+	// session updates.
 	if (sdkDownloadProgress) {
 		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
 			p.packageId,
@@ -378,6 +380,7 @@ async function main(): Promise<void> {
 			p.receivedBytes,
 			p.totalBytes,
 			p.phase === 'completed' || p.phase === 'failed',
+			p.explicitlyRequested,
 		)));
 	}
 

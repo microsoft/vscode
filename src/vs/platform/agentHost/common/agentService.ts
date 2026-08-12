@@ -102,9 +102,10 @@ export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgen
 
 /**
  * Experimentation setting id gating the conditional agent-window auth feature.
- * When `true`, a session type that is usable without GitHub (e.g. Claude in
- * native mode with an existing local setup) lets the agent window open for a
- * signed-out user instead of forcing GitHub sign-in.
+ * When `true`, the agent window opens for a signed-out user instead of forcing
+ * GitHub sign-in; each session type then gates on its own GitHub requirement, so
+ * a type usable without GitHub (e.g. Claude in native mode with an existing local
+ * setup) works signed out while types that need GitHub prompt for it on demand.
  *
  * This is the **workbench** VS Code setting id. The workbench registers the
  * configuration schema and forwards the value into the agent-host root config

@@ -147,9 +147,9 @@ export function resolveClaudeSessionTransport(inputs: {
  * Array order is *not* what picks the session default. The picker re-buckets the
  * flat list by the `_meta` vendor token and renders group-by-group, so which
  * model is pre-selected follows the group ordering — verified end-to-end: with
- * both halves populated the Anthropic group sorts first and
- * `@provider=anthropic:default` is pre-selected, i.e. the default routes native
- * and bills the user's own Anthropic account. Do not reason about the default
+ * both halves populated the Anthropic group sorts first, so the pre-selected
+ * model is the native group's first row, i.e. the default routes native and
+ * bills the user's own Anthropic account. Do not reason about the default
  * from the order here. (Making that choice explicit rather than emergent needs a
  * default/sticky model preference, which does not exist yet.)
  *

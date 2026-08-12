@@ -24,6 +24,7 @@ import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostPromptCache } from './agentHostPromptCache.js';
 import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -229,6 +230,7 @@ async function startAgentHost(): Promise<void> {
 
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+		diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
 		const editArcReporterService = disposables.add(instantiationService.createInstance(EditArcReporterService, undefined));
 		diServices.set(IEditArcReporterService, editArcReporterService);
 		diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
@@ -301,10 +303,10 @@ async function startAgentHost(): Promise<void> {
 
 	// Surface agent-SDK download progress to clients as generic `progress`
 	// notifications. The downloader fires process-global frames keyed by package
-	// id; the agent service fans each out to the `createSession` progress tokens
-	// of the sessions waiting on that provider's SDK, routed through the state
-	// manager so both the local (IPC) and any external (WebSocket) renderer
-	// receive them via the same path as session updates.
+	// id; the agent service surfaces frames requested by a waiting session or
+	// another user-initiated flow, routed through the state manager so both the
+	// local (IPC) and any external (WebSocket) renderer receive them via the same
+	// path as session updates.
 	if (sdkDownloadProgress) {
 		disposables.add(sdkDownloadProgress(p => agentService.emitDownloadProgress(
 			p.packageId,
@@ -312,6 +314,7 @@ async function startAgentHost(): Promise<void> {
 			p.receivedBytes,
 			p.totalBytes,
 			p.phase === 'completed' || p.phase === 'failed',
+			p.explicitlyRequested,
 		)));
 	}
 

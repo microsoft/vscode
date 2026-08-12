@@ -1138,6 +1138,7 @@ function stubAgentSdkDownloader(): IAgentSdkDownloader {
 	return {
 		_serviceBrand: undefined,
 		onDidDownloadProgress: Event.None,
+		acquireDownloadProgressInterest: () => toDisposable(() => { }),
 		isAvailable: () => false,
 		isSdkResolvableWithoutDownload: async () => false,
 		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
@@ -1446,6 +1447,28 @@ suite('ClaudeAgent', () => {
 				supportedModelsCalls: 1,
 				capiModelsCalls: 0,
 			});
+		});
+	});
+
+	test('the SDK default alias row is dropped from the native catalog', async () => {
+		// `supportedModels()` includes a synthetic `default` row ("Default
+		// (recommended)") that aliases whichever concrete model the CLI is
+		// configured to use. Published next to the Copilot-routed models it reads
+		// as a third, unrelated choice whose target is invisible, so it is
+		// filtered out — the model it resolves to is already its own row.
+		await withNativeSetup(async userHome => {
+			const { agent, sdk } = createTestContext(disposables, { userHome });
+			sdk.supportedModelsResult = [
+				{ value: 'default', resolvedModel: 'claude-sonnet-4-5-20250929', displayName: 'Default (recommended)', description: '' },
+				{ value: 'claude-sonnet-4-5-20250929', displayName: 'Claude Sonnet 4.5', description: '' },
+			];
+			for (let i = 0; i < 100 && sdk.supportedModelsCallCount === 0; i++) {
+				await tick();
+			}
+			await tick();
+			assert.deepStrictEqual(agent.models.get().map(m => ({ id: m.id, name: m.name })), [
+				{ id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929'), name: 'Claude Sonnet 4.5' },
+			]);
 		});
 	});
 
