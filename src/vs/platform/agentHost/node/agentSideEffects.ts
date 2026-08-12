@@ -308,6 +308,7 @@ export class AgentSideEffects extends Disposable {
 						this._cancelledTurnIds.set(envelope.channel, turnIds);
 					}
 					turnIds.add(envelope.action.turnId);
+					void this._checkpointService.discardTurnStartCheckpoint(URI.parse(parseRequiredSessionUriFromChatUri(envelope.channel)), URI.parse(envelope.channel), envelope.action.turnId).catch(() => undefined);
 				}
 				this._syncSessionInputNeededForChatAction(envelope.channel, envelope.action);
 				this._trackTurnUsage(envelope.channel, envelope.action);
@@ -968,6 +969,7 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatError) {
 			this._completeTurn(sessionKey, turnId, 'error', { stage: 'provider', error: action.error });
 			this._toolCallTracker.clearSession(sessionKey);
+			this._captureTurnCheckpointAndRefresh(sessionKey, turnId);
 			this._markSessionUnread(sessionUri);
 		}
 	}
@@ -978,6 +980,12 @@ export class AgentSideEffects extends Disposable {
 	 * before reading the effective working directories, so peer-chat / channel
 	 * turns report the correct count and multi-root flag.
 	 */
+	private _captureTurnCheckpointAndRefresh(sessionKey: ProtocolURI, turnId: string): void {
+		const sessionUri = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
+		const workingDirectories = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.map(w => URI.parse(w));
+		this._checkpointService.captureTurnCheckpoint(URI.parse(sessionUri), URI.parse(sessionKey), turnId, workingDirectories).then(() => this._changesets.onTurnComplete(sessionUri, turnId), () => this._changesets.onTurnComplete(sessionUri, turnId));
+	}
+
 	private _completeTurn(channel: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure): void {
 		const sessionUri = isAhpChatChannel(channel) ? parseRequiredSessionUriFromChatUri(channel) : channel;
 		const folderCount = this._agentConfigService.getEffectiveWorkingDirectories(sessionUri)?.length ?? 0;
@@ -1520,6 +1528,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				this._completeTurn(channel, action.turnId, 'cancelled');
 				this._toolCallTracker.clearSession(channel);
+				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(sessionChannel);
@@ -1581,6 +1590,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatTruncated must be handled on an AHP chat channel: ${channel}`);
 				}
+				void this._checkpointService.discardChatTurnStartCheckpoints(URI.parse(sessionChannel), URI.parse(chatChannel)).catch(() => undefined);
 				const agent = this._options.getAgent(sessionChannel);
 				// When the truncation boundary is a host-injected local turn
 				// (`/rename` / `!command`), redirect the SDK truncation to the
@@ -2002,6 +2012,12 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
+			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
+			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
+				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
+				return;
+			}
 			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, chatContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
