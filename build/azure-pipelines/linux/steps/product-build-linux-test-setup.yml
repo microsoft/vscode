@@ -1,0 +1,18 @@
+steps:
+  - script: |
+      set -e
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+        xvfb \
+        libgtk-3-0 \
+        libxkbfile-dev \
+        libkrb5-dev \
+        libgbm1 \
+        rpm \
+        bubblewrap \
+        socat
+      sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+      sudo chmod +x /etc/init.d/xvfb
+      sudo update-rc.d xvfb defaults
+      sudo service xvfb start
+    displayName: Setup system services

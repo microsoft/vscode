@@ -15,6 +15,12 @@ parameters:
     type: boolean
   - name: testSmoke
     type: boolean
+  - name: publishNodeModulesOnFailure
+    type: boolean
+    default: false
+  - name: publishCrashReportsOnFailureOnly
+    type: boolean
+    default: false
   - name: extraVariables
     type: object
     default: {}
@@ -30,7 +36,7 @@ parameters:
     default: []
 
 jobs:
-  # Compiles and packages VS Code exactly once for this platform. The Unit,
+  # Compiles and packages VS Code once for this platform. The Unit,
   # Integration and Smoke jobs below all depend on this job and reuse its
   # output (downloaded from pipeline artifacts) instead of rebuilding, so we
   # only pay for a from-source build once per platform, not once per test type.
@@ -50,7 +56,18 @@ jobs:
           displayName: Publish Crash Reports
           sbomEnabled: false
           isProduction: false
-          condition: succeededOrFailed()
+          ${{ if eq(parameters.publishCrashReportsOnFailureOnly, true) }}:
+            condition: failed()
+          ${{ else }}:
+            condition: succeededOrFailed()
+        - ${{ if eq(parameters.publishNodeModulesOnFailure, true) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.SourcesDirectory)/node_modules
+            artifactName: node-modules-${{ parameters.platform }}-$(VSCODE_ARCH)-build-$(System.JobAttempt)
+            displayName: Publish Node Modules
+            sbomEnabled: false
+            isProduction: true
+            condition: failed()
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/logs
           artifactName: logs-${{ parameters.platform }}-$(VSCODE_ARCH)-build-$(System.JobAttempt)

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type Artifact, requestAZDOAPI } from '../common/publish.ts';
-import { retry } from '../common/retry.ts';
+import { type Artifact, requestAZDOAPI } from './pipelineApi.ts';
+import { retry } from './retry.ts';
 
 async function getPipelineArtifacts(): Promise<Artifact[]> {
 	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
@@ -56,14 +56,18 @@ function findFailedProducer(timeline: Timeline, producer: string): TimelineRecor
 // mapping from artifact name to the job that produces it. Producers are declared
 // as `--producer=<artifactName>=<producerJob>` and let us short circuit as soon
 // as a producer of a still-missing artifact fails, instead of waiting the full
-// 60 minutes. Bare arguments are treated as artifact names without a producer.
-function parseArgs(args: string[]): { artifacts: string[]; producers: Map<string, string> } {
+// configured timeout. Bare arguments are treated as artifact names without a producer.
+function parseArgs(args: string[]): { artifacts: string[]; producers: Map<string, string>; timeoutMinutes: number } {
 	const artifacts = new Set<string>();
 	const producers = new Map<string, string>();
+	let timeoutMinutes = 60;
 
 	for (const arg of args) {
 		const match = /^--producer=(?<artifact>[^=]+)=(?<job>.+)$/.exec(arg);
-		if (match) {
+		const timeoutMatch = /^--timeout-minutes=(?<minutes>\d+)$/.exec(arg);
+		if (timeoutMatch) {
+			timeoutMinutes = Number(timeoutMatch.groups!.minutes);
+		} else if (match) {
 			const { artifact, job } = match.groups!;
 			artifacts.add(artifact);
 			producers.set(artifact, job);
@@ -72,23 +76,20 @@ function parseArgs(args: string[]): { artifacts: string[]; producers: Map<string
 		}
 	}
 
-	return { artifacts: [...artifacts], producers };
+	return { artifacts: [...artifacts], producers, timeoutMinutes };
 }
 
 async function main(args: string[]): Promise<void> {
-	const { artifacts, producers } = parseArgs(args);
+	const { artifacts, producers, timeoutMinutes } = parseArgs(args);
 
 	if (artifacts.length === 0) {
-		throw new Error(`Usage: node waitForArtifacts.ts [--producer=<artifactName>=<producerJob> ...] <artifactName1> <artifactName2> ...`);
+		throw new Error(`Usage: node waitForArtifacts.ts [--timeout-minutes=<minutes>] [--producer=<artifactName>=<producerJob> ...] <artifactName1> <artifactName2> ...`);
 	}
 
-	// This loop will run for 60 minutes and waits to the x64 and arm64 artifacts
-	// to be uploaded to the pipeline by the `macOS` and `macOSARM64` jobs. As soon
-	// as these artifacts are found, the loop completes and the `macOSUnivesrsal`
-	// job resumes.
-	for (let index = 0; index < 120; index++) {
+	const attempts = timeoutMinutes * 2;
+	for (let index = 0; index < attempts; index++) {
 		try {
-			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/120)...`);
+			console.log(`Waiting for artifacts (${artifacts.join(', ')}) to be uploaded (${index + 1}/${attempts})...`);
 			const allArtifacts = await retry(() => getPipelineArtifacts());
 			console.log(`  * Artifacts attached to the pipelines: ${allArtifacts.length > 0 ? allArtifacts.map(a => a.name).join(', ') : 'none'}`);
 
@@ -124,7 +125,7 @@ async function main(args: string[]): Promise<void> {
 		await new Promise(c => setTimeout(c, 30_000));
 	}
 
-	throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within 60 minutes.`);
+	throw new Error(`ERROR: Artifacts (${artifacts.join(', ')}) were not uploaded within ${timeoutMinutes} minutes.`);
 }
 
 main(process.argv.splice(2)).catch(err => {

@@ -6,19 +6,20 @@
 import fs from 'fs';
 import path from 'path';
 
-if (process.argv.length !== 3) {
-	console.error('Usage: node listNodeModules.ts OUTPUT_FILE');
+if (process.argv.length < 3) {
+	console.error('Usage: node listNodeModules.ts OUTPUT_FILE [EXCLUDED_DIRECTORY...]');
 	process.exit(-1);
 }
 
 const ROOT = path.join(import.meta.dirname, '../../../');
+const excludedDirectories = new Set(process.argv.slice(3).map(directory => `/${directory.replaceAll('\\', '/').replace(/^\/|\/$/g, '')}`));
 
 function findNodeModulesFiles(location: string, inNodeModules: boolean, result: string[]) {
 	const entries = fs.readdirSync(path.join(ROOT, location));
 	for (const entry of entries) {
 		const entryPath = `${location}/${entry}`;
 
-		if (/(^\/out)|(^\/src$)|(^\/.git$)|(^\/.build$)/.test(entryPath)) {
+		if (excludedDirectories.has(entryPath) || /(^\/out)|(^\/src$)|(^\/.git$)|(^\/.build$)/.test(entryPath)) {
 			continue;
 		}
 

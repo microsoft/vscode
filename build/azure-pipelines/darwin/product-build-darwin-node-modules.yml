@@ -48,10 +48,17 @@ jobs:
 
       - task: Cache@2
         inputs:
-          key: '"node_modules" | .build/packagelockhash'
+          key: '"node_modules-root-v1" | .build/packagelockhash'
+          path: node_modules
+          cacheHitVar: ROOT_NODE_MODULES_RESTORED
+        displayName: Restore root node_modules cache
+
+      - task: Cache@2
+        inputs:
+          key: '"node_modules-rest-v1" | .build/packagelockhash'
           path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+          cacheHitVar: REMAINING_NODE_MODULES_RESTORED
+        displayName: Restore remaining node_modules cache
 
       - script: |
           set -e
@@ -60,19 +67,19 @@ jobs:
           # which does not have their own .npmrc file
           npm config set registry "$NPM_REGISTRY"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM
 
       - task: npmAuthenticate@0
         inputs:
           workingFile: $(NPMRC_PATH)
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+        condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
       - task: PipAuthenticate@1
         inputs:
           artifactFeeds: Monaco/vscode
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')))
         displayName: Setup PyPI Authentication
 
       - script: |
@@ -100,16 +107,16 @@ jobs:
           # on macOS.
           GYP_DEFINES: "kerberos_use_rtld=false"
         displayName: Install dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')))
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        condition: and(succeeded(), or(ne(variables.ROOT_NODE_MODULES_RESTORED, 'true'), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true')))
         displayName: Mixin distro node modules
 
       - script: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt node_modules
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+        condition: and(succeeded(), ne(variables.REMAINING_NODE_MODULES_RESTORED, 'true'))
+        displayName: Create remaining node_modules archive
