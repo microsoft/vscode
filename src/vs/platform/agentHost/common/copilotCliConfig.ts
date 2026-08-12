@@ -161,7 +161,7 @@ export const copilotCliConfigSchema = createSchema({
 					type: 'array',
 					items: { type: 'string', title: localize('agentHost.config.modelCapabilityOverrides.availableTools.item.title', "Tool Name or Pattern") },
 					title: localize('agentHost.config.modelCapabilityOverrides.availableTools.title', "Available Tools"),
-					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names. Applied when the session launches or resumes."),
+					description: localize('agentHost.config.modelCapabilityOverrides.availableTools.description', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names; a bare `*` expands to all three sources. Applied when the session launches or resumes."),
 				},
 				excludedTools: {
 					type: 'array',

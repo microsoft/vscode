@@ -1573,7 +1573,7 @@ configurationRegistry.registerConfiguration({
 					availableTools: {
 						type: 'array',
 						items: { type: 'string' },
-						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.availableTools', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.availableTools', "When set, only matching tools are available to sessions on this model. Supports the Copilot SDK filter patterns (`builtin:*`, `mcp:<name>`, `custom:<name>`) and bare tool names; a bare `*` expands to all three sources."),
 					},
 					excludedTools: {
 						type: 'array',

@@ -119,9 +119,12 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 	if (!availableTools && !excludedTools) {
 		return names;
 	}
-	const matches = (patterns: readonly string[], name: string) => {
-		// The tool-search tool is the one client tool registered with
-		// `overridesBuiltInTool`, so a `builtin:` pattern can reach it too.
+	// The tool-search tool is registered with `overridesBuiltInTool`, so which
+	// source the runtime files it under is ambiguous. `builtin:` forms therefore
+	// count only when EXCLUDING: that way the gate is never more permissive than
+	// the runtime under either classification. Honouring them in an allowlist
+	// would do the opposite — admit a tool a `custom:`-classifying runtime strips.
+	const matches = (patterns: readonly string[], name: string, builtInCounts: boolean) => {
 		const overridesBuiltIn = name === CLIENT_TOOL_SEARCH_REFERENCE_NAME;
 		const sdkName = overridesBuiltIn ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
 		return patterns.some(pattern =>
@@ -130,13 +133,13 @@ export function filterClientToolNames(names: ReadonlySet<string>, availableTools
 			pattern === `custom:${name}` ||
 			pattern === `custom:${sdkName}` ||
 			pattern === 'custom:*' ||
-			(overridesBuiltIn && (pattern === `builtin:${sdkName}` || pattern === 'builtin:*'))
+			(builtInCounts && overridesBuiltIn && (pattern === `builtin:${sdkName}` || pattern === 'builtin:*'))
 		);
 	};
 	const result = new Set<string>();
 	for (const name of names) {
-		const allowed = !availableTools || matches(availableTools, name);
-		if (allowed && !(excludedTools && matches(excludedTools, name))) {
+		const allowed = !availableTools || matches(availableTools, name, false);
+		if (allowed && !(excludedTools && matches(excludedTools, name, true))) {
 			result.add(name);
 		}
 	}
@@ -374,21 +377,25 @@ function getModelCapabilitiesOverride(value: unknown, modelId: string, logServic
 	return value as ModelCapabilitiesOverride;
 }
 
+/** The sources a bare `'*'` means; the SDK only accepts source-qualified wildcards. */
+const TOOL_FILTER_SOURCE_WILDCARDS = ['builtin:*', 'mcp:*', 'custom:*'];
+
 /**
- * The usable patterns in a tool-filter override, or `undefined` when it is
- * malformed or empty. A bare `'*'` is stripped because the SDK's
- * `validateToolFilterList` throws on it; anything left empty reads as unset,
- * which fails OPEN so a bad experiment value cannot break a launch.
+ * The usable patterns in a tool-filter override, or `undefined` when it carries
+ * none. A bare `'*'` is EXPANDED rather than dropped: the SDK's
+ * `validateToolFilterList` throws on it, but silently ignoring it would turn an
+ * `excludedTools: ['*']` into "exclude nothing" — the opposite of what was
+ * asked. A lone string is read as a one-element list for the same reason.
  *
  * Pure so the launcher and {@link CopilotAgentSession} gate on the same set
- * without logging the same warnings twice per launch.
+ * without logging the same diagnostics twice per launch.
  */
 export function normalizeToolFilterPatterns(value: unknown): string[] | undefined {
-	if (!isStringArray(value)) {
+	const list = typeof value === 'string' ? [value] : value;
+	if (!isStringArray(list) || list.length === 0) {
 		return undefined;
 	}
-	const patterns = value.filter(pattern => pattern !== '*');
-	return patterns.length > 0 ? patterns : undefined;
+	return [...new Set(list.flatMap(pattern => pattern === '*' ? TOOL_FILTER_SOURCE_WILDCARDS : [pattern]))];
 }
 
 /** {@link normalizeToolFilterPatterns} plus the launch-time diagnostics. */
@@ -396,21 +403,12 @@ function getToolFilterOverride(value: unknown, field: string, modelId: string, l
 	if (value === undefined) {
 		return undefined;
 	}
-	if (!isStringArray(value)) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring invalid '${field}' capability override for '${modelId}'; expected an array of strings`);
-		return undefined;
-	}
 	const patterns = normalizeToolFilterPatterns(value);
-	if (value.some(pattern => pattern === '*')) {
-		logService.warn(`[Copilot:${sessionId}] Ignoring '*' in '${field}' capability override for '${modelId}'; there is no bare wildcard — use 'builtin:*', 'mcp:*', or 'custom:*'`);
-	}
 	if (patterns === undefined) {
-		if (value.length === 0) {
-			logService.warn(`[Copilot:${sessionId}] Ignoring empty '${field}' capability override for '${modelId}'; list one or more patterns, or remove the entry`);
-		}
+		logService.warn(`[Copilot:${sessionId}] Ignoring unusable '${field}' capability override for '${modelId}'; expected a non-empty array of tool patterns`);
 		return undefined;
 	}
-	logService.info(`[Copilot:${sessionId}] Applying '${field}' capability override for '${modelId}' (${patterns.length} ${patterns.length === 1 ? 'pattern' : 'patterns'})`);
+	logService.info(`[Copilot:${sessionId}] Applying '${field}' capability override for '${modelId}': ${patterns.join(', ')}`);
 	return patterns;
 }
 
@@ -577,6 +575,22 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// fresh one under the same ID (seeding model & working directory
 			// from stored metadata); every other failure propagates.
 			if (!shouldCreateEmptySessionAfterResumeError(resumeError)) {
+				// Last resort before the session becomes unopenable. A configured
+				// effort is validated against the canonical level list, not against
+				// what this model accepts, so the runtime may reject it — and unlike
+				// a create there is a good fallback: the effort it already journaled.
+				// Derived from `config` so a failed agent retry above cannot compound.
+				if (config.reasoningEffort !== undefined) {
+					this._logService.warn(`[Copilot:${plan.sessionId}] Retrying resume without the configured reasoning effort '${config.reasoningEffort}' before surfacing the failure`);
+					try {
+						const raw = await this._withTraceContext(plan.sessionId, () => plan.client.resumeSession(plan.sessionId, { ...config, reasoningEffort: undefined }));
+						this._logService.info(`[Copilot:${plan.sessionId}] Resume succeeded without the configured reasoning effort; the session keeps the effort the runtime journaled`);
+						await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
+						return new CopilotSessionWrapper(raw);
+					} catch (retryErr) {
+						this._logService.warn(`[Copilot:${plan.sessionId}] SDK resumeSession without a configured reasoning effort failed: code=${getCopilotSdkErrorCode(retryErr)}, message=${getErrorMessage(retryErr)}`);
+					}
+				}
 				this._logService.warn(`[Copilot:${plan.sessionId}] Resume failure does not indicate an empty session; surfacing it instead of replacing the session with an empty one`);
 				throw resumeError;
 			}

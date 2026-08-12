@@ -5838,8 +5838,8 @@ suite('CopilotAgent', () => {
 			try {
 				configurationService.updateRootConfig({
 					modelCapabilityOverrides: {
-						// Bare '*' is stripped: availableTools empties out and reads as
-						// unset, excludedTools keeps its remaining pattern.
+						// Bare '*' expands to the three source wildcards rather than
+						// being dropped, so an 'exclude everything' is honoured.
 						'claude-sonnet': { family: 'claude-opus-4.8', reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'], modelCapabilities: { supports: { vision: false } } },
 					},
 				});
@@ -5865,8 +5865,8 @@ suite('CopilotAgent', () => {
 					model: 'claude-sonnet',
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
-					availableTools: undefined,
-					excludedTools: ['mcp:*'],
+					availableTools: ['builtin:*', 'mcp:*', 'custom:*'],
+					excludedTools: ['mcp:*', 'builtin:*', 'custom:*'],
 					modelCapabilities: { supports: { vision: false } },
 				});
 			} finally {

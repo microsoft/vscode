@@ -28,7 +28,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { CopilotSessionLauncher, filterClientToolNames, getCopilotReasoningEffort, isCopilotReasoningEffort, resolveByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 
 const testRuntime: ICopilotSessionRuntime = {
@@ -700,8 +700,9 @@ suite('filterClientToolNames', () => {
 			]
 		);
 
-		// The tool-search tool is registered with `overridesBuiltInTool`, so a
-		// `builtin:` pattern reaches it where it never reaches a plain client tool.
+		// A `builtin:` pattern reaches the tool-search tool only when EXCLUDING:
+		// honouring it in an allowlist would admit a tool a `custom:`-classifying
+		// runtime strips, leaving the prompt advertising a tool that is not there.
 		const withSearch = new Set([CLIENT_TOOL_SEARCH_REFERENCE_NAME, 'runTask']);
 		const resolveSearch = (excluded: string[]) => [...filterClientToolNames(withSearch, undefined, excluded)].sort();
 		assert.deepStrictEqual(
@@ -709,11 +710,14 @@ suite('filterClientToolNames', () => {
 				resolveSearch([`builtin:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`]),
 				resolveSearch(['builtin:*']),
 				resolveSearch([RUNTIME_TOOL_SEARCH_TOOL_NAME]),
+				// ...but a `builtin:` allowlist does NOT admit it
+				[...filterClientToolNames(withSearch, ['builtin:*'], undefined)],
 			],
 			[
 				['runTask'],
 				['runTask'],
 				['runTask'],
+				[],
 			]
 		);
 	});
@@ -741,6 +745,38 @@ suite('filterClientToolNames', () => {
  * A resumed session keeps the effort the runtime journaled unless an override is
  * configured; `_createSession` resolves the full effort for a create.
  */
+suite('normalizeToolFilterPatterns', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('expands a bare wildcard and coerces a lone string; unusable values read as unset', () => {
+		assert.deepStrictEqual(
+			[
+				// a bare '*' is expanded, not dropped — an "exclude everything"
+				// denylist must not degrade into "exclude nothing"
+				normalizeToolFilterPatterns(['*']),
+				normalizeToolFilterPatterns(['mcp:*', '*']),
+				// a lone string reads as a one-element list
+				normalizeToolFilterPatterns('mcp:*'),
+				// nothing to apply
+				normalizeToolFilterPatterns([]),
+				normalizeToolFilterPatterns(undefined),
+				normalizeToolFilterPatterns(42),
+				normalizeToolFilterPatterns(['ok', 7]),
+			],
+			[
+				['builtin:*', 'mcp:*', 'custom:*'],
+				['mcp:*', 'builtin:*', 'custom:*'],
+				['mcp:*'],
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			]
+		);
+	});
+});
+
 suite('CopilotSessionLauncher resume config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
