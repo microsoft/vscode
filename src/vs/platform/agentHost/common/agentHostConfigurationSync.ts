@@ -75,12 +75,27 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
  * Resolves the explicitly configured global value of `settingId`, excluding the
  * registered default and workspace/folder layers.
  */
-export function getExplicitGlobalConfigurationValue<T>(configurationService: IConfigurationService, settingId: string): T | undefined {
+/** A global configuration layer that contains an explicitly configured value. */
+export type ExplicitGlobalConfigurationSource = 'policy' | 'user' | 'application';
+
+/** An explicitly configured global value and the layer that supplied it. */
+export interface IExplicitGlobalConfigurationValue<T> {
+	readonly value: T;
+	readonly source: ExplicitGlobalConfigurationSource;
+}
+
+/** Inspects an explicitly configured global value while preserving its source layer. */
+export function inspectValue<T>(configurationService: IConfigurationService, settingId: string): IExplicitGlobalConfigurationValue<T> | undefined {
 	const inspected = configurationService.inspect<T>(settingId);
 	const property = getPropertySchema(settingId);
-	for (const value of [inspected.policyValue, inspected.userValue, inspected.applicationValue]) {
+	const values: readonly [ExplicitGlobalConfigurationSource, T | undefined][] = [
+		['policy', inspected.policyValue],
+		['user', inspected.userValue],
+		['application', inspected.applicationValue],
+	];
+	for (const [source, value] of values) {
 		if (value !== undefined && matchesSchemaType(value, property?.type)) {
-			return value;
+			return { value, source };
 		}
 	}
 	return undefined;
