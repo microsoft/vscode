@@ -56,6 +56,7 @@ import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -262,6 +263,7 @@ async function main(): Promise<void> {
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
 	diServices.set(IAgentHostStateManager, agentService.stateManager);
+	diServices.set(IAgentHostManagedSettingsService, agentService.managedSettingsService);
 	const networkDiagnosticsService = instantiationService.createInstance(NetworkDiagnosticsService);
 	diServices.set(INetworkDiagnosticsService, networkDiagnosticsService);
 	agentService.setNetworkDiagnosticsService(networkDiagnosticsService);

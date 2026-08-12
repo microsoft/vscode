@@ -526,6 +526,18 @@ function truncate(text: string, maxLength: number): string {
 	return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
 }
 
+const COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE = /^(?:\d{10,}-copilot-tool-output-(?:[a-z0-9]{6}|\d+-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})|copilot-tool-output-\d{10,}-[a-z0-9]+)\.txt$/i;
+
+/**
+ * Matches the temp-file basename layouts the Copilot SDK uses when spilling large tool output to disk.
+ * Callers making trust decisions must separately verify the parent directory.
+ */
+export function isCopilotSdkToolOutputFile(filePath: string): boolean {
+	const lastSlash = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+	const fileName = lastSlash >= 0 ? filePath.substring(lastSlash + 1) : filePath;
+	return COPILOT_SDK_TOOL_OUTPUT_BASENAME_RE.test(fileName);
+}
+
 /**
  * Formats a file path as a markdown link `[](file-uri)` so it renders
  * as a clickable file widget in the chat UI.
@@ -648,6 +660,9 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
 			if (typeof args?.path === 'string' && args.path) {
+				if (isCopilotSdkToolOutputFile(args.path)) {
+					return localize('toolInvoke.viewToolOutput', "Read tool output");
+				}
 				const link = formatPathAsMarkdownLink(resolvePath(args.path));
 				const range = formatViewRange(args.view_range);
 				if (range) {
