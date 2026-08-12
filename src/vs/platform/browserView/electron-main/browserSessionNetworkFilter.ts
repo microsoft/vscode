@@ -73,7 +73,7 @@ function classifyRequest(context: RequestClassificationContext): RequestClassifi
 		shouldFilter: shouldFilterMainFrame
 			|| isAgentRequest
 			|| policyErrorTargets.length > 0
-			|| (webContentsId === undefined && referrerOwners === undefined && hasFilteredWebContents),
+			|| (!webContentsWasKnown && referrerOwners === undefined && hasFilteredWebContents),
 	};
 }
 

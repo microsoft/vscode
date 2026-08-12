@@ -44,6 +44,7 @@ suite('BrowserSession network filter', () => {
 	test('filters shared webContents without affecting known unshared webContents', () => {
 		const { filter } = createFilter();
 		filter.setFiltering(1, true);
+		filter.registerWebContents(2);
 
 		assert.deepStrictEqual({
 			sharedDenied: invokeRequest(filter, { url: 'https://denied.example/frame', resourceType: 'subFrame', webContentsId: 1 }),
@@ -176,10 +177,14 @@ suite('BrowserSession network filter', () => {
 
 		assert.deepStrictEqual({
 			registeredUnshared: invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 2 }),
-			unknown: invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 3 }),
+			unknownNavigation: invokeRequest(filter, { url: 'https://denied.example/page', resourceType: 'mainFrame', webContentsId: 3 }),
+			unknownBackgroundRequest: invokeRequest(filter, { url: 'https://denied.example/data', resourceType: 'xhr', webContentsId: 4 }),
+			ownerlessBackgroundRequest: invokeRequest(filter, { url: 'https://denied.example/data', resourceType: 'xhr' }),
 		}, {
 			registeredUnshared: { cancel: false },
-			unknown: { cancel: true },
+			unknownNavigation: { cancel: true },
+			unknownBackgroundRequest: { cancel: true },
+			ownerlessBackgroundRequest: { cancel: true },
 		});
 	});
 
