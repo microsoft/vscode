@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ManagedSettingsRequestChannelClient, MANAGED_SETTINGS_REQUEST_CALL_SITE, MANAGED_SETTINGS_REQUEST_CHANNEL } from '../../../../platform/defaultAccount/common/managedSettingsRequestIpc.js';
-import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService, readHeader } from '../../../../platform/request/common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../../../../platform/request/common/request.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -20,12 +18,10 @@ import { LogService } from '../../../../platform/log/common/logService.js';
 export class NativeRequestService extends AbstractRequestService implements IRequestService {
 
 	declare readonly _serviceBrand: undefined;
-	private readonly managedSettingsRequestClient: ManagedSettingsRequestChannelClient;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IMainProcessService mainProcessService: IMainProcessService,
 		@ILoggerService loggerService: ILoggerService,
 	) {
 		const logger = loggerService.createLogger(`network`, { name: localize('network', "Network"), group: windowLogGroup });
@@ -33,18 +29,9 @@ export class NativeRequestService extends AbstractRequestService implements IReq
 		super(logService);
 		this._register(logger);
 		this._register(logService);
-		this.managedSettingsRequestClient = new ManagedSettingsRequestChannelClient(mainProcessService.getChannel(MANAGED_SETTINGS_REQUEST_CHANNEL));
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		if (options.callSite === MANAGED_SETTINGS_REQUEST_CALL_SITE) {
-			const url = options.url;
-			const authorization = readHeader(options.headers, 'Authorization');
-			if (!url || !authorization) {
-				throw new Error('Managed settings request requires a URL and authorization');
-			}
-			return this.managedSettingsRequestClient.request(url, authorization, token);
-		}
 		if (!options.proxyAuthorization) {
 			options.proxyAuthorization = this.configurationService.inspect<string>('http.proxyAuthorization').userLocalValue;
 		}

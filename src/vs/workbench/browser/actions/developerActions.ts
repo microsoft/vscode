@@ -45,10 +45,8 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
-import { isWeb } from '../../../base/common/platform.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
-import { getManagedSettingsUserAgent } from '../../../platform/defaultAccount/common/managedSettingsRequestIpc.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
@@ -64,7 +62,6 @@ import { IAgentHostEnablementService } from '../../../platform/agentHost/common/
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
-import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -746,7 +743,6 @@ interface IPolicyDiagnosticsServices {
 	commandService: ICommandService;
 	notificationService: INotificationService;
 	configurationService: IConfigurationService;
-	environmentService: IWorkbenchEnvironmentService;
 	productService: IProductService;
 	defaultAccountService: IDefaultAccountService;
 	authenticationService: IAuthenticationService;
@@ -776,7 +772,6 @@ class PolicyDiagnosticsAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const configurationService = accessor.get(IConfigurationService);
 		const productService = accessor.get(IProductService);
-		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 		const defaultAccountService = accessor.get(IDefaultAccountService);
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
@@ -812,7 +807,6 @@ class PolicyDiagnosticsAction extends Action2 {
 			commandService,
 			notificationService,
 			configurationService,
-			environmentService,
 			productService,
 			defaultAccountService,
 			authenticationService,
@@ -832,7 +826,6 @@ class PolicyDiagnosticsAction extends Action2 {
 			commandService,
 			notificationService,
 			configurationService,
-			environmentService,
 			productService,
 			defaultAccountService,
 			authenticationService,
@@ -1069,7 +1062,6 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			const fetchStatus = defaultAccountService.managedSettingsFetchStatus;
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
-			const userAgent = getManagedSettingsUserAgent(productService.version, isWeb, environmentService.remoteAuthority);
 			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
 			content += '#### GitHub Server API\n\n';
 			content += markdownTable(
@@ -1077,7 +1069,7 @@ class PolicyDiagnosticsAction extends Action2 {
 				[
 					['Endpoint', '/copilot_internal/managed_settings'],
 					['Last fetch', fetchStatus === null ? 'never' : `${fetchStatus}${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`],
-					['User-Agent', userAgent ?? 'not sent (browser-only client)'],
+					['Editor-Version', `vscode/${productService.version}`],
 					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
 				]

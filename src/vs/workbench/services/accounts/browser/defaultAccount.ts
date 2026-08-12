@@ -21,7 +21,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { getManagedSettingsUserAgent, MANAGED_SETTINGS_REQUEST_CALL_SITE } from '../../../../platform/defaultAccount/common/managedSettingsRequestIpc.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -319,7 +318,6 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
-		private readonly webEnvironment = isWeb,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IAuthenticationExtensionsService private readonly authenticationExtensionsService: IAuthenticationExtensionsService,
@@ -962,12 +960,9 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const userAgent = getManagedSettingsUserAgent(this.productService.version, this.webEnvironment, this.environmentService.remoteAuthority);
-		if (!userAgent) {
-			this.logService.debug('[DefaultAccount] Browser-only client cannot set the managed settings User-Agent; compatibility negotiation is not enabled');
-		}
-		const headers = userAgent ? { 'User-Agent': userAgent } : undefined;
-		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, MANAGED_SETTINGS_REQUEST_CALL_SITE, MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, headers);
+		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, {
+			'Editor-Version': `vscode/${this.productService.version}`,
+		});
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);
@@ -979,7 +974,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
 			return { kind: 'noSettings' };
 		}
-		if (status === 466 && userAgent) {
+		if (status === 466) {
 			const error = await this.readManagedSettingsCompatibilityError(response);
 			this.setManagedSettingsCompatibilityError(error);
 			this.reportManagedSettingsOutcome(status, rateLimitBackoffActive);
@@ -1269,7 +1264,7 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
-		const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent), isWeb));
+		const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent)));
 		defaultAccountService.setDefaultAccountProvider(defaultAccountProvider);
 	}
 }

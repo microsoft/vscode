@@ -52,12 +52,12 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			userAgent: requestService.requests[0].headers?.['User-Agent'],
+			editorVersion: requestService.requests[0].headers?.['Editor-Version'],
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			userAgent: 'vscode/1.132.0',
+			editorVersion: 'vscode/1.132.0',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -122,28 +122,6 @@ suite('DefaultAccountProvider managed settings', () => {
 		}, {
 			data: { managedSettings: undefined },
 			compatibilityError: { errorCode: 'client_update_required' },
-		});
-	});
-
-	test('browser-only client does not negotiate compatibility or block on 466', async () => {
-		const requestService = new TestRequestService(async () => jsonResponse({
-			error_code: 'client_update_required',
-		}, 466));
-		const provider = await createProvider(requestService, true);
-		const cachedPolicy = createCachedPolicy(false);
-
-		const result = await provider['getManagedSettings'](sessions, cachedPolicy);
-
-		assert.deepStrictEqual({
-			requestUserAgent: requestService.requests[0].headers?.['User-Agent'],
-			status: provider.managedSettingsFetchStatus,
-			data: result.data,
-			compatibilityError: provider.managedSettingsCompatibilityError,
-		}, {
-			requestUserAgent: undefined,
-			status: 466,
-			data: cachedPolicy.policyData,
-			compatibilityError: null,
 		});
 	});
 
@@ -223,7 +201,7 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	async function createProvider(requestService: TestRequestService, webEnvironment = false): Promise<DefaultAccountProvider> {
+	async function createProvider(requestService: TestRequestService): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAuthenticationService, {
@@ -273,7 +251,7 @@ suite('DefaultAccountProvider managed settings', () => {
 			entitlementUrl: 'https://api.github.com/copilot_internal/user',
 			mcpRegistryDataUrl: '',
 			managedSettingsUrl: 'https://api.github.com/copilot_internal/managed_settings',
-		}, webEnvironment));
+		}));
 		await provider.refresh();
 		return provider;
 	}
