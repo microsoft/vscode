@@ -123,7 +123,7 @@ export const sessionServerToolDefinitions: ToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
-		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Results include the calling session and do not mark it as current; use `get_current_session` to identify and exclude it when comparing work. Sessions from different worktrees may belong to the same repository; use project and git/GitHub metadata to identify potentially overlapping work. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
+		description: 'List sessions and their compact metadata (title, status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Results include the calling session and do not mark it as current; use `get_current_session` to identify and exclude it when comparing work. Sessions from different worktrees may belong to the same repository; compare their titles and changed files as well as project and git/GitHub metadata to identify potentially overlapping work. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 	},

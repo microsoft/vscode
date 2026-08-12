@@ -52,7 +52,7 @@ suite('toolInstructions', () => {
 				COPILOT_AGENT_HOST_SESSION_COORDINATION_TOOL_INSTRUCTION,
 				universalToolInstructions(hasTools())?.includes(SESSION_COORDINATION_LINE),
 			], [
-				'Before beginning code changes or creating a session, use `get_current_session` to identify the current session, then use `list_sessions` to check other active sessions across the same project or repository—not only the same working directory—for potentially overlapping work; exclude the current session URI from overlap candidates. If another session may overlap based on its activity, branch, pull request, or changes, inspect it with `get_session_context` and use `send_message` to coordinate work between sessions. Prefer dividing or sequencing work to avoid duplicate effort, conflicting edits, and unnecessary merge conflicts.',
+				'Before beginning code changes or creating a session, use `get_current_session` to identify the current session, then use `list_sessions` to check other active sessions across the same project or repository—not only the same working directory—and exclude the current session URI. Compare each session\'s title, activity, branch, pull request, and changed files to identify plausible overlap. For plausible overlaps, use `get_session_context` to confirm the scope and `send_message` to agree on ownership or sequencing before editing shared files; otherwise continue independently without waiting. Prefer dividing work to avoid duplicate effort, conflicting edits, and unnecessary merge conflicts.',
 				true,
 			]);
 		});
