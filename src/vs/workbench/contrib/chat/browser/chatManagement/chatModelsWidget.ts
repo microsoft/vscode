@@ -534,7 +534,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -590,7 +591,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
-		if (deprecationLink) {
+		if (deprecationLink && !this.environmentService.isSessionsWindow) {
 			const icon = $('span');
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
 			icon.setAttribute('aria-hidden', 'true');

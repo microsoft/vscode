@@ -111,7 +111,9 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		} else if (this._tunnelHostService.isSharing) {
 			const info = this._tunnelHostService.sharingInfo;
 			if (info) {
-				lines.push(localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName));
+				lines.push(info.viaRemoteTunnelAccess
+					? localize('tunnelHost.hover.remoteTunnelAccess', "Remote session access is provided by Remote Tunnel Access via tunnel '{0}'. Turning off remote session access does not disable Remote Tunnel Access.", info.tunnelName)
+					: localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName));
 			} else {
 				lines.push(localize('tunnelHost.hover.enabled', "Remote session access is enabled"));
 			}
@@ -132,7 +134,9 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		if (this._tunnelHostService.isSharing) {
 			const info = this._tunnelHostService.sharingInfo;
 			if (info) {
-				return localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName);
+				return info.viaRemoteTunnelAccess
+					? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "Remote session access provided by Remote Tunnel Access via tunnel '{0}'", info.tunnelName)
+					: localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName);
 			}
 			return localize('tunnelHost.hover.enabled', "Remote session access is enabled");
 		}

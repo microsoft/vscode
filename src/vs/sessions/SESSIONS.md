@@ -381,6 +381,13 @@ the sent chat the active chat by reacting to the send events. When
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
 
+Every `onDidSendRequest` also emits `agents/requestSent`. The event distinguishes
+the first message in a new session (`isNewSession: true`, `isNewChat: true`), the
+first message in an additional chat (`false`, `true`), and a follow-up message in
+an existing chat (`false`, `false`). The shared chat submit event carries the
+submitted attachment context so mirrored follow-up telemetry retains the same
+attachment counts and kinds as requests sent through the sessions service.
+
 `ChatView` must **not** pass a `sessionTypePickerDelegate` to its `ChatWidget`.
 That option means "the user picks the session type here" (the welcome view and
 the automations dialog, which have no chat model of their own). `ChatInputPart`
