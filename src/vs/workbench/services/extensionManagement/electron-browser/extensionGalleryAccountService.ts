@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -91,9 +91,8 @@ export class ExtensionGalleryAccountService extends Disposable {
 	// re-requests the same index.
 	private readonly indexService: ExtensionGalleryServiceIndexService;
 
-	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
 	/** Fires when the underlying account may have changed, so the host can re-run validation. */
-	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
+	readonly onDidChangeAccount: Event<void>;
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -110,12 +109,11 @@ export class ExtensionGalleryAccountService extends Disposable {
 		this.authProvider = getEffectiveAuthProvider(configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey), !!productService.enableExtensionGalleryEntraAuth);
 		this.indexService = instantiationService.createInstance(ExtensionGalleryServiceIndexService);
 
-		// Relay only the signal relevant to the effective provider so the host does not re-validate on
+		// Signal only the change relevant to the effective provider so the host does not re-validate on
 		// unrelated account activity.
-		const source = this.authProvider === 'microsoft'
-			? Event.map(Event.filter(this.authenticationService.onDidChangeSessions, e => e.providerId === 'microsoft', this._store), () => undefined, this._store)
-			: Event.map(this.defaultAccountService.onDidChangeDefaultAccount, () => undefined, this._store);
-		this._register(source(() => this._onDidChangeAccount.fire()));
+		this.onDidChangeAccount = this.authProvider === 'microsoft'
+			? Event.signal(Event.filter(this.authenticationService.onDidChangeSessions, e => e.providerId === 'microsoft', this._store))
+			: Event.signal(this.defaultAccountService.onDidChangeDefaultAccount);
 	}
 
 	/**
