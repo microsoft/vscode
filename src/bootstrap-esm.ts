@@ -281,11 +281,17 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 		process.env['VSCODE_DEV'] ||	// no NLS support in dev mode
 		!messagesFile					// no NLS messages file
 	) {
+		globalThis._VSCODE_NLS_MODULE_TRANSLATIONS = {};
 		return undefined;
 	}
 
 	try {
 		globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(messagesFile)).toString());
+		if (nlsConfig?.languagePack?.moduleTranslationsFile && await fs.promises.access(nlsConfig.languagePack.moduleTranslationsFile).then(() => true).catch(() => false)) {
+			globalThis._VSCODE_NLS_MODULE_TRANSLATIONS = JSON.parse((await fs.promises.readFile(nlsConfig.languagePack.moduleTranslationsFile)).toString());
+		} else {
+			globalThis._VSCODE_NLS_MODULE_TRANSLATIONS = {};
+		}
 	} catch (error) {
 		console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
 

@@ -11,6 +11,14 @@ export function getNLSLanguage(): string | undefined {
 	return globalThis._VSCODE_NLS_LANGUAGE;
 }
 
+export function getNLSModuleTranslations(moduleId: string): Record<string, string> {
+	return globalThis._VSCODE_NLS_MODULE_TRANSLATIONS?.[moduleId] ?? {};
+}
+
+export function getNLSModuleTranslationsMap(): Record<string, Record<string, string>> {
+	return globalThis._VSCODE_NLS_MODULE_TRANSLATIONS ?? {};
+}
+
 declare const document: { location?: { hash?: string } } | undefined;
 const isPseudo = getNLSLanguage() === 'pseudo' || (typeof document !== 'undefined' && document.location && typeof document.location.hash === 'string' && document.location.hash.indexOf('pseudo=true') >= 0);
 
@@ -174,6 +182,12 @@ export interface INLSLanguagePackConfiguration {
 	 * instruct the application to re-create the cache on next startup.
 	 */
 	readonly corruptMarkerFile: string;
+
+	/**
+	 * Optional file containing per-module translation dictionaries from the
+	 * language pack (keys not registered via localize() at build time).
+	 */
+	readonly moduleTranslationsFile?: string;
 }
 
 export interface INLSConfiguration {

@@ -473,6 +473,7 @@
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-label {
 	margin-right: 7px;
+	white-space: pre-line;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-cat-label-container {
@@ -508,7 +509,9 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-description {
-	margin-top: -1px;
+	margin-top: 4px;
+	clear: left;
+	display: block;
 	user-select: text;
 	-webkit-user-select: text;
 	color: var(--vscode-foreground);

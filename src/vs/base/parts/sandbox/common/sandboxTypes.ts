@@ -66,6 +66,11 @@ export interface ISandboxConfiguration {
 		messages: string[];
 
 		/**
+		 * Per-module translation dictionaries from the language pack.
+		 */
+		moduleTranslations?: Record<string, Record<string, string>>;
+
+		/**
 		 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
 		 */
 		language: string | undefined;

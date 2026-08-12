@@ -498,6 +498,7 @@
 	function setupNLS<T extends ISandboxConfiguration>(configuration: T): void {
 		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
 		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
+		globalThis._VSCODE_NLS_MODULE_TRANSLATIONS = configuration.nls.moduleTranslations ?? {};
 
 		let language = configuration.nls.language || 'en';
 		if (language === 'zh-tw') {

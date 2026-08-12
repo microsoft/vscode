@@ -34,6 +34,11 @@ declare global {
 	 * Instead of accessing this global variable directly, use function getNLSLanguage.
 	 */
 	var _VSCODE_NLS_LANGUAGE: string | undefined;
+	/**
+	 * Per-module translation dictionaries loaded from the language pack for
+	 * keys that are not registered via localize() at build time.
+	 */
+	var _VSCODE_NLS_MODULE_TRANSLATIONS: Record<string, Record<string, string>> | undefined;
 }
 
 // fake export to make global work
