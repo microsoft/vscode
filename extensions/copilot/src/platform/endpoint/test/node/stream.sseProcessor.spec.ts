@@ -575,6 +575,93 @@ data: [DONE]
 		assert.strictEqual(results[0]?.usage?.total_tokens, 360);
 	});
 
+	// Regression test for https://github.com/microsoft/vscode/issues/329436.
+	// The trailing-line flush is opt-in (client-side BYOK only), so it is enabled here.
+	test('usage in a final unterminated SSE line should be reported for text completions', async function () {
+		const response = [
+			`data: {"choices":[{"text":"foo","index":0,"finish_reason":"stop"}]}\n`,
+			`data: {"choices":[],"usage":{"completion_tokens":2,"prompt_tokens":358,"total_tokens":360}}`,
+		];
+		const processor = await SSEProcessor.createWithTrailingLineFlush(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assert.deepStrictEqual(results[0]?.usage, {
+			completion_tokens: 2,
+			prompt_tokens: 358,
+			total_tokens: 360,
+		});
+	});
+
+	// Regression test for https://github.com/microsoft/vscode/issues/329436:
+	// a streamed (delta) response whose final `include_usage` chunk arrives
+	// without a trailing newline or `[DONE]`, as seen with some custom
+	// OpenAI-compatible / BYOK endpoints.
+	test('usage in a final unterminated SSE line should be reported for delta completions', async function () {
+		const response = [
+			`data: {"choices":[{"delta":{"content":"foo"},"index":0,"finish_reason":null}]}\n`,
+			`data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}\n`,
+			`data: {"choices":[],"usage":{"completion_tokens":2,"prompt_tokens":358,"total_tokens":360}}`,
+		];
+		const processor = await SSEProcessor.createWithTrailingLineFlush(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assert.deepStrictEqual(
+			{ chunks: results[0]?.solution.text, usage: results[0]?.usage },
+			{
+				chunks: ['foo'],
+				usage: { completion_tokens: 2, prompt_tokens: 358, total_tokens: 360 },
+			},
+		);
+	});
+
+	test('a malformed final unterminated SSE line does not drop the completion', async function () {
+		const response = [
+			`data: {"choices":[{"text":"foo","index":0,"finish_reason":"stop"}]}\n`,
+			`data: {"choices":[],"usage":{"completion_tokens":2,`,
+		];
+		const processor = await SSEProcessor.createWithTrailingLineFlush(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assertSimplifiedResultsEqual(results, {
+			0: {
+				finishReason: FinishedCompletionReason.Stop,
+				chunks: ['foo'],
+			},
+		});
+	});
+
+	// The trailing-line flush must stay opt-in: the default (CAPI/proxy) path is
+	// unchanged, so an unterminated final usage line is NOT flushed. See #329436.
+	test('usage in a final unterminated SSE line is not flushed by default (CAPI path)', async function () {
+		const response = [
+			`data: {"choices":[{"text":"foo","index":0,"finish_reason":"stop"}]}\n`,
+			`data: {"choices":[],"usage":{"completion_tokens":2,"prompt_tokens":358,"total_tokens":360}}`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		assert.deepStrictEqual(
+			{ chunks: results[0]?.solution.text, usage: results[0]?.usage },
+			{ chunks: ['foo'], usage: undefined },
+		);
+	});
+
 	test('stream containing cot_summary and cot_id', async function () {
 		const response = [
 			`data: {"choices":[],"created":0,"id":"","model":"","object":"","prompt_filter_results":[{"prompt_index":0,"content_filter_results":{"hate":{"filtered":false,"severity":"safe"},"self_harm":{"filtered":false,"severity":"safe"},"sexual":{"filtered":false,"severity":"safe"},"violence":{"filtered":false,"severity":"safe"}}}]}\n`,

@@ -10,8 +10,12 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { ILogService } from '../../../../platform/log/common/logService';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { createFakeStreamResponse } from '../../../../platform/test/node/fetcher';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -123,6 +127,40 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				'https://api.openai.com/v1/chat/completions');
 
 			expect(endpoint.ownsAuthorization).toBe(true);
+		});
+	});
+
+	// Regression test for https://github.com/microsoft/vscode/issues/329436.
+	// Direct-to-provider BYOK streams may end right after the final `include_usage`
+	// chunk without a trailing newline or `[DONE]`. Verify the endpoint opts into
+	// flushing that final line so streamed token usage is preserved end-to-end.
+	describe('streamed usage on unterminated responses', () => {
+		async function collectUsage(response: string[]) {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const completions = await endpoint.processResponseFromChatEndpoint(
+				accessor.get(ITelemetryService),
+				accessor.get(ILogService),
+				createFakeStreamResponse(response),
+				1,
+				async () => undefined,
+				TelemetryData.createAndMarkAsIssued(),
+			);
+			const collected = [];
+			for await (const completion of completions) {
+				collected.push(completion);
+			}
+			return collected;
+		}
+
+		it('reports usage from a final chunk with no trailing newline or [DONE]', async () => {
+			const collected = await collectUsage([
+				`data: {"choices":[{"delta":{"content":"hello"},"index":0,"finish_reason":"stop"}]}\n`,
+				`data: {"choices":[],"usage":{"completion_tokens":50,"prompt_tokens":100,"total_tokens":150}}`,
+			]);
+			expect(collected[0]?.usage).toEqual({ completion_tokens: 50, prompt_tokens: 100, total_tokens: 150 });
 		});
 	});
 

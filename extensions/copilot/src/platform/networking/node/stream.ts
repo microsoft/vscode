@@ -144,6 +144,23 @@ export function splitChunk(chunk: string): [string[], string] {
 }
 
 /**
+ * Appends a single newline after the source stream ends. Direct-to-provider
+ * (client-side BYOK) servers may close immediately after their final
+ * `include_usage` SSE event without terminating the line or sending `[DONE]`.
+ * The newline lets the existing SSE parser process that buffered final event.
+ */
+function appendFinalNewline(stream: DestroyableStream<string>): DestroyableStream<string> {
+	return stream.pipeThrough(new TransformStream<string, string>({
+		transform(chunk, controller) {
+			controller.enqueue(chunk);
+		},
+		flush(controller) {
+			controller.enqueue('\n');
+		}
+	}));
+}
+
+/**
  * A single finished completion returned from the model or proxy, along with
  * some metadata.
  */
@@ -242,6 +259,30 @@ export class SSEProcessor {
 		cancellationToken?: CancellationToken
 	) {
 		const body = response.body.pipeThrough(new TextDecoderStream());
+		return new SSEProcessor(
+			logService,
+			telemetryService,
+			expectedNumChoices,
+			response,
+			body,
+			cancellationToken
+		);
+	}
+
+	/**
+	 * Creates a processor for direct-to-provider (client-side BYOK) streams that
+	 * may close after their final `include_usage` event without a terminating
+	 * newline or `[DONE]`. The regular {@link create} path is intentionally left
+	 * unchanged. See #329436.
+	 */
+	static async createWithTrailingLineFlush(
+		logService: ILogService,
+		telemetryService: ITelemetryService,
+		expectedNumChoices: number,
+		response: Response,
+		cancellationToken?: CancellationToken
+	) {
+		const body = appendFinalNewline(response.body.pipeThrough(new TextDecoderStream()));
 		return new SSEProcessor(
 			logService,
 			telemetryService,

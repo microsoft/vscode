@@ -77,6 +77,11 @@ export function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: Kim
 }
 
 /**
+ * Creates the {@link SSEProcessor} used by {@link defaultChatResponseProcessor}.
+ */
+export type CreateSSEProcessor = typeof SSEProcessor.create;
+
+/**
  * The default processor for the stream format from CAPI
  */
 export async function defaultChatResponseProcessor(
@@ -86,9 +91,10 @@ export async function defaultChatResponseProcessor(
 	expectedNumChoices: number,
 	finishCallback: FinishedCallback,
 	telemetryData: TelemetryData,
-	cancellationToken?: CancellationToken | undefined
+	cancellationToken?: CancellationToken | undefined,
+	createSSEProcessor: CreateSSEProcessor = SSEProcessor.create
 ) {
-	const processor = await SSEProcessor.create(logService, telemetryService, expectedNumChoices, response, cancellationToken);
+	const processor = await createSSEProcessor(logService, telemetryService, expectedNumChoices, response, cancellationToken);
 	const finishedCompletions = processor.processSSE(finishCallback);
 	const chatCompletions = AsyncIterableObject.map(finishedCompletions, (solution) => {
 		const loggedReason = solution.reason ?? 'client-trimmed';
@@ -494,8 +500,17 @@ export class ChatEndpoint implements IChatEndpoint {
 		} else if (!this._supportsStreaming) {
 			return defaultNonStreamChatResponseProcessor(response, finishCallback, telemetryData);
 		} else {
-			return defaultChatResponseProcessor(telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, cancellationToken);
+			return defaultChatResponseProcessor(telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, cancellationToken, this.createSSEProcessor);
 		}
+	}
+
+	/**
+	 * The SSE processor factory used for the streaming Chat Completions path.
+	 * Direct-to-provider (client-side BYOK) endpoints override this to tolerate streams
+	 * that end without a terminating newline or `[DONE]`. See #329436.
+	 */
+	protected get createSSEProcessor(): CreateSSEProcessor {
+		return SSEProcessor.create;
 	}
 
 	public acquireTokenizer(): ITokenizer {

@@ -9,12 +9,13 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { isKimiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
-import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoint/node/chatEndpoint';
+import { ChatEndpoint, CreateSSEProcessor, normalizeKimiToolCallIds } from '../../../platform/endpoint/node/chatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { RawMessageConversionCallback } from '../../../platform/networking/common/openai';
 import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
+import { SSEProcessor } from '../../../platform/networking/node/stream';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -145,6 +146,15 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	 * CAPI Copilot bearer token nor raise a missing-key error for these requests.
 	 */
 	public readonly ownsAuthorization = true;
+
+	/**
+	 * Client-side BYOK talks directly to the user's OpenAI-compatible server, which may end
+	 * the stream right after the final `include_usage` chunk without a terminating newline
+	 * or `[DONE]`. Use a processor that tolerates that so streamed usage isn't dropped. See #329436.
+	 */
+	protected override get createSSEProcessor(): CreateSSEProcessor {
+		return SSEProcessor.createWithTrailingLineFlush;
+	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback {
 		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
