@@ -163,7 +163,9 @@ export class BrowserSessionNetworkFilter {
 				});
 			}
 		}
-		const filteredReferrerOwners = referrerOwners ? [...referrerOwners].filter(id => this.isWebContentsFiltered(id)) : [];
+		const filteredReferrerOwners = referrerOwners
+			? [...new Set([...referrerOwners].flatMap(id => this.getFilteringRootOwners(id)))]
+			: [];
 		const classification = classifyRequest({
 			webContentsId,
 			webContentsWasKnown,
@@ -216,10 +218,14 @@ export class BrowserSessionNetworkFilter {
 	}
 
 	private isWebContentsFiltered(webContentsId: number): boolean {
+		return this.getFilteringRootOwners(webContentsId).length > 0;
+	}
+
+	private getFilteringRootOwners(webContentsId: number): readonly number[] {
 		if (this.filteredWebContents.has(webContentsId)) {
-			return true;
+			return [webContentsId];
 		}
-		return [...this.derivedFilterOwners.get(webContentsId) ?? []].some(ownerId => this.filteredWebContents.has(ownerId));
+		return [...this.derivedFilterOwners.get(webContentsId) ?? []].filter(ownerId => this.filteredWebContents.has(ownerId));
 	}
 
 	private addDerivedWebContents(ownerId: number, webContentsId: number): void {

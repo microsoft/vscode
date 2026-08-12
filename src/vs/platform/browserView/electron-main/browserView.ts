@@ -59,6 +59,7 @@ export class BrowserView extends Disposable {
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
+	private readonly _webContentsId: number;
 	private readonly _agentNetworkFilterSources = new BrowserViewAgentNetworkFilterSources();
 	private readonly _agentNetworkActionSources = new Set<string>();
 
@@ -151,6 +152,7 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._webContentsId = this._view.webContents.id;
 		if (owner.sessionId) {
 			this.setAgentNetworkFiltering(owner.sessionId, true);
 		}
@@ -586,7 +588,7 @@ export class BrowserView extends Disposable {
 	}
 
 	setAgentNetworkFiltering(sourceId: string, enabled: boolean): void {
-		this.session.setAgentNetworkFiltering(this.webContents.id, this._agentNetworkFilterSources.set(sourceId, enabled));
+		this.session.setAgentNetworkFiltering(this._webContentsId, this._agentNetworkFilterSources.set(sourceId, enabled));
 	}
 
 	setAgentNetworkAction(sourceId: string, enabled: boolean): void {
@@ -595,11 +597,11 @@ export class BrowserView extends Disposable {
 		} else {
 			this._agentNetworkActionSources.delete(sourceId);
 		}
-		this.session.setAgentNetworkAction(this.webContents.id, sourceId, enabled);
+		this.session.setAgentNetworkAction(this._webContentsId, sourceId, enabled);
 	}
 
 	getAgentNetworkPolicyError(navigationOnly?: boolean): string | undefined {
-		return this.session.getAgentNetworkPolicyError(this.webContents.id, navigationOnly);
+		return this.session.getAgentNetworkPolicyError(this._webContentsId, navigationOnly);
 	}
 
 	/**
@@ -1009,9 +1011,9 @@ export class BrowserView extends Disposable {
 		}
 		this._isDisposed = true;
 		this._agentNetworkFilterSources.clear();
-		this.session.setAgentNetworkFiltering(this.webContents.id, false);
+		this.session.setAgentNetworkFiltering(this._webContentsId, false);
 		for (const sourceId of this._agentNetworkActionSources) {
-			this.session.setAgentNetworkAction(this.webContents.id, sourceId, false);
+			this.session.setAgentNetworkAction(this._webContentsId, sourceId, false);
 		}
 		this._agentNetworkActionSources.clear();
 

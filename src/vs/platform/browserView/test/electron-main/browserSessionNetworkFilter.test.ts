@@ -236,7 +236,7 @@ suite('BrowserSession network filter', () => {
 		});
 	});
 
-	test('derives popup filtering from a tracked opener without an active action', () => {
+	test('preserves tracked root ownership across nested popups without an active action', () => {
 		const { filter } = createFilter();
 		filter.setFiltering(1, true);
 		invokeRequest(filter, {
@@ -251,18 +251,26 @@ suite('BrowserSession network filter', () => {
 			webContentsId: 3,
 			referrer: 'https://allowed.example/opener',
 		});
+		const allowedNestedPopup = invokeRequest(filter, {
+			url: 'https://allowed.example/nested-popup',
+			resourceType: 'mainFrame',
+			webContentsId: 4,
+			referrer: 'https://allowed.example/popup',
+		});
 		const delayedDeniedNavigation = invokeRequest(filter, {
 			url: 'https://denied.example/delayed',
 			resourceType: 'mainFrame',
-			webContentsId: 3,
-			referrer: 'https://allowed.example/popup',
+			webContentsId: 4,
+			referrer: 'https://allowed.example/nested-popup',
 		});
 
 		assert.deepStrictEqual({
 			allowedPopup,
+			allowedNestedPopup,
 			delayedDeniedNavigation,
 		}, {
 			allowedPopup: { cancel: false },
+			allowedNestedPopup: { cancel: false },
 			delayedDeniedNavigation: { cancel: true },
 		});
 	});

@@ -61,7 +61,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					break;
 				case '/delayed-popup':
 					response.setHeader('Content-Type', 'text/html');
-					response.end(`<html><body>allowed popup<script>setTimeout(() => location.assign('http://127.0.0.1:${deniedPort}/popup-delayed-private'), 300);</script></body></html>`);
+					response.end(`<html><body>allowed popup<script>setTimeout(() => window.open('http://localhost:${allowedPort}/nested-popup'), 100);</script></body></html>`);
+					break;
+				case '/nested-popup':
+					response.setHeader('Content-Type', 'text/html');
+					response.end(`<html><body>allowed nested popup<script>setTimeout(() => location.assign('http://127.0.0.1:${deniedPort}/popup-delayed-private'), 300);</script></body></html>`);
 					break;
 				case '/complex':
 					response.setHeader('Content-Type', 'text/html');
