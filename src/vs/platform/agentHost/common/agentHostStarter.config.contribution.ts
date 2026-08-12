@@ -99,11 +99,10 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[AgentHostActiveAgentTitleGenerationSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names sessions and chats using rename tools. When disabled, a utility model generates titles. Reload the window or restart the Agent Host for changes to take effect."),
+			description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names new sessions and chats using rename tools. When disabled, a utility model generates titles. Changes apply to sessions and chats created afterward."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
-			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
 		},
 		[AgentHostSystemProxyEnabledSettingId]: {
