@@ -1936,7 +1936,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.customizations, [customization]);
 		});
 
-		test('preserves initial customizations when a provisional session materializes during discovery', async () => {
+		test('publishes initial customizations to a client subscribed during discovery', async () => {
 			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
 			class MaterializingCustomizationAgent extends MockAgent {
 				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
@@ -1970,12 +1970,22 @@ suite('AgentService (node dispatcher)', () => {
 			const creation = service.createSession({ provider: agent.id });
 			const session = await agent.customizationReadStarted.p;
 			agent.materialize(session);
+			const initialSnapshot = await service.subscribe(session, 'client');
+			const initialSnapshotCustomizations = (initialSnapshot.state as SessionState).customizations;
+			const customizationChanged = Event.toPromise(Event.filter(service.onDidAction, envelope =>
+				envelope.channel === session.toString() && envelope.action.type === ActionType.SessionCustomizationsChanged));
 			agent.releaseCustomizationRead.complete();
-			await creation;
+			const [, envelope] = await Promise.all([creation, customizationChanged]);
 
-			const snapshot = await service.subscribe(session, 'client');
-
-			assert.deepStrictEqual((snapshot.state as SessionState).customizations, [customization]);
+			assert.deepStrictEqual({
+				initialSnapshotCustomizations,
+				action: envelope.action,
+				currentSnapshotCustomizations: (service.stateManager.getSnapshot(session.toString())?.state as SessionState | undefined)?.customizations,
+			}, {
+				initialSnapshotCustomizations: undefined,
+				action: { type: ActionType.SessionCustomizationsChanged, customizations: [customization] },
+				currentSnapshotCustomizations: [customization],
+			});
 		});
 
 		test('truncates working directories for a provider without multipleWorkingDirectories', async () => {

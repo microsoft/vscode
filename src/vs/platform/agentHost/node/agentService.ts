@@ -1784,9 +1784,9 @@ export class AgentService extends Disposable implements IAgentService {
 				state.activeClients = config?.activeClient ? [config.activeClient] : [];
 			}
 		}
-		// Not via the `state` handle above: a session that materialized while the snapshot resolved has already replaced it.
+		// Discovery is asynchronous, so publish the result for clients that subscribed while it was in flight.
 		if (initialCustomizations && initialCustomizations.length > 0) {
-			this._stateManager.setSessionCustomizations(session.toString(), initialCustomizations);
+			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...initialCustomizations] });
 		}
 		this._serverToolHost.advertise(session.toString());
 		// Persist resolved config values for restore. Mid-session updates are
