@@ -975,12 +975,22 @@ suite('CopilotAgent', () => {
 		}();
 		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService }) as TestableCopilotAgent;
 		try {
-			await agent.listSessions();
+			await agent.listLegacyChats();
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
 
-			sdkSessionsMap(agent).set('active-session', { currentTurnId: 'turn-1' } as CopilotAgentSession);
-			sdkSessionsMap(agent).set('idle-session', { currentTurnId: undefined } as CopilotAgentSession);
+			chatEntriesBySdkId(agent).set('active-session', {
+				chatSession: { currentTurnId: 'turn-1' } as CopilotAgentSession,
+				dispose() { },
+			});
+			chatEntriesBySdkId(agent).set('second-active-session', {
+				chatSession: { currentTurnId: 'turn-2' } as CopilotAgentSession,
+				dispose() { },
+			});
+			chatEntriesBySdkId(agent).set('idle-session', {
+				chatSession: { currentTurnId: undefined } as CopilotAgentSession,
+				dispose() { },
+			});
 			const notification = (sessionId: string, turnId: string): GitHubTelemetryNotification => ({
 				sessionId,
 				restricted: false,
@@ -992,6 +1002,8 @@ suite('CopilotAgent', () => {
 			});
 
 			await forward(notification('active-session', 'runtime-active'));
+			await forward(notification('second-active-session', 'runtime-second-active'));
+			await forward(notification('active-session', 'runtime-active-again'));
 			await forward(notification('idle-session', 'runtime-idle'));
 			await forward(notification('unknown-session', 'runtime-unknown'));
 
@@ -999,6 +1011,8 @@ suite('CopilotAgent', () => {
 				sessionId: (event.data as Record<string, unknown>).sdk_session_id,
 				turnId: (event.data as Record<string, unknown>).turnId,
 			})), [
+				{ sessionId: 'active-session', turnId: 'turn-1' },
+				{ sessionId: 'second-active-session', turnId: 'turn-2' },
 				{ sessionId: 'active-session', turnId: 'turn-1' },
 				{ sessionId: 'idle-session', turnId: undefined },
 				{ sessionId: 'unknown-session', turnId: undefined },

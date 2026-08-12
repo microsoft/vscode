@@ -1355,7 +1355,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _turnIdForTelemetry(sdkSessionId: string | undefined): string | undefined {
-		return sdkSessionId ? this._sdkSessionsById.get(sdkSessionId)?.currentTurnId : undefined;
+		return sdkSessionId ? this._findSessionBySdkId(sdkSessionId)?.currentTurnId : undefined;
 	}
 
 	/**
