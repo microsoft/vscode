@@ -7,7 +7,7 @@ import { DeferredPromise, ITask, Sequencer, SequencerByKey, timeout } from '../.
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
@@ -398,7 +398,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		const contentStr = typeof content === 'string' ? content : content.toString();
-		const model = this._modelService.createModel(contentStr, this._languageService.createByFilepathOrFirstLine(snapshotUri), snapshotUri, false);
+		// Snapshot models are read-only representations of past content and do not need to
+		// react to language registration changes. Resolve the language id eagerly and pass a
+		// static ILanguageSelection so the TextModel does not subscribe to the shared
+		// LanguageService.onDidChange emitter (which has a 200-listener leak threshold and
+		// was being saturated by long agent sessions accumulating many snapshots). See #309905.
+		const languageId = this._languageService.createByFilepathOrFirstLine(snapshotUri).languageId;
+		const model = this._modelService.createModel(contentStr, { languageId, onDidChange: Event.None }, snapshotUri, false);
 
 		const store = new DisposableStore();
 		store.add(model.onWillDispose(() => store.dispose()));
