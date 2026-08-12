@@ -1112,9 +1112,33 @@ suite('CopilotAgentSession', () => {
 			attachments: [{
 				type: 'blob',
 				data: encodeBase64(VSBuffer.fromString(expectedText)),
-				mimeType: 'text/plain',
+				mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=agentFeedback',
 				displayName: '1 comment',
 			}],
+		}]);
+
+		mockSession.messages = [{
+			type: 'user.message',
+			id: 'event-1',
+			parentId: null,
+			timestamp: '2026-07-29T10:00:00.000Z',
+			data: {
+				interactionId: 'message-1',
+				content: '/act-on-feedback',
+				attachments: [{
+					type: 'blob' as const,
+					data: encodeBase64(VSBuffer.fromString(expectedText)),
+					mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=agentFeedback',
+					displayName: '1 comment',
+				}],
+			},
+		}];
+
+		assert.deepStrictEqual((await session.getMessages())[0].message.attachments, [{
+			type: MessageAttachmentKind.Simple,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			modelRepresentation: expectedText,
 		}]);
 	});
 
