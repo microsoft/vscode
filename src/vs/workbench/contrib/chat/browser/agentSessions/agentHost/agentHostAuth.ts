@@ -7,7 +7,8 @@ import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type McpOAuthClient, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -34,6 +35,24 @@ import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
  */
 export function agentHostMcpServerId(authority: string, serverName: string, resourceUrl: string): string {
 	return `agent-host-mcp:${authority}/${encodeURIComponent(serverName)}/${encodeURIComponent(resourceUrl)}`;
+}
+
+/**
+ * Whether creating a session with the selected model requires the agent's protected-resource authentication.
+ */
+export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, model: ModelSelection | undefined, allowSignedOutWhenUsable = false): boolean {
+	if (!agent?.protectedResources?.length) {
+		return false;
+	}
+	const requiresAuthentication = agent.protectedResources.some(resource => resource.required !== false);
+	if (!allowSignedOutWhenUsable || !agent.models.some(candidate => readAgentModelByokIdentifier(candidate) !== undefined)) {
+		return requiresAuthentication;
+	}
+	if (!model) {
+		return true;
+	}
+	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
+	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
 }
 
 /**
@@ -207,6 +226,7 @@ export async function resolveTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly scopes?: readonly string[];
+	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
 	readonly token: string;
 }
 
@@ -274,17 +294,14 @@ export async function authenticateProtectedResources(
 				logService,
 				options.logPrefix,
 			);
-			if (!token) {
-				logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
-				continue;
-			}
-
-			const authenticated = await forwardAuthenticationToken(options, resource.resource, scopes, token);
+			const authenticated = await forwardAuthenticationToken(options, resource.resource, scopes, token ?? '');
 			if (!authenticated) {
-				logService.trace(`${options.logPrefix} Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
+				logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
 				continue;
 			}
-			logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
+			logService.info(token
+				? `${options.logPrefix} Authenticating for resource: ${resource.resource}`
+				: `${options.logPrefix} Clearing authentication for resource: ${resource.resource}`);
 		}
 	}
 }

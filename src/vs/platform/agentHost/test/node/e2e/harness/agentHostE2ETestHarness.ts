@@ -350,6 +350,8 @@ export interface IAgentHostE2EProviderConfig {
 	 * notifications there. Recording and other platforms keep full coverage.
 	 */
 	readonly shellToolReplayUnstableOnLinux?: boolean;
+	/** Provider intermittently completes successful shell calls without exposing result text. */
+	readonly shellToolResultTextUnreliable?: boolean;
 	/**
 	 * When set, the subagent-reopen ("replay path") test is skipped on Windows for
 	 * this provider, which rebuilds the reopened transcript from the bundled SDK's
@@ -369,6 +371,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsPlanMode: boolean;
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
+	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;
 	/** Whether provider-backed fork context can be tested end-to-end. */
 	readonly supportsChatForkE2E: boolean;

@@ -302,7 +302,7 @@ export interface IBrowserViewWorkbenchService {
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
-	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState): BrowserEditorInput;
+	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, associatedResource?: URI): BrowserEditorInput;
 
 	/**
 	 * Clear all storage data for the global browser session
@@ -353,6 +353,7 @@ export interface IBrowserViewCDPService {
 export interface IBrowserViewModel extends IDisposable {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource: URI | undefined;
 	readonly url: string;
 	readonly title: string;
 	readonly favicon: string | undefined;
@@ -473,6 +474,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	constructor(
 		readonly id: string,
 		readonly owner: IBrowserViewOwner,
+		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,

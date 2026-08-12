@@ -414,4 +414,30 @@ suite('ActionListWidget', () => {
 			{ text: 'Learn more', href: 'https://aka.ms/test' },
 		);
 	});
+
+	test('focuses the configured initial item when opened', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('active'), action('last')],
+			listOptions: { initialFocusItemId: 'active' },
+		});
+
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
+	});
+
+	test('consumes initial focus before later filtering and refocusing', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('match-first'), action('match-initial'), action('other')],
+			listOptions: { initialFocusItemId: 'match-initial' },
+		});
+
+		widget.focus();
+		widget.focusPrevious();
+		typeFilter(widget, 'match');
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
+	});
+
 });

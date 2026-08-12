@@ -10,10 +10,12 @@ import { ISessionGitHubState } from './state/sessionState.js';
 
 export const META_GIT_STATE = 'agentHost.git';
 export const META_GITHUB_STATE = 'agentHost.github';
+export const META_SOURCE_CONTROL_STATE = 'agentHost.sourceControl';
 
 export const GIT_DB_METADATA_KEYS: Record<string, true> = {
 	[META_GIT_STATE]: true,
 	[META_GITHUB_STATE]: true,
+	[META_SOURCE_CONTROL_STATE]: true,
 };
 
 export const IAgentHostGitStateService = createDecorator<IAgentHostGitStateService>('agentHostGitStateService');
@@ -26,6 +28,9 @@ export interface IAgentHostGitStateService {
 	 */
 	readonly onDidRefreshSessionGitState: Event<string>;
 
+	/** Fires when GitHub metadata that affects changeset operations changes. */
+	readonly onDidChangeSessionGitHubState: Event<string>;
+
 	/**
 	 * Refreshes the git state for a given session.
 	 * @param sessionKey The key of the session for which to refresh the git state.
@@ -33,17 +38,8 @@ export interface IAgentHostGitStateService {
 	 */
 	refreshSessionGitState(sessionKey: string, workingDirectory?: URI): Promise<void>;
 
-	/**
-	 * Stops accepting Git-state work for a session and drains queued or
-	 * in-flight refreshes and persistence.
-	 */
-	onSessionDisposed(sessionKey: string): Promise<void>;
-
-	/**
-	 * Releases disposal bookkeeping after the session has been removed from
-	 * live state.
-	 */
-	onSessionDeleted(sessionKey: string): void;
+	/** Resolves the canonical base branch selected for a session. */
+	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
 	/**
 	 * Sets the GitHub state for a given session.
@@ -52,6 +48,9 @@ export interface IAgentHostGitStateService {
 	 */
 	setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void>;
 
+	/** Records a successful direct merge and its resulting target-branch HEAD. */
+	recordSessionMerge(sessionKey: string, commit: string): Promise<void>;
+
 	/**
 	 * Refresh git state, then find and save a GitHub pull request for the current branch.
 	 * @param sessionKey The key of the session for which to check the GitHub pull request.
@@ -59,12 +58,6 @@ export interface IAgentHostGitStateService {
 	 */
 	attachSessionGitHubPullRequest(sessionKey: string, workingDirectory?: URI): Promise<void>;
 
-	/**
-	 * Detect GitHub issues referenced in a user message and add them to the
-	 * session's GitHub state. Already-known issues are kept, so the session
-	 * accumulates every issue referenced over its lifetime.
-	 * @param sessionKey The key of the session the message was sent to.
-	 * @param text The user message to scan for issue references.
-	 */
-	attachSessionGitHubIssues(sessionKey: string, text: string): Promise<void>;
+	/** Adds GitHub issues and pull requests referenced in a user message to the session. */
+	attachSessionGitHubReferences(sessionKey: string, text: string): Promise<void>;
 }

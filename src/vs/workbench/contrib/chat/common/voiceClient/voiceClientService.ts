@@ -8,6 +8,7 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { autorun, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { VoiceCloseKind } from './voiceCloseCodes.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
 
 export function normalizeAgentsVoiceId(value: unknown): string {
@@ -518,12 +519,21 @@ export interface IVoiceTurnAutoEnded {
 }
 
 /**
- * Payload for a terminal, non-recoverable websocket close (see
- * {@link IVoiceClientService.onFatalDisconnect}). `code` is the websocket close
- * code (e.g. 4008 when another window takes over the session); `reason` is the
- * server-provided close reason, if any.
+ * Payload for a terminal websocket close. Despite the name this covers every
+ * close that will not reconnect, including an expected end of session: `kind`
+ * distinguishes them, and an `expected` close must not paint the UI red or
+ * raise a toast. `clientSide` marks a failure that never reached the network,
+ * such as an unconfigured backend URL.
  */
 export interface IVoiceFatalDisconnect {
+	readonly code: number;
+	readonly reason: string;
+	readonly kind?: VoiceCloseKind;
+	readonly clientSide?: boolean;
+}
+
+/** A recoverable connection problem; the client keeps retrying. */
+export interface IVoiceConnectionIssue {
 	readonly code: number;
 	readonly reason: string;
 }
@@ -677,12 +687,14 @@ export interface IVoiceClientService {
 	readonly onError: Event<string>;
 	readonly onDidChangeConnectionState: Event<boolean>;
 	/**
-	 * Fired on a terminal, non-recoverable close (e.g. code 4008 when another
-	 * window takes over the single voice session). Distinct from a transient
-	 * disconnect: consumers should tear down to a clean, restartable state
-	 * rather than entering a reconnect loop.
+	 * Fired when the current socket will not reconnect: a refusal, an expected
+	 * end of session, or a give-up. Consumers should tear down to a clean,
+	 * restartable state rather than entering a reconnect loop.
 	 */
 	readonly onFatalDisconnect: Event<IVoiceFatalDisconnect>;
+
+	/** Fired on a recoverable close so the UI can explain what it is waiting on. */
+	readonly onConnectionIssue: Event<IVoiceConnectionIssue>;
 	/**
 	 * Fired when the backend ends a held turn on its own (server VAD silence or
 	 * a matched stop phrase). Consumers stop capturing for that turn and clear
