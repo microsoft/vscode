@@ -209,7 +209,14 @@ suite('AgentSdkDownloader', () => {
 		hostSdkTarget = target;
 	});
 
-	setup(async () => {
+	setup(async function () {
+		// These are I/O-bound integration tests: each spins up a loopback HTTP
+		// server, downloads a gzipped tarball, and extracts it to disk. On slow
+		// Windows CI agents that legitimately exceeds the 2000ms mocha default
+		// (see microsoft/vscode-engineering#3401), so provision the whole suite
+		// with a generous timeout rather than racing the default.
+		this.timeout(15_000);
+
 		originalEnvOverride = process.env[AgentHostClaudeSdkRootEnvVar];
 		delete process.env[AgentHostClaudeSdkRootEnvVar];
 		userDataPath = await fsp.mkdtemp(path.join(os.tmpdir(), 'sdk-userdata-'));
