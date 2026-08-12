@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -13,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { AutomationDefinition, AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationDefinition, AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { CreateAutomationParams, ListAutomationsResult, RunAutomationParams, RunAutomationResult, UpdateAutomationParams } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/common/errors.js';
@@ -789,6 +790,67 @@ suite('AutomationService', () => {
 
 		assert.strictEqual(completedRuns[0].status, 'completed');
 	});
+
+	test('projects the operations the owning host permits', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true);
+		connection.setAutomationOperations('ahp-automation:/test', [AutomationOperation.Run]);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+
+		await assert.rejects(() => service.updateAutomation(automation.id, { name: 'renamed' }), /does not allow the 'update' operation/);
+		await assert.rejects(() => service.deleteAutomation(automation.id), /does not allow the 'dispose' operation/);
+		assert.deepStrictEqual({
+			canEdit: automation.host?.canEdit,
+			canRun: automation.host?.canRun,
+			canDelete: automation.host?.canDelete,
+		}, {
+			canEdit: false,
+			canRun: true,
+			canDelete: false,
+		});
+	});
+
+	test('cancelling a run resolves only once the host reports a terminal run', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+		const started = await service.startRun(automation.id, 'request');
+
+		let settled = false;
+		const cancelled = service.cancelRun(started.run.id).then(() => settled = true);
+		await timeout(0);
+		const settledBeforeHostAcknowledged = settled;
+		connection.setRunStatus(started.run.id.split('\0')[1], AutomationRunStatus.Cancelled);
+		await cancelled;
+
+		assert.deepStrictEqual({
+			settledBeforeHostAcknowledged,
+			cancelRequests: connection.cancelRequests,
+			status: service.runs.get()[0].status,
+		}, {
+			settledBeforeHostAcknowledged: false,
+			cancelRequests: ['ahp-automation-run:/run'],
+			status: 'cancelled',
+		});
+	});
 });
 
 class TestSubscription<T> implements IAgentSubscription<T> {
@@ -830,6 +892,7 @@ class TestConnection extends NullAgentHostService {
 	private readonly automations = new Map<string, TestSubscription<AutomationState>>();
 	private readonly runs = new Map<string, TestSubscription<AutomationRunState>>();
 	private readonly modelIds: readonly string[];
+	readonly cancelRequests: string[] = [];
 	lastCreateDefinition: AutomationDefinition | undefined;
 	afterCreateAutomation: (() => void) | undefined;
 
@@ -890,6 +953,12 @@ class TestConnection extends NullAgentHostService {
 		};
 		this.automations.set(params.channel, new TestSubscription(state));
 		this.afterCreateAutomation?.();
+	}
+
+	setAutomationOperations(resource: string, operations: readonly AutomationOperation[]): void {
+		const subscription = this.automations.get(resource)!;
+		const current = subscription.value as AutomationState;
+		subscription.set({ ...current, operations: [...operations] });
 	}
 
 	setAutomationDefinition(resource: string, definition: AutomationDefinition): void {
@@ -978,19 +1047,21 @@ class TestConnection extends NullAgentHostService {
 		const startedAt = current.lifecycle.status === AutomationRunStatus.Pending
 			? current.lifecycle.createdAt
 			: current.lifecycle.startedAt ?? current.lifecycle.createdAt;
-		const lifecycle = status === AutomationRunStatus.Completed
-			? {
-				status,
-				createdAt: current.lifecycle.createdAt,
-				startedAt,
-				completedAt: new Date().toISOString(),
-			} as const
-			: current.lifecycle;
+		const completedAt = new Date().toISOString();
+		const lifecycle: AutomationRunLifecycle = status === AutomationRunStatus.Completed || status === AutomationRunStatus.Cancelled
+			? { status, createdAt: current.lifecycle.createdAt, startedAt, completedAt }
+			: status === AutomationRunStatus.Failed
+				? { status, createdAt: current.lifecycle.createdAt, startedAt, completedAt, error: { errorType: 'Error', message: 'run failed' } }
+				: current.lifecycle;
 		const next = { ...current, lifecycle, operations: [] };
 		subscription.set(next);
 		const automation = this.automations.get(current.automation)!;
 		const automationState = automation.value as AutomationState;
 		automation.set({ ...automationState, runs: [toRunSummary(next)] });
+	}
+
+	override dispatch(channel: string): void {
+		this.cancelRequests.push(channel);
 	}
 
 	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {

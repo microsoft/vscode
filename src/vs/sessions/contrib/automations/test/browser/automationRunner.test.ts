@@ -144,6 +144,9 @@ function createAutomation(migrationPending = false): IAutomation {
 			revision: migrationPending ? 0 : 1,
 			connected: !migrationPending,
 			hasUnsupportedTriggers: false,
+			canEdit: !migrationPending,
+			canRun: !migrationPending,
+			canDelete: !migrationPending,
 			migrationPending,
 		},
 	};

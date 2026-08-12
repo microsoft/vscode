@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../base/common/async.js';
+import { raceTimeout, Sequencer } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue, autorun, transaction } from '../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue, autorun, transaction, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -17,7 +19,7 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/common/errors.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { AutomationDefinitionPatch } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AutomationDefinition, AutomationMisfirePolicy, AutomationScheduleKind, AutomationState, AutomationTrigger, AutomationTriggerKind, AutomationWeekday } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
+import { AutomationDefinition, AutomationMisfirePolicy, AutomationOperation, AutomationScheduleKind, AutomationState, AutomationTrigger, AutomationTriggerKind, AutomationWeekday } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary } from '../../../../platform/agentHost/common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -33,6 +35,9 @@ import { ILegacyAutomationMigrationSnapshot, LegacyAutomationMigration } from '.
 
 const MIGRATION_JOURNAL_KEY = 'chat.automations.ahpMigration.v1';
 const MIGRATION_BACKUP_KEY = 'chat.automations.ahpMigration.backup.v1';
+
+/** How long a cancellation request waits for the owning host to report a terminal run. */
+const CANCEL_RUN_TIMEOUT = 30_000;
 
 type MigrationPhase = 'previewed' | 'imported' | 'localDisabled' | 'localRemoved' | 'hostEnabled' | 'completed' | 'aborted';
 const migrationPhases: readonly MigrationPhase[] = ['previewed', 'imported', 'localDisabled', 'localRemoved', 'hostEnabled', 'completed', 'aborted'];
@@ -220,6 +225,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (!host.connection) {
 			throw new Error(`Automation host '${host.authority}' is disconnected.`);
 		}
+		this._requireOperation(host, AutomationOperation.Update);
 		if (patch.target) {
 			const authority = this._authorityForTarget(patch.target);
 			if (authority !== host.authority) {
@@ -269,6 +275,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (!host.connection) {
 			throw new Error(`Automation host '${host.authority}' is disconnected.`);
 		}
+		this._requireOperation(host, AutomationOperation.Dispose);
 		mutationGuard?.();
 		await host.connection.disposeAutomation({ channel: host.resource });
 	}
@@ -281,6 +288,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		if (!host.connection) {
 			throw new Error(`Automation host '${host.authority}' is disconnected.`);
 		}
+		this._requireOperation(host, AutomationOperation.Run);
 		const active = this.getActiveRunFor(automationId);
 		if (active) {
 			return { claimed: false, run: active };
@@ -314,6 +322,34 @@ export class AutomationService extends Disposable implements IAutomationService 
 			throw new Error(`Automation run is unavailable: ${runId}`);
 		}
 		connection.dispatch(resource, { type: ActionType.AutomationRunCancelRequested });
+		// Cancellation is a request to the owning host, so only the projected run
+		// lifecycle can tell callers whether the run actually stopped.
+		await this._whenRunSettled(runId);
+	}
+
+	/** Resolves once the host reports a terminal lifecycle, and fails if it never does. */
+	private async _whenRunSettled(runId: string): Promise<void> {
+		const isSettled = (runs: readonly IAutomationRun[]) => {
+			const run = runs.find(candidate => candidate.id === runId);
+			return !run || run.status === 'completed' || run.status === 'failed' || run.status === 'cancelled';
+		};
+		if (isSettled(this._runs.get())) {
+			return;
+		}
+		const tokenSource = new CancellationTokenSource();
+		try {
+			const settled = await raceTimeout(
+				waitForState(this._runs, isSettled, undefined, tokenSource.token)
+					.then(() => true, error => isCancellationError(error) ? false : Promise.reject(error)),
+				CANCEL_RUN_TIMEOUT,
+			);
+			if (!settled) {
+				throw new Error(`Automation host '${this._hostRuns.get(runId)?.authority ?? parseHostKey(runId)?.authority}' did not stop the run.`);
+			}
+		} finally {
+			tokenSource.cancel();
+			tokenSource.dispose();
+		}
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
@@ -953,6 +989,13 @@ export class AutomationService extends Disposable implements IAutomationService 
 			: new Error(`Automation not found: ${id}`);
 	}
 
+	/** Fails fast when the owning authority does not currently permit an operation. */
+	private _requireOperation(host: IHostAutomation, operation: AutomationOperation): void {
+		if (!host.state.operations.includes(operation)) {
+			throw new Error(`Automation host '${host.authority}' does not allow the '${operation}' operation on this automation.`);
+		}
+	}
+
 	private async _attachAutomation(source: IHostSource, resource: string): Promise<void> {
 		const connection = source.connection;
 		if (!connection || source.automationReferences.has(resource)) {
@@ -1357,6 +1400,9 @@ function toAutomation(host: IHostAutomation): IAutomation {
 			revision: state.revision,
 			connected: !!host.connection,
 			hasUnsupportedTriggers: definition.triggers.length > 1 || definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.Event || trigger.schedule.kind === AutomationScheduleKind.Cron),
+			canEdit: state.operations.includes(AutomationOperation.Update),
+			canRun: state.operations.includes(AutomationOperation.Run),
+			canDelete: state.operations.includes(AutomationOperation.Dispose),
 		},
 	});
 }
@@ -1373,6 +1419,9 @@ function toPendingMigrationAutomation(entry: ILegacyAutomationEntry, authority: 
 			revision: 0,
 			connected: false,
 			hasUnsupportedTriggers: false,
+			canEdit: false,
+			canRun: false,
+			canDelete: false,
 			migrationPending: true,
 			migrationConflict,
 		},

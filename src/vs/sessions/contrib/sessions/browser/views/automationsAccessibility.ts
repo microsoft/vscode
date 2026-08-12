@@ -86,9 +86,11 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 					? localize('automationsAccessibleView.automationMigrationPending', "{0}, waiting for agent, read-only", automation.name)
 					: automation.host?.connected === false
 						? localize('automationsAccessibleView.automationDisconnected', "{0}, host disconnected, read-only", automation.name)
-						: automation.enabled
-							? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-							: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+						: automation.host?.canEdit === false
+							? localize('automationsAccessibleView.automationReadOnly', "{0}, read-only", automation.name)
+							: automation.enabled
+								? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+								: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
 			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation)));
 			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
 		}

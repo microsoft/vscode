@@ -62,6 +62,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 const STORE_VERSION = 1;
 const TICK_INTERVAL = 60_000;
 const MAX_SCHEDULE_LOOKAHEAD_MINUTES = 366 * 24 * 60;
+const RUN_HISTORY_LIMIT = 50;
 
 interface IPersistedAutomationStore {
 	readonly version: number;
@@ -95,7 +96,7 @@ export class AgentAutomationService extends Disposable {
 		},
 		runCancellation: {},
 		schedulePreview: {},
-		runHistoryLimit: 50,
+		runHistoryLimit: RUN_HISTORY_LIMIT,
 	};
 
 	private readonly _requestRuns = new Map<string, string>();
@@ -202,6 +203,7 @@ export class AgentAutomationService extends Disposable {
 			throw new ProtocolError(AhpErrorCodes.Conflict, `Automation has an active run: ${params.channel}`);
 		}
 		for (const run of state.runs) {
+			this._forgetRun(run.resource);
 			this._stateManager.removeAutomationRun(run.resource);
 		}
 		this._triggerNextRuns.delete(params.channel);
@@ -217,7 +219,7 @@ export class AgentAutomationService extends Disposable {
 			return { run: existing };
 		}
 		const automation = this._requireAutomation(params.channel);
-		if (automation.runs.some(run => !isTerminal(run.lifecycle))) {
+		if (this._hasActiveRun(automation.resource)) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, `Automation already has an active run: ${params.channel}`);
 		}
 		const run = await this._createRun(automation, { kind: AutomationRunCauseKind.Manual }, requestKey);
@@ -352,6 +354,12 @@ export class AgentAutomationService extends Disposable {
 		return !run || isTerminal(run.lifecycle);
 	}
 
+	/** Whether the automation currently holds its single active-run slot. */
+	private _hasActiveRun(automationResource: string): boolean {
+		const automation = this._stateManager.getAutomationState(automationResource);
+		return !!automation?.runs.some(run => !isTerminal(run.lifecycle));
+	}
+
 	private async _disposeSessionAfterCancellation(session: string, runResource: string): Promise<void> {
 		try {
 			await this._executor.disposeSession(session);
@@ -409,6 +417,41 @@ export class AgentAutomationService extends Disposable {
 			type: ActionType.AutomationRunSummarySet,
 			run: summary,
 		});
+		this._pruneRunHistory(automationResource);
+	}
+
+	/**
+	 * Drops the oldest terminal runs once the retention limit advertised through
+	 * {@link capabilities} is exceeded, together with the run state and the
+	 * bookkeeping that belongs to those runs.
+	 */
+	private _pruneRunHistory(automationResource: string): void {
+		const automation = this._stateManager.getAutomationState(automationResource);
+		if (!automation || automation.runs.length <= RUN_HISTORY_LIMIT) {
+			return;
+		}
+		// Summaries are ordered newest first, so anything past the limit is the oldest history.
+		for (const summary of automation.runs.slice(RUN_HISTORY_LIMIT)) {
+			if (!isTerminal(summary.lifecycle)) {
+				continue;
+			}
+			this._forgetRun(summary.resource);
+			this._stateManager.dispatchServerAction(automationResource, {
+				type: ActionType.AutomationRunSummaryRemoved,
+				run: summary.resource,
+			});
+			this._stateManager.removeAutomationRun(summary.resource);
+		}
+	}
+
+	/** Releases the idempotency and turn bookkeeping held for a run that no longer exists. */
+	private _forgetRun(runResource: string): void {
+		this._initialTurnIds.delete(runResource);
+		for (const [key, value] of this._requestRuns) {
+			if (value === runResource) {
+				this._requestRuns.delete(key);
+			}
+		}
 	}
 
 	private _onEnvelope(envelope: ActionEnvelope): void {
@@ -476,7 +519,7 @@ export class AgentAutomationService extends Disposable {
 		const now = new Date();
 		for (const summary of this._stateManager.listAutomationSummaries()) {
 			const automation = this._stateManager.getAutomationState(summary.resource);
-			if (!automation?.definition.enabled || automation.runs.some(run => !isTerminal(run.lifecycle))) {
+			if (!automation?.definition.enabled || this._hasActiveRun(automation.resource)) {
 				continue;
 			}
 			const nextByTrigger = this._triggerNextRuns.get(automation.resource) ?? new Map<string, string>();
@@ -488,7 +531,9 @@ export class AgentAutomationService extends Disposable {
 				if (!due || new Date(due).getTime() > now.getTime()) {
 					continue;
 				}
-				if (trigger.misfirePolicy !== AutomationMisfirePolicy.Skip) {
+				// Every due trigger advances, but at most one run may be active at a time,
+				// so later triggers due in the same tick only move to their next occurrence.
+				if (trigger.misfirePolicy !== AutomationMisfirePolicy.Skip && !this._hasActiveRun(automation.resource)) {
 					await this._createRun(automation, {
 						kind: AutomationRunCauseKind.Trigger,
 						triggerId: trigger.id,
@@ -645,6 +690,11 @@ function validateDefinition(definition: AutomationDefinition): void {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Automation trigger id must be unique: ${trigger.id}`);
 		}
 		ids.add(trigger.id);
+		// This authority advertises no event-trigger definitions and its scheduler only
+		// fires schedules, so accepting an event trigger would silently never run.
+		if (trigger.kind === AutomationTriggerKind.Event) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Automation event triggers are not supported: ${trigger.id}`);
+		}
 		if (trigger.kind === AutomationTriggerKind.Schedule && !computeNextSchedule(trigger.schedule, new Date())) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Invalid automation schedule: ${trigger.id}`);
 		}
