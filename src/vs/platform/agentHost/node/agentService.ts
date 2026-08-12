@@ -664,7 +664,7 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 		}));
 		this._automations = this._register(new AgentAutomationService(
-			this._rootConfigResource ? joinPath(resourcesDirname(this._rootConfigResource), 'automations.json') : undefined,
+			this._rootConfigResource && this._fileService.hasProvider(this._rootConfigResource) ? joinPath(resourcesDirname(this._rootConfigResource), 'automations.json') : undefined,
 			this._fileService,
 			this._stateManager,
 			{

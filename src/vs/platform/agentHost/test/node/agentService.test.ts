@@ -25,7 +25,6 @@ import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -278,10 +277,6 @@ suite('AgentService (node dispatcher)', () => {
 
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
-		disposables.add(fileService.registerProvider(
-			Schemas.file,
-			disposables.add(new DiskFileSystemProvider(new NullLogService()))
-		));
 
 		// Seed a directory for browseDirectory tests
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
