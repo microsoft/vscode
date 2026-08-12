@@ -22,7 +22,7 @@ import { type IAgentService } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
-import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isChangesetAction, isChatAction, isSessionAction, isSessionCatalogFlagAction, isTerminalAction, type ChatAction, type ClientAnnotationsAction, type ClientChangesetAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
@@ -1765,10 +1765,24 @@ export class ProtocolServerHandler extends Disposable {
 		if (sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) {
 			return true;
 		}
+		// Catalog flags change the root list entry, so they reach every catalog
+		// subscriber — including for a session no client has loaded.
+		if (isSessionCatalogFlagAction(envelope.action) && this._isSubscribedToRoot(client)) {
+			return true;
+		}
 		if (!isAhpRootChannel(envelope.channel)) {
 			return false;
 		}
 		return isActionEnvelopeRelevantToSubscriptionUris(envelope, this._stateAndResourceWatchUris(client));
+	}
+
+	private _isSubscribedToRoot(client: IConnectedClient): boolean {
+		for (const uri of this._stateAndResourceWatchUris(client)) {
+			if (isAhpRootChannel(uri)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private *_stateAndResourceWatchUris(client: IConnectedClient): Iterable<string> {

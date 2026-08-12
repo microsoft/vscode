@@ -101,36 +101,37 @@ export type NotificationType = typeof NotificationType[keyof typeof Notification
 // ---- Local aliases for short names ------------------------------------------
 // Consumers use these shorter names; they're type-only aliases.
 
-import type {
-	RootAgentsChangedAction,
-	RootActiveSessionsChangedAction,
-	ChatDeltaAction,
-	ChatReasoningAction,
-	ChatResponsePartAction,
-	ChatToolCallApprovedAction,
-	ChatToolCallCompleteAction,
-	ChatToolCallConfirmedAction,
-	ChatToolCallDeniedAction,
-	ChatToolCallDeltaAction,
-	ChatToolCallReadyAction,
-	ChatToolCallResultConfirmedAction,
-	ChatToolCallStartAction,
-	SessionTitleChangedAction,
-	ChatTurnCancelledAction,
-	ChatTurnCompleteAction,
-	ChatTurnStartedAction,
-	ChatErrorAction,
-	ChatUsageAction,
-	ChatToolCallContentChangedAction,
-	StateAction,
-	ChatPendingMessageSetAction,
-	ChatPendingMessageRemovedAction,
-	ChatQueuedMessagesReorderedAction,
-	SessionIsReadChangedAction,
-	SessionIsArchivedChangedAction,
-	SessionWorkingDirectorySetAction,
-	SessionWorkingDirectoryRemovedAction,
-	RootConfigChangedAction,
+import {
+	ActionType,
+	type RootAgentsChangedAction,
+	type RootActiveSessionsChangedAction,
+	type ChatDeltaAction,
+	type ChatReasoningAction,
+	type ChatResponsePartAction,
+	type ChatToolCallApprovedAction,
+	type ChatToolCallCompleteAction,
+	type ChatToolCallConfirmedAction,
+	type ChatToolCallDeniedAction,
+	type ChatToolCallDeltaAction,
+	type ChatToolCallReadyAction,
+	type ChatToolCallResultConfirmedAction,
+	type ChatToolCallStartAction,
+	type SessionTitleChangedAction,
+	type ChatTurnCancelledAction,
+	type ChatTurnCompleteAction,
+	type ChatTurnStartedAction,
+	type ChatErrorAction,
+	type ChatUsageAction,
+	type ChatToolCallContentChangedAction,
+	type StateAction,
+	type ChatPendingMessageSetAction,
+	type ChatPendingMessageRemovedAction,
+	type ChatQueuedMessagesReorderedAction,
+	type SessionIsReadChangedAction,
+	type SessionIsArchivedChangedAction,
+	type SessionWorkingDirectorySetAction,
+	type SessionWorkingDirectoryRemovedAction,
+	type RootConfigChangedAction,
 } from './protocol/actions.js';
 
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams, AuthRequiredParams } from './protocol/notifications.js';
@@ -212,6 +213,15 @@ export function isRootAction(action: StateAction): action is RootAction {
 
 export function isSessionAction(action: StateAction): action is SessionAction {
 	return action.type.startsWith('session/');
+}
+
+/**
+ * Whether an action sets a durable session-catalog flag: state describing the
+ * session's list entry rather than its conversation. Applying one needs no
+ * loaded session, and every root-catalog subscriber must see it.
+ */
+export function isSessionCatalogFlagAction(action: StateAction): action is IIsArchivedChangedAction | IIsReadChangedAction {
+	return action.type === ActionType.SessionIsArchivedChanged || action.type === ActionType.SessionIsReadChanged;
 }
 
 export function isChatAction(action: StateAction): action is ChatAction {
