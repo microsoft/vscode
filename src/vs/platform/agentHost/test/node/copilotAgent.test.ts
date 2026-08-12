@@ -1253,7 +1253,6 @@ suite('CopilotAgent', () => {
 			try {
 				assert.deepStrictEqual({
 					withoutOrigin: await agent.chats.getMessages(childChat, { configurationResource: session, resource: childChat }),
-					withoutContext: await agent.chats.getMessages(childChat),
 					subagentCalls,
 					withOrigin: await agent.chats.getMessages(childChat, {
 						configurationResource: session,
@@ -1262,7 +1261,6 @@ suite('CopilotAgent', () => {
 					}),
 				}, {
 					withoutOrigin: [],
-					withoutContext: [],
 					subagentCalls: ['tool-1'],
 					withOrigin: [turn],
 				});
@@ -1870,7 +1868,7 @@ suite('CopilotAgent', () => {
 		});
 		try {
 			await agent.listLegacyChats();
-			const abort = agent.chats.abort(cancelledChat);
+			const abort = agent.chats.abort(cancelledChat, exactChatContext(AgentSession.uri('copilotcli', 'cancelled'), cancelledChat));
 			for (let i = 0; i < 100 && calls.cancelled.discard === 0; i++) {
 				await timeout(0);
 			}
@@ -1975,7 +1973,7 @@ suite('CopilotAgent', () => {
 			dispose: () => { },
 		});
 		try {
-			await assert.rejects(agent.chats.abort(chat), /Client not connected/);
+			await assert.rejects(agent.chats.abort(chat, exactChatContext(AgentSession.uri('copilotcli', 'abort-failure'), chat)), /Client not connected/);
 			const failure = telemetryService.errorEvents[0].data as Record<string, unknown>;
 			assert.deepStrictEqual({
 				discardCount,
@@ -6754,8 +6752,8 @@ suite('CopilotAgent', () => {
 				}
 				await agent.chats.sendMessage(chatUri, 'side', undefined, undefined, 't2');
 				await agent.chats.sendMessage(chatUri, 'follow-up', undefined, undefined, 't3');
-				await agent.chats.changeModel(chatUri, { id: 'gpt-y' });
-				const turns = await agent.chats.getMessages(chatUri);
+				await agent.chats.changeModel(chatUri, { id: 'gpt-y' }, exactChatContext(session, chatUri));
+				const turns = await agent.chats.getMessages(chatUri, exactChatContext(session, chatUri));
 
 				assert.deepStrictEqual({
 					hasExplanationGuidance: sideRecorder?.sends[0]?.prompt.includes('Prefer explanation over action'),
@@ -6829,7 +6827,7 @@ suite('CopilotAgent', () => {
 				});
 				await agent.chats.sendMessage(chatUri, 'side', undefined, undefined, 't2');
 				await agent.chats.sendMessage(chatUri, 'follow-up', undefined, undefined, 't3');
-				const turns = await agent.chats.getMessages(chatUri);
+				const turns = await agent.chats.getMessages(chatUri, exactChatContext(session, chatUri));
 
 				assert.deepStrictEqual({
 					forkTurnId,
@@ -6944,7 +6942,7 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatA, a.fake);
 				setPeerChatStub(agent, chatB, b.fake);
 
-				await agent.chats.changeModel(chatA, { id: 'model-x' });
+				await agent.chats.changeModel(chatA, { id: 'model-x' }, exactChatContext(session, chatA));
 
 				assert.deepStrictEqual({
 					aModels: a.rec.modelCalls.map(m => m.id),
@@ -6968,8 +6966,8 @@ suite('CopilotAgent', () => {
 				setPeerChatStub(agent, chatA, a.fake);
 				internals._resolveAgentName = (_snapshot, selection) => selection.uri === 'agent://x' ? 'Resolved Agent' : undefined;
 
-				await agent.chats.changeAgent(chatA, { uri: 'agent://x' });
-				await agent.chats.changeAgent(chatA, undefined);
+				await agent.chats.changeAgent(chatA, { uri: 'agent://x' }, exactChatContext(session, chatA));
+				await agent.chats.changeAgent(chatA, undefined, exactChatContext(session, chatA));
 
 				assert.deepStrictEqual(a.rec.agentCalls, ['Resolved Agent', undefined]);
 			} finally {
@@ -7103,7 +7101,7 @@ suite('CopilotAgent', () => {
 				const events: { chat: string; providerData: unknown }[] = [];
 				disposables.add(agent.onDidChangeChatData(e => events.push({ chat: e.chat.toString(), providerData: JSON.parse(e.providerData) })));
 
-				await agent.chats.changeModel(chatUri, { id: 'model-x' });
+				await agent.chats.changeModel(chatUri, { id: 'model-x' }, exactChatContext(session, chatUri));
 
 				assert.deepStrictEqual({
 					backing: internals._chatBackings.get(chatUri.toString()),
@@ -7458,10 +7456,10 @@ suite('CopilotAgent', () => {
 				const rec = installFake(agent, chatUri.toString(), 'chat', session);
 				(agent as unknown as { _resolveAgentName: (snap: IActiveClientSnapshot, a: AgentSelection) => string | undefined })._resolveAgentName = (_snap, sel) => sel.uri === 'agent://x' ? 'Resolved Agent' : undefined;
 
-				await agent.chats.abort(chatUri);
-				await agent.chats.changeModel(chatUri, { id: 'model-x' });
-				await agent.chats.changeAgent(chatUri, { uri: 'agent://x' });
-				await agent.chats.changeAgent(chatUri, undefined);
+				await agent.chats.abort(chatUri, exactChatContext(session, chatUri));
+				await agent.chats.changeModel(chatUri, { id: 'model-x' }, exactChatContext(session, chatUri));
+				await agent.chats.changeAgent(chatUri, { uri: 'agent://x' }, exactChatContext(session, chatUri));
+				await agent.chats.changeAgent(chatUri, undefined, exactChatContext(session, chatUri));
 
 				assert.deepStrictEqual({
 					aborted: rec.aborted,
@@ -7484,7 +7482,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				installFake(agent, chatUri.toString(), 'chat', session);
 
-				const turns = await agent.chats.getMessages(chatUri);
+				const turns = await agent.chats.getMessages(chatUri, exactChatContext(session, chatUri));
 
 				assert.deepStrictEqual(turns.map(t => t.id), [`turn-${chatUri.toString()}`]);
 			} finally {
@@ -7502,7 +7500,7 @@ suite('CopilotAgent', () => {
 				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
 				const rec = installFake(agent, chatUri.toString(), 'chat', session);
 
-				await agent.chats.disposeChat(chatUri);
+				await agent.chats.disposeChat(chatUri, exactChatContext(session, chatUri));
 
 				assert.deepStrictEqual({
 					disposed: rec.disposed,
