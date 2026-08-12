@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adaptManagedSettings, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from '../../browser/managedSettings.js';
+import { adaptManagedSettings, getManagedSettingsClientHeaders, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from '../../browser/managedSettings.js';
 
 suite('adaptManagedSettings', () => {
 
@@ -14,6 +14,24 @@ suite('adaptManagedSettings', () => {
 	test('empty response yields an empty managed settings bag', () => {
 		assert.deepStrictEqual(adaptManagedSettings({}), {
 			managedSettings: {},
+		});
+	});
+
+	test('builds available client identity headers', () => {
+		assert.deepStrictEqual({
+			withRuntime: getManagedSettingsClientHeaders({
+				version: '1.132.0',
+				copilotVersions: { runtime: '0.0.344', sdk: '0.1.0' },
+			}),
+			withoutRuntime: getManagedSettingsClientHeaders({ version: '1.132.0' }),
+		}, {
+			withRuntime: {
+				'Editor-Version': 'vscode/1.132.0',
+				'Copilot-Runtime-Version': 'copilot-runtime/0.0.344',
+			},
+			withoutRuntime: {
+				'Editor-Version': 'vscode/1.132.0',
+			},
 		});
 	});
 
