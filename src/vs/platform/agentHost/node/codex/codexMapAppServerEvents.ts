@@ -296,6 +296,16 @@ export function codexCompactionLabels(): { readonly displayName: string; readonl
 	};
 }
 
+export function codexImageGenerationLabels(status?: string): { readonly displayName: string; readonly invocationMessage: string; readonly pastTenseMessage: string; readonly failedMessage: string; readonly errorMessage: string } {
+	return {
+		displayName: localize('codex.imageGeneration.displayName', "Generate image"),
+		invocationMessage: localize('codex.imageGeneration.inProgress', "Generating image"),
+		pastTenseMessage: localize('codex.imageGeneration.completed', "Generated image"),
+		failedMessage: localize('codex.imageGeneration.failed', "Failed to generate image"),
+		errorMessage: localize('codex.imageGeneration.error', "Image generation {0}", status ?? ''),
+	};
+}
+
 function jsonValueToText(value: JsonValue): string {
 	return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
@@ -612,6 +622,33 @@ function mapItemStartedBody(
 				toolInput: query,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				_meta: toToolCallMeta({ toolKind: 'search' }),
+			},
+		];
+	}
+	if (params.item.type === 'imageGeneration') {
+		const toolCallId = generateUuid();
+		const labels = codexImageGenerationLabels();
+		state.itemToToolCall.set(params.item.id, {
+			toolCallId,
+			turnId: params.turnId,
+			toolName: 'image_gen.imagegen',
+			output: '',
+		});
+		return [
+			{
+				type: ActionType.ChatToolCallStart,
+				turnId: params.turnId,
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: labels.displayName,
+			},
+			{
+				type: ActionType.ChatToolCallReady,
+				turnId: params.turnId,
+				toolCallId,
+				invocationMessage: labels.invocationMessage,
+				toolInput: JSON.stringify({ prompt: params.item.revisedPrompt ?? labels.displayName }),
+				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 		];
 	}
@@ -1018,6 +1055,25 @@ export function mapItemCompleted(
 			result: {
 				success: true,
 				pastTenseMessage: `Searched ${query}`,
+			},
+		}];
+	}
+	if (params.item.type === 'imageGeneration') {
+		const success = params.item.status === 'completed' && params.item.result.length > 0;
+		const labels = codexImageGenerationLabels(params.item.status);
+		return [{
+			type: ActionType.ChatToolCallComplete,
+			turnId: entry.turnId,
+			toolCallId: entry.toolCallId,
+			result: {
+				success,
+				pastTenseMessage: success ? labels.pastTenseMessage : labels.failedMessage,
+				content: success ? [{
+					type: ToolResultContentType.EmbeddedResource,
+					data: params.item.result,
+					contentType: 'image/png',
+				}] : undefined,
+				...(success ? {} : { error: { message: labels.errorMessage } }),
 			},
 		}];
 	}

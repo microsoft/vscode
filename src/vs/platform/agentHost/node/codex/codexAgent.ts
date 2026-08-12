@@ -1269,6 +1269,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _imageGenerationEnabledForModelProvider(modelProvider: string): boolean {
+		return modelProvider === CODEX_OPENAI_MODEL_PROVIDER
+			&& this._openAIAccountState.status === 'signedIn'
+			&& this._openAIAccountState.authType === 'chatgpt';
+	}
+
 	private _defaultModel(): ModelSelection | undefined {
 		const models = this._models.get();
 		const chosen = models[0];
@@ -3789,6 +3795,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					runtimeWorkspaceRoots,
 				} : {}),
 				...(resolvedModel ? { model: resolvedModel.modelId, modelProvider: resolvedModel.modelProvider } : {}),
+				config: { 'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel?.modelProvider ?? sourceRead.thread.modelProvider) },
 				approvalPolicy,
 				sandbox: sandboxMode,
 				approvalsReviewer,
@@ -3988,9 +3995,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		// per-thread means a new session always reflects the current root config.
 		const mcpServers = this._buildSessionMcpServers(session);
 		const customizationLaunch = await this._buildCustomizationLaunch(session);
+		const resolvedModel = parseCodexModelSelection(model);
 		const threadConfig: Record<string, JsonValue> = {
 			web_search: narrowWebSearchMode(config[CodexSessionConfigKey.WebSearchMode]) ?? codexSessionConfigDefaults[CodexSessionConfigKey.WebSearchMode],
 			...customizationLaunch.config,
+			'features.image_generation': this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 		};
 		const mcpServerNames = Object.keys(mcpServers);
 		if (mcpServerNames.length > 0) {
@@ -4007,8 +4016,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			cwd: session.workingDirectory.fsPath,
 			...(runtimeWorkspaceRoots?.length ? { runtimeWorkspaceRoots } : {}),
 			...(selectedCapabilityRoots.length ? { selectedCapabilityRoots } : {}),
-			model: parseCodexModelSelection(model).modelId,
-			modelProvider: parseCodexModelSelection(model).modelProvider,
+			model: resolvedModel.modelId,
+			modelProvider: resolvedModel.modelProvider,
 			approvalPolicy,
 			sandbox: sandboxMode,
 			approvalsReviewer,
@@ -4855,15 +4864,17 @@ export class CodexAgent extends Disposable implements IAgent {
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
 				const multiRootActive = this._isMultiRootActive(session);
 				const runtimeWorkspaceRoots = multiRootActive ? this._runtimeWorkspaceRoots(session) : undefined;
+				const resolvedModel = parseCodexModelSelection(await this._resolveModel(session));
 				const resumeResult = await conn.client.request<'thread/resume', ThreadResumeResponse>(
 					'thread/resume',
 					buildCodexResumeParams(
-						parseCodexModelSelection(await this._resolveModel(session)).modelProvider,
+						resolvedModel.modelProvider,
 						threadId,
 						mcpServers,
 						runtimeWorkspaceRoots,
 						customizationLaunch.config,
 						customizationLaunch.developerInstructions,
+						this._imageGenerationEnabledForModelProvider(resolvedModel.modelProvider),
 					),
 					this._traceContext(session),
 				);
