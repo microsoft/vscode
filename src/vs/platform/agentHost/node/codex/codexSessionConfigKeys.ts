@@ -157,6 +157,8 @@ export function narrowReasoningEffort(value: unknown): ReasoningEffort | undefin
 		case 'medium':
 		case 'high':
 		case 'xhigh':
+		case 'max':
+		case 'ultra':
 			return value;
 		default:
 			return undefined;

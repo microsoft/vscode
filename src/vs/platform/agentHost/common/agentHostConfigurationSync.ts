@@ -72,6 +72,21 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 }
 
 /**
+ * Resolves the explicitly configured global value of `settingId`, excluding the
+ * registered default and workspace/folder layers.
+ */
+export function getExplicitGlobalConfigurationValue<T>(configurationService: IConfigurationService, settingId: string): T | undefined {
+	const inspected = configurationService.inspect<T>(settingId);
+	const property = getPropertySchema(settingId);
+	for (const value of [inspected.policyValue, inspected.userValue, inspected.applicationValue]) {
+		if (value !== undefined && matchesSchemaType(value, property?.type)) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+/**
  * A setting that declares {@link IAgentHostConfigurationSync}, paired with the
  * setting id it was declared on.
  */

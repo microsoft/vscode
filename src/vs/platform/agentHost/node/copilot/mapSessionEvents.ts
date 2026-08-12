@@ -10,7 +10,7 @@ import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
@@ -83,8 +83,8 @@ function stripPromptScaffolding(text: string): string {
 }
 
 /**
- * Converts SDK `tool.execution_complete` content blocks into AHP tool result
- * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * Converts SDK `tool.execution_complete` image and shell result blocks into
+ * AHP tool result content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
  * the tool call's terminal content block; when no terminal block exists yet
  * (e.g. history replay, where no live channel survives) and `terminal` is
  * provided, a non-pty terminal block is synthesized so the outcome still
@@ -100,6 +100,13 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
+			case 'image':
+				content.push({
+					type: ToolResultContentType.EmbeddedResource,
+					data: sdkContent.data,
+					contentType: sdkContent.mimeType,
+				});
+				break;
 			case 'shell_exit': {
 				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,
@@ -463,6 +470,13 @@ export async function mapSessionEvents(
 					touch(parentBuilder);
 				}
 				break;
+			case 'session.start': {
+				// Restore the initial model; later model-change events take precedence.
+				if (!e.agentId && e.data.selectedModel) {
+					currentModel = { id: e.data.selectedModel };
+				}
+				break;
+			}
 			case 'session.model_change': {
 				currentModel = { id: e.data.newModel };
 				break;

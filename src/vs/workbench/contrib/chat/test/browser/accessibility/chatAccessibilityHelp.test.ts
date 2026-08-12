@@ -25,6 +25,20 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('describes long pasted text attachments', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('Long pasted text'),
+		}, {
+			agentView: true,
+			inlineChat: true,
+		});
+	});
+
 	test('describes the VS Code pet context menu', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
@@ -37,6 +51,7 @@ suite('Chat Accessibility Help', () => {
 			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
+			petThrowing: helpText.includes('flick it horizontally to throw it toward a wall') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
 			petRevival: helpText.includes('automatically returns to the input'),
 		}, {
 			keybinding: true,
@@ -44,6 +59,7 @@ suite('Chat Accessibility Help', () => {
 			actions: true,
 			petMovement: true,
 			petHopping: true,
+			petThrowing: true,
 			petRevival: true,
 		});
 	});
@@ -107,6 +123,28 @@ suite('Chat Accessibility Help', () => {
 		}, {
 			agentView: true,
 			panelChat: false,
+		});
+	});
+
+	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+			chatInputWindow: getAccessibilityHelpText('chatInputWindow', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
+		}, {
+			panelChat: true,
+			agentView: true,
+			editsView: true,
+			quickChat: false,
+			inlineChat: false,
+			chatInputWindow: false,
 		});
 	});
 });

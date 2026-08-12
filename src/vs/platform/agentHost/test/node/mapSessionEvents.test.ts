@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -236,6 +236,35 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
+	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'view the image' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'view_image' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'view_image', arguments: { path: '/repo/image.png' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'Viewed image file successfully.',
+						contents: [{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
+		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
+		]);
+	});
+
 	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -381,6 +410,25 @@ suite('mapSessionEvents — history replay', () => {
 				label: 'example.ts',
 			}],
 		});
+	});
+
+	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'session.start', data: { selectedModel: 'opus-5' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'hello' } },
+			{ type: 'user.message', data: { interactionId: 'm3', content: 'again' } },
+			{ type: 'session.model_change', data: { newModel: 'gpt-5' } },
+			{ type: 'user.message', data: { interactionId: 'm4', content: 'switched' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(t => t.message.model), [
+			{ id: 'opus-5' },
+			{ id: 'opus-5' },
+			{ id: 'gpt-5' },
+		]);
 	});
 
 	test('uses top-level user messages as turn boundaries', async () => {
