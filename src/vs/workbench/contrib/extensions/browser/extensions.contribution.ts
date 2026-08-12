@@ -370,7 +370,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('extensions.gallery.authProvider.microsoft', "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."),
 				],
 				description: localize('extensions.gallery.authProvider', "Configure the authentication provider for the Extensions Marketplace"),
-				default: '',
+				default: 'github',
 				scope: ConfigurationScope.APPLICATION,
 				included: false,
 			},
