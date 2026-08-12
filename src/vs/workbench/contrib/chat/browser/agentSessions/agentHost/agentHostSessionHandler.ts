@@ -172,6 +172,8 @@ type AgentHostInvocationFailedClassification = {
  * - {@link adoptInvocations} carries `ChatToolInvocation` instances that
  *   `activeTurnToProgress` already produced so per-tool setup adopts them
  *   rather than recreating UI handles.
+ * - {@link renderedToolCallIds} covers the settled tool calls the snapshot
+ *   rendered as serialized invocations, which have no live handle to adopt.
  * - {@link seedEmittedLengths} prevents the always-on graph from re-emitting
  *   markdown / reasoning prefixes already covered by the snapshot.
  * - {@link onTurnEnded} fires once when the turn reaches a terminal state.
@@ -191,6 +193,13 @@ interface IObserveTurnOptions {
 	readonly sink: (parts: IChatProgress[]) => void;
 	readonly cancellationToken: CancellationToken;
 	readonly adoptInvocations?: ReadonlyMap<string, ChatToolInvocation>;
+	/**
+	 * Tool calls the reconnect snapshot already rendered as serialized
+	 * invocations. Re-emitting one appends a duplicate row after the
+	 * snapshot's trailing markdown, which stops later markdown deltas from
+	 * merging into it and visibly splits the response mid-sentence.
+	 */
+	readonly renderedToolCallIds?: ReadonlySet<string>;
 	readonly seedEmittedLengths?: ReadonlyMap<string, number>;
 	readonly initialResponsePartCount?: number;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
@@ -3564,7 +3573,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			opts.sessionResource.authority,
 			this._otherClientToolInvocationOptions(opts.backendSession, opts.chatURI, opts.turnId),
 		);
-		if (!adopted) {
+		if (!adopted && !opts.renderedToolCallIds?.has(toolCallId)) {
 			opts.sink([invocation]);
 		}
 
@@ -3639,12 +3648,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let invocation: ChatToolInvocation;
 		if (adopted) {
 			invocation = adopted;
-		} else if (initial.status === ToolCallStatus.Streaming) {
-			invocation = toolCallStateToStreamingInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
-			opts.sink([invocation]);
 		} else {
-			invocation = toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
-			opts.sink([invocation]);
+			invocation = initial.status === ToolCallStatus.Streaming
+				? toolCallStateToStreamingInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority)
+				: toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
+			if (!opts.renderedToolCallIds?.has(toolCallId)) {
+				opts.sink([invocation]);
+			}
 		}
 
 		// Hook up a tool first observed after it already entered confirmation.
@@ -3909,7 +3919,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// The shared invocation is created with no `sessionResource`, so it
 		// does not `appendProgress` into a chat model. Emit it explicitly so it
 		// renders in this chat / subagent group (mirrors `_setupServerToolCall`).
-		opts.sink([invocation]);
+		if (!opts.renderedToolCallIds?.has(toolCallId)) {
+			opts.sink([invocation]);
+		}
 
 		let confirmationDispatched = false;
 
@@ -4717,10 +4729,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Extract live ChatToolInvocation objects from the initial progress
 		// array so per-tool setup adopts the same instances the chat UI holds.
+		// Settled tool calls arrive as serialized progress instead, so track
+		// their ids separately to keep per-tool setup from emitting them twice.
 		const adoptInvocations = new Map<string, ChatToolInvocation>();
+		const renderedToolCallIds = new Set<string>();
 		for (const item of initialProgress) {
 			if (item instanceof ChatToolInvocation) {
 				adoptInvocations.set(item.toolCallId, item);
+			} else if (item.kind === 'toolInvocationSerialized') {
+				renderedToolCallIds.add(item.toolCallId);
 			}
 		}
 
@@ -4748,6 +4765,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sink: parts => chatSession.appendProgress(parts),
 			cancellationToken: cts.token,
 			adoptInvocations,
+			renderedToolCallIds,
 			seedEmittedLengths,
 			initialResponsePartCount,
 			onTurnEnded: () => {
