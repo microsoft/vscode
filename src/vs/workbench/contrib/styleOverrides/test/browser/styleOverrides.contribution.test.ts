@@ -319,11 +319,13 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
-	test('preserves Modern UI activity badges and horizontal pane dividers', () => {
+	test('preserves Modern UI activity indicators, badges and horizontal pane dividers', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override modern-ui-tabs';
 		root.style.setProperty('--activity-bar-action-height', '36px');
 		root.style.setProperty('--activity-bar-width', '36px');
+		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
+		root.style.setProperty('--vscode-modernTab-activeBackground', '#123456');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -331,8 +333,9 @@ suite('StyleOverridesContribution', () => {
 		const content = appendElement(activityBar, 'content');
 		const compositeBar = appendElement(content, 'composite-bar');
 		const actionBar = appendElement(compositeBar, 'monaco-action-bar');
-		const actionItem = appendElement(appendElement(actionBar, 'actions-container'), 'action-item');
+		const actionItem = appendElement(appendElement(actionBar, 'actions-container'), 'action-item checked');
 		appendElement(actionItem, 'action-label codicon');
+		const indicator = appendElement(actionItem, 'active-item-indicator');
 		const badgeContent = appendElement(appendElement(actionItem, 'badge'), 'badge-content');
 
 		const part = appendElement(root, 'part pane-composite-part');
@@ -341,6 +344,10 @@ suite('StyleOverridesContribution', () => {
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
+			indicatorBackground: targetWindow.getComputedStyle(indicator).backgroundColor,
+			indicatorWidth: targetWindow.getComputedStyle(indicator).width,
+			indicatorHeight: targetWindow.getComputedStyle(indicator).height,
+			indicatorBorderRadius: targetWindow.getComputedStyle(indicator).borderRadius,
 			badgeTop: targetWindow.getComputedStyle(badgeContent).top,
 			badgeWidth: targetWindow.getComputedStyle(badgeContent).width,
 			badgeHeight: targetWindow.getComputedStyle(badgeContent).height,
@@ -348,6 +355,10 @@ suite('StyleOverridesContribution', () => {
 			headerOverflow: targetWindow.getComputedStyle(header).overflow,
 			footerBorderWidth: targetWindow.getComputedStyle(footer).borderTopWidth,
 		}, {
+			indicatorBackground: 'rgb(18, 52, 86)',
+			indicatorWidth: '32px',
+			indicatorHeight: '32px',
+			indicatorBorderRadius: '6px',
 			badgeTop: '18px',
 			badgeWidth: '16px',
 			badgeHeight: '16px',

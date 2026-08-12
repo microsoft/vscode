@@ -66,6 +66,8 @@
 		"extensionButton.prominentHoverBackground": "#cc333388",
 		// modern ui
 		"surface.border": "#00000000",
+		"modernTab.activeBackground": "#880000",
+		"modernTab.hoverBackground": "#770000"
 	},
 	"tokenColors": [
 		{
