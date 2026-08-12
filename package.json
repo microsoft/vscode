@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.134.0",
-  "distro": "0a2adcd7a64dfe443b6122097cd88f5958c22147",
+  "distro": "384f3af0570f20635bd381ec1a6a49a833f6dc47",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -76,7 +76,7 @@
     "watch-web": "npm run gulp watch-web",
     "watch-cli": "npm run gulp watch-cli",
     "mock-policy-server": "node --experimental-strip-types scripts/mock-policy-server/server.ts",
-    "eslint": "node build/eslint.ts",
+    "eslint": "node --max-old-space-size=8192 build/eslint.ts",
     "stylelint": "node build/stylelint.ts",
     "playwright-install": "npm exec playwright install",
     "compile-build": "npm run gulp compile-build-with-mangling",
@@ -99,7 +99,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
-    "@github/copilot": "1.0.79-9",
+    "@github/copilot": "1.0.79",
     "@github/copilot-sdk": "1.0.10-preview.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -218,7 +218,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "42.8.0",
+    "electron": "42.8.1",
     "eslint": "10.8.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

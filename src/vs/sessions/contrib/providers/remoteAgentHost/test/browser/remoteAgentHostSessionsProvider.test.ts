@@ -13,7 +13,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { MessageKind, SessionLifecycle, type AgentInfo, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -233,8 +234,15 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
-		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
-		override getCustomAgents = () => constObservable([]);
+		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
+			customizations: constObservable([]),
+			customAgents: constObservable([]),
+			tools: constObservable([]),
+			isResolved: constObservable(true),
+			whenResolved: () => Promise.resolve(),
+			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
+			dispose: () => { },
+		});
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
