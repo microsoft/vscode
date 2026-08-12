@@ -1922,6 +1922,25 @@ suite('ChatModel - Pending Requests', () => {
 		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
 		assert.strictEqual(pending.sendOptions.attempt, 3);
 	});
+
+	test('pending requests restore instruction context', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		const enabledTools = { tool1: true };
+		model.addPendingRequest(request, ChatRequestQueueKind.Steering, {
+			instructionContext: { modeKind: ChatModeKind.Agent, enabledTools },
+		});
+
+		const restoredModel = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+		const restoredOptions = restoredModel.getPendingRequests()[0].sendOptions;
+
+		assert.strictEqual(restoredOptions.instructionContext?.modeKind, ChatModeKind.Agent);
+		assert.deepStrictEqual(restoredOptions.instructionContext?.enabledTools, enabledTools);
+	});
 });
 
 suite('serializeSendOptions', () => {

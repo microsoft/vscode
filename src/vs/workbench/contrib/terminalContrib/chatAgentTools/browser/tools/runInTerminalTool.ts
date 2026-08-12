@@ -87,6 +87,7 @@ import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
 import { compact } from './consoleCompactor/consoleCompactor.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 // #region Tool data
 
@@ -865,6 +866,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -3035,11 +3037,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
-			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
-			sendOptions.instructionContext = {
-				modeKind: lastRequest.modeInfo?.kind ?? ChatModeKind.Agent,
-				enabledTools: lastRequest.userSelectedTools,
-			};
+			const previousAgentId = lastRequest.response?.agent?.id;
+			sendOptions.agentIdSilent = previousAgentId;
+			const contribution = previousAgentId ? this._chatSessionsService.getChatSessionContribution(previousAgentId) : undefined;
+			const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
+			if (autoAttachEnabled) {
+				sendOptions.instructionContext = {
+					modeKind: lastRequest.modeInfo?.kind ?? ChatModeKind.Agent,
+					enabledTools: lastRequest.userSelectedTools,
+				};
+			}
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
