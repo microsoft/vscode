@@ -22,7 +22,6 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from 
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { automationIcon } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -276,8 +275,6 @@ class AutomationCardsSection extends Disposable {
 	private renderEmptyState(): void {
 		DOM.clearNode(this.emptyContainer);
 
-		const icon = DOM.append(this.emptyContainer, $('span.automations-cards-empty-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(automationIcon));
 		const title = DOM.append(this.emptyContainer, $('h3.automations-cards-empty-title'));
 		title.textContent = localize('noAutomationsYet', "No automations yet");
 		const desc = DOM.append(this.emptyContainer, $('p.automations-cards-empty-description'));
