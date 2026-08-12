@@ -65,6 +65,18 @@ A baseline PR becomes session-related when the user references it in a message o
 
 Pull-request identity uses the Agent Host's configured GitHub host. Never canonicalize references to `github.com`: Enterprise checkout URLs and explicit references must remain comparable by host, owner, repository, and number.
 
+## Changeset Operations
+
+The Agent Host advertises host-executed changeset operations for commit, merge, pull requests, sync, and discard. `Merge Changes` is available on the Branch Changes changeset only for a ready worktree session with no pull request and with committed or uncommitted branch work. Native worktree isolation is identified by session config; adopted linked worktrees retain `isolation: folder` and are identified by their repository project differing from the working directory. Pull-request operations are registered before merge, so Create PR leads when both workflows are eligible; the Changes view filters merge from its canonical visible-operation observable when the resource-scoped `git.branchProtection` setting marks the base branch as protected. Local and remote providers recompute cached workspaces when that setting changes so an open session updates immediately. Merge/PR availability prefers `git.hasBaseBranchChanges` (divergence from the local merge target, falling back to `origin/<base>` only when no local base branch exists) over upstream divergence, so a branch already merged locally is not offered again merely because it remains ahead of its remote tracking branch. The base-divergence probe runs alongside the existing push-remote lookup; branches with an upstream use `rev-list --max-count=1`, while only the existing no-upstream fallback computes a full count for `outgoingChanges`.
+
+The effective base branch is one host-owned value: worktree `SessionConfigKey.Branch`, then persisted `agentHost.diffBaseBranch` metadata for adopted/restored worktrees, then the last-known/repository default. Legacy persisted `origin/<branch>` and `refs/remotes/origin/<branch>` forms are normalized to the plain branch name. Git divergence, `ISessionGitRepository.baseBranchName`, branch-protection matching, Branch Changes, PR creation, and Merge all consume that value; never recompute one of those surfaces directly from `origin/HEAD`.
+
+Merge execution resolves the worktree's primary checkout, requires that checkout to be clean and on the selected base branch, commits uncommitted worktree changes, and merges the worktree branch there. The selected session branch is authoritative; restored sessions can fall back to the persisted Branch Changes baseline, normalizing `origin/<branch>` to the local target. A failed Git merge is aborted only when this invocation created the merge state; a pre-existing merge is rejected and preserved. A commit that succeeded before a later failure still refreshes the session's Git state.
+
+Changeset operations are advertised state, not authorization. The merge handler revalidates current pull-request metadata immediately before committing the worktree and again before mutating the parent checkout. GitHub-state changes also trigger an operation recompute so stale Merge UI disappears without waiting for another Git refresh.
+
+After a successful merge, the host requires and stores the resulting target `HEAD` under durable source-control provenance before marking merge as the latest outcome. The marker survives list/restore through `agentHost.sourceControl`. When a session later acquires a related pull request, the PR becomes the latest outcome without deleting the historical merge commit. `AgentHostSessionAdapter.completedStateIcon` maps the latest outcome to either the purple `git-merge` icon or the PR's live state icon; the sessions list and picker consume that provider-owned observable.
+
 ## IDs and URI Schemes
 
 A single agent host session uses several distinct identifiers:
@@ -212,8 +224,8 @@ The provider ships a rich set of session-scoped UI in `browser/`:
 | `agentHostClaudePermissionModePicker.ts` | Claude-specific permission-mode picker. |
 | `agentHostCodexApprovalsPicker.ts` | Codex-specific permissions-preset picker with Default Permissions, Auto-Review, and Full Access choices. Its bounded, wrapped action-list layout is shared with the editor composer through `vs/platform/agentHost/browser/codexApprovalsPicker.ts`. |
 | `agentHostPermissionPickerActionItem.ts` / `agentHostPermissionPickerDelegate.ts` | Toolbar action item + delegate for the permission picker. |
-| `agentHostSkillButtons.ts` | Built-in skill toolbar buttons; defines the `sessions.isAgentHostSession` (`IsAgentHostSession`) context key bound to the active session's provider. |
-| `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
+| `agentHostSkillButtons.ts` | Defines the `sessions.isAgentHostSession` (`IsAgentHostSession`) context key and retains the disabled legacy skill-button registrations superseded by host-executed changeset operations. |
+| `agentHostSessionChangesets.ts` / `agentHostDiffs.ts` | Changeset model, operation mapping/invocation, and diff conversion (`mapProtocolStatus` maps the protocol status bitset → `SessionStatus`). |
 | `agentHostSessionBranchActions.ts` | Branch-related session actions. |
 | `exportDebugLogsAction.ts` | "Export debug logs" developer action. |
 | `openSessionEventsFileActions.ts` | "Open Copilot CLI State File" — Sessions-app variant resolving the session via `ISessionsManagementService.activeSession`. |

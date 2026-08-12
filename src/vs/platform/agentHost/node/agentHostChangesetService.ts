@@ -702,21 +702,29 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<ITurnDiffResult> {
+		const trackedSource = this._openTrackedTurnSource(session, db, turnId);
 		// Multi-folder sessions aggregate every folder's changes; single- and
 		// zero-folder sessions keep the existing single-repo behavior exactly.
-		const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-		if (isMultiRootSession(workingDirectories)) {
-			return this._computeMultiFolderTurnDiffs(session, db, turnId, workingDirectories!);
+		try {
+			if (!trackedSource.sessionUri) {
+				return { diffs: [], outcome: 'computed' };
+			}
+			const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
+			if (isMultiRootSession(workingDirectories)) {
+				return this._computeMultiFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId, workingDirectories!);
+			}
+			const diffs = await this._computeSingleFolderTurnDiffs(session, trackedSource.sessionUri, trackedSource.db, turnId);
+			return { diffs, outcome: 'computed' };
+		} finally {
+			trackedSource.dispose();
 		}
-		const diffs = await this._computeSingleFolderTurnDiffs(session, db, turnId);
-		return { diffs, outcome: 'computed' };
 	}
 
 	/**
 	 * The single-folder per-turn diff: prefer the checkpoint-ref git diff of the
 	 * primary working directory, else fall back to the SDK-tracked aggregator.
 	 */
-	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
+	private async _computeSingleFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
 		const pair = await this._checkpointService.getTurnCheckpointPair(URI.parse(session), turnId);
 		if (pair && pair.parent !== pair.current) {
 			const workingDir = await this._resolveWorkingDirectory(session);
@@ -737,7 +745,40 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return [];
 		}
 		// Fallback: SDK-tracked file_edits aggregator.
-		return computeTurnDiffs(session, db, this._diffComputeService, turnId);
+		return computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId);
+	}
+
+	private _openTrackedTurnSource(session: ProtocolURI, defaultDatabase: ISessionDatabase, turnId: string): { readonly sessionUri: ProtocolURI | undefined; readonly db: ISessionDatabase; dispose(): void } {
+		const sessionState = this._stateManager.getSessionState(session);
+		if (!sessionState) {
+			return { sessionUri: session, db: defaultDatabase, dispose: () => { } };
+		}
+
+		const owningResources: ProtocolURI[] = [];
+		if (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId)) {
+			owningResources.push(session);
+		}
+		for (const chat of sessionState.chats ?? []) {
+			if (isDefaultChatUri(chat.resource)) {
+				continue;
+			}
+			const chatState = this._stateManager.getChatState(chat.resource);
+			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) {
+				owningResources.push(chat.resource);
+			}
+		}
+
+		if (owningResources.length > 1) {
+			this._logService.warn(`[AgentHostChangesetService] Turn id ${turnId} is shared by multiple chats in ${session}; skipping ambiguous tracked-file fallback`);
+			return { sessionUri: undefined, db: defaultDatabase, dispose: () => { } };
+		}
+		if (owningResources.length === 0 || owningResources[0] === session) {
+			return { sessionUri: session, db: defaultDatabase, dispose: () => { } };
+		}
+
+		const chat = owningResources[0];
+		const chatDatabase = this._sessionDataService.openDatabase(URI.parse(chat));
+		return { sessionUri: chat, db: chatDatabase.object, dispose: () => chatDatabase.dispose() };
 	}
 
 	/**
@@ -746,7 +787,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * the non-git folders. Per-folder failures are logged and skipped so one
 	 * folder never fails the whole turn changeset.
 	 */
-	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, db: ISessionDatabase, turnId: string, workingDirectories: readonly string[]): Promise<ITurnDiffResult> {
+	private async _computeMultiFolderTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, workingDirectories: readonly string[]): Promise<ITurnDiffResult> {
 		const sessionUri = URI.parse(session);
 		const workingDirectoryUris = this._parseWorkingDirectoryUris(session, workingDirectories);
 
@@ -770,8 +811,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// number of git processes (see MAX_TURN_DIFF_REPOSITORY_CONCURRENCY).
 		const limiter = new Limiter<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }>(MAX_TURN_DIFF_REPOSITORY_CONCURRENCY);
 		const [perRepoDiffs, nonGitDiffs] = await Promise.all([
-			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, sessionUri, db, turnId, repoRoot)))),
-			this._computeNonGitTurnDiffsFromTrackedEdits(session, db, turnId, nonGitDirectories),
+			Promise.all(gitRepositories.map(repoRoot => limiter.queue(() => this._computeRepoTurnDiffs(session, trackedSession, sessionUri, db, turnId, repoRoot)))),
+			this._computeNonGitTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, nonGitDirectories),
 		]).finally(() => limiter.dispose());
 
 		// Merge every source, keeping the first occurrence of each file. The git
@@ -798,12 +839,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * single-folder path's edit-tracker fallback. `usedFallback` reports whether
 	 * that fallback was taken. Every git failure is logged as an error.
 	 */
-	private async _computeRepoTurnDiffs(session: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
+	private async _computeRepoTurnDiffs(session: ProtocolURI, trackedSession: ProtocolURI, sessionUri: URI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<{ readonly diffs: readonly ISessionFileDiff[]; readonly usedFallback: boolean }> {
 		try {
 			const pair = await this._checkpointService.getTurnCheckpointPair(sessionUri, turnId, repoRoot);
 			if (!pair) {
 				this._logService.error(`[AgentHostChangesetService] No checkpoint pair for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 			}
 			if (pair.parent === pair.current) {
 				// A no-op turn checkpoint reuses the parent ref — the diff is
@@ -818,12 +859,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			});
 			if (!diffs) {
 				this._logService.error(`[AgentHostChangesetService] Git turn diff unavailable for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`);
-				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, db, turnId, repoRoot), usedFallback: true };
+				return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 			}
 			return { diffs, usedFallback: false };
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Failed to compute git turn diff for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}; falling back to tracked edits for that repository.`, err);
-			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, db, turnId, repoRoot), usedFallback: true };
+			return { diffs: await this._computeRepoTurnDiffsFromTrackedEdits(session, trackedSession, db, turnId, repoRoot), usedFallback: true };
 		}
 	}
 
@@ -839,9 +880,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * Logs and returns an empty list if the fallback itself fails, so the folder
 	 * contributes nothing rather than failing the whole turn.
 	 */
-	private async _computeRepoTurnDiffsFromTrackedEdits(session: ProtocolURI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<readonly ISessionFileDiff[]> {
+	private async _computeRepoTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, repoRoot: URI): Promise<readonly ISessionFileDiff[]> {
 		try {
-			return await computeTurnDiffs(session, db, this._diffComputeService, turnId, [repoRoot]);
+			return await computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId, [repoRoot]);
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Tracked-edit fallback turn diff failed for multi-folder turn ${session}/${turnId} in repository ${repoRoot.toString()}`, err);
 			return [];
@@ -860,12 +901,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * and logs and returns an empty list on failure, so this never fails the
 	 * whole turn.
 	 */
-	private async _computeNonGitTurnDiffsFromTrackedEdits(session: ProtocolURI, db: ISessionDatabase, turnId: string, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
+	private async _computeNonGitTurnDiffsFromTrackedEdits(session: ProtocolURI, trackedSession: ProtocolURI, db: ISessionDatabase, turnId: string, nonGitDirectories: readonly URI[]): Promise<readonly ISessionFileDiff[]> {
 		if (nonGitDirectories.length === 0) {
 			return [];
 		}
 		try {
-			return await computeTurnDiffs(session, db, this._diffComputeService, turnId, nonGitDirectories);
+			return await computeTurnDiffs(trackedSession, db, this._diffComputeService, turnId, nonGitDirectories);
 		} catch (err) {
 			this._logService.error(`[AgentHostChangesetService] Failed to compute non-git tracked-edit turn diff for multi-folder turn ${session}/${turnId}`, err);
 			return [];

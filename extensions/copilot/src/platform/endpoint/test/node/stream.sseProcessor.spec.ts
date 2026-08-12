@@ -686,18 +686,24 @@ data: [DONE]
 		);
 
 		let thinkingText: string | string[] | undefined = undefined;
+		const thinkingDeltas: string[] = [];
 
 		await getAll(processor.processSSE((text: string, index: number, delta: IResponseDelta) => {
 			if (delta.thinking && !isEncryptedThinkingDelta(delta.thinking) && delta.thinking.text) {
+				const thinkingDelta = Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+				thinkingDeltas.push(thinkingDelta);
 				if (thinkingText === undefined) {
 					thinkingText = '';
 				}
-				thinkingText += Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+				thinkingText += thinkingDelta;
 			}
 			return Promise.resolve(undefined);
 		}));
 
-		expect(thinkingText).toBe('Analyzing');
+		expect({ thinkingDeltas, thinkingText }).toEqual({
+			thinkingDeltas: ['Analy', 'zing'],
+			thinkingText: 'Analyzing',
+		});
 	});
 
 	// Regression for https://github.com/microsoft/vscode/issues/312746

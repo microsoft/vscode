@@ -221,8 +221,3 @@
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
-
-/* Hide the getting-started tip when a notification is visible */
-.interactive-session .interactive-input-part > .chat-input-notification-container.has-notification ~ .chat-getting-started-tip-container {
-	display: none !important;
-}
