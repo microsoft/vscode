@@ -324,12 +324,18 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	test('does not retain revoked authentication for reconnect replay', async () => {
 		const { client, transport } = createClient();
-		const authenticate = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: 'token' });
+		const authenticate = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user', 'write:user'], token: 'token' });
 		const authenticateRequest = transport.sentMessages[0] as JsonRpcRequest;
 		transport.fireMessage({ jsonrpc: '2.0', id: authenticateRequest.id, result: { authenticated: true } });
 		await authenticate;
+		assert.deepStrictEqual(authenticateRequest.params, {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			scopes: ['read:user', 'write:user'],
+			token: 'token',
+		});
 
-		const revoke = client.authenticate({ resource: 'https://api.github.com', scopes: ['read:user'], token: '' });
+		const revoke = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user'], token: '' });
 		const revokeRequest = transport.sentMessages[1] as JsonRpcRequest;
 		transport.fireMessage({ jsonrpc: '2.0', id: revokeRequest.id, result: { authenticated: true } });
 		await revoke;

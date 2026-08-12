@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { buildUpgradeUrlWithRedirect, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
-import { showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { ChatSetup, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 /**
  * Parses the final URL and extracts the decoded return_to value,
@@ -111,6 +112,47 @@ suite('Chat setup dialog cancellation', () => {
 
 		assert.strictEqual(await result, ChatSetupStrategy.Canceled);
 		assert.strictEqual(disposed, true);
+		cancellation.dispose();
+	});
+
+	test('cancels in-flight setup when the caller cancels', async () => {
+		const cancellation = new CancellationTokenSource();
+		const setupStarted = new DeferredPromise<void>();
+		let setupToken: CancellationToken | undefined;
+		const setup = new ChatSetup(
+			{ update() { } } as never,
+			{
+				value: {
+					setup: (options: { cancellationToken?: CancellationToken }) => {
+						setupToken = options.cancellationToken;
+						setupStarted.complete();
+						return new Promise<undefined>(resolve => {
+							const listener = setupToken!.onCancellationRequested(() => {
+								listener.dispose();
+								resolve(undefined);
+							});
+						});
+					},
+				},
+			} as never,
+			undefined as never,
+			undefined as never,
+			undefined as never,
+			undefined as never,
+			{ revealWidget() { } } as never,
+			{ requestWorkspaceTrust: async () => true } as never,
+			{ getDefaultAccountAuthenticationProvider: () => ({ enterprise: false }) } as never,
+			undefined as never,
+			{ isWorkspaceTrusted: () => true } as never,
+			undefined as never,
+		);
+
+		const result = setup.run({ setupStrategy: ChatSetupStrategy.DefaultSetup, cancellationToken: cancellation.token });
+		await setupStarted.p;
+		cancellation.cancel();
+
+		assert.strictEqual((await result).success, undefined);
+		assert.strictEqual(setupToken?.isCancellationRequested, true);
 		cancellation.dispose();
 	});
 });

@@ -290,7 +290,7 @@ export class ChatSetup {
 		let success: ChatSetupResultValue = undefined;
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
-		const setupCancellation = new CancellationTokenSource();
+		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
 			if (setupStrategy !== ChatSetupStrategy.Canceled) {
 				options?.onSignInStarted?.(() => setupCancellation.cancel());
