@@ -4157,6 +4157,49 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('removes a stored token when authentication is revoked', async () => {
+			service.registerProvider(copilotAgent);
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
+
+			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' });
+
+			assert.deepStrictEqual({
+				result,
+				token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+				authenticateCalls: copilotAgent.authenticateCalls,
+			}, {
+				result: { authenticated: true },
+				token: undefined,
+				authenticateCalls: [
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' },
+				],
+			});
+		});
+
+		test('does not replay a stored token after a failed revocation', async () => {
+			service.registerProvider(copilotAgent);
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
+			copilotAgent.authenticate = async () => { throw new Error('clear failed'); };
+
+			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' });
+			const lateAgent = new MockAgent('codex');
+			lateAgent.getProtectedResources = () => [GITHUB_COPILOT_PROTECTED_RESOURCE];
+			disposables.add(toDisposable(() => lateAgent.dispose()));
+			service.registerProvider(lateAgent);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				result,
+				token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+				lateAuthenticateCalls: lateAgent.authenticateCalls,
+			}, {
+				result: { authenticated: false },
+				token: undefined,
+				lateAuthenticateCalls: [],
+			});
+		});
+
 		test('stores tokens for the same resource by scopes', async () => {
 			service.registerProvider(copilotAgent);
 
