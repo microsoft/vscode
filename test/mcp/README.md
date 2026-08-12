@@ -60,6 +60,7 @@ The MCP server exposes a comprehensive set of VS Code automation tools through t
 ### Application Management
 - Start, stop, and restart VS Code instances
 - Open workspaces and folders
+- Record scenario evidence with step overlays, screenshots, video, traces, and an HTML report
 
 ### Editor Tools
 - Open, close, and navigate files
@@ -93,6 +94,19 @@ The MCP server exposes a comprehensive set of VS Code automation tools through t
 - Settings and keybindings editors
 - Notebook support
 - Chat features
+
+### Scenario evidence
+
+Start evidence capture before starting VS Code so Playwright enables video recording:
+
+1. Call `vscode_automation_evidence_start`, including any required pre-launch `userSettings`.
+2. Call `vscode_automation_evidence_step` with `started` before each action.
+3. Perform and validate the action with the relevant automation tools.
+4. Call `vscode_automation_evidence_step` with `passed`, `failed`, or `skipped`.
+5. Call `vscode_automation_evidence_finish`.
+
+Artifacts are written to `.build/vscode-playwright-mcp/evidence/<run-id>/`.
+Each evidence run uses an isolated user profile with in-memory secret storage and records every visited Playwright page as a separate video.
 
 ## Development
 

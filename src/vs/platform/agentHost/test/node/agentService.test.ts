@@ -35,7 +35,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1962,6 +1962,58 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: agent.id });
 
 			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.customizations, [customization]);
+		});
+
+		test('publishes initial customizations to a client subscribed during discovery', async () => {
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			class MaterializingCustomizationAgent extends MockAgent {
+				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+				readonly customizationReadStarted = new DeferredPromise<URI>();
+				readonly releaseCustomizationRead = new DeferredPromise<void>();
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+				}));
+
+				override getSessionCustomizations = async (session: URI) => {
+					this.customizationReadStarted.complete(session);
+					await this.releaseCustomizationRead.p;
+					return [customization];
+				};
+
+				materialize(session: URI): void {
+					this._onDidMaterializeChat.fire({ chat: URI.parse(buildDefaultChatUri(session)), workingDirectories: undefined, project: undefined });
+				}
+
+				override dispose(): void {
+					this._onDidMaterializeChat.dispose();
+					super.dispose();
+				}
+			}
+
+			const agent = new MaterializingCustomizationAgent('codex');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+
+			const creation = service.createSession({ provider: agent.id });
+			const session = await agent.customizationReadStarted.p;
+			agent.materialize(session);
+			const initialSnapshot = await service.subscribe(session, 'client');
+			const initialSnapshotCustomizations = (initialSnapshot.state as SessionState).customizations;
+			const customizationChanged = Event.toPromise(Event.filter(service.onDidAction, envelope =>
+				envelope.channel === session.toString() && envelope.action.type === ActionType.SessionCustomizationsChanged));
+			agent.releaseCustomizationRead.complete();
+			const [, envelope] = await Promise.all([creation, customizationChanged]);
+
+			assert.deepStrictEqual({
+				initialSnapshotCustomizations,
+				action: envelope.action,
+				currentSnapshotCustomizations: (service.stateManager.getSnapshot(session.toString())?.state as SessionState | undefined)?.customizations,
+			}, {
+				initialSnapshotCustomizations: undefined,
+				action: { type: ActionType.SessionCustomizationsChanged, customizations: [customization] },
+				currentSnapshotCustomizations: [customization],
+			});
 		});
 
 		test('truncates working directories for a provider without multipleWorkingDirectories', async () => {
