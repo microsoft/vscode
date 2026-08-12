@@ -962,12 +962,17 @@ suite('RunSubagentTool', () => {
 				},
 			};
 			const request = { id: 'request-1' };
+			let undoStopCount = 0;
 			const mockChatService: Pick<IChatService, 'getSession'> = {
 				getSession() {
 					return {
 						getRequests: () => [request],
 						acceptResponseProgress: (_request: unknown, progress: IChatProgress) => {
 							acceptedProgress.push(progress);
+							if (progress.kind === 'codeblockUri' && progress.isEdit) {
+								// ChatModel.acceptResponseProgress adds an undo stop before every edit marker.
+								response.updateContent({ kind: 'undoStop', id: `undo-${++undoStopCount}` }, true);
+							}
 							if (progress.kind === 'markdownContent' || progress.kind === 'codeblockUri') {
 								response.updateContent(progress);
 							}
