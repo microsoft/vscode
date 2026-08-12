@@ -2017,6 +2017,37 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('`/rubber-duck` invokes the native runtime command', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'rubber-duck',
+				kind: 'builtin',
+				description: 'Get an independent critique',
+				allowDuringAgentExecution: true,
+				input: { hint: 'review prompt' },
+			}],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Run the rubber duck critic.',
+			displayPrompt: 'Review the current work',
+			mode: 'interactive',
+		};
+
+		await session.send('/rubber-duck focus on tests', undefined, 'turn-rubber-duck');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'rubber-duck', input: 'focus on tests' }],
+			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined }],
+		});
+	});
+
 	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };

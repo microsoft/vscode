@@ -967,6 +967,101 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, session, primary, secondary };
 		}
 
+		test('rejects a turn id already used by another chat before applying it', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const peerChat = buildChatUri(session, 'peer-1');
+			svc.stateManager.addChat(session.toString(), peerChat);
+			svc.stateManager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'peer', origin: { kind: MessageKind.User } },
+			});
+			svc.stateManager.dispatchServerAction(peerChat, {
+				type: ActionType.ChatTurnComplete,
+				turnId: 'duplicate-turn',
+				duration: 1,
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'default', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+			const defaultChatState = svc.stateManager.getChatState(defaultChat);
+
+			assert.deepStrictEqual({
+				rejected: envelope.rejectionReason !== undefined,
+				activeTurn: defaultChatState?.activeTurn,
+				turns: defaultChatState?.turns,
+				sendMessageCalls: agent.sendMessageCalls,
+			}, {
+				rejected: true,
+				activeTurn: undefined,
+				turns: [],
+				sendMessageCalls: [],
+			});
+		});
+
+		test('rejects a turn id used by an unresolved restored peer before applying it', async () => {
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const peerChat = buildChatUri(session, 'peer-1');
+			let resolverCalls = 0;
+			svc.stateManager.registerRestoredChatSummary(session.toString(), peerChat, {
+				resolver: async () => {
+					resolverCalls++;
+					return {
+						turns: [{
+							id: 'duplicate-turn',
+							state: TurnState.Complete,
+							message: { text: 'peer', origin: { kind: MessageKind.User } },
+							responseParts: [],
+							usage: undefined,
+						}],
+					};
+				},
+			});
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'duplicate-turn',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'default', origin: { kind: MessageKind.User } },
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+			const defaultChatState = svc.stateManager.getChatState(defaultChat);
+
+			assert.deepStrictEqual({
+				rejected: envelope.rejectionReason !== undefined,
+				resolverCalls,
+				peerResolved: svc.stateManager.getChatState(peerChat) !== undefined,
+				activeTurn: defaultChatState?.activeTurn,
+				turns: defaultChatState?.turns,
+				sendMessageCalls: agent.sendMessageCalls,
+			}, {
+				rejected: true,
+				resolverCalls: 1,
+				peerResolved: true,
+				activeTurn: undefined,
+				turns: [],
+				sendMessageCalls: [],
+			});
+		});
+
 		test('rejects working-directory mutations from non-Editor clients', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4067,6 +4162,8 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('disposeChat removes the chat from the catalog and tears down the chat', async () => {
 			const disposed: string[] = [];
+			const cleanupStarted = new DeferredPromise<void>();
+			const releaseCleanup = new DeferredPromise<void>();
 			class MultiChatAgent extends MockAgent {
 				override async createChat(_session: URI, _chat: URI): Promise<void> { }
 				override async disposeChat(_session: URI, chat: URI): Promise<void> {
@@ -4078,8 +4175,26 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot' });
 			const chatUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await service.createChat(session, chatUri);
+			const originalDiscard = service.checkpointService.discardChatTurnStartCheckpoints.bind(service.checkpointService);
+			disposables.add(toDisposable(() => service.checkpointService.discardChatTurnStartCheckpoints = originalDiscard));
+			service.checkpointService.discardChatTurnStartCheckpoints = async (checkpointSession, checkpointChat) => {
+				assert.deepStrictEqual({
+					session: checkpointSession.toString(),
+					chat: checkpointChat.toString(),
+				}, {
+					session: session.toString(),
+					chat: chatUri.toString(),
+				});
+				cleanupStarted.complete();
+				await releaseCleanup.p;
+				await originalDiscard(checkpointSession, checkpointChat);
+			};
 
-			await service.disposeChat(session, chatUri);
+			const disposing = service.disposeChat(session, chatUri);
+			await cleanupStarted.p;
+			assert.strictEqual(service.stateManager.getSessionState(session.toString())?.chats.some(c => c.resource.toString() === chatUri.toString()), true);
+			releaseCleanup.complete();
+			await disposing;
 
 			const state = service.stateManager.getSessionState(session.toString());
 			assert.deepStrictEqual({
