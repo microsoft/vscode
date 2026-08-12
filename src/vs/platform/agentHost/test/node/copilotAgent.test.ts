@@ -3861,10 +3861,10 @@ suite('CopilotAgent', () => {
 
 	suite('listSessions legacy-CLI surfacing (migration)', () => {
 
-		async function writeExtensionHostMarker(userHome: URI, sessionId: string): Promise<void> {
+		async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = { origin: 'vscode' }): Promise<void> {
 			const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
 			await fs.mkdir(dir, { recursive: true });
-			await fs.writeFile(join(dir, 'vscode.metadata.json'), '{}', 'utf8');
+			await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
 		}
 
 		test('surfaces an un-adopted extension-host CLI session as adoptable when migrate is ON', async () => {
@@ -3923,6 +3923,27 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 				// No marker written: a standalone Copilot SDK session, not an EH CLI session.
+
+				assert.deepStrictEqual(await agent.listLegacyChats(), []);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not surface a legacy CLI session whose marker originates from another Copilot host', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/surface-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/surface-cwd-`);
+			const sessionId = 'ehcli-other-origin';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// The GitHub Copilot app writes the same marker with `origin: 'other'`.
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
+				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
 
 				assert.deepStrictEqual(await agent.listLegacyChats(), []);
 			} finally {
@@ -8896,7 +8917,7 @@ suite('CopilotAgent', () => {
 
 	suite('ensureChatAdopted (legacy Copilot CLI migration)', () => {
 
-		async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = {}): Promise<void> {
+		async function writeExtensionHostMarker(userHome: URI, sessionId: string, metadata: Record<string, unknown> = { origin: 'vscode' }): Promise<void> {
 			const dir = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
 			await fs.mkdir(dir, { recursive: true });
 			await fs.writeFile(join(dir, 'vscode.metadata.json'), JSON.stringify(metadata), 'utf8');
@@ -8944,7 +8965,7 @@ suite('CopilotAgent', () => {
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				await writeExtensionHostMarker(userHome, sessionId, { customTitle: 'My Legacy Session' });
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', customTitle: 'My Legacy Session' });
 
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
@@ -9003,6 +9024,82 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 
 				// No `vscode.metadata.json` marker -> not an adoptable EH CLI session.
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [], openedDatabases: [] },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not adopt a session whose marker originates from another Copilot host', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const sessionId = 'github-copilot-app';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// The GitHub Copilot app writes the same marker with `origin: 'other'`.
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(
+					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
+					{ adopted: { adopted: false, eligible: false }, getSessionMetadataCalls: [], openedDatabases: [] },
+				);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('adopts an origin-less legacy marker carrying VS Code repository properties', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/adopt-cwd-`);
+			const sessionId = 'legacy-originless';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// Older VS Code markers predate the `origin` field but carry VS
+				// Code-specific properties; the EH `getSessionOrigin` heuristic
+				// treats these as `vscode`.
+				await writeExtensionHostMarker(userHome, sessionId, { repositoryProperties: { repositoryPath: workingDirectory } });
+
+				const adopted = await ensureDefaultChatAdopted(agent, session);
+
+				assert.deepStrictEqual(adopted, { adopted: true, eligible: true });
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not adopt an origin-less legacy marker without VS Code properties', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-home-`));
+			const sessionId = 'legacy-originless-bare';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				// A bare marker with neither `origin` nor VS Code-specific
+				// properties is ambiguous; mirror the EH heuristic and treat it as
+				// non-VS Code.
+				await writeExtensionHostMarker(userHome, sessionId, { modified: 123, created: 123 });
+
 				const adopted = await ensureDefaultChatAdopted(agent, session);
 
 				assert.deepStrictEqual(
