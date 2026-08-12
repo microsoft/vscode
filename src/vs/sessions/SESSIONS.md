@@ -229,6 +229,16 @@ Chat input history in the Agents Window is scoped by `ISession.sessionId`. Press
 
 Agent-host chat input completions preserve the host's result order through Monaco sorting and filtering. Every result uses the current trigger token as its filter text because the host has already applied path-aware filtering and ranking.
 
+#### Transcript Find
+
+`Ctrl/Cmd+F` opens a transcript Find widget over the chat message list, shared with the core `ChatViewPane`/`ChatEditor` hosts. The implementation lives entirely under `vs/workbench/contrib/chat` (`browser/widget/chatFind/`); `vs/sessions`'s `ChatView` only opts in by passing `enableFind: true` in its `ChatWidget` view options, preserving the workbench-to-sessions layer direction (sessions may depend on workbench, never the reverse).
+
+Find searches the chat's *logical* transcript — user prompts, response markdown, code blocks, tool invocation messages, references and error details — rather than the currently mounted DOM, so virtualized (off-screen) turns are searchable. Navigating to a match reveals its chat item through the existing `ChatWidget.reveal()`/virtualized-list machinery, expands the completed-response disclosure when the match is inside it, and highlights matches in the now-rendered DOM via the CSS Custom Highlight API — never by disabling virtualization or mutating rendered content. `Ctrl/Cmd+F` pressed while focus is in the composer or an embedded code block editor also routes to the same Find widget (both are "simple" editors without their own Monaco find controller), matching how the notebook editor routes Find from its cell editors.
+
+Content that is only built when its container is expanded is **not** indexed. `ChatThinkingContentPart` (reasoning) extends `ChatCollapsibleContentPart`, which creates its body lazily on first expansion and is not a `<details>` element, so a match inside collapsed reasoning could be counted but never revealed or highlighted. Reasoning is therefore excluded from the index (`getChatResponsePlaintextParts(item, false)`) rather than reported as an unreachable result. Several rendered response kinds (`warning`, `info`, `progressMessage`, `systemNotification`, `command`, `confirmation`) are likewise not yet extracted. Broadening either would require a typed expansion API on the collapsible parts and extending the shared accessible-view extraction.
+
+Each `ChatWidget` owns an independent Find widget/context-key set scoped to its own `IContextKeyService`, so multiple visible chats — including split chat editors and multiple Agents Window session panes — never cross-contaminate results or focus state.
+
 ### Workspaces and Folders
 
 Each session operates on an **`ISessionWorkspace`** containing one or more **`ISessionFolder`** instances. Folders encapsulate a working directory and optional git repository information (`ISessionGitRepository`), including branch state, upstream tracking, and GitHub PR info.
