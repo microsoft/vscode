@@ -910,7 +910,7 @@ class McpSettingsRenderer extends Disposable implements languages.CodeActionProv
 }
 
 class WorkspaceConfigurationRenderer extends Disposable {
-	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
+	private static readonly supportedKeys = ['folders', 'tasks', 'launch', mcpConfigurationSection, 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
 	private readonly decorations: editorCommon.IEditorDecorationsCollection;
 	private renderingDelayer = this._register(new Delayer<void>(200));

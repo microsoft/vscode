@@ -583,7 +583,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			const completedStateIcon = gitHubInfo?.pullRequest?.icon;
+			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -642,7 +642,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// chats show their chat icon on the status icon instead (see above).
 			if (sessionStatus !== SessionStatus.InProgress) {
 				const kind = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader));
-				const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
+				const icon = workspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -899,15 +899,28 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
+		const automationSessions = this.automationSessions.read(reader);
+
+		// NeedsInput takes priority: any running automation whose session is waiting for input.
+		const hasNeedsInput = runs.some(run => {
+			if (run.status !== 'running' || !run.sessionResource) {
+				return false;
+			}
+			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, run.sessionResource));
+			return !!session && session.status.read(reader) === SessionStatus.NeedsInput;
+		});
+		if (hasNeedsInput) {
+			return SessionStatus.NeedsInput;
+		}
+
 		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
 			return SessionStatus.InProgress;
 		}
-		const automationSessions = this.automationSessions.read(reader);
 		const hasUnreadRun = runs.some(run => {
 			if ((run.status !== 'completed' && run.status !== 'failed') || !run.sessionResource) {
 				return false;
 			}
-			const sessionResource = URI.parse(run.sessionResource);
+			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
 			return !!session && !session.isRead.read(reader);
 		});
@@ -983,7 +996,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
-				if (automationStatus === SessionStatus.InProgress) {
+				if (automationStatus === SessionStatus.NeedsInput) {
+					template.statusIndicator.style.display = '';
+					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
+				} else if (automationStatus === SessionStatus.InProgress) {
 					template.statusIndicator.style.display = '';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
@@ -1321,6 +1337,8 @@ class SessionsAccessibilityProvider {
 				return this.automationStatus
 					? derived(this, reader => {
 						switch (this.automationStatus?.read(reader)) {
+							case SessionStatus.NeedsInput:
+								return localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
 							case SessionStatus.InProgress:
 								return localize('automationsActiveAria', "{0}, run in progress", element.label);
 							case SessionStatus.Completed:

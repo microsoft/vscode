@@ -133,6 +133,25 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 }
 
 /**
+ * The SDK's synthetic "use whatever the CLI is configured to use" row:
+ * `supportedModels()` projects the CLI's `null`-valued default option to
+ * `value: 'default'`, displayed as "Default (recommended)".
+ */
+const SDK_DEFAULT_MODEL_VALUE = 'default';
+
+/**
+ * Whether `m` is the SDK's {@link SDK_DEFAULT_MODEL_VALUE} alias rather than a
+ * real model. The alias resolves to a concrete model (`ModelInfo.resolvedModel`)
+ * that the catalog already offers as its own row, so it adds no reachable
+ * capability — and next to the Copilot-routed models it reads as a third,
+ * unrelated choice whose target is invisible, which is why it is dropped from
+ * the published catalog (microsoft/vscode#329983).
+ */
+function isSdkDefaultModel(m: ModelInfo): boolean {
+	return m.value === SDK_DEFAULT_MODEL_VALUE;
+}
+
+/**
  * Project an SDK {@link ModelInfo} into the agent host's
  * {@link IAgentModelInfo} surface for the native (BYO-Anthropic) transport.
  * Carries NO commercial metadata (no `policyState`, no pricing `_meta`) —
@@ -743,7 +762,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * (workspace-free options that read the user's real `~/.claude` config) and
 	 * calling `Query.supportedModels()` on it, then `close()`. The prompt never
 	 * yields, so no turn runs and no session transcript is written (verified
-	 * Phase 19 E2E). Projected with no commercial metadata.
+	 * Phase 19 E2E). Projected with no commercial metadata, minus the SDK's
+	 * {@link isSdkDefaultModel} alias row.
 	 */
 	private async _fetchNativeModels(): Promise<readonly IAgentModelInfo[]> {
 		// A prompt iterable that never yields: enumeration only needs the
@@ -755,7 +775,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const query = await this._sdkService.query({ prompt: neverYieldingPrompt, options });
 		try {
 			const models = await query.supportedModels();
-			return models.map(m => fromSdkModelInfo(m, this.id));
+			return models
+				.filter(m => !isSdkDefaultModel(m))
+				.map(m => fromSdkModelInfo(m, this.id));
 		} finally {
 			// `close()` terminates the subprocess; aborting the controller is a
 			// belt-and-suspenders teardown for anything `close()` leaves pending.

@@ -54,6 +54,7 @@ import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -64,7 +65,6 @@ const PERSONALIZE_ACTION_IDS: readonly string[] = [
 	'workbench.action.openSettings',
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
-const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
 const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
@@ -81,7 +81,7 @@ registerUpdateTitleBarMenuPlacement(Menus.TitleBarUpdate, {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.agenticSignIn',
+			id: AGENTIC_SIGN_IN_COMMAND_ID,
 			title: localize2('signIn', "Sign in to use GitHub Copilot"),
 			icon: Codicon.signIn,
 			menu: {
@@ -768,7 +768,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				signOut = action;
 				continue;
 			}
-			if (action.id === SIGN_IN_ACTION_ID) {
+			if (action.id === AGENTIC_SIGN_IN_COMMAND_ID) {
 				if (!this.isAccountLoading) {
 					signIn = action;
 				}

@@ -56,7 +56,9 @@
 		"inputValidation.errorBackground": "#5f0d0d",
 		"inputValidation.errorBorder": "#9d2f23",
 		"badge.background": "#7f5d38",
-		"progressBar.background": "#7f5d38"
+		"progressBar.background": "#7f5d38",
+		// modern ui
+		"surface.border": "#00000000",
 	},
 	"tokenColors": [
 		{

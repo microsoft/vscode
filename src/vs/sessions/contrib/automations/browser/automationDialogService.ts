@@ -26,7 +26,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
+import { IFormState, IValidationState, isAutomationDialogEditCommand, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, updateSaveButtonState } from './automationDialog.js';
 
 const $ = DOM.$;
 
@@ -187,7 +187,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 					revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch);
 					revalidate();
 				},
-			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands),
+			}, this.keybindingService, this.layoutService, this.hostService, automationDialogAllowableCommands,
+				(commandId, event) => isAutomationDialogEditCommand(commandId, event.target)),
 		));
 
 		activeContainer.classList.add('automation-dialog-open');

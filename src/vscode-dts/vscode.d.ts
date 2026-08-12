@@ -18390,7 +18390,7 @@ declare module 'vscode' {
 		 * until the cancellation is requested on the `token`.
 		 *
 		 * @param request Request information for the test run.
-		 * @param cancellationToken Token that signals the used asked to abort the
+		 * @param token Token that signals the used asked to abort the
 		 * test run. If cancellation is requested on this token, all {@link TestRun}
 		 * instances associated with the request will be
 		 * automatically cancelled as well.

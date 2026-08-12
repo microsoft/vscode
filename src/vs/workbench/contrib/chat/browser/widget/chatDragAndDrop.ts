@@ -23,8 +23,7 @@ import { extractSCMHistoryItemDropData } from '../../../scm/browser/scmHistoryCh
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IChatWidget } from '../chat.js';
-import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
+import { IChatAttachmentTarget, IChatWidget } from '../chat.js';
 import { IChatAttachmentResolveService, ImageTransferData } from '../attachments/chatAttachmentResolveService.js';
 import { isCrossAgentHostChatReferenceDrop, isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
 import { IChatInputStyles } from './input/chatInputPart.js';
@@ -62,7 +61,7 @@ export class ChatDragAndDrop extends Themable {
 
 	constructor(
 		private readonly widgetRef: () => IChatWidget | undefined,
-		private readonly attachmentModel: ChatAttachmentModel,
+		private readonly attachmentTarget: IChatAttachmentTarget,
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -189,7 +188,7 @@ export class ChatDragAndDrop extends Themable {
 			return;
 		}
 
-		this.attachmentModel.addContext(...contexts);
+		this.attachmentTarget.addAttachments(contexts);
 	}
 
 	private updateDropFeedback(e: DragEvent, target: HTMLElement, dropType: ChatDragAndDropType | undefined): void {
@@ -398,7 +397,7 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
-		const existingAttachmentNames = new Set<string>(this.attachmentModel.attachments.map(attachment => attachment.name));
+		const existingAttachmentNames = new Set<string>(this.attachmentTarget.attachments.map(attachment => attachment.name));
 		const createDisplayName = (): string => {
 			const baseName = localize('dragAndDroppedImageName', 'Image from URL');
 			let uniqueName = baseName;

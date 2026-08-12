@@ -71,6 +71,10 @@ export function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boole
 	);
 }
 
+export function isAutomationDialogEditCommand(commandId: string, target: HTMLElement): boolean {
+	return (commandId === 'undo' || commandId === 'redo') && DOM.isEditableElement(target);
+}
+
 export async function canSelectAutomationWorkspace(
 	folderUri: URI,
 	preferredProviderId: string | undefined,

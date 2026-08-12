@@ -113,7 +113,7 @@ suite('Sessions - SessionsList', () => {
 					automationId: 'automation',
 					status,
 					trigger: 'schedule',
-					sessionResource: runResource.toString(),
+					sessionResource: runResource,
 					startedAt: '2026-08-10T00:00:00.000Z',
 					leaderWindowId: 1,
 				}], undefined);
@@ -131,6 +131,63 @@ suite('Sessions - SessionsList', () => {
 				statuses: [SessionStatus.Completed, SessionStatus.Completed],
 				managementCalls: [],
 			});
+		});
+
+		test('needs-input automation status takes priority over other running runs', () => {
+			const runningSession = createSession('automation-running', {
+				resource: URI.parse('test-session:/Workspace/Automation-Running'),
+			});
+			const needsInputSession = createSession('automation-needs-input', {
+				resource: URI.parse('test-session:/Workspace/Automation-Needs-Input'),
+			});
+			const runningStatus = runningSession.status as ReturnType<typeof observableValue<SessionStatus>>;
+			const needsInputStatus = needsInputSession.status as ReturnType<typeof observableValue<SessionStatus>>;
+			runningStatus.set(SessionStatus.InProgress, undefined);
+			needsInputStatus.set(SessionStatus.InProgress, undefined);
+			const runs = observableValue<readonly IAutomationRun[]>('automationRuns', []);
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = runs;
+			};
+			const uriIdentityService = new class extends mock<IUriIdentityService>() {
+				override readonly extUri = new ExtUri(() => true);
+			};
+			const renderer = new SessionSectionRenderer(
+				true,
+				new class extends mock<IInstantiationService>() { },
+				new class extends mock<IContextKeyService>() { },
+				automationService,
+				constObservable([runningSession, needsInputSession]),
+				uriIdentityService,
+				new class extends mock<ICustomViewService>() { },
+			);
+			runs.set([
+				{
+					id: 'running',
+					automationId: 'automation',
+					status: 'running',
+					trigger: 'schedule',
+					sessionResource: runningSession.resource,
+					startedAt: '2026-08-10T00:00:00.000Z',
+					leaderWindowId: 1,
+				},
+				{
+					id: 'needs-input',
+					automationId: 'automation',
+					status: 'running',
+					trigger: 'schedule',
+					sessionResource: needsInputSession.resource,
+					startedAt: '2026-08-10T00:00:00.000Z',
+					leaderWindowId: 1,
+				},
+			], undefined);
+
+			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
+
+			needsInputStatus.set(SessionStatus.NeedsInput, undefined);
+			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.NeedsInput);
+
+			needsInputStatus.set(SessionStatus.InProgress, undefined);
+			assert.strictEqual(renderer.automationStatus.get(), SessionStatus.InProgress);
 		});
 	});
 

@@ -15,7 +15,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomation, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationMutationGuard, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -75,7 +75,7 @@ type IAutomationProposal =
 	}
 	| {
 		readonly kind: 'update';
-		readonly existing: IAutomation;
+		readonly existing: IAutomationDescriptor;
 		readonly initialValues: IUpdateAutomationOptions;
 		readonly validateTargetAvailability: boolean;
 	};
@@ -205,7 +205,7 @@ export class RunAutomationTool implements IToolImpl {
 			return automationRunCancelled();
 		}
 
-		let automation: IAutomation;
+		let automation: IAutomationDescriptor;
 		try {
 			automation = resolveAutomationInput(this.automationService, invocation.parameters, 'runAutomation');
 		} catch (error) {
@@ -237,7 +237,7 @@ export class RunAutomationTool implements IToolImpl {
 			run: {
 				id: dispatch.run.id,
 				status: dispatch.run.status,
-				sessionResource: dispatch.sessionResource,
+				sessionResource: dispatch.sessionResource.toString(),
 			},
 		}, undefined, 2));
 		result.toolResultMessage = localize('automation.tool.run.started', "Started automation {0}", automation.name);
@@ -310,7 +310,7 @@ export class DeleteAutomationTool implements IToolImpl {
 			return automationDeleteCancelled();
 		}
 
-		let automation: IAutomation;
+		let automation: IAutomationDescriptor;
 		try {
 			automation = resolveAutomationInput(this.automationService, invocation.parameters, 'deleteAutomation');
 		} catch (error) {
@@ -579,7 +579,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		return result;
 	}
 
-	private async applyUpdate(existing: IAutomation, patch: IUpdateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
+	private async applyUpdate(existing: IAutomationDescriptor, patch: IUpdateAutomationOptions, token: CancellationToken): Promise<IToolResult> {
 		const blocked = this.getMutationBlockedResult(token);
 		if (blocked) {
 			return blocked;
@@ -789,7 +789,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	return { interval, scheduleHour, scheduleMinute, scheduleDay };
 }
 
-function parseTarget(input: Record<string, unknown>, existing: IAutomation | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {
+function parseTarget(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {
 	const value = readOptionalObject(input, 'target');
 	if (!value) {
 		return existing ? undefined : currentTarget;
@@ -856,7 +856,7 @@ function parseUri(value: string, field: string): URI {
 	}
 }
 
-function toAutomationToolOutput(automation: IAutomation): IAutomationToolOutput {
+function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationToolOutput {
 	const target: IAutomationToolOutput['target'] = automation.target.kind === 'workspace'
 		? {
 			kind: 'workspace',
@@ -887,7 +887,7 @@ function toAutomationToolOutput(automation: IAutomation): IAutomationToolOutput 
 	};
 }
 
-function toAutomationConfiguredData(automation: IAutomation, operation: IChatAutomationConfiguredData['operation']): IChatAutomationConfiguredData {
+function toAutomationConfiguredData(automation: IAutomationDescriptor, operation: IChatAutomationConfiguredData['operation']): IChatAutomationConfiguredData {
 	return {
 		kind: 'automationConfigured',
 		automationId: automation.id,
@@ -935,14 +935,14 @@ function automationRunCancelled(): IToolResult {
 	return result;
 }
 
-function automationAlreadyRunning(automation: IAutomation, run: IAutomationRun): IToolResult {
+function automationAlreadyRunning(automation: IAutomationDescriptor, run: IAutomationRun): IToolResult {
 	const result = automationToolResult(JSON.stringify({
 		status: 'already_running',
 		automation: { id: automation.id, name: automation.name },
 		run: {
 			id: run.id,
 			status: run.status,
-			sessionResource: run.sessionResource ?? null,
+			sessionResource: run.sessionResource?.toString() ?? null,
 		},
 	}, undefined, 2));
 	result.toolResultMessage = localize('automation.tool.run.alreadyRunningResult', "Automation {0} is already running", automation.name);
@@ -950,7 +950,7 @@ function automationAlreadyRunning(automation: IAutomation, run: IAutomationRun):
 }
 
 /** Turns a dispatch that never produced a session into an actionable agent-facing message. */
-function automationNotStarted(automation: IAutomation, dispatch: IAutomationRunDispatch & { kind: 'notStarted' }): IToolResult {
+function automationNotStarted(automation: IAutomationDescriptor, dispatch: IAutomationRunDispatch & { kind: 'notStarted' }): IToolResult {
 	if (dispatch.reason === 'cancelled') {
 		return automationRunCancelled();
 	}
@@ -965,7 +965,7 @@ function automationNotStarted(automation: IAutomation, dispatch: IAutomationRunD
 		: `Automation "${automation.id}" failed to start.`);
 }
 
-function resolveAutomationInput(automationService: IAutomationService, rawInput: unknown, toolName: 'runAutomation' | 'deleteAutomation'): IAutomation {
+function resolveAutomationInput(automationService: IAutomationService, rawInput: unknown, toolName: 'runAutomation' | 'deleteAutomation'): IAutomationDescriptor {
 	if (!isRecord(rawInput)) {
 		throw new AutomationToolInputError(`${toolName} input must be an object.`);
 	}

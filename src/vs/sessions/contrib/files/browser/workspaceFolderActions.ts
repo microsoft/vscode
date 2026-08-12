@@ -106,7 +106,7 @@ export class OpenFilesViewActionViewItem extends SessionHeaderMetaActionViewItem
 			// Path and branch still describe the checkout while the worktree is pending, so withhold them.
 			const worktreePending = session?.worktreePending?.read(reader) ?? false;
 			const kind = getSessionWorkspaceKind(workspace, worktreePending);
-			const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
+			const icon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 			const folder = workspace.folders[0];
 			const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim() || undefined;
 			const workingDirectoryPath = worktreePending ? undefined : folder?.workingDirectory.fsPath;

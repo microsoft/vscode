@@ -29,6 +29,10 @@
 	position: relative;
 }
 
+.interactive-session .chat-question-carousel-container.chat-question-carousel-fit-content {
+	max-height: none;
+}
+
 .interactive-session .chat-question-carousel-container:focus {
 	outline: none;
 }

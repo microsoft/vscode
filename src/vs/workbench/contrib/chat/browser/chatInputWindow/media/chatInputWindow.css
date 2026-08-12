@@ -9,6 +9,8 @@
 	--omni-row-gap: 8px;
 
 	box-sizing: border-box;
+	height: calc(100% - var(--vscode-strokeThickness) - var(--vscode-strokeThickness)) !important;
+	margin: var(--vscode-strokeThickness);
 	border-radius: var(--vscode-cornerRadius-xLarge);
 	overflow: hidden;
 }
@@ -53,7 +55,7 @@
 	display: flex;
 	align-items: center;
 	flex: 0 0 auto;
-	padding-left: 8px;
+	padding-left: 0;
 }
 
 .chat-input-window .chat-input-window-close {
@@ -88,8 +90,13 @@
 	display: none;
 }
 
+.chat-input-window > .debug-toolbar {
+	display: none !important;
+}
+
 .chat-input-window .interactive-session {
 	height: auto;
+	margin: 0;
 	justify-content: center;
 }
 
@@ -98,11 +105,12 @@
 }
 
 .chat-input-window .interactive-input-part.compact {
-	padding-top: 0;
+	padding-top: var(--vscode-spacing-size40);
 }
 
 .chat-input-window .interactive-input-part.compact .chat-input-container {
 	align-items: center;
+	padding-right: var(--vscode-spacing-size40);
 }
 
 .chat-input-window .chat-input-toolbars {
@@ -134,6 +142,10 @@
 	box-sizing: border-box;
 }
 
+.chat-input-window .chat-input-window-row > .interactive-session {
+	align-self: stretch;
+}
+
 .chat-input-window .interactive-input-part,
 .chat-input-window .interactive-input-and-edit-session,
 .chat-input-window .interactive-input-and-side-toolbar,
@@ -153,25 +165,6 @@
 	display: flex;
 	align-items: center;
 	padding-block: 0;
-}
-
-.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
-	background: none !important;
-	color: var(--vscode-icon-foreground) !important;
-	opacity: .4;
-	transition: opacity 120ms ease, transform 120ms cubic-bezier(.2, .8, .2, 1);
-}
-
-.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label {
-	background: none !important;
-	color: var(--vscode-foreground) !important;
-	opacity: 1;
-	font-weight: var(--vscode-fontWeight-semiBold);
-	transform: scale(1.08);
-}
-
-.chat-input-window .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.disabled) > .action-label:hover {
-	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 .chat-input-window .chat-routing-badge {
@@ -201,6 +194,10 @@
 	color: var(--vscode-list-warningForeground);
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.chat-input-window .chat-input-window-pending-header.hidden {
+	display: none;
 }
 
 .chat-input-window .chat-input-window-pending-marker {
@@ -425,4 +422,9 @@
 	border: 0;
 	border-radius: 0;
 	background: transparent;
+	min-height: 120px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.question .chat-question-carousel-content {
+	flex: 1;
 }

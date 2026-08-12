@@ -9,17 +9,22 @@
 	margin-top: 12px;
 	box-sizing: border-box;
 	display: none;
+	/* The reveal animation leaves a transform behind (`animation-fill-mode: both`),
+	 * which makes this a stacking context that overlays opened inside the input —
+	 * context menus, the post-paste selector — cannot escape. Raise it above the
+	 * later siblings, such as the session controls row, that would otherwise paint
+	 * through those overlays. */
+	position: relative;
+	z-index: 1;
 }
 
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) {
+/* The tip sits in the input's notice slot, attached to the top of the input. */
+.new-chat-input-container > .chat-getting-started-tip-container {
+	width: 100%;
 	margin-bottom: 0;
 }
 
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container {
-	margin-top: 0;
-}
-
-.new-chat-widget-content > .chat-getting-started-tip-container:has(> .chat-tip-widget) + .new-chat-input-container .new-chat-input-area {
+.new-chat-input-container:not(.showing-prompt-options) > .chat-getting-started-tip-container.showing-chat-tip ~ .new-chat-input-area-wrapper .new-chat-input-area {
 	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 }
 
@@ -568,6 +573,15 @@
 }
 
 /* Attachment pills */
+.sessions-chat-attachment-image {
+	width: 13px;
+	height: 13px;
+	border-radius: 2px;
+	object-fit: cover;
+	flex-shrink: 0;
+	margin: 0 3px;
+}
+
 .sessions-chat-attachment-pill {
 	display: inline-flex;
 	align-items: center;
@@ -584,6 +598,14 @@
 .sessions-chat-attachment-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Mirrors the workbench paste pill's `.attachment-additional-info`. */
+.sessions-chat-attachment-info {
+	opacity: 0.7;
+	font-size: .9em;
+	padding-left: 4px;
 	white-space: nowrap;
 }
 
@@ -637,42 +659,6 @@
 
 .sessions-chat-attachment-remove:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-/* Drag and drop */
-.sessions-chat-dnd-overlay {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	box-sizing: border-box;
-	display: none;
-	z-index: 10;
-	background-color: var(--vscode-sideBar-dropBackground, var(--vscode-list-dropBackground));
-}
-
-.sessions-chat-dnd-overlay.visible {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.sessions-chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
-	display: flex;
-	align-items: center;
-	text-align: center;
-	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
-}
-
-.sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
-	height: 12px;
-	font-size: var(--vscode-codiconFontSize-compact, 12px);
-	margin-right: 3px;
 }
 
 /* --- Chat input notification in the new-session homepage --- */

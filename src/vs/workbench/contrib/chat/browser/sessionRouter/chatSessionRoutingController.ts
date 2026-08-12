@@ -5,34 +5,43 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { MenuItemAction, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { heuristicScore, IRoutableSession, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH } from '../../common/sessionRouter.js';
+import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
-import { getResponsePreview, parseExplicitNewSessionRequest, resolveNewSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
+import { withChatInputPickerMotion } from '../widget/input/chatInputPickerActionItem.js';
+import { parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
 
 import './media/chatSessionRouting.css';
 
@@ -44,7 +53,11 @@ const ROUTE_MAX_CHOICES = 6;
  * routed target. Long enough to read the target and intervene, short enough to
  * keep a hands-free/voice flow moving.
  */
-const ROUTE_AUTOSEND_DELAY_MS = 10000;
+const ROUTE_AUTOSEND_DELAY_MS = 5000;
+const MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS = 10000;
+
+/** How long command review remains available before the command runs. */
+const COMMAND_AUTORUN_DELAY_MS = 5000;
 
 /** Resolved destination for a submitted request: an existing session or a new one. */
 type PendingTarget =
@@ -56,6 +69,10 @@ type NewSessionTarget = {
 	readonly label: string;
 	readonly folder?: URI;
 };
+
+type FolderPickerItem =
+	| { readonly id: string; readonly kind: 'workspace'; readonly folder: IWorkspaceFolder }
+	| { readonly id: 'choose-folder'; readonly kind: 'choose' };
 
 interface IDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
@@ -133,14 +150,28 @@ export interface IChatSessionRoutingHost {
 	 * the controller will fall back to an immediate dispatch.
 	 */
 	placeBadge(badge: HTMLElement): void;
+	/** Prepare or release a host-owned action-widget surface. */
+	onDidChangeActionWidgetVisibility?(visible: boolean, anchor?: HTMLElement): void | Promise<void>;
+	/** Container used to render action widgets, when the host owns a separate surface. */
+	getActionWidgetContainer?(): HTMLElement | undefined;
+	/** Translate an element anchor into the host's action-widget coordinate space. */
+	getActionWidgetAnchor?(anchor: HTMLElement): HTMLElement | IAnchor;
+	/** Override the action-widget direction when the host renders it on a separate surface. */
+	getActionWidgetAnchorPosition?(): AnchorPosition;
+	/** Open the host's native folder picker for a standalone working directory. */
+	pickFolder?(defaultUri: URI | undefined): Promise<URI | undefined>;
 	/** Notify the host that a new request will be independently routed. */
 	onWillRoute?(): void;
+	/** Prepare the window and context that should receive a detected command. */
+	prepareForCommandExecution?(): Promise<void>;
 	/** Notify the host immediately before sending so stale destination state can be invalidated. */
 	onWillDispatchRoute?(resource: URI): void;
 	/** Roll back pre-dispatch state when the send is rejected or fails. */
 	onDidRejectRoute?(resource: URI): void;
 	/** Notify the host when a single-target route resolves, or clear it for fan-out. */
 	onDidResolveRoute?(resource: URI | undefined, kind?: 'existing_session' | 'new_session', isVoiceModeInput?: boolean, requestId?: string): void;
+	/** Notify the host when the user dismisses a routed request's delivery and pending-input UI. */
+	onDidDismissRoute?(resource: URI, requestId?: string): void;
 }
 
 /**
@@ -169,7 +200,11 @@ export class ChatSessionRoutingController extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 	}
@@ -198,7 +233,7 @@ export class ChatSessionRoutingController extends Disposable {
 		// widget's own submit state never changes). Cleared when the submission
 		// resolves, is cancelled, or the user edits the draft.
 		this._setSubmissionPhase('routing');
-		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
+		ariaAlert(localize('chatSessionRouting.checkingIntent', "Checking how to handle your request."));
 
 		// The host cancels the in-flight submission on teardown so we never
 		// dispatch after close.
@@ -227,7 +262,7 @@ export class ChatSessionRoutingController extends Disposable {
 		if (explicitNewSessionTask) {
 			this.host.onWillRoute?.();
 			const target = this._resolveNewSessionTarget(utterance, attachedContext, [], []);
-			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
 		const followupResource = isVoiceModeInput ? this.host.getPendingReplySessionResource?.() : undefined;
@@ -241,11 +276,54 @@ export class ChatSessionRoutingController extends Disposable {
 			this._dispatchImmediately(followupTarget, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
-		this.host.onWillRoute?.();
-
-		const candidates = await this._collectCandidateSessions(token);
+		const commandCandidates = selectCommandIntentCandidates(utterance, this._collectCommandCandidates());
+		const intent = detectExactCommandTitleIntent(utterance, commandCandidates)
+			?? await this._detectIntent(commandCandidates, utterance, token);
 		if (token.isCancellationRequested) {
 			return true;
+		}
+		if (isHighConfidenceCommandIntent(intent)) {
+			const command = commandCandidates.find(candidate => candidate.commandId === intent.commandId);
+			if (command) {
+				this._setSubmissionPhase('awaitingChoice');
+				this._beginPendingCommand(
+					command,
+					query,
+					submittedAttachmentIds,
+					cts,
+					() => this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts),
+				);
+				return true;
+			}
+		}
+		await this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts);
+		return true;
+	}
+
+	private async _routeToChat(
+		query: string,
+		submittedAttachmentIds: readonly string[],
+		utterance: string,
+		attachedContext: readonly IChatRequestVariableEntry[] | undefined,
+		requestOptions: IChatSendRequestOptions,
+		cts: CancellationTokenSource,
+	): Promise<void> {
+		const token = cts.token;
+		this._setSubmissionPhase('routing');
+		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
+		this.host.onWillRoute?.();
+
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders);
+		const collectedCandidates = await this._collectCandidateSessions(token);
+		const candidates = mentionedFolder
+			? collectedCandidates.filter(candidate => resolveSessionWorkspaceFolder(candidate, folders) === mentionedFolder)
+			: collectedCandidates;
+		this.logService.info(
+			`[chatSessionRouting] owner=${this.debugOwner} voice=${requestOptions.isVoiceModeInput === true} workspaceFolders=[${folders.map(folder => folder.name).join(', ')}] mentionedFolder=${mentionedFolder?.name ?? '<none>'} candidates=${collectedCandidates.length} filteredCandidates=${candidates.length}`
+		);
+		if (token.isCancellationRequested) {
+			return;
 		}
 
 		// Every candidate receives a lightweight semantic pass before we bound the
@@ -255,30 +333,42 @@ export class ChatSessionRoutingController extends Disposable {
 			? await this._route(candidates, utterance, token)
 			: [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 		const shortlist = selectRouterShortlist(candidates, preliminaryResults);
 		const enriched = shortlist.length ? await this._enrichCandidates(shortlist, token) : [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 
 		const results = enriched.length ? await this._route(enriched, utterance, token) : [];
 		if (token.isCancellationRequested) {
-			return true;
+			return;
 		}
 		this._setSubmissionPhase('awaitingChoice');
 
 		const newSessionTarget = this._resolveNewSessionTarget(utterance, attachedContext, results, enriched);
 		const target = this._resolveTarget(results, enriched, newSessionTarget);
+		this.logService.info(
+			`[chatSessionRouting] owner=${this.debugOwner} target=${target.kind} targetId=${target.kind === 'session' ? target.sessionId : target.folder?.toString() ?? '<none>'} topConfidence=${results[0]?.confidence ?? '<none>'}`
+		);
 		const candidateIds = new Set(enriched.map(candidate => candidate.sessionId));
 		const hasSessionChoice = results.some(result => candidateIds.has(result.sessionId) && isHighConfidenceSessionRoute(result));
 		if (target.kind === 'new' && !hasSessionChoice) {
-			this._dispatchImmediately(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
-			return true;
+			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			return;
 		}
 		this._beginPendingSend(target, newSessionTarget, results, enriched, query, submittedAttachmentIds, utterance, requestOptions, cts);
-		return true;
+	}
+
+	private _dispatchOrReviewNewSession(target: NewSessionTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
+		if (this.workspaceContextService.getWorkspace().folders.length <= 1) {
+			this._dispatchImmediately(target, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
+			return;
+		}
+
+		this._setSubmissionPhase('awaitingChoice');
+		this._beginPendingSend(target, target, [], [], submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 	}
 
 	private _dispatchImmediately(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
@@ -314,6 +404,33 @@ export class ChatSessionRoutingController extends Disposable {
 
 	private _setSubmissionPhase(phase: SubmissionPhase): void {
 		this.host.widget.input.setSubmitPending(phase !== 'idle', phase === 'routing' || phase === 'dispatching');
+	}
+
+	private _collectCommandCandidates(): ICommandIntentCandidate[] {
+		const contextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const actions = this.menuService.getMenuActions(MenuId.CommandPalette, contextKeyService)
+			.flatMap(([, groupActions]) => groupActions)
+			.filter((action): action is MenuItemAction => action instanceof MenuItemAction && action.enabled);
+		const commands = new Map<string, ICommandIntentCandidate>();
+		for (const action of actions) {
+			const category = typeof action.item.category === 'string' ? action.item.category : action.item.category?.value;
+			commands.set(action.id, {
+				commandId: action.id,
+				label: category ? `${category}: ${action.label}` : action.label,
+			});
+		}
+		return filterOmniCommandIntentCandidates([...commands.values()]);
+	}
+
+	private async _detectIntent(commands: readonly ICommandIntentCandidate[], utterance: string, token: CancellationToken): Promise<ICommandIntentResult> {
+		try {
+			return await this.sessionRouter.detectIntent({ utterance, commands }, token);
+		} catch (err) {
+			if (!token.isCancellationRequested) {
+				this.logService.warn('[chatSessionRouting] command intent detection failed:', err);
+			}
+			return { kind: 'chat' };
+		}
 	}
 
 	/** Run the router, degrading to an empty ranking on failure/cancellation. */
@@ -395,8 +512,13 @@ export class ChatSessionRoutingController extends Disposable {
 		candidates: readonly IRoutableSession[],
 	): NewSessionTarget {
 		const folders = this.workspaceContextService.getWorkspace().folders;
-		const folder = this._folderFromAttachments(attachedContext)
-			?? resolveNewSessionWorkspaceFolder(utterance, folders, results, candidates, this.newSessionFolderService.getDefaultFolder());
+		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders)?.uri;
+		const attachmentFolder = this._folderFromAttachments(attachedContext);
+		const inferredFolder = resolveNewSessionWorkspaceFolder(utterance, folders, results, candidates, this.newSessionFolderService.getDefaultFolder());
+		const folder = mentionedFolder ?? attachmentFolder ?? inferredFolder;
+		this.logService.info(
+			`[chatSessionRouting] owner=${this.debugOwner} newSessionFolder=${folder?.toString() ?? '<none>'} source=${mentionedFolder ? 'mention' : attachmentFolder ? 'attachment' : 'inferred'}`
+		);
 		return {
 			kind: 'new',
 			label: folder
@@ -475,8 +597,8 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/**
-	 * Show the advisory destination picker. A confident session match counts
-	 * down and auto-sends; an uncertain route waits for an explicit choice.
+	 * Show the advisory destination picker. The selected destination counts down
+	 * and auto-sends unless the user begins changing the selection.
 	 */
 	private _beginPendingSend(
 		target: PendingTarget,
@@ -511,6 +633,150 @@ export class ChatSessionRoutingController extends Disposable {
 		this._renderCountdownBadge(badge, store, target, newSessionTarget, results, candidates, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 	}
 
+	private _beginPendingCommand(
+		command: ICommandIntentCandidate,
+		submittedInput: string,
+		submittedAttachmentIds: readonly string[],
+		cts: CancellationTokenSource,
+		sendToChat: () => Promise<void>,
+	): void {
+		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			this.logService.warn('[chatSessionRouting] no surface available for command review; preserving draft');
+			cts.cancel();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('idle');
+			return;
+		}
+
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._pendingSend.value = store;
+
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(Codicon.play));
+		const label = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		const countdown = dom.append(badge, dom.$('span.chat-routing-badge-countdown'));
+		let remainingSeconds = Math.ceil(COMMAND_AUTORUN_DELAY_MS / 1000);
+		const renderCountdown = () => {
+			label.textContent = localize('chatSessionRouting.runCommand', "Running command {0}", command.label);
+			countdown.textContent = localize('chatSessionRouting.commandCountdown', "in {0}s", remainingSeconds);
+		};
+
+		let didRun = false;
+		const timer = store.add(new MutableDisposable());
+		const reviewControls = store.add(new DisposableStore());
+		const reviewActions: HTMLElement[] = [];
+		const clearReviewControls = () => {
+			reviewControls.clear();
+			for (const action of reviewActions) {
+				action.remove();
+			}
+		};
+		const run = async () => {
+			if (didRun) {
+				return;
+			}
+			didRun = true;
+			timer.clear();
+			clearReviewControls();
+			this._submitDraftListeners.clear();
+			this._setSubmissionPhase('dispatching');
+			mark.replaceChildren(renderIcon(Codicon.loading));
+			label.textContent = localize('chatSessionRouting.runningCommand', "Running command {0}…", command.label);
+			countdown.textContent = '';
+			try {
+				if (this.host.prepareForCommandExecution) {
+					await this.host.prepareForCommandExecution();
+				}
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				if (!this._collectCommandCandidates().some(candidate => candidate.commandId === command.commandId)) {
+					throw new Error(`Command is no longer available: ${command.commandId}`);
+				}
+				await this.commandService.executeCommand(command.commandId);
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
+				this._setSubmissionPhase('idle');
+				this._pendingSend.clear();
+				this._submitCts.clear();
+				this._showCommandResult(command.label, true);
+			} catch (err) {
+				if (cts.token.isCancellationRequested || this._submitCts.value !== cts) {
+					return;
+				}
+				this.logService.warn('[chatSessionRouting] command execution failed:', command.commandId, err);
+				this._setSubmissionPhase('idle');
+				this._pendingSend.clear();
+				this._submitCts.clear();
+				this._showCommandResult(command.label, false);
+			}
+		};
+		const cancel = () => {
+			this._cancelPending(true);
+			ariaAlert(localize('chatSessionRouting.commandCancelled', "Cancelled command {0}.", command.label));
+		};
+		const routeToChat = () => {
+			if (didRun) {
+				return;
+			}
+			didRun = true;
+			timer.clear();
+			this._pendingSend.clear();
+			void sendToChat();
+		};
+
+		reviewActions.push(
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.runNow', "Run Now"), () => void run()),
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.sendToChat', "Send to Chat"), routeToChat),
+			this._addActionLink(reviewControls, badge, localize('chatSessionRouting.cancel', "Cancel"), cancel),
+		);
+		renderCountdown();
+		ariaAlert(localize('chatSessionRouting.runningCommandIn', "Running command {0} in {1} seconds. Activate Cancel or press Escape to cancel.", command.label, remainingSeconds));
+		const targetWindow = dom.getWindow(badge);
+		const handle = targetWindow.setInterval(() => {
+			remainingSeconds--;
+			if (remainingSeconds <= 0) {
+				void run();
+				return;
+			}
+			renderCountdown();
+		}, 1000);
+		timer.value = toDisposable(() => targetWindow.clearInterval(handle));
+
+		reviewControls.add(dom.addDisposableListener(targetWindow, dom.EventType.KEY_DOWN, event => {
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			if (keyboardEvent.equals(KeyCode.Escape)) {
+				keyboardEvent.preventDefault();
+				keyboardEvent.stopPropagation();
+				cancel();
+			}
+		}, true));
+	}
+
+	private _showCommandResult(label: string, success: boolean): void {
+		const badge = dom.$('.chat-routing-badge.chat-routing-badge-command');
+		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
+		mark.appendChild(renderIcon(success ? Codicon.pass : Codicon.error));
+		const message = dom.append(badge, dom.$('span.chat-routing-badge-label'));
+		message.textContent = success
+			? localize('chatSessionRouting.commandRan', "Ran command {0}", label)
+			: localize('chatSessionRouting.commandFailed', "Could not run command {0}. Your draft was preserved.", label);
+		this.host.placeBadge(badge);
+		if (!badge.parentElement) {
+			return;
+		}
+		const store = new DisposableStore();
+		store.add(toDisposable(() => badge.remove()));
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+		this._pendingSend.value = store;
+		ariaAlert(message.textContent);
+	}
+
 	/**
 	 * Confident-match badge: names the routed session and counts down, then
 	 * auto-sends. The user can select another destination, choose several,
@@ -530,6 +796,9 @@ export class ChatSessionRoutingController extends Disposable {
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
+		const routeAutosendDelay = this.workspaceContextService.getWorkspace().folders.length > 1
+			? MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS
+			: ROUTE_AUTOSEND_DELAY_MS;
 		badge.classList.add('chat-routing-badge-ranked');
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
@@ -558,6 +827,30 @@ export class ChatSessionRoutingController extends Disposable {
 		const countdownEl = dom.append(head, dom.$('span.chat-routing-badge-countdown'));
 		const list = dom.append(badge, dom.$('.chat-routing-badge-list', { role: 'listbox', 'aria-label': localize('chatSessionRouting.sendTo', "Send to"), 'aria-multiselectable': 'true' }));
 		let choosingFolder = false;
+		let folderPickerShown = false;
+		let folderPickerSurfaceOpen = false;
+		let browsingForFolder = false;
+		let folderPickerRequest = 0;
+		let disposed = false;
+		let changeFolderAction: HTMLButtonElement | undefined;
+		let selectedFolderName: string | undefined;
+		const renderChangeFolderAction = (expanded: boolean) => {
+			if (!changeFolderAction) {
+				return;
+			}
+			changeFolderAction.replaceChildren();
+			const folderIcon = dom.append(changeFolderAction, renderIcon(Codicon.folder));
+			folderIcon.setAttribute('aria-hidden', 'true');
+			const label = dom.append(changeFolderAction, dom.$('span.chat-routing-badge-folder-action-label'));
+			label.textContent = selectedFolderName ?? localize('chatSessionRouting.chooseFolder', "Choose Folder");
+			const chevron = dom.append(changeFolderAction, renderIcon(expanded ? Codicon.chevronLeft : Codicon.chevronRight));
+			chevron.setAttribute('aria-hidden', 'true');
+			changeFolderAction.title = selectedFolderName
+				? localize('chatSessionRouting.changeTargetFolderWithName', "Change target folder ({0})", selectedFolderName)
+				: localize('chatSessionRouting.changeTargetFolder', "Choose Folder");
+			changeFolderAction.setAttribute('aria-label', changeFolderAction.title);
+			changeFolderAction.setAttribute('aria-expanded', String(expanded));
+		};
 		let focusedIndex = preselected;
 		const rows = options.map((option, index) => {
 			const row = dom.append(list, dom.$('.chat-routing-badge-row', { role: 'option', tabindex: '0' }));
@@ -577,40 +870,171 @@ export class ChatSessionRoutingController extends Disposable {
 				const changeFolder = dom.append(row, dom.$('button.chat-routing-badge-folder-action', {
 					type: 'button',
 					'aria-label': localize('chatSessionRouting.changeTargetFolderAria', "Change target folder for new session"),
-				}));
-				changeFolder.textContent = localize('chatSessionRouting.changeTargetFolder', "Change Folder");
-				store.add(dom.addDisposableListener(changeFolder, dom.EventType.CLICK, event => {
+					'aria-haspopup': 'menu',
+					'aria-expanded': 'false',
+				})) as HTMLButtonElement;
+				changeFolderAction = changeFolder;
+				selectedFolderName = option.folder ? this.workspaceContextService.getWorkspaceFolder(option.folder)?.name : undefined;
+				renderChangeFolderAction(false);
+				store.add(dom.addDisposableListener(changeFolder, dom.EventType.CLICK, async event => {
 					event.preventDefault();
 					event.stopPropagation();
+					if (choosingFolder) {
+						folderPickerRequest++;
+						choosingFolder = false;
+						renderChangeFolderAction(false);
+						if (folderPickerShown) {
+							folderPickerShown = false;
+							this.actionWidgetService.hide(true);
+						}
+						if (folderPickerSurfaceOpen) {
+							folderPickerSurfaceOpen = false;
+							void this.host.onDidChangeActionWidgetVisibility?.(false);
+						}
+						startCountdown();
+						return;
+					}
 					selection.clear();
 					selection.add(index);
 					renderSelection();
 					countdownTimer.clear();
 					countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
 					choosingFolder = true;
+					renderChangeFolderAction(true);
+					const request = ++folderPickerRequest;
 					const folders = this.workspaceContextService.getWorkspace().folders;
-					void this.quickInputService.pick(
-						folders.map(folder => ({
-							label: folder.name,
-							description: folder.uri.fsPath,
-							picked: options[index].kind === 'new' && options[index].folder?.toString() === folder.uri.toString(),
-							folder,
-						})),
-						{ placeHolder: localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session") },
-					).then(folderPick => {
-						choosingFolder = false;
-						if (!folderPick || cts.token.isCancellationRequested) {
+					const selectedFolder = options[index].kind === 'new' ? options[index].folder : undefined;
+					const pickFolder = this.host.pickFolder;
+					const items: IActionListItem<FolderPickerItem>[] = folders.map(folder => ({
+						kind: ActionListItemKind.Action,
+						item: { id: folder.uri.toString(), kind: 'workspace', folder },
+						group: {
+							title: '',
+							icon: isEqual(folder.uri, selectedFolder) ? Codicon.check : Codicon.folder,
+						},
+						label: folder.name,
+						description: folder.uri.fsPath,
+					}));
+					if (pickFolder) {
+						items.push({
+							kind: ActionListItemKind.Action,
+							item: { id: 'choose-folder', kind: 'choose' },
+							group: { title: '', icon: Codicon.folderOpened },
+							label: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…"),
+						});
+					}
+					const selectFolder = (folder: URI, name: string) => {
+						if (options[index].kind !== 'new') {
 							return;
 						}
 						const updatedTarget: NewSessionTarget = {
 							kind: 'new',
-							label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", folderPick.folder.name),
-							folder: folderPick.folder.uri,
+							label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", name),
+							folder,
 						};
 						options[index] = updatedTarget;
 						label.textContent = updatedTarget.label;
-						ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", folderPick.folder.name));
-					});
+						selectedFolderName = name;
+						renderChangeFolderAction(false);
+						ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", name));
+					};
+					const closeFolderPicker = () => {
+						if (request !== folderPickerRequest) {
+							return;
+						}
+						folderPickerShown = false;
+						choosingFolder = false;
+						renderChangeFolderAction(false);
+						if (folderPickerSurfaceOpen) {
+							folderPickerSurfaceOpen = false;
+							void this.host.onDidChangeActionWidgetVisibility?.(false);
+						}
+						if (!browsingForFolder && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+							startCountdown();
+						}
+					};
+					const showFolderPicker = () => {
+						if (request !== folderPickerRequest || disposed || cts.token.isCancellationRequested || didDispatch) {
+							closeFolderPicker();
+							return;
+						}
+						folderPickerShown = true;
+						this.actionWidgetService.show(
+							'chat-folder-picker',
+							false,
+							items,
+							{
+								onSelect: folderPick => {
+									if (folderPick.kind === 'workspace') {
+										selectFolder(folderPick.folder.uri, folderPick.folder.name);
+										this.actionWidgetService.hide();
+										return;
+									}
+									if (!pickFolder) {
+										return;
+									}
+									browsingForFolder = true;
+									this.actionWidgetService.hide();
+									void pickFolder(selectedFolder).then(folder => {
+										if (folder && request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+											selectFolder(folder, basename(folder));
+										}
+									}, error => {
+										this.logService.error('[chatSessionRouting] Failed to choose folder', error);
+									}).finally(() => {
+										browsingForFolder = false;
+										if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+											startCountdown();
+										}
+									});
+								},
+								onHide: closeFolderPicker,
+							},
+							this.host.getActionWidgetAnchor?.(changeFolder) ?? changeFolder,
+							this.host.getActionWidgetContainer?.(),
+							undefined,
+							{
+								getAriaLabel: item => item.item
+									? item.item.kind === 'workspace'
+										? localize('chatSessionRouting.folderPickerItem', "{0}, {1}", item.item.folder.name, item.item.folder.uri.fsPath)
+										: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…")
+									: '',
+								getWidgetAriaLabel: () => localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session"),
+								getWidgetRole: () => 'menu',
+								getRole: item => item.item?.kind === 'choose' ? 'menuitem' : 'menuitemradio',
+								isChecked: item => item.item?.kind === 'workspace' ? isEqual(item.item.folder.uri, selectedFolder) : undefined,
+							},
+							withChatInputPickerMotion({
+								className: 'chat-folder-picker-dropdown',
+								anchorPosition: this.host.getActionWidgetAnchorPosition?.() ?? AnchorPosition.ABOVE,
+								minWidth: 280,
+								maxWidth: 420,
+								showFilter: true,
+								filterPlaceholder: localize('chatSessionRouting.searchFolders', "Search folders"),
+								focusFilterOnOpen: true,
+								initialFocusItemId: selectedFolder?.toString(),
+							}),
+						);
+					};
+					folderPickerSurfaceOpen = true;
+					try {
+						await this.host.onDidChangeActionWidgetVisibility?.(true, changeFolder);
+						showFolderPicker();
+					} catch (error) {
+						this.logService.error('[chatSessionRouting] Failed to show folder picker', error);
+						if (request === folderPickerRequest) {
+							folderPickerRequest++;
+							choosingFolder = false;
+							renderChangeFolderAction(false);
+							if (folderPickerSurfaceOpen) {
+								folderPickerSurfaceOpen = false;
+								void this.host.onDidChangeActionWidgetVisibility?.(false);
+							}
+							if (!disposed && !cts.token.isCancellationRequested && !didDispatch) {
+								startCountdown();
+							}
+						}
+					}
 				}));
 			}
 			store.add(dom.addDisposableListener(row, dom.EventType.CLICK, event => {
@@ -657,10 +1081,10 @@ export class ChatSessionRoutingController extends Disposable {
 		renderSelection();
 		const initialTarget = options[preselected];
 		ariaAlert(initialTarget.kind === 'session'
-			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000))
+			? localize('chatSessionRouting.sendingToIn', "Sending to {0} in {1} seconds. Press Escape to cancel.", initialTarget.label, Math.ceil(routeAutosendDelay / 1000))
 			: localize('chatSessionRouting.confirmNewSession', "No confident match. Choose a destination before sending."));
 
-		let remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
+		let remainingSeconds = Math.ceil(routeAutosendDelay / 1000);
 		const renderCountdown = () => {
 			countdownEl.textContent = localize('chatSessionRouting.sendingIn', "sending in {0}s", remainingSeconds);
 		};
@@ -716,7 +1140,6 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const countdownTimer = store.add(new MutableDisposable());
 		const startCountdown = () => {
-			remainingSeconds = Math.ceil(ROUTE_AUTOSEND_DELAY_MS / 1000);
 			renderCountdown();
 			const handle = targetWindow.setInterval(() => {
 				remainingSeconds--;
@@ -779,11 +1202,21 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 		}, true));
 
-		if (target.kind === 'session') {
-			startCountdown();
-		} else {
-			countdownEl.textContent = localize('chatSessionRouting.waiting', "waiting for you");
-		}
+		store.add(toDisposable(() => {
+			disposed = true;
+			folderPickerRequest++;
+			choosingFolder = false;
+			if (folderPickerShown) {
+				folderPickerShown = false;
+				this.actionWidgetService.hide(true);
+			}
+			if (folderPickerSurfaceOpen) {
+				folderPickerSurfaceOpen = false;
+				void this.host.onDidChangeActionWidgetVisibility?.(false);
+			}
+		}));
+
+		startCountdown();
 	}
 
 	private _showDeliveryConfirmation(label: string, result: IDispatchResult): void {
@@ -807,7 +1240,10 @@ export class ChatSessionRoutingController extends Disposable {
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
 		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
-		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => this._pendingSend.clear());
+		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => {
+			this.host.onDidDismissRoute?.(resource, result.requestId);
+			this._pendingSend.clear();
+		});
 		this._pendingSend.value = store;
 		const announcement = result.status === 'queued'
 			? localize('chatSessionRouting.queuedFor', "Queued for {0}", label)
@@ -847,6 +1283,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean): void {
 		const model = this.chatService.getSession(resource);
+		const renderedPreview = store.add(new MutableDisposable<IDisposable>());
 		let lastAnnouncement = labelElement.textContent;
 		let observedActivity = !waitForActivity;
 		const update = (requestInProgress = model?.requestInProgress.get() ?? false, needsInput = !!model?.requestNeedsInput.get()) => {
@@ -874,11 +1311,23 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			const response = model?.lastRequest?.response;
 			const preview = isCompleted && response?.isComplete
-				? getResponsePreview(renderAsPlaintext(new MarkdownString(response.response.getMarkdown()), { useLinkFormatter: true }))
+				? response.response.getMarkdown().trim()
 				: undefined;
-			labelElement.textContent = preview
-				? localize('chatSessionRouting.completedInWithResponse', "{0}: {1}", sessionLabel, preview)
-				: statusLabel;
+			if (preview) {
+				const markdown = new MarkdownString(localize(
+					'chatSessionRouting.completedInWithResponse',
+					"{0}: {1}",
+					escapeMarkdownSyntaxTokens(sessionLabel),
+					preview
+				));
+				const rendered = renderMarkdown(markdown);
+				rendered.element.classList.add('chat-routing-badge-response');
+				labelElement.replaceChildren(rendered.element);
+				renderedPreview.value = rendered;
+			} else {
+				renderedPreview.clear();
+				labelElement.textContent = statusLabel;
+			}
 			mark.replaceChildren(renderIcon(icon));
 			if (statusLabel !== lastAnnouncement) {
 				lastAnnouncement = statusLabel;
@@ -967,7 +1416,7 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/** Append an accessible link-style action to the badge. */
-	private _addActionLink(store: DisposableStore, badge: HTMLElement, text: string, run: () => void): void {
+	private _addActionLink(store: DisposableStore, badge: HTMLElement, text: string, run: () => void): HTMLElement {
 		const el = dom.append(badge, dom.$('a.chat-routing-badge-action', { role: 'button', tabindex: '0' }));
 		el.textContent = text;
 		store.add(dom.addDisposableListener(el, dom.EventType.CLICK, run));
@@ -977,6 +1426,7 @@ export class ChatSessionRoutingController extends Disposable {
 				run();
 			}
 		}));
+		return el;
 	}
 
 	/** Dispatch a resolved pending target. */

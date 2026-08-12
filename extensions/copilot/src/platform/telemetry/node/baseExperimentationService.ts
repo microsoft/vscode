@@ -8,7 +8,7 @@ import type { IExperimentationService as ITASExperimentationService } from 'vsco
 import { equals } from '../../../util/vs/base/common/arrays';
 import { IntervalTimer } from '../../../util/vs/base/common/async';
 import { Emitter } from '../../../util/vs/base/common/event';
-import { Disposable, MutableDisposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../extContext/common/extensionContext';
@@ -124,15 +124,8 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	private readonly _refreshTimer = this._register(new IntervalTimer());
 	private readonly _previouslyReadTreatments = new Map<string, boolean | string | number | undefined>();
 
-	protected _delegate: ITASExperimentationService;
+	protected readonly _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
-
-	/** Disposes the current delegate (stopping its polling); auto-disposes the previous one on replacement. */
-	private readonly _delegateDisposable = this._register(new MutableDisposable());
-
-	private readonly _delegateFn: TASClientDelegateFn;
-	private readonly _globalState: vscode.Memento;
-	private _delegateGeneration = 0;
 
 	protected _onDidTreatmentsChange = this._register(new Emitter<TreatmentsChangeEvent>());
 	readonly onDidTreatmentsChange = this._onDidTreatmentsChange.event;
@@ -162,33 +155,10 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 			this._signalTreatmentsChangeEvent();
 		}, 60 * 60 * 1000);
 
-		this._delegateFn = delegateFn;
-		this._globalState = context.globalState;
-		this._delegate = this._createDelegate();
-	}
-
-	private _createDelegate(): ITASExperimentationService {
-		const generation = ++this._delegateGeneration;
-		const delegate = this._delegateFn(this._globalState, this._userInfoStore);
-		this._delegateDisposable.value = toDisposable(() => delegate.dispose());
-		delegate.initialFetch.then(() => {
-			if (generation !== this._delegateGeneration || this._store.isDisposed) {
-				return; // superseded by a newer delegate, or the service was disposed
-			}
+		this._delegate = delegateFn(context.globalState, this._userInfoStore);
+		this._delegate.initialFetch.then(() => {
 			this._logService.trace(`[BaseExperimentationService] Initial fetch completed`);
-			// A replacement delegate (e.g. once the assignments endpoint arrives) may carry
-			// different assignments; announce any changes so experiment-based config updates.
-			this._signalTreatmentsChangeEvent();
 		});
-		return delegate;
-	}
-
-	/**
-	 * Creates a fresh delegate, disposing the previous one (stopping its polling). Used
-	 * when inputs captured at delegate-creation time (e.g. the assignments endpoint) change.
-	 */
-	protected recreateDelegate(): void {
-		this._delegate = this._createDelegate();
 	}
 
 	private _signalTreatmentsChangeEvent = () => {

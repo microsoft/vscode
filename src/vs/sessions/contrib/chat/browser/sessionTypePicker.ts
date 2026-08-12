@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -24,11 +25,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { SessionHarnessPickerVisibleContext } from '../../../common/contextkeys.js';
+import { isAllowSignedOutWhenUsableEnabled } from '../../../browser/sessionsAuthGate.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
@@ -164,6 +166,7 @@ export class SessionTypePicker extends Disposable {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -453,7 +456,13 @@ export class SessionTypePicker extends Disposable {
 			}
 			for (const { providerId, sessionType } of types) {
 				const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-				const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.chatSessionType ?? sessionType.id);
+				const modelTarget = sessionType.chatSessionType ?? sessionType.id;
+				const allowSignedOutWhenUsable = isAllowSignedOutWhenUsableEnabled(this.configurationService);
+				const availability = getSessionTypePickerAvailability(
+					modelTarget,
+					getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, modelTarget, allowSignedOutWhenUsable),
+					allowSignedOutWhenUsable,
+				);
 				const unavailable = availability !== SessionTypeAvailability.Available;
 				const item: ISessionTypePickerItem = {
 					providerId,

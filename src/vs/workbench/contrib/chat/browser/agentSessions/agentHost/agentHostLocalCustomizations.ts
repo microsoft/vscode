@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { parseRemoteAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -103,22 +104,31 @@ export async function enumerateLocalCustomizationsForHarness(
 	syncProvider: ICustomizationSyncProvider,
 	sessionType: string,
 	token: CancellationToken,
-	options?: ILocalCustomizationSyncOptions,
+	options: ILocalCustomizationSyncOptions | undefined,
+	roots: readonly URI[],
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
+	const seenUris = new ResourceSet();
 	const storageSources = options?.includeUserStorage
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
+	const rootsToResolve = roots.length > 0 ? roots : [undefined];
 	for (const type of SYNCABLE_PROMPT_TYPES) {
 		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
-			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
+			storageSources.map(async storage => {
+				const filesByRoot = storage === PromptsStorage.local
+					? await Promise.all(rootsToResolve.map(root => promptsService.listPromptFilesForStorage(type, storage, token, root)))
+					: [await promptsService.listPromptFilesForStorage(type, storage, token)];
+				return filesByRoot.flat();
+			}),
 		);
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
 			const honourUserDisabled = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
-				if (matchesSessionType(file.sessionTypes, sessionType)) {
+				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
+					seenUris.add(file.uri);
 					result.push({
 						uri: file.uri,
 						type,
@@ -152,13 +162,14 @@ export async function resolveLocalCustomAgents(
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
-	options?: ILocalCustomizationSyncOptions,
+	options: ILocalCustomizationSyncOptions | undefined,
+	roots: readonly URI[],
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
 	const parser = new PromptFileParser();
 	const pending: Promise<void>[] = [];
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, roots);
 
 	for (const agent of enumerated) {
 		if (agent.type !== PromptsType.agent || agent.disabled) {
@@ -283,15 +294,12 @@ async function resolveConfigurationForSync(
  * be seeded into a session's synced customizations, rather than only the
  * primary (working-directory) folder's — which the SDK already auto-discovers.
  *
- * True only for the local Copilot Agent Host harness, in a multi-root workspace,
- * with the multi-root setting enabled. Kept as a pure function so the gate can
- * be unit-tested independently of {@link AgentHostActiveClientService}'s wiring
- * (a regression here would otherwise leave the feature tests — which call the
- * collector with the flag hardcoded — green).
+ * True only for the local Copilot Agent Host harness with multiple working
+ * directories and the multi-root setting enabled.
  */
-export function shouldSyncWorkspaceDotMcp(sessionType: string, workspaceFolderCount: number, multiRootSettingEnabled: boolean): boolean {
+export function shouldSyncWorkspaceDotMcp(sessionType: string, roots: readonly URI[], multiRootSettingEnabled: boolean): boolean {
 	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
-		&& workspaceFolderCount > 1
+		&& roots.length > 1
 		&& multiRootSettingEnabled;
 }
 
@@ -388,10 +396,11 @@ export async function resolveCustomizationRefs(
 	configurationResolverService: IConfigurationResolverService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
-	includeWorkspaceDotMcp: boolean = false,
-	options?: ILocalCustomizationSyncOptions,
+	includeWorkspaceDotMcp: boolean,
+	options: ILocalCustomizationSyncOptions | undefined,
+	roots: readonly URI[],
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, roots);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();
@@ -409,14 +418,17 @@ export async function resolveCustomizationRefs(
 					// ignored, sync will probably fail later though...
 				}
 
-				return {
+				const ref: ClientPluginCustomization = {
 					type: CustomizationType.Plugin,
 					id: customizationId(key),
 					uri: key as ProtocolURI,
 					name: plugin.label,
-					nonce: nonce?.toString(16),
 					enabled: true,
 				};
+				if (nonce !== undefined) {
+					ref.nonce = nonce.toString(16);
+				}
+				return ref;
 			})();
 			pluginRefs.set(key, promise);
 		}

@@ -5,7 +5,23 @@ before VS Code 1.133.0. The migration remains in progress.
 
 Do not use this path for new controls.
 
-## Rules
+## Compatibility paths
+
+There are two related but distinct bounded migrations:
+
+- **Legacy permission policy translation** reads only an exact enterprise `policyValue`
+  and maps the old policy to its runtime equivalent.
+- **Legacy VS Code setting translation** reads explicitly configured global values
+  (policy, user, then application) from an existing setting and contributes equivalent
+  restrictions through the declarative Agent Host bridge.
+
+Neither path is open to newly designed settings or controls. Put new runtime-owned
+controls directly in the shared managed-settings schema and SDK contract.
+The legacy-setting bridge may have a false-by-default experimental gate for staged
+adoption; that gate controls the compatibility mechanism itself and is not a mapped
+runtime control.
+
+## Legacy permission policy rules
 
 - Translate only exact enterprise `policyValue`; never user/workspace values.
 - Map only to an equivalent runtime capability.

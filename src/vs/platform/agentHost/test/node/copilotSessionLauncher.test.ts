@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -18,6 +19,7 @@ import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IB
 import { CustomizationType, type ModelSelection } from '../../common/state/protocol/state.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import type { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -41,12 +43,13 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 
-function createTestLauncher(): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions): CopilotSessionLauncher {
 	const configurationService = {
 		getRootValue: () => undefined,
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
 		configurationService,
+		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
 		new NullLogService(),
 		{} as IFileService,
@@ -322,7 +325,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('passes Agent Host defaults and exit-plan handler to create and resume', async () => {
+	test('passes Agent Host defaults, managed permissions, and exit-plan handler to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
 		const session = {
@@ -340,7 +343,11 @@ suite('CopilotSessionLauncher shared session config', () => {
 				return session;
 			},
 		};
-		const launcher = createTestLauncher();
+		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		};
+		const launcher = createTestLauncher(managedSettingsPermissions);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
 		const instructionUri = URI.joinPath(pluginDir, 'rules', 'user.instructions.md');
@@ -395,6 +402,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
+				createManagedSettings: createConfigs[0].managedSettings,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
@@ -402,6 +410,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
+				resumeManagedSettings: resumeConfigs[0].managedSettings,
 			}, {
 				createClientName: 'vscode-agent-host',
 				createGitHubMcpToolConfig: { disableFormDeferral: true },
@@ -410,6 +419,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
+				createManagedSettings: { permissions: managedSettingsPermissions },
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath],
@@ -417,6 +427,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
+				resumeManagedSettings: { permissions: managedSettingsPermissions },
 			});
 		} finally {
 			sessions.dispose();

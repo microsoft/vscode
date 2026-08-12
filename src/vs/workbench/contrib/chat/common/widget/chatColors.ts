@@ -6,6 +6,7 @@
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, focusBorder, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { editorFindMatchHighlight } from '../../../../../platform/theme/common/colors/editorColors.js';
 import { buttonBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { darken, lighten } from '../../../../../platform/theme/common/colorUtils.js';
 import { COMMAND_CENTER_BACKGROUND } from '../../../../common/theme.js';
@@ -86,6 +87,16 @@ export const chatLinesRemovedForeground = registerColor(
 	'chat.linesRemovedForeground',
 	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
 	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);
+
+export const chatFindMatchHighlightBackground = registerColor(
+	'chat.findMatchHighlightBackground',
+	{ dark: editorFindMatchHighlight, light: editorFindMatchHighlight, hcDark: '#EA5C0055', hcLight: '#EA5C0055' },
+	localize('chat.findMatchHighlightBackground', 'Background color of the other search matches in a chat transcript. The color must not be opaque so as not to hide underlying content.'), true);
+
+export const chatFindMatchBackground = registerColor(
+	'chat.findMatchBackground',
+	{ dark: transparent(chatFindMatchHighlightBackground, 2), light: transparent(chatFindMatchHighlightBackground, 2), hcDark: '#EA5C00AA', hcLight: '#EA5C00AA' },
+	localize('chat.findMatchBackground', 'Background color of the current search match in a chat transcript.'), true);
 
 export const chatThinkingShimmer = registerColor(
 	'chat.thinkingShimmer',

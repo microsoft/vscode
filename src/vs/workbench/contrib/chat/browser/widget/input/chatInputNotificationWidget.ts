@@ -20,6 +20,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
@@ -68,7 +69,16 @@ export interface IChatInputNotificationDelegate {
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
-	readonly onDidChangeVisibility?: (visible: boolean) => void;
+	/**
+	 * Reports whether a notification is rendered. `focusTarget` is the widget
+	 * itself, so a host can route notice-focus commands into it while it shows.
+	 */
+	readonly onDidChangeVisibility?: (visible: boolean, focusTarget: IChatInputNoticeFocusTarget) => void;
+	/**
+	 * Hands focus back to the input. Called when a notification that had keyboard
+	 * focus goes away, so focus is not stranded on `<body>`.
+	 */
+	readonly focusInput?: () => void;
 }
 
 /**
@@ -76,7 +86,7 @@ export interface IChatInputNotificationDelegate {
  * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
  * active notification with severity-colored borders, action buttons, and a dismiss button.
  */
-export class ChatInputNotificationWidget extends Disposable {
+export class ChatInputNotificationWidget extends Disposable implements IChatInputNoticeFocusTarget {
 
 	readonly domNode: HTMLElement;
 
@@ -108,6 +118,10 @@ export class ChatInputNotificationWidget extends Disposable {
 	}
 
 	private _render(): void {
+		// Tearing the content down would strand keyboard focus on <body>, which also
+		// drops the context keys the chat keybindings depend on. Hand it back to the
+		// input instead, the same way an onboarding card does when it stands down.
+		const hadFocus = this.hasFocus();
 		this._contentDisposables.clear();
 		dom.clearNode(this.domNode);
 
@@ -119,12 +133,19 @@ export class ChatInputNotificationWidget extends Disposable {
 		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			this._lastShownTelemetryData = undefined;
+			if (hadFocus) {
+				this._delegate?.focusInput?.();
+			}
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
+		if (hadFocus) {
+			// The region is rebuilt on every render; keep focus inside it.
+			this.focus();
+		}
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -133,7 +154,27 @@ export class ChatInputNotificationWidget extends Disposable {
 		}
 
 		this._visible = visible;
-		this._delegate?.onDidChangeVisibility?.(visible);
+		// The widget element outlives any one notification, so it only carries the
+		// region role and a tab stop while it actually renders something.
+		if (visible) {
+			this.domNode.tabIndex = 0;
+			this.domNode.setAttribute('role', 'region');
+			this.domNode.setAttribute('aria-roledescription', localize('chatInputNotificationRoleDescription', "notification"));
+		} else {
+			this.domNode.removeAttribute('tabindex');
+			this.domNode.removeAttribute('role');
+			this.domNode.removeAttribute('aria-roledescription');
+			this.domNode.removeAttribute('aria-label');
+		}
+		this._delegate?.onDidChangeVisibility?.(visible, this);
+	}
+
+	hasFocus(): boolean {
+		return dom.isAncestorOfActiveElement(this.domNode);
+	}
+
+	focus(): void {
+		this.domNode.focus();
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
@@ -163,6 +204,9 @@ export class ChatInputNotificationWidget extends Disposable {
 			titleElement.textContent = notification.message;
 		}
 		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
+		// Names the focusable region: `aria-roledescription` alone would have focus
+		// land on something announced only as "notification".
+		this.domNode.setAttribute('aria-label', ariaTitle);
 
 		if (notification.mute) {
 			const mute = notification.mute;

@@ -22,6 +22,11 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://[::1]:3000'), []), true);
 		});
 
+		test('backslashes are treated as URL path separators', () => {
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com\\.localhost'), []), false);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com\\.github.com'), ['https://*.github.com']), false);
+		});
+
 		test('wildcard (*) matches everything', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com'), ['*']), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://anything.org'), ['*']), true);

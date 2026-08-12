@@ -1286,7 +1286,8 @@ export class OpenAIResponsesProcessor {
 				return onProgress({
 					text: '',
 					thinking: {
-						id: chunk.item_id
+						id: chunk.item_id,
+						metadata: { vscode_reasoning_summary_part_done: true },
 					}
 				});
 			case 'response.completed': {

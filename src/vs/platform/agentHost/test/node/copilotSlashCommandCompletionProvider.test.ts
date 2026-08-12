@@ -516,6 +516,54 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
+		test('excludes prefixed synced-bundle runtime skills (real runtime shape)', async () => {
+			// The CLI namespaces a bundled skill as `<bundleName>:<skill>`, while the
+			// generic provider lists it bare — so the prefixed runtime item is a
+			// duplicate and must be dropped.
+			const provider = createProvider(
+				[{ name: 'VS Code Synced Data:update-pr', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('VS Code Synced Data', [skill('update-pr')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(runtimeOnly(items), []);
+		});
+
+		test('keeps a prefixed synced-bundle skill whose bare name is a config action', async () => {
+			// Bare `/plan` is a config action, so it would not reach the bundled
+			// `plan` skill; the prefixed item is kept so the skill stays reachable.
+			const provider = createProvider(
+				[{ name: 'VS Code Synced Data:plan', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('VS Code Synced Data', [skill('plan')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/VS Code Synced Data:plan ']);
+		});
+
+		test('keeps a prefixed synced-bundle skill whose bare name collides with a non-skill runtime command', async () => {
+			// Bare `/triage` would hit the built-in command, so the bundled skill is
+			// only reachable via the qualified name — keep it.
+			const provider = createProvider(
+				[
+					{ name: 'triage', description: 'Built-in', kind: 'builtin', allowDuringAgentExecution: true },
+					{ name: 'VS Code Synced Data:triage', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[syncedPlugin('VS Code Synced Data', [skill('triage')])],
+			);
+			const items = await run(provider, '/');
+			assert.ok(runtimeOnly(items).some(i => i.insertText === '/VS Code Synced Data:triage '), 'bundled triage skill should remain reachable');
+		});
+
+		test('does not strip real (non-synced) plugin prefixes when a synced bundle is present', async () => {
+			// A real plugin skill is known as `my-plugin:my-skill`; the synced-prefix
+			// strip must not apply to it. It is dropped only via the exact match.
+			const provider = createProvider(
+				[{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
+				[syncedPlugin('VS Code Synced Data', [skill('update-pr')]), plugin('my-plugin', [skill('my-skill')])],
+			);
+			const items = await run(provider, '/');
+			assert.deepStrictEqual(runtimeOnly(items), []);
+		});
+
 		test('includes runtime skills whose name differs from the prefixed known skill candidate', async () => {
 			// A non-synced plugin skill is known as `my-plugin:my-skill`, so a bare `my-skill` runtime skill is still surfaced.
 			const provider = createProvider(

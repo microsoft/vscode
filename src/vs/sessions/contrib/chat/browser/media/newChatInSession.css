@@ -108,15 +108,17 @@
 	max-width: 950px;
 }
 
-/* When tip is present, remove top border-radius from the input area so
-	the tip and input connect seamlessly. */
-.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area {
+/* When the tip is the notice on screen, remove the top border-radius from the
+	input area so the tip and input connect seamlessly. Keyed on the class rather
+	than adjacency: the container stays a sibling while the banner is put away for
+	a notification. */
+.new-chat-in-session .sub-session-tip-container.showing-sub-session-tip + .new-chat-input-container .new-chat-input-area {
 	border-radius: 0 0 var(--vscode-cornerRadius-large, 8px) var(--vscode-cornerRadius-large, 8px) !important;
 }
 
-.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor,
-.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor .overflow-guard,
-.new-chat-in-session .sub-session-tip-container + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor-background {
+.new-chat-in-session .sub-session-tip-container.showing-sub-session-tip + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor,
+.new-chat-in-session .sub-session-tip-container.showing-sub-session-tip + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor .overflow-guard,
+.new-chat-in-session .sub-session-tip-container.showing-sub-session-tip + .new-chat-input-container .new-chat-input-area .sessions-chat-editor .monaco-editor-background {
 	border-radius: 0 !important;
 }
 

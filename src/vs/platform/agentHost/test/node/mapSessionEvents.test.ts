@@ -236,6 +236,35 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
+	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'view the image' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'view_image' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'view_image', arguments: { path: '/repo/image.png' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'Viewed image file successfully.',
+						contents: [{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
+		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
+		]);
+	});
+
 	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },

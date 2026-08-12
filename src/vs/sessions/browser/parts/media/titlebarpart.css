@@ -108,7 +108,8 @@
 	margin-left: 4px;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container.overflowing {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.overflowing {
 	display: none;
 }
 

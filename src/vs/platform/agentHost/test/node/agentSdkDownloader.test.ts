@@ -306,6 +306,18 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(completed.receivedBytes, tarballSize);
 	});
 
+	test('loadSdkRoot: marks progress explicitly requested by a user-initiated flow', async () => {
+		const downloader = makeDownloader();
+		const samples: IAgentSdkDownloadProgress[] = [];
+		disposables.add(downloader.onDidDownloadProgress(p => samples.push(p)));
+		disposables.add(downloader.acquireDownloadProgressInterest(ClaudeSdkPackage));
+
+		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+
+		assert.ok(samples.length >= 2);
+		assert.ok(samples.every(sample => sample.explicitlyRequested));
+	});
+
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {
 		const downloader = makeDownloader();
 		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());

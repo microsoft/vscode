@@ -85,7 +85,8 @@ suite('VisibleSessions', () => {
 
 	test('forwards Git availability through visible and resource-override wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
-		const session = { ...stubSession('A'), hasGitRepository };
+		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
+		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -94,9 +95,13 @@ suite('VisibleSessions', () => {
 		assert.deepStrictEqual({
 			visible: visible?.hasGitRepository === hasGitRepository,
 			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
+			visibleCompletedStateIcon: visible?.completedStateIcon === completedStateIcon,
+			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
 		}, {
 			visible: true,
 			resourceOverride: true,
+			visibleCompletedStateIcon: true,
+			resourceOverrideCompletedStateIcon: true,
 		});
 	});
 

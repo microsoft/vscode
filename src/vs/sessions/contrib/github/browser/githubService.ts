@@ -32,6 +32,7 @@ const TRACE_PREFIX = '[PR-ICON-TRACE]';
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
+	readonly enterpriseHost: string | undefined;
 
 	activeSessionPullRequestObs: IObservable<GitHubPullRequestModel | undefined>;
 	activeSessionPullRequestCIObs: IObservable<GitHubPullRequestCIModel | undefined>;
@@ -110,6 +111,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _pullRequestCIReferences: GitHubPullRequestCIModelReferenceCollection;
 	private readonly _issueReferences: GitHubIssueModelReferenceCollection;
 	private readonly _apiClient: GitHubApiClient;
+
+	get enterpriseHost(): string | undefined {
+		return this._apiClient.enterpriseHost;
+	}
 
 	/**
 	 * Cache of in-flight / resolved `findPullRequestNumberByHeadBranch`

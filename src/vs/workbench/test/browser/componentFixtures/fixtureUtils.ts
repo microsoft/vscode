@@ -61,6 +61,8 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IChatPasteTargetService } from '../../../contrib/chat/browser/chat.js';
+import { ChatPasteTargetService } from '../../../contrib/chat/browser/attachments/chatPasteTargetService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -784,6 +786,10 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust() { return true; }
 	}());
+
+	// Chat inputs register themselves as paste targets while rendering; the real
+	// service is a plain registry with no dependencies, so use it directly.
+	registration.defineInstance(IChatPasteTargetService, new ChatPasteTargetService());
 }
 
 

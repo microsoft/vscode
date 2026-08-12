@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ConditionalAuthState, conditionalAuthState, shouldForceGitHubSignIn, shouldShowDiscoveredConfigNudge } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, shouldForceGitHubSignIn, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn } from '../../browser/sessionsAuthGate.js';
 
 suite('Sessions - Auth Gate', () => {
 
@@ -19,6 +19,15 @@ suite('Sessions - Auth Gate', () => {
 			featureDisabled: true,
 			featureEnabled: false,
 		});
+	});
+
+	test('GitHub workspace group offers sign-in only for signed-out opted-in users', () => {
+		assert.deepStrictEqual([
+			shouldShowGitHubWorkspaceGroupSignIn(false, false),
+			shouldShowGitHubWorkspaceGroupSignIn(false, true),
+			shouldShowGitHubWorkspaceGroupSignIn(true, false),
+			shouldShowGitHubWorkspaceGroupSignIn(true, true),
+		], [false, true, false, false]);
 	});
 
 	test('conditionalAuthState treats an unresolved account as unknown, never signed out', () => {

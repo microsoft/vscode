@@ -51,7 +51,8 @@ export const enum LayoutSettings {
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
-	MODERN_UI = 'workbench.experimental.modernUI'
+	MODERN_UI = 'workbench.experimental.modernUI',
+	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
 /**
@@ -66,10 +67,10 @@ export const FLOATING_PANEL_MARGIN = 4;
 /**
  * The trailing card margin (in pixels) when the Modern UI Update experiment is
  * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 6px inter-card gap. Keep in sync with the
- * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
+ * it forms the 4px inter-card gap. Keep in sync with the
+ * `--vscode-spacing-sizeNone` (0px) token used in `floatingPanels.css`.
  */
-export const FLOATING_PANEL_INNER_MARGIN = 2;
+export const FLOATING_PANEL_INNER_MARGIN = 0;
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
@@ -234,6 +235,22 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 
 	const owners = getFloatingOuterEdgeOwners(layoutService);
 	return { left: owners.left === partId, right: owners.right === partId };
+}
+
+/**
+ * Horizontal margins (in pixels) a floating pane composite reserves, mirroring the
+ * margins in `floatingPanels.css`.
+ */
+export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbenchLayoutService, partId: Parts): { left: number; right: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: 0, right: 0 };
+	}
+
+	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
+	return {
+		left: outerGutter.left ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_MARGIN,
+		right: outerGutter.right ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
+	};
 }
 
 /**

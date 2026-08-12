@@ -15,7 +15,7 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAutomationSnapshot, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomation, IAutomationSnapshotImportResult, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationStore } from '../../browser/automationService.js';
 import { ProviderAutomationService } from '../../browser/providerAutomationService.js';
 import { AUTOMATION_STORAGE_KEY, IAutomationStorageService, providerAutomationStorageKey } from '../../common/automationStorageService.js';
@@ -32,7 +32,7 @@ class FailingStaleRunRecoveryAutomationStore extends AutomationStore {
 }
 
 class PartiallyFailingMigrationAutomationStore extends AutomationStore {
-	override async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+	override async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
 		if (snapshot.automation.id === 'automation-1') {
 			throw new Error('Import failed.');
 		}
@@ -52,7 +52,7 @@ class ConcurrentlyMutatingMigrationAutomationStore extends AutomationStore {
 	private didMutate = false;
 	private updateCount = 0;
 
-	override async importAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<IAutomationSnapshotImportResult> {
+	override async importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult> {
 		const result = await super.importAutomationSnapshot(snapshot);
 		if (this.mutation === 'continuousUpdate') {
 			await this.legacyWriter.updateAutomation(snapshot.automation.id, { name: `Concurrent update ${++this.updateCount}` });
@@ -74,7 +74,7 @@ class ConcurrentlyMutatingTransferAutomationStore extends AutomationStore {
 	legacyWriter!: AutomationStore;
 	private didMutate = false;
 
-	override async upsertAutomationSnapshot(snapshot: IAutomationSnapshot): Promise<void> {
+	override async upsertAutomationSnapshot(snapshot: IAutomation): Promise<void> {
 		await super.upsertAutomationSnapshot(snapshot);
 		if (!this.didMutate) {
 			this.didMutate = true;
@@ -87,7 +87,7 @@ class DestinationDeletingTransferAutomationStore extends AutomationStore {
 	destinationStore!: AutomationStore;
 	private didMutate = false;
 
-	override async removeAutomationSnapshotIfUnchanged(expected: IAutomationSnapshot) {
+	override async removeAutomationSnapshotIfUnchanged(expected: IAutomation) {
 		if (!this.didMutate) {
 			this.didMutate = true;
 			await this.updateAutomation(expected.automation.id, { name: 'Concurrent source update' });

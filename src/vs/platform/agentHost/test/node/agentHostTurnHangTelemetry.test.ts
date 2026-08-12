@@ -250,7 +250,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: 'stalledAfterProgress',
 			isExpected: false,
 			hadAnyProgress: true,
-			lastActivityKind: ActionType.ChatDelta,
+			lastActivityKind: 'chat.delta',
 		}]);
 	});
 

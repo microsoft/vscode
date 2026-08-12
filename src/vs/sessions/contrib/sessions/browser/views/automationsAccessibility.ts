@@ -9,7 +9,7 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -73,7 +73,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[]): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	if (automations.length === 0) {
 		lines.push(localize('automationsAccessibleView.empty', "No automations."));
@@ -110,7 +110,7 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	return lines.join('\n');
 }
 
-function formatSchedule(automation: IAutomation): string {
+function formatSchedule(automation: IAutomationDescriptor): string {
 	const schedule = automation.schedule;
 	switch (schedule.interval) {
 		case 'manual':

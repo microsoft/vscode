@@ -14,7 +14,8 @@
     "vscode": "^1.104.0"
   },
   "enabledApiProposals": [
-    "chatOutputRenderer"
+    "chatOutputRenderer",
+    "chatParticipantPrivate"
   ],
   "capabilities": {
     "virtualWorkspaces": true,

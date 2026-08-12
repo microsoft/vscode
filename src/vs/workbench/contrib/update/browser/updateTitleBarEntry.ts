@@ -249,6 +249,11 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.action.run = () => this.runAction();
 		this._register(this.updateService.onStateChange(state => this.onStateChange(state)));
+		this._register(this.commandService.onDidExecuteCommand(event => {
+			if (event.commandId === 'workbench.action.showHover' && this.isFocused()) {
+				this.focusTooltip();
+			}
+		}));
 	}
 
 	public override render(container: HTMLElement) {
@@ -285,12 +290,18 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			persistence: { sticky: true },
 			appearance: { showPointer: true, compact: true },
 			position: { anchorAlignment: AnchorAlignment.RIGHT },
+			trapFocus: focus,
 		}, focus);
 
 		if (hover) {
 			this.visibleTooltip.value = hover;
 			this.onDidShowTooltip(focus);
 		}
+	}
+
+	private focusTooltip(): void {
+		this.visibleTooltip.clear();
+		this.showTooltip(true);
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {

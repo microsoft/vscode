@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -81,35 +81,26 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
-		const sessionGroups = groupSessionsForPicker(recent, other);
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
 		}
 
-		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
-		let firstSessionItem: ISessionPickItem | undefined;
-
-		// New session item
-		items.push({
-			label: `$(add) ${localize('newSession', "New Session")}`,
-			session: undefined,
-		});
-
-		const toPickItem = (session: ISession): ISessionPickItem => {
-			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
+		const toPickItem = (session: ISession, reader: IReader): ISessionPickItem => {
+			const title = session.title.read(reader) || getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
 
 			// Status icon, mirroring the sessions list and session header.
-			const status = session.status.get();
-			const isRead = session.isRead.get();
-			const isArchived = session.isArchived.get();
-			const workspace = session.workspace.get();
-			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
-			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
+			const status = session.status.read(reader);
+			const isRead = session.isRead.read(reader);
+			const isArchived = session.isArchived.read(reader);
+			const workspace = session.workspace.read(reader);
+			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
+			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
 			// Second row: workspace (with its icon, like the session header /
 			// list) and the relative time. A leading blank icon aligns the
@@ -118,50 +109,68 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const detailParts: string[] = [];
 			if (workspace?.label) {
 				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
+				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
 				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
 			}
-			detailParts.push(fromNow(session.updatedAt.get(), true, true));
+			detailParts.push(fromNow(session.updatedAt.read(reader), true, true));
 
 			return {
+				id: session.sessionId,
 				label: title,
 				detail: detailParts.join(' \u00B7 '),
 				iconClass: ThemeIcon.asClassName(icon),
+				iconColor: icon.color,
 				session,
 			};
 		};
 
-		const appendSessions = (label: string, sessions: readonly ISession[]): void => {
-			if (sessions.length === 0) {
-				return;
-			}
-			items.push({ type: 'separator', label });
-			for (const session of sessions) {
-				const item = toPickItem(session);
-				firstSessionItem ??= item;
-				items.push(item);
-			}
-		};
-
-		appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
-		appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
-		appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
-		appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
-
 		const picker = quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true });
-		picker.items = items;
 		picker.placeholder = localize('searchSessions', "Search sessions by name or folder");
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-		if (firstSessionItem) {
-			picker.activeItems = [firstSessionItem];
-		}
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);
+		const sessionsChanged = observableSignalFromEvent('sessionsPickerSessionsChanged', sessionsManagementService.onDidChangeSessions);
+		disposables.add(autorun(reader => {
+			sessionsChanged.read(reader);
+			const { recent, other } = sessionsService.getRecentlyOpenedSessions();
+			const sessionGroups = groupSessionsForPicker(recent, other, reader);
+			const items: (ISessionPickItem | IQuickPickSeparator)[] = [{
+				id: 'newSession',
+				label: `$(add) ${localize('newSession', "New Session")}`,
+				session: undefined,
+			}];
+			let firstSessionItem: ISessionPickItem | undefined;
+			const appendSessions = (label: string, sessions: readonly ISession[]): void => {
+				if (sessions.length === 0) {
+					return;
+				}
+				items.push({ type: 'separator', label });
+				for (const session of sessions) {
+					const item = toPickItem(session, reader);
+					firstSessionItem ??= item;
+					items.push(item);
+				}
+			};
+
+			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
+			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
+			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
+
+			const activeItemId = picker.activeItems[0]?.id;
+			picker.items = items;
+			const activeItem = activeItemId
+				? items.find((item): item is ISessionPickItem => item.type !== 'separator' && item.id === activeItemId)
+				: firstSessionItem;
+			if (activeItem) {
+				picker.activeItems = [activeItem];
+			}
+		}));
 
 		// Expose a context key while the picker is open so the navigate
 		// keybindings (bound to the same chord as this command) can advance the

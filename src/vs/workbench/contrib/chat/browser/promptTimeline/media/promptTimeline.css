@@ -513,6 +513,14 @@
 	--prompt-timeline-gutter-handle-left: 4px;
 	/* Horizontal padding (2 * 6px) plus the dot width (4px) — the handle's widest child. */
 	--prompt-timeline-gutter-handle-width: 16px;
+	/* Clearance kept between the handle/flyout and the transcript's top and bottom edges. */
+	--prompt-timeline-gutter-inset: 12px;
+	/* Resting-dot geometry. `restDotCount` in promptTimelineGutterRail.ts mirrors these numbers to cap
+	 * the dot column to the rail's height, so keep the two in sync. */
+	--prompt-timeline-gutter-dot-size: 4px;
+	--prompt-timeline-gutter-dot-gap: 4px;
+	--prompt-timeline-gutter-handle-padding-y: 8px;
+	--prompt-timeline-gutter-more-height: 8px;
 }
 
 /* Too narrow to place the handle beside the content: hide it (the native scrollbar remains). */
@@ -532,8 +540,14 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 4px;
-	padding: 8px 6px;
+	gap: var(--prompt-timeline-gutter-dot-gap);
+	padding: var(--prompt-timeline-gutter-handle-padding-y) 6px;
+	/* The dot count is sized to fit (see `restDotCount`); this only guarantees that a stale count —
+	 * between a resize and the observer that reports it — clips instead of spilling over the
+	 * transcript's top and bottom edges. */
+	max-height: calc(100% - 2 * var(--prompt-timeline-gutter-inset));
+	box-sizing: border-box;
+	overflow: hidden;
 	border: none;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
@@ -557,8 +571,10 @@
 }
 
 .prompt-timeline-gutter-dot {
-	width: 4px;
-	height: 4px;
+	width: var(--prompt-timeline-gutter-dot-size);
+	height: var(--prompt-timeline-gutter-dot-size);
+	/* Keep the drawn geometry equal to what `restDotCount` assumes: no flex squashing. */
+	flex-shrink: 0;
 	border-radius: 50%;
 	background-color: var(--vscode-descriptionForeground);
 	opacity: 0.55;
@@ -587,7 +603,8 @@
  * reading as "…and more", dimmer than the dots so it recedes. */
 .prompt-timeline-gutter-dot-more {
 	width: 2px;
-	height: 8px;
+	height: var(--prompt-timeline-gutter-more-height);
+	flex-shrink: 0;
 	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-descriptionForeground);
 	opacity: 0.4;
@@ -623,15 +640,20 @@
 	transform-origin: left center;
 	display: flex;
 	flex-direction: column;
+	/* Enough to keep two adjacent highlighted rows from merging into one blob, so each row's corners
+	 * read; more would break the list into loose cards. */
+	gap: var(--vscode-spacing-size20);
 	width: 260px;
-	max-height: calc(100% - 24px);
-	padding: 4px;
+	max-height: calc(100% - 2 * var(--prompt-timeline-gutter-inset));
+	padding: var(--vscode-spacing-size40);
 	box-sizing: border-box;
 	overflow-y: auto;
 	background-color: var(--vscode-editorHoverWidget-background);
 	color: var(--vscode-editorHoverWidget-foreground);
-	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+	/* A floating overlay, so it sits on the outer radius tier. Its 4px padding then leaves the rows
+	 * inside concentric with it at the control tier (8 - 4 = 4). */
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	opacity: 0;
 	pointer-events: none;
@@ -660,15 +682,22 @@
 	box-shadow: none;
 }
 
-/* Each prompt is a full-width row: its text on the left, an optional diff badge on the right. */
+/* Each prompt is a full-width row split into two targets: the label on the left reveals the prompt,
+ * the diff badge on the right opens that turn's changes. The fill always lives on the halves, never
+ * on this container, so at any point exactly one layer paints a background and highlights never
+ * stack. The container is a plain div because a button may not nest inside a button. */
 .prompt-timeline-gutter-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
 	width: 100%;
+}
+
+.prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row-diff {
+	display: flex;
+	align-items: center;
 	padding: 6px 8px;
 	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
 	color: inherit;
 	font: inherit;
@@ -676,21 +705,70 @@
 	cursor: pointer;
 }
 
-/* `.preview` is the row a hovered dot points at: it takes the same plain hover tint, since the
- * highlight alone is enough to tie it back to the dot under the pointer. */
-.prompt-timeline-gutter-row:hover,
-.prompt-timeline-gutter-row.preview {
+/* Radius follows the painted SHAPE, not the element. A half that carries a fill on its own (hover) is
+ * a standalone control, so it is rounded on all four corners; only when both halves paint together do
+ * they split one band's corners between them (see the `.preview`/`.active` rules below). Rounding the
+ * halves unconditionally would leave a hovered label with a square edge cut off mid-row. */
+.prompt-timeline-gutter-row-jump {
+	flex: 1 1 auto;
+	min-width: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* The badge claims only the width its stat needs. Prompts that changed nothing have nothing to
+ * review, so it is dropped from the layout — and, being `display: none`, from the focus order. */
+.prompt-timeline-gutter-row-diff {
+	flex: 0 0 auto;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.prompt-timeline-gutter-row:not(.reviewable) .prompt-timeline-gutter-row-diff {
+	display: none;
+}
+
+/* Hovering tints only the half under the pointer — that, and nothing else, is what tells the two
+ * targets apart. No divider: at rest there is no boundary to draw (nothing is being interacted with),
+ * and on hover the tinted half's own edge already is the boundary. */
+.prompt-timeline-gutter-row-jump:hover,
+.prompt-timeline-gutter-row-diff:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-/* Pair the selection background with its matching foreground so the label stays legible in themes
- * where the two are designed together. */
+/* `.preview` is the row a hovered DOT points at — the pointer is over on the dot column, nowhere near
+ * the row, so the whole band lights up to say "this one". (A row under the pointer deliberately does
+ * NOT get this class; its own halves light up instead — see `_setPreview`.) `.active` is the prompt
+ * the transcript is scrolled to. Tinting both halves rather than the container keeps the fill on one
+ * layer. Pair the selection background with its matching foreground so the label stays legible in
+ * themes where the two are designed together. */
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-diff {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 .prompt-timeline-gutter-row.active {
-	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
-.prompt-timeline-gutter-row:focus-visible {
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-diff {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+/* Both halves are painted and touching, so they now form ONE band: the label keeps the left corners,
+ * the badge the right, and the seam between them is square. Scoped to rows that actually have a badge
+ * — on the rest the label is the whole band and stays rounded all round. */
+.prompt-timeline-gutter-row.reviewable.preview .prompt-timeline-gutter-row-jump,
+.prompt-timeline-gutter-row.reviewable.active .prompt-timeline-gutter-row-jump {
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
+}
+
+.prompt-timeline-gutter-row.preview .prompt-timeline-gutter-row-diff,
+.prompt-timeline-gutter-row.active .prompt-timeline-gutter-row-diff {
+	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
+}
+
+.prompt-timeline-gutter-row-jump:focus-visible,
+.prompt-timeline-gutter-row-diff:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -709,10 +787,6 @@
 	font-size: 11px;
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
-}
-
-.prompt-timeline-gutter-row-stat.hidden {
-	display: none;
 }
 
 .prompt-timeline-gutter-row-stat .added {

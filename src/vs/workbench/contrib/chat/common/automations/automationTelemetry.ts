@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { AutomationInterval, AutomationRunTrigger, IAutomation } from './automation.js';
+import { AutomationInterval, AutomationRunTrigger, IAutomationDescriptor } from './automation.js';
 
 /**
  * GDPR-classified telemetry events for the Automations feature.
@@ -31,7 +31,7 @@ type AutomationCreateClassification = {
 	comment: 'Tracks Automations feature adoption and which options users configure.';
 };
 
-export function publishAutomationCreated(telemetryService: ITelemetryService, automation: IAutomation): void {
+export function publishAutomationCreated(telemetryService: ITelemetryService, automation: IAutomationDescriptor): void {
 	telemetryService.publicLog2<AutomationCreateEvent, AutomationCreateClassification>('automation.create', {
 		intervalKind: automation.schedule.interval,
 		permissionLevel: automation.permissionLevel ?? '',
@@ -56,7 +56,7 @@ type AutomationUpdateClassification = {
 	comment: 'Tracks how often users edit Automations and which fields they touch.';
 };
 
-export function publishAutomationUpdated(telemetryService: ITelemetryService, before: IAutomation, after: IAutomation): void {
+export function publishAutomationUpdated(telemetryService: ITelemetryService, before: IAutomationDescriptor, after: IAutomationDescriptor): void {
 	telemetryService.publicLog2<AutomationUpdateEvent, AutomationUpdateClassification>('automation.update', {
 		intervalKind: after.schedule.interval,
 		scheduleChanged: before.schedule.interval !== after.schedule.interval
@@ -78,7 +78,7 @@ type AutomationDeleteClassification = {
 	comment: 'Tracks Automations deletion.';
 };
 
-export function publishAutomationDeleted(telemetryService: ITelemetryService, automation: IAutomation): void {
+export function publishAutomationDeleted(telemetryService: ITelemetryService, automation: IAutomationDescriptor): void {
 	telemetryService.publicLog2<AutomationDeleteEvent, AutomationDeleteClassification>('automation.delete', {
 		intervalKind: automation.schedule.interval,
 	});
@@ -106,7 +106,7 @@ type AutomationRunClassification = {
 
 export function publishAutomationRun(telemetryService: ITelemetryService, args: {
 	trigger: AutomationRunTrigger;
-	automation: IAutomation;
+	automation: IAutomationDescriptor;
 	success: boolean;
 	durationMs: number;
 }): void {
@@ -120,7 +120,7 @@ export function publishAutomationRun(telemetryService: ITelemetryService, args: 
 	});
 }
 
-function getAutomationIsolationMode(automation: IAutomation): string {
+function getAutomationIsolationMode(automation: IAutomationDescriptor): string {
 	if (automation.target.kind !== 'workspace') {
 		return '';
 	}
@@ -144,7 +144,7 @@ type AutomationRunErrorClassification = {
 
 export function publishAutomationRunError(telemetryService: ITelemetryService, args: {
 	trigger: AutomationRunTrigger;
-	automation: IAutomation;
+	automation: IAutomationDescriptor;
 }): void {
 	telemetryService.publicLogError2<AutomationRunErrorEvent, AutomationRunErrorClassification>('automation.runError', {
 		trigger: args.trigger,

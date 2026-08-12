@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
@@ -31,7 +31,7 @@ import { ChatModel, ChatRequestModel, ChatResponseResource, extractExportableSes
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -1661,6 +1661,33 @@ suite('ChatResponseModel', () => {
 		assert.strictEqual(toolInvocation.state.get().type, IChatToolInvocation.StateKind.Cancelled);
 		assert.strictEqual(IChatToolInvocation.isComplete(toolInvocation), true);
 		assert.strictEqual(response.state, ResponseModelState.Cancelled);
+	});
+
+	test('completed tool invocation ignores duplicate completion', async () => {
+		const toolInvocation = new ChatToolInvocation({ invocationMessage: 'Running command' }, {
+			id: 'run_in_terminal',
+			modelDescription: 'Run a command',
+			displayName: 'Run in Terminal',
+			source: ToolDataSource.Internal,
+		}, 'tool-call-1', undefined, {}, {});
+		const result: IToolResult = {
+			content: [],
+			toolResultDetails: {
+				input: '{}',
+				output: [{ type: 'embed', value: 'iVBORw0KGgo=', mimeType: 'image/png' }],
+			},
+		};
+		let completedNotifications = 0;
+		testDisposables.add(autorun(reader => {
+			if (toolInvocation.state.read(reader).type === IChatToolInvocation.StateKind.Completed) {
+				completedNotifications++;
+			}
+		}));
+
+		await toolInvocation.didExecuteTool(result);
+		await toolInvocation.didExecuteTool(result, true);
+
+		assert.strictEqual(completedNotifications, 1);
 	});
 
 	test('hasActiveRequest reflects last request isIncomplete', async () => {

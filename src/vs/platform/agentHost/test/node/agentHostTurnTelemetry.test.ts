@@ -16,8 +16,10 @@ import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
+import type { SessionMode } from '../../common/agentHostSchema.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
@@ -113,7 +115,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}
 	}
 
-	function setAutoApprove(level: string): void {
+	function setSessionConfig(values: { autoApprove?: string; mode?: SessionMode }): void {
 		// Establish config on the authoritative session state via the state
 		// manager API. Mutating the object returned by `getSessionState` would
 		// strand the change on a detached composite copy (session merged with
@@ -123,14 +125,18 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			schema: {
 				type: 'object',
 				properties: {
-					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
+					[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove', 'autopilot'], default: 'default' },
+					[SessionConfigKey.Mode]: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive' },
 				},
 			},
-			values: { autoApprove: level },
+			values: {
+				...(values.autoApprove === undefined ? {} : { [SessionConfigKey.AutoApprove]: values.autoApprove }),
+				...(values.mode === undefined ? {} : { [SessionConfigKey.Mode]: values.mode }),
+			},
 		});
 	}
 
-	function startTurn(turnId: string, text = 'hello', modelId?: string): void {
+	function startTurn(turnId: string, text = 'hello', modelId?: string, chatUri = defaultChatUri): void {
 		const action: ChatAction = {
 			type: ActionType.ChatTurnStarted,
 			turnId,
@@ -141,12 +147,12 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		// active turn (the progress-listener path relies on this) and then
 		// invoke `handleAction` so the side-effect (which calls
 		// `agent.sendMessage` and `turnTracker.turnStarted`) runs.
-		stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
-		sideEffects.handleAction(defaultChatUri, action);
+		stateManager.dispatchClientAction(chatUri, action, { clientId: 'test', clientSeq: 1 });
+		sideEffects.handleAction(chatUri, action);
 	}
 
-	function fire(action: ChatAction): void {
-		agent.fireProgress({ kind: 'action', resource: URI.parse(defaultChatUri), action });
+	function fire(action: ChatAction, chatUri = defaultChatUri): void {
+		agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
 	}
 
 	function completedEvents(): { eventName: string; data: unknown }[] {
@@ -199,10 +205,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('emits turnCompleted with timing, model and permissionLevel on success', () => {
+	test('emits turnCompleted with timing and turn-start context on success', () => {
 		setupSession();
 		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
-		setAutoApprove('autopilot');
+		setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
 		startTurn('turn-1', 'hello', 'gpt-5.5');
 
 		fire({ type: ActionType.ChatResponsePart, turnId: 'turn-1', part: { kind: ResponsePartKind.Markdown, id: 'p1', content: 'hi' } });
@@ -219,6 +225,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual(capturedModel(data), { trusted: true, value: 'gpt-5.5' });
 		assert.strictEqual(data.modelSelectionKind, 'explicit');
 		assert.strictEqual(data.permissionLevel, 'autopilot');
+		assert.strictEqual(data.isSubagentSession, false);
+		assert.strictEqual(data.isBYOK, false);
+		assert.strictEqual(data.interactionMode, 'interactive');
 		assert.strictEqual(typeof data.totalTime, 'number');
 		assert.strictEqual(typeof data.timeToFirstProgress, 'number');
 		assert.strictEqual(data.isMultiRoot, false);
@@ -255,10 +264,10 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		assert.deepStrictEqual(completedEvents().map(event => {
 			const data = event.data as Record<string, unknown>;
-			return { model: data.model, modelSelectionKind: data.modelSelectionKind };
+			return { model: data.model, modelSelectionKind: data.modelSelectionKind, isBYOK: data.isBYOK };
 		}), [
-			{ model: 'byokModel', modelSelectionKind: 'explicit' },
-			{ model: 'unknown', modelSelectionKind: 'explicit' },
+			{ model: 'byokModel', modelSelectionKind: 'explicit', isBYOK: true },
+			{ model: 'unknown', modelSelectionKind: 'explicit', isBYOK: false },
 		]);
 	});
 
@@ -345,6 +354,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			return {
 				agentSessionId: data.agentSessionId,
 				chatSessionId: data.chatSessionId,
+				isSubagentSession: data.isSubagentSession,
 				turnId: data.turnId,
 				providerCallId: data.providerCallId,
 				serviceRequestId: data.serviceRequestId,
@@ -352,10 +362,41 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		}), [{
 			agentSessionId: 'session-1',
 			chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+			isSubagentSession: false,
 			turnId: 'turn-1',
 			providerCallId: 'provider-request-id',
 			serviceRequestId: 'service-request-id',
 		}]);
+	});
+
+	test('reports subagent completion and failure without collapsing the chat identity', () => {
+		setupSession();
+		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
+		stateManager.addChat(sessionKey, subagentChatUri);
+
+		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);
+		startTurn('subagent-failed', 'hello', undefined, subagentChatUri);
+		fire({ type: ActionType.ChatError, turnId: 'subagent-failed', duration: 1000, error: { errorType: 'oops', message: 'fail' } }, subagentChatUri);
+
+		assert.deepStrictEqual({
+			completed: completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { turnId: data.turnId, agentSessionId: data.agentSessionId, chatSessionId: data.chatSessionId, isSubagentSession: data.isSubagentSession };
+			}),
+			failed: failedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { turnId: data.turnId, agentSessionId: data.agentSessionId, chatSessionId: data.chatSessionId, isSubagentSession: data.isSubagentSession };
+			}),
+		}, {
+			completed: [
+				{ turnId: 'subagent-complete', agentSessionId: 'session-1', chatSessionId: getTelemetryChatSessionId(subagentChatUri), isSubagentSession: true },
+				{ turnId: 'subagent-failed', agentSessionId: 'session-1', chatSessionId: getTelemetryChatSessionId(subagentChatUri), isSubagentSession: true },
+			],
+			failed: [
+				{ turnId: 'subagent-failed', agentSessionId: 'session-1', chatSessionId: getTelemetryChatSessionId(subagentChatUri), isSubagentSession: true },
+			],
+		});
 	});
 
 	test('emits a single turnCompleted per turn even when followed by duplicate completions', () => {
@@ -371,16 +412,39 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('captures permissionLevel at turnStarted, not later mid-turn changes', () => {
 		setupSession();
-		setAutoApprove('default');
+		setSessionConfig({ autoApprove: 'default' });
 		startTurn('turn-1');
 
 		// Change config mid-turn — should not affect the recorded event.
-		setAutoApprove('autopilot');
+		setSessionConfig({ autoApprove: 'autopilot' });
 
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.permissionLevel, 'default');
+	});
+
+	test('reports all interaction modes', () => {
+		setupSession();
+
+		for (const mode of ['interactive', 'plan', 'autopilot'] as const) {
+			setSessionConfig({ mode });
+			startTurn(`turn-${mode}`);
+			fire({ type: ActionType.ChatTurnComplete, turnId: `turn-${mode}`, duration: 1000 });
+		}
+
+		assert.deepStrictEqual(completedEvents().map(event => (event.data as Record<string, unknown>).interactionMode), ['interactive', 'plan', 'autopilot']);
+	});
+
+	test('captures interactionMode at turnStarted, not later mid-turn changes', () => {
+		setupSession();
+		setSessionConfig({ mode: 'plan' });
+		startTurn('turn-1');
+
+		setSessionConfig({ mode: 'autopilot' });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).interactionMode, 'plan');
 	});
 
 	test('model and permissionLevel are undefined when never set', () => {
@@ -392,6 +456,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.model, undefined);
 		assert.strictEqual(data.modelSelectionKind, 'default');
 		assert.strictEqual(data.permissionLevel, undefined);
+		assert.strictEqual(data.isBYOK, undefined);
+		assert.strictEqual(data.interactionMode, undefined);
 	});
 
 	// The tests below cover completion paths that bypass the agent-progress
@@ -486,6 +552,27 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const events = completedEvents();
 		assert.strictEqual(events.length, 1);
 		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+	});
+
+	test('captures interactionMode for queued turns', () => {
+		setupSession();
+		setSessionConfig({ mode: 'autopilot' });
+
+		const setAction: ChatAction = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: 'q-mode',
+			message: { text: 'queued message', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(defaultChatUri, setAction, { clientId: 'test', clientSeq: 1 });
+		sideEffects.handleAction(defaultChatUri, setAction);
+		const turnId = stateManager.getActiveTurnId(defaultChatUri);
+		assert.ok(turnId);
+
+		setSessionConfig({ mode: 'interactive' });
+		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+
+		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).interactionMode, 'autopilot');
 	});
 
 	test('emits a single turnCompleted when both the client cancel and a follow-up agent signal arrive', () => {

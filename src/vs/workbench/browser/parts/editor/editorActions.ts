@@ -453,7 +453,7 @@ export class CloseEditorTabAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, ThemeIcon.asClassName(Codicon.close));
+		super(id, label, ThemeIcon.asClassName(Codicon.closeSmall));
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {

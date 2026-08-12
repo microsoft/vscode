@@ -36,7 +36,9 @@
 		"actionBar.toggledBackground": "#dddddd",
 		"diffEditor.unchangedRegionBackground": "#f8f8f8",
 		"agentsNewSessionButton.border": "#D8D8D8",
-		"agentsChatInput.border": "#D8D8D8"
+		"agentsChatInput.border": "#D8D8D8",
+		// modern ui
+		"surface.border": "#F3F3F3",
 	},
 	"tokenColors": [
 		{

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -213,8 +213,15 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IAgentHostImportConversationStore, importStore);
 		customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 		insta.stub(IAgentHostActiveClientService, {
-			getCustomizations: () => customizations,
-			getActiveClient: (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [...customizations.get()] }),
+			acquireScope: (_sessionType: string, _roots: readonly URI[]) => ({
+				customizations,
+				customAgents: constObservable([]),
+				tools: constObservable([]),
+				isResolved: constObservable(true),
+				whenResolved: () => Promise.resolve(),
+				activeClient: clientId => derived(reader => ({ clientId, tools: [], customizations: [...customizations.read(reader)] })),
+				dispose: () => { },
+			}),
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());

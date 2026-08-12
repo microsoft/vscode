@@ -7,6 +7,7 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import type { ToolCallContributor } from '../common/state/sessionState.js';
@@ -55,6 +56,7 @@ interface ITurnTiming {
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
+	readonly interactionMode: SessionMode | undefined;
 	firstProgressMs: number | undefined;
 
 	// Hang watchdog state
@@ -130,7 +132,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -141,6 +143,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelTelemetryKind,
 			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel,
+			interactionMode,
 			firstProgressMs: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
@@ -307,6 +310,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelTelemetryKind: timing.modelTelemetryKind,
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
+			interactionMode: timing.interactionMode,
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
@@ -478,4 +482,3 @@ export class AgentHostTurnTracker extends Disposable {
 		return `${session}\0${turnId}`;
 	}
 }
-

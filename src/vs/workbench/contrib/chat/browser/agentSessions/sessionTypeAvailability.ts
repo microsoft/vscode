@@ -6,7 +6,7 @@
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 
 /**
@@ -16,12 +16,18 @@ import { ILanguageModelsService } from '../../common/languageModels.js';
 export enum SessionTypeAvailability {
 	/** Selectable — has an Auto fallback or at least one targeted/BYOK model. */
 	Available,
-	/** Unusable until the user signs in (the type needs a Copilot account; BYOK is not supported here). */
+	/** Unusable until the user signs in (the type needs a Copilot account and has no visible Agent Host BYOK model). */
 	SignInRequired,
 	/** Unusable, but the user can resolve it by upgrading (Copilot Free / Student). */
 	UpgradeRequired,
 	/** Unusable with no upgrade path — no models target it and the user is already on a paid plan. */
 	NoModels,
+}
+
+export function getSessionTypePickerAvailability(type: string, availability: SessionTypeAvailability, allowSignedOutWhenUsable: boolean): SessionTypeAvailability {
+	return allowSignedOutWhenUsable && type === SessionType.AgentHostCopilot && availability === SessionTypeAvailability.SignInRequired
+		? SessionTypeAvailability.Available
+		: availability;
 }
 
 /**
@@ -39,8 +45,9 @@ export enum SessionTypeAvailability {
  * explanation with no upgrade button. A signed-out user gets a Sign-in
  * affordance ({@link SessionTypeAvailability.SignInRequired}) for Copilot-backed
  * types ({@link IChatSessionsService.requiresCopilotSignInForSessionType}), unless
- * anonymous access is enabled; types that don't depend on Copilot stay usable
- * while signed out. Unavailable types are greyed out in the picker either way.
+ * anonymous access is enabled or a visible Agent Host BYOK model targets the type.
+ * Types that don't depend on Copilot stay usable while signed out. Unavailable
+ * types are greyed out in the picker either way.
  *
  * While the type's contribution isn't registered yet (e.g. during a window
  * reload before the extension host re-registers), this returns
@@ -56,21 +63,23 @@ export function getSessionTypeAvailability(
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
 	type: string,
+	allowSignedOutWhenUsable = false,
 ): SessionTypeAvailability {
 	// Contribution loads asynchronously; while missing (e.g. during a reload) we
 	// can't judge the type, so stay selectable to avoid locking it prematurely.
 	if (!chatSessionsService.getChatSessionContribution(type)) {
 		return SessionTypeAvailability.Available;
 	}
-	// Copilot-backed types need a Copilot account (BYOK isn't supported here), so a signed-out user can't use them —
-	// unless anonymous access is enabled, which grants access without signing in.
 	const entitlement = chatEntitlementService.entitlement;
-	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type)) {
+	const hasTargetedModels = hasModelsTargetingSessionType(languageModelsService, type);
+	const hasVisibleByokModels = allowSignedOutWhenUsable && chatEntitlementService.clientByokEnabled && hasVisibleByokModelsTargetingSessionType(languageModelsService, type);
+	// A visible Agent Host BYOK model can run without a Copilot account.
+	if (entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous && chatSessionsService.requiresCopilotSignInForSessionType(type) && !hasVisibleByokModels) {
 		return SessionTypeAvailability.SignInRequired;
 	}
 	// Signed in: a model targeting the type (e.g. BYOK) or an "Auto" fallback
 	// (e.g. the Copilot CLI harness) makes it usable.
-	if (hasModelsTargetingSessionType(languageModelsService, type) || chatSessionsService.supportsAutoModelForSessionType(type)) {
+	if (hasTargetedModels || chatSessionsService.supportsAutoModelForSessionType(type)) {
 		return SessionTypeAvailability.Available;
 	}
 	// No Auto fallback and no targeted models: Free / Student users must upgrade
@@ -95,6 +104,19 @@ function hasModelsTargetingSessionType(languageModelsService: ILanguageModelsSer
 	return languageModelsService.getLanguageModelIds().some(id => {
 		const metadata = languageModelsService.lookupLanguageModel(id);
 		return metadata?.targetChatSessionType === type;
+	});
+}
+
+export function hasVisibleByokModelsTargetingSessionType(languageModelsService: ILanguageModelsService, type: string): boolean {
+	return languageModelsService.getLanguageModelIds().some(id => {
+		const metadata = languageModelsService.lookupLanguageModel(id);
+		const byokIdentifier = metadata?.byokModelIdentifier;
+		const byokSource = byokIdentifier ? languageModelsService.lookupLanguageModel(byokIdentifier) : undefined;
+		return metadata?.targetChatSessionType === type
+			&& byokIdentifier !== undefined
+			&& byokSource?.isBYOK === true
+			&& !languageModelsService.isModelHidden(id)
+			&& !languageModelsService.isModelHidden(byokIdentifier);
 	});
 }
 

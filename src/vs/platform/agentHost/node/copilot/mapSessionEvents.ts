@@ -83,8 +83,8 @@ function stripPromptScaffolding(text: string): string {
 }
 
 /**
- * Converts SDK `tool.execution_complete` content blocks into AHP tool result
- * content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
+ * Converts SDK `tool.execution_complete` image and shell result blocks into
+ * AHP tool result content. A `shell_exit` block becomes {@link TerminalCommandResult} data on
  * the tool call's terminal content block; when no terminal block exists yet
  * (e.g. history replay, where no live channel survives) and `terminal` is
  * provided, a non-pty terminal block is synthesized so the outcome still
@@ -100,6 +100,13 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 	let shellExit: ISdkShellExit | undefined;
 	for (const sdkContent of sdkContents ?? []) {
 		switch (sdkContent.type) {
+			case 'image':
+				content.push({
+					type: ToolResultContentType.EmbeddedResource,
+					data: sdkContent.data,
+					contentType: sdkContent.mimeType,
+				});
+				break;
 			case 'shell_exit': {
 				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,

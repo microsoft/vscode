@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionChangeset } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
@@ -22,12 +22,40 @@ suite('ChangesViewService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSession(id: string): IActiveSession {
+	function createSession(id: string, options?: { readonly changesets?: readonly ISessionChangeset[]; readonly baseBranchProtected?: boolean }): IActiveSession {
+		const workspace = options?.baseBranchProtected === undefined
+			? undefined
+			: upcastPartial<ISessionWorkspace>({
+				folders: [upcastPartial<ISessionFolder>({
+					root: URI.file('/repo'),
+					name: 'repo',
+					gitRepository: upcastPartial<ISessionGitRepository>({
+						uri: URI.file('/repo'),
+						workTreeUri: URI.file('/repo.worktrees/session'),
+						baseBranchName: 'main',
+						baseBranchProtected: options.baseBranchProtected,
+						gitHubInfo: constObservable(undefined),
+					}),
+				})],
+			});
 		return upcastPartial<IActiveSession>({
 			resource: URI.from({ scheme: 'test-session', path: `/${id}` }),
+			providerId: 'local-agent-host',
 			sessionType: 'test',
 			loading: constObservable(false),
-			changesets: constObservable<readonly ISessionChangeset[]>([]),
+			changesets: constObservable(options?.changesets ?? []),
+			workspace: constObservable(workspace),
+		});
+	}
+
+	function createChangeset(operations: readonly ISessionChangesetOperation[]): ISessionChangeset {
+		return upcastPartial<ISessionChangeset>({
+			id: 'branch',
+			isDefault: constObservable(true),
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			operations: constObservable(operations),
+			changes: constObservable([]),
 		});
 	}
 
@@ -128,5 +156,39 @@ suite('ChangesViewService', () => {
 			afterReplacement: { otherFiles: false, checks: true },
 			afterDiscard: { otherFiles: false, checks: true },
 		});
+	});
+
+	test('hides the Agent Host merge operation when the base branch is protected', () => {
+		const operations: readonly ISessionChangesetOperation[] = [
+			{
+				id: 'merge',
+				label: 'Merge Changes',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+			{
+				id: 'create-pr',
+				label: 'Create PR',
+				scopes: [SessionChangesetOperationScope.Changeset],
+				status: SessionChangesetOperationStatus.Idle,
+			},
+		];
+		const changeset = createChangeset(operations);
+		const unprotected = createSession('unprotected', { changesets: [changeset], baseBranchProtected: false });
+		const protectedSession = createSession('protected', { changesets: [changeset], baseBranchProtected: true });
+		const unknown = createSession('unknown', { changesets: [changeset] });
+		const { activeSession, service } = createHarness(unprotected);
+
+		const visibleOperations = [service.activeSessionChangesetOperationsObs.get().map(operation => operation.id)];
+		activeSession.set(protectedSession, undefined);
+		visibleOperations.push(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id));
+		activeSession.set(unknown, undefined);
+		visibleOperations.push(service.activeSessionChangesetOperationsObs.get().map(operation => operation.id));
+
+		assert.deepStrictEqual(visibleOperations, [
+			['merge', 'create-pr'],
+			['create-pr'],
+			['merge', 'create-pr'],
+		]);
 	});
 });

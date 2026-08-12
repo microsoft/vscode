@@ -4,10 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isCancellationError } from '../../base/common/errors.js';
+import { StringSHA1 } from '../../base/common/hash.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
+
+/** Bounded provider categories emitted by Agents window telemetry. */
+export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
+
+/** Removes connection-specific details from a sessions provider identifier. */
+export function getSessionsTelemetryProviderId(providerId: string): SessionsTelemetryProviderId {
+	if (providerId === 'default-copilot' || providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+		return providerId;
+	}
+	if (providerId === 'remote-agent-host' || providerId.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
+		return 'remote-agent-host';
+	}
+	return 'other';
+}
+
+/** Hashes a session identifier while preserving deterministic event correlation. */
+export function hashSessionIdForTelemetry(sessionId: string): string {
+	const sha1 = new StringSHA1();
+	sha1.update(sessionId);
+	return sha1.digest();
+}
 
 // --- Titlebar button interactions ---
 

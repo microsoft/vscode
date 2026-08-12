@@ -60,7 +60,9 @@
 		"terminal.ansiBrightBlue": "#80baff",
 		"terminal.ansiBrightMagenta": "#d778ff",
 		"terminal.ansiBrightCyan": "#78ffff",
-		"terminal.ansiBrightWhite": "#ffffff"
+		"terminal.ansiBrightWhite": "#ffffff",
+		// modern ui
+		"surface.border": "#00000000",
 	},
 	"tokenColors": [
 		{

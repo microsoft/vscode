@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
-import { Disposable, autorun, observableValue } from '@vscode/markdown-editor/observables';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
+import { Disposable, autorun, observableValue } from '@vscode/observables';
 import 'katex/dist/katex.min.css';
 import '@vscode/markdown-editor/editor.css';
 import '@vscode/markdown-editor/themes/vscode-default.css';

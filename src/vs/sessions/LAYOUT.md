@@ -128,7 +128,9 @@ The titlebar is a standalone implementation (`TitlebarPart`) — not extending `
 
 No menubar or `WindowTitle` dependency. Editor-specific actions remain in the editor header, while session-level actions are placed on the right of the title bar.
 
-The Update indicator occupies its own trailing toolbar immediately before native window controls. It keeps the shared Update tooltip behavior and hides when the titlebar cannot fit it without overflowing.
+The Changes action bar presents its leading primary action as a compact, text-only button; secondary actions retain their icon treatment. The same label-led hierarchy is used when the bar is hosted in the Changes editor header.
+
+The Update indicator occupies its own trailing toolbar immediately before native window controls. At constrained widths, the titlebar measures each of its three sections so content that overflows inside the center grid cannot collide with the right controls. Optional toolbars yield as complete groups: center-adjacent actions and navigation first, then global layout/account actions, active-session actions, and finally Update. The session picker, left toolbar, and native window controls remain stable.
 
 The account widget shows overlapping provider identities only for accounts that are currently verified as signed in. Its panel keeps provider and status groups in a stable order: Copilot, ChatGPT (or its sign-in action), then contributed account status such as Codebase Semantic Index, with dividers between groups. Subscription usage uses a two-row metric layout with the plan and percentage first, followed by reset timing and the usage label.
 

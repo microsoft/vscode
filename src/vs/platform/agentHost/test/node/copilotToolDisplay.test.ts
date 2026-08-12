@@ -291,6 +291,27 @@ suite('view tool — view_range display', () => {
 		assert.ok(pastTense({ path: '/repo/file.ts' }).startsWith('Read ['));
 	});
 
+	test('renders Copilot SDK tool-output reads without exposing the temp path', () => {
+		const paths = [
+			'/tmp/1786468439523-copilot-tool-output-d115e2.txt',
+			'/tmp/1786499016779-copilot-tool-output-44600-1a0a63b8-4548-4fb8-a507-da72473e0556.txt',
+			'C:\\Temp\\copilot-tool-output-1786468439523-d115e2.txt',
+			'C:\\Temp\\copilot-tool-output-1786499172415-297.txt',
+		];
+		assert.deepStrictEqual(
+			paths.map(path => ({
+				invocation: invocation({ path, view_range: [107, 119] }),
+				pastTense: pastTense({ path, view_range: [107, 119] }),
+			})),
+			[
+				{ invocation: 'Reading tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Reading tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Reading tool output', pastTense: 'Read tool output' },
+				{ invocation: 'Reading tool output', pastTense: 'Read tool output' },
+			],
+		);
+	});
+
 	test('renders "lines X to Y" for a valid two-element range', () => {
 		assert.ok(invocation({ path: '/repo/file.ts', view_range: [10, 20] }).endsWith(', lines 10 to 20'));
 		assert.ok(pastTense({ path: '/repo/file.ts', view_range: [10, 20] }).endsWith(', lines 10 to 20'));

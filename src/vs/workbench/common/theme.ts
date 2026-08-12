@@ -682,6 +682,8 @@ export const SURFACE_BORDER = registerColor('surface.border', {
 	hcLight: contrastBorder
 }, localize('surfaceBorder', "Border color of framed container surfaces (\"cards\"), such as the floating workbench panels in the modern layout."));
 
+export const EDITOR_BORDER = registerColor('editor.border', SURFACE_BORDER, localize('editorBorder', "Border color of the editor surface in the modern layout."));
+
 // < --- Title Bar --- >
 
 export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {

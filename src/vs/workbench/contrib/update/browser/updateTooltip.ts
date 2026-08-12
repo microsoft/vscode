@@ -33,8 +33,10 @@ export class UpdateTooltip extends Disposable {
 	private readonly productNameNode: HTMLElement;
 	private readonly currentVersionNode: HTMLElement;
 	private readonly currentVersionCopyValue: { value: string };
+	private readonly currentVersionCopyButton: HTMLElement;
 	private readonly latestVersionNode: HTMLElement;
 	private readonly latestVersionCopyValue: { value: string };
+	private readonly latestVersionCopyButton: HTMLElement;
 	private readonly releaseDateNode: HTMLElement;
 
 	// Progress section
@@ -89,10 +91,12 @@ export class UpdateTooltip extends Disposable {
 		const currentVersionRow = this.createVersionRow(details);
 		this.currentVersionNode = currentVersionRow.label;
 		this.currentVersionCopyValue = currentVersionRow.copyValue;
+		this.currentVersionCopyButton = currentVersionRow.copyButton;
 
 		const latestVersionRow = this.createVersionRow(details);
 		this.latestVersionNode = latestVersionRow.label;
 		this.latestVersionCopyValue = latestVersionRow.copyValue;
+		this.latestVersionCopyButton = latestVersionRow.copyButton;
 
 		this.releaseDateNode = dom.append(details, dom.$('.product-release-date'));
 
@@ -145,8 +149,10 @@ export class UpdateTooltip extends Disposable {
 				: localize('updateTooltip.currentVersionLabel', "Current Version: {0}", productVersion);
 			this.currentVersionCopyValue.value = currentCommitId ? `${productVersion} (${this.productService.commit})` : productVersion;
 			this.currentVersionNode.parentElement!.style.display = '';
+			this.currentVersionCopyButton.tabIndex = 0;
 		} else {
 			this.currentVersionNode.parentElement!.style.display = 'none';
+			this.currentVersionCopyButton.tabIndex = -1;
 		}
 	}
 
@@ -157,6 +163,7 @@ export class UpdateTooltip extends Disposable {
 		this.timeRemainingNode.textContent = '';
 		this.messageNode.style.display = 'none';
 		this.actionButton.style.display = 'none';
+		this.actionButton.tabIndex = -1;
 		this.actionButton.dataset.commandId = '';
 		this.releaseNotesButton.style.marginRight = '';
 	}
@@ -385,8 +392,10 @@ export class UpdateTooltip extends Disposable {
 				: localize('updateTooltip.latestVersionLabel', "Latest Version: {0}", version);
 			this.latestVersionCopyValue.value = updateCommitId ? `${version} (${update.version})` : version;
 			this.latestVersionNode.parentElement!.style.display = '';
+			this.latestVersionCopyButton.tabIndex = 0;
 		} else {
 			this.latestVersionNode.parentElement!.style.display = 'none';
+			this.latestVersionCopyButton.tabIndex = -1;
 		}
 
 		// Release date
@@ -401,6 +410,7 @@ export class UpdateTooltip extends Disposable {
 		// Release notes button
 		this.releaseNotesVersion = version ?? this.productService.version;
 		this.releaseNotesButton.style.display = this.releaseNotesVersion ? '' : 'none';
+		this.releaseNotesButton.tabIndex = this.releaseNotesVersion ? 0 : -1;
 		this.releaseNotesButton.style.marginRight = this.releaseNotesVersion ? 'auto' : '';
 		this.buttonBar.style.display = this.releaseNotesVersion ? '' : 'none';
 	}
@@ -409,6 +419,7 @@ export class UpdateTooltip extends Disposable {
 		this.actionButton.textContent = label;
 		this.actionButton.dataset.commandId = commandId;
 		this.actionButton.style.display = '';
+		this.actionButton.tabIndex = 0;
 	}
 
 	private renderMessage(message: string, icon?: ThemeIcon) {
@@ -421,7 +432,7 @@ export class UpdateTooltip extends Disposable {
 		this.messageNode.style.display = '';
 	}
 
-	private createVersionRow(parent: HTMLElement): { label: HTMLElement; copyValue: { value: string } } {
+	private createVersionRow(parent: HTMLElement): { label: HTMLElement; copyValue: { value: string }; copyButton: HTMLElement } {
 		const row = dom.append(parent, dom.$('.product-version'));
 		const label = dom.append(row, dom.$('span'));
 		const copyValue = { value: '' };
@@ -443,7 +454,7 @@ export class UpdateTooltip extends Disposable {
 			}
 		}));
 
-		return { label, copyValue };
+		return { label, copyValue, copyButton };
 	}
 
 	private runCommandAndClose(command: string, ...args: unknown[]) {

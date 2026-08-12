@@ -71,6 +71,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		private readonly _draft: boolean,
 		private readonly _autoMergeMethod: AutoMergeMethod | undefined,
 		private readonly _getSessionState: (sessionKey: string) => ISessionWithDefaultChat | undefined,
+		private readonly _resolveBaseBranchName: (sessionKey: string) => Promise<string | undefined>,
 		private readonly _onPullRequestCreated: (event: PullRequestCreatedEvent) => void,
 		@IAgentService private readonly _agentService: IAgentService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -120,13 +121,15 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		const workingDirectory = URI.parse(workingDirectoryStr);
-		const gitState = await this._gitService.getSessionGitState(workingDirectory) ?? readSessionGitState(sessionState._meta);
+		const storedGitState = readSessionGitState(sessionState._meta);
+		const effectiveBaseBranch = await this._resolveBaseBranchName(sessionUri);
+		const gitState = await this._gitService.getSessionGitState(workingDirectory, effectiveBaseBranch) ?? storedGitState;
 		const branchName = gitState?.branchName ?? await this._gitService.getCurrentBranch(workingDirectory);
 		if (!branchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine current branch for ${workingDirectory}`);
 		}
 
-		const baseBranchName = gitState?.baseBranchName ?? (await this._gitService.getDefaultBranch(workingDirectory))?.name;
+		const baseBranchName = effectiveBaseBranch ?? gitState?.baseBranchName ?? (await this._gitService.getDefaultBranch(workingDirectory))?.name;
 		if (!baseBranchName) {
 			throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Could not determine base branch for ${workingDirectory}`);
 		}

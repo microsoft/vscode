@@ -597,30 +597,29 @@ const MULTI_TURN: IFixtureMessage[] = [
 ];
 
 // Code blocks that follow or are nested in list items should have symmetric spacing
-// above and below. Covers the two DOM shapes markdown produces: a code block that is a
-// sibling after a list, and a code block nested inside a list item (indented fence).
+// above and below. This also covers tight lists, where prose before a code block is a
+// text node and the code block is therefore still the first element child.
 const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	{
-		user: 'How do I set up the project?',
+		user: 'Why do the files appear while diffs fail?',
 		assistant: [
 			{
 				kind: 'markdown', text: [
-					'Follow these steps:',
+					'## Root cause',
 					'',
-					'- Clone the repository',
-					'- Install the dependencies',
+					'Git is unusable on this Mac because the Xcode license has not been accepted. Both `git --version` and `/usr/bin/git --version` currently exit with code 69 and report:',
 					'',
-					'```bash',
-					'npm install',
-					'```',
+					'> You have not agreed to the Xcode license agreements.',
 					'',
-					'- Then start the build watcher:',
+					'### Why files appear but diffs fail',
 					'',
-					'  ```bash',
-					'  npm run watch',
-					'  ```',
-					'',
-					'- Finally, launch the app',
+					'1. The session restores/caches the change-set metadata, so VS Code can display the filenames and change counts.',
+					'2. Opening a diff requires loading its original side using a `git-blob:` URI.',
+					'3. Agent Host executes roughly:',
+					'   ```bash',
+					'   git show 1e393d7b352de7927a98d0321e51ae63046c8652:<path>',
+					'   ```',
+					'4. Git refuses to run because of the Xcode license.',
 				].join('\n')
 			},
 		],

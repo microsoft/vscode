@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
+import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -2017,6 +2017,37 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('`/rubber-duck` invokes the native runtime command', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{
+				name: 'rubber-duck',
+				kind: 'builtin',
+				description: 'Get an independent critique',
+				allowDuringAgentExecution: true,
+				input: { hint: 'review prompt' },
+			}],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Run the rubber duck critic.',
+			displayPrompt: 'Review the current work',
+			mode: 'interactive',
+		};
+
+		await session.send('/rubber-duck focus on tests', undefined, 'turn-rubber-duck');
+
+		assert.deepStrictEqual({
+			commandListCalls: mockSession.commandListCalls,
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sendRequests: mockSession.sendRequests,
+		}, {
+			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
+			commandInvokeCalls: [{ name: 'rubber-duck', input: 'focus on tests' }],
+			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined }],
+		});
+	});
+
 	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };
@@ -2826,6 +2857,14 @@ suite('CopilotAgentSession', () => {
 				toolCallId: 'tc-tool-output-2',
 			});
 			assert.strictEqual(result2.kind, 'approve-once');
+
+			// Layout 3: <timestamp>-copilot-tool-output-<process-id>-<uuid>.txt
+			const result3 = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: join('/mock-tmp', '1786499016779-copilot-tool-output-44600-1a0a63b8-4548-4fb8-a507-da72473e0556.txt'),
+				toolCallId: 'tc-tool-output-3',
+			});
+			assert.strictEqual(result3.kind, 'approve-once');
 
 			assert.strictEqual(signals.length, 0);
 		});
@@ -5839,7 +5878,7 @@ suite('CopilotAgentSession', () => {
 					failureKind: 'transport',
 					source: 'subagent',
 					transport: 'websocket',
-					apiEndpoint: new TelemetryTrustedValue('/chat/completions'),
+					apiEndpoint: 'chatCompletions',
 					statusCode: 502,
 					durationMs: 42,
 					model: 'byokModel',
