@@ -67,10 +67,7 @@ export class AgentHostStartupTelemetry extends Disposable {
 	) {
 		super();
 		this._stopWatch = stopWatchFactory();
-		this._timeout = this._register(timeoutFactory(() => this._report(
-			'timeout',
-			this._timeToProtocolConnectionMs === undefined ? 'protocolConnection' : 'sessionList',
-		), AgentHostStartupTimeoutMs));
+		this._timeout = this._register(timeoutFactory(() => this._report('timeout', this._failureStage()), AgentHostStartupTimeoutMs));
 	}
 
 	messagePortAcquired(): void {
@@ -103,13 +100,18 @@ export class AgentHostStartupTelemetry extends Disposable {
 		this._report('success', undefined);
 	}
 
-	protocolConnectionFailed(): void {
-		this._report('error', 'protocolConnection');
+	connectionFailed(): void {
+		this._report('error', this._failureStage());
 	}
 
 	override dispose(): void {
 		this._reported = true;
 		super.dispose();
+	}
+
+	/** Startup reaches the session-list stage as soon as the protocol connects. */
+	private _failureStage(): AgentHostStartupFailureStage {
+		return this._timeToProtocolConnectionMs === undefined ? 'protocolConnection' : 'sessionList';
 	}
 
 	private _report(outcome: AgentHostStartupOutcome, failureStage: AgentHostStartupFailureStage | undefined): void {

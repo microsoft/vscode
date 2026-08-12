@@ -115,7 +115,7 @@ suite('AgentHostStartupTelemetry', () => {
 		tracker.sessionListFailed();
 		now = 120;
 		tracker.sessionListSucceeded();
-		tracker.protocolConnectionFailed();
+		tracker.connectionFailed();
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			eventName: 'agentHost.startup',
@@ -147,7 +147,7 @@ suite('AgentHostStartupTelemetry', () => {
 			telemetryService,
 		));
 
-		tracker.protocolConnectionFailed();
+		tracker.connectionFailed();
 		now = 40;
 		tracker.sessionListRequested();
 		tracker.sessionListSucceeded();
@@ -166,6 +166,42 @@ suite('AgentHostStartupTelemetry', () => {
 				timeToSessionListCompleteMs: undefined,
 				sessionListDurationMs: undefined,
 				sessionListAttemptCount: 0,
+				sessionListFailureCount: 0,
+			},
+		}]);
+	});
+
+	test('attributes a terminal connection failure after connecting to the session-list stage', () => {
+		let now = 50;
+		const telemetryService = new TestTelemetryService();
+		const tracker = store.add(new AgentHostStartupTelemetry(
+			AgentHostClientType.AgentsWindow,
+			AgentHostClientConnectionKind.Local,
+			() => ({ elapsed: () => now }),
+			() => ({ dispose() { } }),
+			telemetryService,
+		));
+
+		tracker.protocolConnected();
+		now = 70;
+		tracker.sessionListRequested();
+		now = 90;
+		tracker.connectionFailed();
+
+		assert.deepStrictEqual(telemetryService.events, [{
+			eventName: 'agentHost.startup',
+			data: {
+				clientType: 'agents_window',
+				connectionKind: 'local',
+				outcome: 'error',
+				failureStage: 'sessionList',
+				timeToMessagePortMs: undefined,
+				timeToProtocolConnectionMs: 50,
+				timeToAuthenticationSettledMs: undefined,
+				timeToSessionListRequestMs: 70,
+				timeToSessionListCompleteMs: undefined,
+				sessionListDurationMs: undefined,
+				sessionListAttemptCount: 1,
 				sessionListFailureCount: 0,
 			},
 		}]);
@@ -220,7 +256,7 @@ suite('AgentHostStartupTelemetry', () => {
 		);
 
 		tracker.dispose();
-		tracker.protocolConnectionFailed();
+		tracker.connectionFailed();
 
 		assert.deepStrictEqual(telemetryService.events, []);
 	});

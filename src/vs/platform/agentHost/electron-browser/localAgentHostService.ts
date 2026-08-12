@@ -161,7 +161,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 					this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${this.clientId}`);
 					this._onAgentHostStart.fire();
 				} else if (state === AgentHostClientState.Closed || state === AgentHostClientState.Incompatible) {
-					this._startupTelemetry?.protocolConnectionFailed();
+					this._startupTelemetry?.connectionFailed();
 				}
 			}));
 		}
