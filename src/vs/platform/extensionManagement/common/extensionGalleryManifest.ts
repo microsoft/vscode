@@ -98,3 +98,4 @@ export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalle
 }
 
 export const ExtensionGalleryServiceUrlConfigKey = 'extensions.gallery.serviceUrl';
+export const ExtensionGalleryUseNetrcAuthConfigKey = 'extensions.gallery.useNetrcAuth';
