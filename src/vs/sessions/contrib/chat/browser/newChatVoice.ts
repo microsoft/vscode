@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, autorun, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -12,7 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { SegmentedVoiceInputModePillInactive } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeContextKeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -140,11 +143,19 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 
 registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
 
-// --- Voice toolbar menu for the new-session composer ---
-// The composer has a custom toolbar, so `MenuId.ChatExecute` voice actions do
-// not appear here. Re-surface them with composer-scoped visibility.
+// --- Execute toolbar menu for the new-session composer ---
+// `MenuId.ChatExecute` actions assume an IChatWidget, so this composer uses
+// equivalent composer-scoped actions in one toolbar.
 
-export const SessionsNewChatVoiceMenu = new MenuId('SessionsNewChatVoiceMenu');
+export const SessionsNewChatExecuteMenu = new MenuId('SessionsNewChatExecuteMenu');
+export const NEW_CHAT_DICTATION_ACTION_ID = 'sessions.action.chat.toggleDictation';
+export const NEW_CHAT_VOICE_INPUT_MODE_ACTION_ID = 'sessions.action.chat.voiceInputMode';
+export const NEW_CHAT_SEND_ACTION_ID = 'sessions.action.chat.send';
+
+const NewChatDictationVisible = new RawContextKey<boolean>('newChatDictationVisible', false);
+const NewChatVoiceInputModeVisible = new RawContextKey<boolean>('newChatVoiceInputModeVisible', false);
+const NewChatSendVisible = new RawContextKey<boolean>('newChatSendVisible', false);
+const NewChatSendEnabled = new RawContextKey<boolean>('newChatSendEnabled', false);
 
 const WHEN_VOICE_ENABLED = AGENTS_VOICE_ENABLED;
 const WHEN_VOICE_BUTTON_SHOWN = ContextKeyExpr.notEquals(`config.${AgentsVoiceSettingId.ShowButton}`, false);
@@ -164,39 +175,65 @@ const WHEN_NOT_DICTATING = ContextKeyExpr.and(
 // on this composer — the pill supersedes them.
 const WHEN_NO_SEGMENTED_PILL = SegmentedVoiceInputModePillInactive;
 
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
+	command: { id: NEW_CHAT_DICTATION_ACTION_ID, title: localize('sessionsStt.dictate', "Dictate (Speech to Text)"), icon: Codicon.mic },
+	when: NewChatDictationVisible,
+	group: 'navigation',
+	order: -20,
+});
+
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
+	command: { id: NEW_CHAT_VOICE_INPUT_MODE_ACTION_ID, title: localize('voiceInputMode', "Voice Input Mode"), icon: Codicon.mic },
+	when: NewChatVoiceInputModeVisible,
+	group: 'navigation',
+	order: -19,
+});
+
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
 	command: { id: 'agentsVoice.connecting', title: localize('agentsVoice.connecting', "Connecting..."), icon: Codicon.loadingCompact },
 	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
 	command: { id: 'agentsVoice.startVoiceInChat', title: localize('agentsVoice.startVoiceInChat', "Voice Mode"), icon: Codicon.voiceModeCompact },
 	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_VOICE_SURFACE, WHEN_LISTENING.negate(), WHEN_CONNECTING.negate(), WHEN_NOT_DICTATING, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
 	command: { id: 'agentsVoice.pttStopInChat', title: localize('agentsVoice.pttStopInChat', "Voice Mode: Stop Recording"), icon: Codicon.voiceModeCompact },
 	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_LISTENING, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -10,
 });
 
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
 	command: { id: 'agentsVoice.openSettings', title: localize('agentsVoice.openSettings', "Voice Mode Settings"), icon: Codicon.settingsGear },
 	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -9.5,
 });
 
-MenuRegistry.appendMenuItem(SessionsNewChatVoiceMenu, {
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
 	command: { id: 'agentsVoice.disconnect', title: localize('agentsVoice.disconnect', "Disconnect Voice Mode"), icon: Codicon.debugDisconnectCompact },
 	when: ContextKeyExpr.and(WHEN_VOICE_ENABLED, WHEN_VOICE_BUTTON_SHOWN, WHEN_CONNECTED, WHEN_INITIATED_HERE, WHEN_NO_SEGMENTED_PILL),
 	group: 'navigation',
 	order: -9,
+});
+
+MenuRegistry.appendMenuItem(SessionsNewChatExecuteMenu, {
+	command: {
+		id: NEW_CHAT_SEND_ACTION_ID,
+		title: localize('send', "Send"),
+		icon: Codicon.arrowUpCompact,
+		precondition: NewChatSendEnabled,
+	},
+	when: NewChatSendVisible,
+	group: 'navigation',
+	order: 20,
 });
 
 export interface INewChatVoiceControllerOptions {
@@ -206,6 +243,11 @@ export interface INewChatVoiceControllerOptions {
 	readonly inputContainer: HTMLElement;
 	/** Composer driven by voice. */
 	readonly composer: INewChatVoiceComposer;
+	readonly dictationVisible: IObservable<boolean>;
+	readonly voiceInputModeVisible: IObservable<boolean>;
+	readonly sendVisible: boolean;
+	readonly sendEnabled: IObservable<boolean>;
+	readonly actionViewItemProvider: (action: IAction, options?: IActionViewItemOptions) => IActionViewItem | undefined;
 	/** Called with the number of rendered voice actions when they change. */
 	readonly onDidChangeActions?: (actionCount: number) => void;
 }
@@ -215,12 +257,6 @@ export interface INewChatVoiceControllerOptions {
  * glow/transcript, and {@link INewChatVoiceTargetService} routing.
  */
 export class NewChatVoiceController extends Disposable {
-	private readonly _toolbar: MenuWorkbenchToolBar;
-
-	getFocusElements(): readonly HTMLElement[] {
-		return this._toolbar.getFocusElements();
-	}
-
 	constructor(
 		options: INewChatVoiceControllerOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -246,11 +282,26 @@ export class NewChatVoiceController extends Disposable {
 		const voiceSurfaceKey = scopedContextKeyService.createKey<boolean>('newChatVoiceSurface', false);
 		// True when voice is active on this composer.
 		const initiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
+		const dictationVisibleKey = NewChatDictationVisible.bindTo(scopedContextKeyService);
+		const voiceInputModeVisibleKey = NewChatVoiceInputModeVisible.bindTo(scopedContextKeyService);
+		const sendVisibleKey = NewChatSendVisible.bindTo(scopedContextKeyService);
+		const sendEnabledKey = NewChatSendEnabled.bindTo(scopedContextKeyService);
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		sendVisibleKey.set(options.sendVisible);
+		this._register(autorun(reader => {
+			dictationVisibleKey.set(options.dictationVisible.read(reader));
+			voiceInputModeVisibleKey.set(options.voiceInputModeVisible.read(reader));
+			sendEnabledKey.set(options.sendEnabled.read(reader));
+		}));
 
-		const toolbar = this._toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatVoiceMenu, {
+		const toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, options.toolbarContainer, SessionsNewChatExecuteMenu, {
+			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, itemOptions) => {
+				const provided = options.actionViewItemProvider(action, itemOptions);
+				if (provided) {
+					return provided;
+				}
 				// While listening the menu swaps the start action for the
 				// push-to-talk stop action; cover both so the context menu
 				// (Select Microphone / Disable Voice Mode) stays available.
@@ -263,8 +314,14 @@ export class NewChatVoiceController extends Disposable {
 		if (options.onDidChangeActions) {
 			const onDidChangeActions = () => {
 				let actionCount = 0;
-				while (toolbar.getItemAction(actionCount)) {
-					actionCount++;
+				for (let index = 0; ; index++) {
+					const action = toolbar.getItemAction(index);
+					if (!action) {
+						break;
+					}
+					if (action.id !== NEW_CHAT_DICTATION_ACTION_ID && action.id !== NEW_CHAT_VOICE_INPUT_MODE_ACTION_ID && action.id !== NEW_CHAT_SEND_ACTION_ID) {
+						actionCount++;
+					}
 				}
 				options.onDidChangeActions?.(actionCount);
 			};
