@@ -70,6 +70,8 @@
 		"--vscode-chat-checkpointSeparator",
 		"--vscode-chat-dictationActiveMicGlow",
 		"--vscode-chat-editedFileForeground",
+		"--vscode-chat-findMatchBackground",
+		"--vscode-chat-findMatchHighlightBackground",
 		"--vscode-chat-inputWorkingBorderColor1",
 		"--vscode-chat-inputWorkingBorderColor2",
 		"--vscode-chat-inputWorkingBorderColor3",
