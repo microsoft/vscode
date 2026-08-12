@@ -51,14 +51,18 @@ suite('Chat Accessibility Help', () => {
 			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
 			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
 			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
-			petRevival: helpText.includes('automatically returns to the input'),
+			petThrowing: helpText.includes('flick it horizontally to throw it toward a wall') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
+			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
+			petScale: helpText.includes('selected size is shared across chats') && helpText.includes('resets when you hide the pet with /vscode-pet'),
 		}, {
 			keybinding: true,
 			navigation: true,
 			actions: true,
 			petMovement: true,
 			petHopping: true,
+			petThrowing: true,
 			petRevival: true,
+			petScale: true,
 		});
 	});
 
