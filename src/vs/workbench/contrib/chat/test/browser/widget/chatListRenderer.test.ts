@@ -32,7 +32,7 @@ import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTyp
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
 import { shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
-import { getGeneratedImageResultParts } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
+import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 
 suite('ChatListRenderer', () => {
@@ -284,6 +284,42 @@ suite('ChatListRenderer', () => {
 					base64Value: 'aW1hZ2Uy',
 					mimeType: 'image/jpeg',
 					path: '/tool/image-call/1/generated-image.jpe',
+				}]);
+			});
+
+			test('combines generated image results from multiple tool calls into one gallery', () => {
+				const sessionResource = URI.parse('agent-host://local/session');
+				const createImageTool = (toolCallId: string, value: string): IChatToolInvocationSerialized => ({
+					kind: 'toolInvocationSerialized',
+					toolCallId,
+					toolId: 'image_gen.imagegen',
+					toolSpecificData: { kind: 'generatedImage' },
+					invocationMessage: 'Generating image',
+					originMessage: undefined,
+					pastTenseMessage: 'Generated image',
+					presentation: undefined,
+					isConfirmed: true,
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					resultDetails: {
+						input: '{"prompt":"Draw a fox"}',
+						output: [{ type: 'embed', value, mimeType: 'image/png' }],
+					},
+				});
+				const parts = getGeneratedImageResultPartsFromContent([
+					createImageTool('image-call-1', 'aW1hZ2Ux'),
+					createImageTool('image-call-2', 'aW1hZ2Uy'),
+				], sessionResource);
+
+				assert.deepStrictEqual(parts.map(part => ({
+					base64Value: part.base64Value,
+					path: part.uri.path,
+				})), [{
+					base64Value: 'aW1hZ2Ux',
+					path: '/tool/image-call-1/0/generated-image-1.png',
+				}, {
+					base64Value: 'aW1hZ2Uy',
+					path: '/tool/image-call-2/0/generated-image-2.png',
 				}]);
 			});
 		});
@@ -1057,8 +1093,9 @@ suite('ChatListRenderer', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
 		configurationService.setUserConfiguration(ChatConfiguration.TurnStatusPills, false);
@@ -1107,12 +1144,27 @@ suite('ChatListRenderer', () => {
 			source: ToolDataSource.Internal,
 		}, toolCallId, undefined, {}, {}, request.id);
 		const imageTools = [createImageTool('image-call-1'), createImageTool('image-call-2')];
-		for (const imageTool of imageTools) {
-			model.acceptResponseProgress(request, imageTool);
-		}
+		model.acceptResponseProgress(request, { kind: 'thinking', value: 'Reviewing the image skill', id: 'thinking-1' });
+		const shellTool = new ChatToolInvocation({
+			invocationMessage: 'Reading image skill',
+			pastTenseMessage: 'Read image skill',
+		}, {
+			id: 'shell',
+			displayName: 'Run shell command',
+			modelDescription: 'Run shell command',
+			source: ToolDataSource.Internal,
+		}, 'shell-call', undefined, {}, {}, request.id);
+		model.acceptResponseProgress(request, shellTool);
+		renderer.renderElement(node, 0, template);
+		await shellTool.didExecuteTool({ content: [] });
+		renderer.renderElement(node, 0, template);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will create two variations.') });
+		model.acceptResponseProgress(request, { kind: 'thinking', value: 'Planning image variations', id: 'thinking-2' });
 		renderer.renderElement(node, 0, template);
 
 		for (const [index, imageTool] of imageTools.entries()) {
+			model.acceptResponseProgress(request, imageTool);
+			renderer.renderElement(node, 0, template);
 			await imageTool.didExecuteTool({
 				content: [],
 				toolSpecificData: { kind: 'generatedImage' },
@@ -1121,9 +1173,13 @@ suite('ChatListRenderer', () => {
 					output: [{ type: 'embed', value: `aW1hZ2U${index}`, mimeType: 'image/png' }],
 				},
 			});
+			renderer.renderElement(node, 0, template);
+			if (index === 0) {
+				model.acceptResponseProgress(request, { kind: 'thinking', value: 'Planning the second variation', id: 'thinking-3' });
+				renderer.renderElement(node, 0, template);
+			}
 		}
-		renderer.renderElement(node, 0, template);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is the image.') });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n') });
 		renderer.renderElement(node, 0, template);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -1132,16 +1188,12 @@ suite('ChatListRenderer', () => {
 			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
 			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
 			multipleImageOutcomes: template.value.querySelectorAll('.chat-generated-image-result.multiple').length,
-			multipleImageContainers: template.rowContainer.matches(
-				'.interactive-response.has-multiple-generated-image-results'
-			) ? 1 : 0,
 			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
 		}, {
-			resourceGroups: 2,
-			largeOutcomes: 2,
-			multipleImageOutcomes: 2,
-			multipleImageContainers: 1,
-			generatedImageInvocations: 2,
+			resourceGroups: 1,
+			largeOutcomes: 1,
+			multipleImageOutcomes: 1,
+			generatedImageInvocations: 1,
 		});
 
 		disposables.dispose();

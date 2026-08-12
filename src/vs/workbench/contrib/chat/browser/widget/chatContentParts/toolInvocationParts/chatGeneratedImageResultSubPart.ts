@@ -67,6 +67,27 @@ export function getGeneratedImageResultCount(content: ReadonlyArray<IChatRendere
 	return count;
 }
 
+export function getGeneratedImageResultPartsFromContent(
+	content: ReadonlyArray<IChatRendererContent>,
+	sessionResource: URI,
+): IChatCollapsibleIODataPart[] {
+	const parts: IChatCollapsibleIODataPart[] = [];
+	for (const part of content) {
+		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'generatedImage') {
+			continue;
+		}
+		parts.push(...getGeneratedImageResultParts(getGeneratedImageResultDetails(part), sessionResource, part.toolCallId));
+	}
+	if (parts.length < 2) {
+		return parts;
+	}
+	return parts.map((part, index) => ({
+		...part,
+		// Distinguish each attachment in the gallery's visible and accessible labels.
+		uri: part.uri.with({ path: part.uri.path.replace(/generated-image(?=\.[^/]+$|$)/, `generated-image-${index + 1}`) }),
+	}));
+}
+
 /** Renders generated images as response outcomes using the shared image preview affordances. */
 export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -80,13 +101,11 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
-		const details = getGeneratedImageResultDetails(toolInvocation);
-		const parts = getGeneratedImageResultParts(details, context.element.sessionResource, toolInvocation.toolCallId);
+		const parts = getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
 		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this.domNode = dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode);
 		const hasMultipleGeneratedImages = getGeneratedImageResultCount(context.content) > 1;
 		this.domNode.classList.toggle('multiple', hasMultipleGeneratedImages);
-		context.container.classList.toggle('has-multiple-generated-image-results', hasMultipleGeneratedImages);
 	}
 }

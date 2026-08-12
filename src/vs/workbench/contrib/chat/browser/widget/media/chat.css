@@ -3891,22 +3891,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-response.has-multiple-generated-image-results > .value {
-	display: flex;
-	flex-wrap: wrap;
-	column-gap: 8px;
-
-	> * {
-		flex: 1 0 100%;
-		min-width: 0;
-	}
-
-	> .generated-image-tool-invocation {
-		flex: 0 1 252px;
-		max-width: 252px;
-	}
-}
-
 .interactive-session .chat-scroll-down {
 	display: none;
 	position: absolute;
