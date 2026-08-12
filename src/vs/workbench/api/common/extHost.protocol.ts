@@ -662,6 +662,7 @@ export interface TerminalLaunchConfig {
 	isExtensionCustomPtyTerminal?: boolean;
 	forceShellIntegration?: boolean;
 	isFeatureTerminal?: boolean;
+	isRemoteResolverTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	location?: TerminalLocation | { viewColumn: number; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
@@ -2217,6 +2218,7 @@ export interface MainThreadAgentEditorCommentsShape extends IDisposable {
 
 export interface ExtHostAgentEditorCommentsShape {
 	$acceptAgentEditorComments(handle: number, comments: IAgentEditorCommentDto[], acceptsComments: boolean): void;
+	$revealAgentEditorComment(handle: number, id: string): void;
 }
 
 export interface IDocumentDiffLineChangeDto {
@@ -3856,6 +3858,7 @@ export type ChatInputNotificationDto = {
 	actions: ChatInputNotificationActionDto[];
 	dismissible: boolean;
 	autoDismissOnMessage: boolean;
+	sessionTypes: readonly string[] | undefined;
 };
 
 export interface MainThreadChatInputNotificationShape {

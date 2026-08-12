@@ -143,8 +143,12 @@ function renderInEditor(context: ComponentFixtureContext): Promise<void> {
 	const agentFeedbackService = new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidChangeFeedbackScope = Event.None;
 		override getSessionForFile(resourceUri: URI): ISession | undefined {
 			return isEqual(resourceUri, fileResource) ? session : undefined;
+		}
+		override getFeedbackSessionResource(resourceUri: URI): URI | undefined {
+			return isEqual(resourceUri, fileResource) ? sessionResource : undefined;
 		}
 		override getFeedback() {
 			return [];

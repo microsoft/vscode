@@ -7,7 +7,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,6 +17,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
 import { clearUserSelectedSessionType, getRememberedSessionType, storeUserSelectedSessionType } from './chatSessionTypePreference.js';
+import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
+
+export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 export const enum BYOKUtilityModelDefault {
 	None = 'none',
@@ -25,7 +28,6 @@ export const enum BYOKUtilityModelDefault {
 }
 
 export enum ChatConfiguration {
-	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
@@ -39,10 +41,12 @@ export enum ChatConfiguration {
 	UtilitySmallModel = 'chat.utilitySmallModel',
 	BYOKUtilityModelDefault = 'chat.byokUtilityModelDefault',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
+	SaveBeforeSend = 'chat.saveBeforeSend',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
+	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -57,6 +61,7 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
+	CollapseCompletedResponses = 'chat.agent.collapseCompletedResponses',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
 	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
@@ -72,10 +77,10 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
-	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
+	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
@@ -89,9 +94,8 @@ export enum ChatConfiguration {
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
-	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	AutoApprovalsEnabled = 'chat.experimental.autoApprovals.enabled',
+	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',
 	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
@@ -104,10 +108,9 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
-	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
-	EditorDefaultProvider = 'chat.editor.defaultProvider',
+	EditorPreferCopilotHarness = 'chat.editor.preferCopilotHarness',
+	DefaultToCopilotHarness = 'chat.defaultToCopilotHarness',
 	EditorLocalAgentEnabled = 'chat.editor.localAgent.enabled',
-	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	TurnStatusPills = 'chat.turnStatusPills',
 
@@ -156,11 +159,33 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
  */
 export type AgentSessionMode = 'interactive' | 'plan' | 'autopilot';
 
+/** Approval values exposed by the `chat.defaultConfiguration` setting. */
+export enum ChatDefaultPermissionLevel {
+	Default = 'default',
+	Assisted = 'assisted',
+	AllowAll = 'allowAll',
+}
+
 export interface IChatDefaultConfiguration {
 	/** Starting agent mode: `interactive` / `plan` / `autopilot`. */
 	readonly mode?: AgentSessionMode;
-	/** Starting approval level: `default` / `assisted` / `autoApprove`. */
-	readonly approvals?: ChatPermissionLevel.Default | ChatPermissionLevel.Assisted | ChatPermissionLevel.AutoApprove;
+	/** Starting approval level: `default` / `assisted` / `allowAll`. */
+	readonly approvals?: ChatDefaultPermissionLevel;
+}
+
+/** Maps a default-configuration value to the internal Agent Host permission level. */
+export function getChatPermissionLevelFromDefaultConfiguration(value: unknown): ChatPermissionLevel | undefined {
+	switch (value) {
+		case ChatDefaultPermissionLevel.Default:
+			return ChatPermissionLevel.Default;
+		case ChatDefaultPermissionLevel.Assisted:
+			return ChatPermissionLevel.Assisted;
+		case ChatDefaultPermissionLevel.AllowAll:
+		case ChatPermissionLevel.AutoApprove:
+			return ChatPermissionLevel.AutoApprove;
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -232,6 +257,9 @@ export namespace ChatAgentLocation {
  */
 const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeChatEditor,
+	// Chat's own read-only resources, such as a pasted-text artifact: their
+	// contents already reach the model through the attachment they belong to.
+	Schemas.vscodeChatResponseResource,
 	Schemas.walkThrough,
 	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
@@ -241,6 +269,13 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	'ccreq',
 	'openai-codex', // Codex session custom editor scheme
 ]);
+
+/** Schemes whose models are chat input editors. */
+export const chatInputSchemes: readonly string[] = [Schemas.vscodeChatInput, Schemas.sessionsChatInput];
+
+export function isChatInputModel(uri: URI): boolean {
+	return chatInputSchemes.includes(uri.scheme);
+}
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
 	const chatService = accessor.get(IChatSessionsService);
@@ -261,28 +296,25 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 
 /**
  * Returns the effective default session type for a new chat in the VS Code
- * editor window, honoring the experimental
- * {@link ChatConfiguration.EditorDefaultProvider} setting:
- * - `'copilotAh'` selects the Agent Host Copilot CLI when its contribution is registered.
- * - `'copilotEh'` selects the Extension Host Copilot CLI when its contribution is
- *   registered and it is not hidden by {@link ChatConfiguration.CopilotCliHideExtensionHostEditor}.
+ * editor window.
  *
- * Falls back to {@link localChatSessionType} when local is enabled, or when no
- * visible non-local provider is available.
+ * Virtual workspaces always default to {@link localChatSessionType}. Otherwise,
+ * when the agent host is enabled and `chat.defaultToCopilotHarness` is opted in,
+ * Agent Host Copilot CLI is the default. It falls back to the local harness
+ * when enabled, or to the first visible non-local provider.
  */
 export function getComputedDefaultSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled: boolean
 ): string {
-	const defaultProvider = configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider);
-	const defaultType = getConfiguredEditorDefaultSessionType(defaultProvider);
-	if (defaultType === SessionType.AgentHostCopilot && !isEditorLocalAgentEnabled(configurationService, workspace)) {
-		return defaultType;
+	if (isVirtualWorkspace(workspace)) {
+		return localChatSessionType;
 	}
 
-	if (defaultType && isVisibleEditorChatSessionType(defaultType, configurationService, chatSessionsService, workspace)) {
-		return defaultType;
+	if (agentHostEnabled && configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness)) {
+		return SessionType.AgentHostCopilot;
 	}
 
 	if (isEditorLocalAgentEnabled(configurationService, workspace)) {
@@ -295,15 +327,16 @@ export function getComputedDefaultSessionType(
 export function getComputedDefaultSessionResource(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled: boolean
 ): URI {
-	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService, workspace);
+	const defaultType = getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled);
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
 }
 
-export function isRememberedSessionTypeUsable(
+export function isNewChatSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
@@ -315,7 +348,7 @@ export function isRememberedSessionTypeUsable(
 	if (isAgentHostTarget(sessionType)) {
 		return true;
 	}
-	return !!chatSessionsService.getChatSessionContribution(sessionType);
+	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace);
 }
 
 export interface IDefaultNewChatSessionTypeOptions {
@@ -323,27 +356,79 @@ export interface IDefaultNewChatSessionTypeOptions {
 	readonly currentSessionType?: string;
 }
 
+export interface IResolvedNewChatSessionType {
+	/** The session type to open for the new chat. */
+	readonly sessionType: string;
+}
+
 export function getDefaultNewChatSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	storageService: IStorageService,
 	workspace: IWorkspace,
+	agentHostEnabled: boolean,
 	options?: IDefaultNewChatSessionTypeOptions
 ): string {
 	if (options?.explicitOverride) {
 		return options.explicitOverride;
 	}
 
-	const remembered = getRememberedSessionType(storageService);
-	if (remembered && isRememberedSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace)) {
+	if (isVirtualWorkspace(workspace)) {
+		return localChatSessionType;
+	}
+
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	if (remembered) {
 		return remembered;
 	}
 
-	if (options?.currentSessionType) {
+	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace)) {
 		return options.currentSessionType;
 	}
 
-	return getComputedDefaultSessionType(configurationService, chatSessionsService, workspace);
+	return getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled);
+}
+
+export function resolveDefaultNewChatSessionType(
+	accessor: ServicesAccessor,
+	options?: IDefaultNewChatSessionTypeOptions
+): IResolvedNewChatSessionType {
+	const configurationService = accessor.get(IConfigurationService);
+	const chatSessionsService = accessor.get(IChatSessionsService);
+	const storageService = accessor.get(IStorageService);
+	const workspace = accessor.get(IWorkspaceContextService).getWorkspace();
+	const agentHostEnabled = accessor.get(IAgentHostEnablementService).enabled.get();
+
+	if (options?.explicitOverride) {
+		return { sessionType: options.explicitOverride };
+	}
+
+	if (isVirtualWorkspace(workspace)) {
+		return { sessionType: localChatSessionType };
+	}
+
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	if (remembered && remembered !== localChatSessionType) {
+		return { sessionType: remembered };
+	}
+
+	if (options?.currentSessionType === localChatSessionType
+		&& agentHostEnabled
+		&& configurationService.getValue<boolean>(ChatConfiguration.EditorPreferCopilotHarness)) {
+		return { sessionType: SessionType.AgentHostCopilot };
+	}
+
+	return { sessionType: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options) };
+}
+
+function getUsableRememberedSessionType(
+	storageService: IStorageService,
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
+	workspace: IWorkspace
+): string | undefined {
+	const remembered = getRememberedSessionType(storageService);
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(
@@ -351,9 +436,10 @@ export function getDefaultNewChatSessionResource(
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	storageService: IStorageService,
 	workspace: IWorkspace,
+	agentHostEnabled: boolean,
 	options?: IDefaultNewChatSessionTypeOptions
 ): URI {
-	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, options);
+	const defaultType = getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, workspace, agentHostEnabled, options);
 	return defaultType === localChatSessionType
 		? LocalChatSessionUri.getNewSessionUri()
 		: URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
@@ -364,9 +450,10 @@ export function recordUserSelectedSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	workspace: IWorkspace,
-	sessionType: string
+	sessionType: string,
+	agentHostEnabled: boolean
 ): void {
-	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace)) {
+	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled)) {
 		clearUserSelectedSessionType(storageService);
 	} else {
 		storeUserSelectedSessionType(storageService, sessionType);
@@ -384,30 +471,14 @@ export function isVisibleEditorChatSessionType(
 	workspace: IWorkspace
 ): boolean {
 	if (sessionType === localChatSessionType) {
-		if (!isEditorLocalAgentEnabled(configurationService, workspace) && configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider) === 'copilotAh') {
-			return false;
-		}
 		return isEditorLocalAgentEnabled(configurationService, workspace) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;
 	}
 
-	if (sessionType === SessionType.CopilotCLI && configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
+	if (sessionType === SessionType.CopilotCLI) {
 		return false;
 	}
 
 	return !!chatSessionsService.getChatSessionContribution(sessionType);
-}
-
-function getConfiguredEditorDefaultSessionType(defaultProvider: string | undefined): string | undefined {
-	switch (defaultProvider) {
-		case 'local':
-			return localChatSessionType;
-		case 'copilotAh':
-			return SessionType.AgentHostCopilot;
-		case 'copilotEh':
-			return SessionType.CopilotCLI;
-		default:
-			return undefined;
-	}
 }
 
 function getVisibleNonLocalEditorChatSessionTypes(
@@ -425,6 +496,8 @@ function getVisibleNonLocalEditorChatSessionTypes(
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+export const CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID = 'workbench.action.chat.openAgentHostChat';
+export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';

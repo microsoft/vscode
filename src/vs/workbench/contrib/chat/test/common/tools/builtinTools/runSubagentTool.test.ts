@@ -1085,10 +1085,11 @@ suite('RunSubagentTool', () => {
 		 * usage progress parts, so tests can assert how the subagent's credit
 		 * (AIC) cost is surfaced on its tool's `toolSpecificData`.
 		 */
-		function createCreditTool(usageParts: IChatProgress[]) {
+		function createCreditTool(usageParts: IChatProgress[], result: IChatAgentResult = {}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
 			const promptsService = new MockPromptsService();
+			const parentCredits: { subagentCallId: string; copilotCredits: number }[] = [];
 
 			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
 				getDefaultAgent() {
@@ -1096,14 +1097,19 @@ suite('RunSubagentTool', () => {
 				},
 				async invokeAgent(_id: string, _request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void): Promise<IChatAgentResult> {
 					progress(usageParts);
-					return {};
+					return result;
 				},
 			};
 
 			const mockChatService: Pick<IChatService, 'getSession'> = {
 				getSession() {
 					return {
-						getRequests: () => [{ id: 'req-1' }],
+						getRequests: () => [{
+							id: 'req-1',
+							response: {
+								setSubagentCopilotCredits: (subagentCallId: string, copilotCredits: number) => parentCredits.push({ subagentCallId, copilotCredits }),
+							},
+						}],
 						acceptResponseProgress: () => { },
 					} as unknown as IChatModel;
 				},
@@ -1115,7 +1121,7 @@ suite('RunSubagentTool', () => {
 				},
 			};
 
-			return testDisposables.add(new RunSubagentTool(
+			const tool = testDisposables.add(new RunSubagentTool(
 				mockChatAgentService as IChatAgentService,
 				mockChatService as IChatService,
 				mockToolsService,
@@ -1126,11 +1132,13 @@ suite('RunSubagentTool', () => {
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
 			));
+			return { tool, parentCredits };
 		}
 
-		function createSubagentInvocation(): IToolInvocation {
+		function createSubagentInvocation(chatStreamToolCallId?: string): IToolInvocation {
 			return {
 				callId: `credits-call-${++creditsCallIdCounter}`,
+				chatStreamToolCallId,
 				toolId: 'runSubagent',
 				parameters: { prompt: 'do something', description: 'test' },
 				context: { sessionResource: URI.parse('test://session/credits') },
@@ -1144,19 +1152,44 @@ suite('RunSubagentTool', () => {
 
 		test('writes the running credit total onto the subagent toolSpecificData', async () => {
 			// Credits are cumulative per usage event; the latest value is the total.
-			const tool = createCreditTool([
+			const { tool, parentCredits } = createCreditTool([
 				{ kind: 'usage', promptTokens: 10, completionTokens: 5, copilotCredits: 2 },
 				{ kind: 'usage', promptTokens: 20, completionTokens: 8, copilotCredits: 5 },
+				{ kind: 'usage', promptTokens: 20, completionTokens: 8, copilotCredits: 3 },
 			]);
+			const invocation = createSubagentInvocation('stream-tool-call');
+
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				toolCredits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				parentCredits,
+			}, {
+				toolCredits: 5,
+				parentCredits: [{ subagentCallId: invocation.callId, copilotCredits: 5 }],
+			});
+		});
+
+		test('records credits when the subagent fails after reporting usage', async () => {
+			const { tool, parentCredits } = createCreditTool(
+				[{ kind: 'usage', promptTokens: 10, completionTokens: 5, copilotCredits: 3 }],
+				{ errorDetails: { message: 'failed' } },
+			);
 			const invocation = createSubagentInvocation();
 
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
 
-			assert.strictEqual(invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined, 5);
+			assert.deepStrictEqual({
+				toolCredits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
+				parentCredits,
+			}, {
+				toolCredits: 3,
+				parentCredits: [{ subagentCallId: invocation.callId, copilotCredits: 3 }],
+			});
 		});
 
 		test('leaves credits unset when no usage is reported', async () => {
-			const tool = createCreditTool([]);
+			const { tool } = createCreditTool([]);
 			const invocation = createSubagentInvocation();
 
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);

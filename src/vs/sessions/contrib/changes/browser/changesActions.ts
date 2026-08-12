@@ -33,7 +33,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { ChangesMultiDiffSourceResolver, SessionChangesFileResourceContext, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, SessionChangesReviewedFilesContext } from './changesMultiDiffSourceResolver.js';
 import { ISessionChangesService } from './sessionChangesService.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../common/changes.js';
@@ -322,8 +322,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 	protected override getTooltip(): string {
 		const { branch } = this._diffStatsObs.get();
 		return branch
-			? localize('agentSessions.viewChanges.tooltip.branch', "View Changes ({0})", branch)
-			: localize('agentSessions.viewChanges.tooltip', "View Changes");
+			? localize('agentSessions.viewChanges.tooltip.branch', "View All Changes ({0})", branch)
+			: localize('agentSessions.viewChanges.tooltip', "View All Changes");
 	}
 
 	protected override getAriaLabel(): string {
@@ -331,7 +331,7 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 		const filesLabel = files === 1
 			? localize('agentSessions.changes.file', "{0} file", files)
 			: localize('agentSessions.changes.files', "{0} files", files);
-		// e.g. "View Changes (main): 3 files, +10, -4"
+		// e.g. "View All Changes (main): 3 files, +10, -4"
 		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
 	}
 }
@@ -448,9 +448,6 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							title: operation.label,
 							icon: operation.icon,
 							f1: false,
-							toggled: ContextKeyExpr.in(
-								SessionChangesFileResourceContext.key,
-								SessionChangesReviewedFilesContext.key),
 							menu: [{
 								id: MenuId.AgentsChangeInlineToolbar,
 								group: 'navigation',

@@ -12,6 +12,7 @@ import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -19,7 +20,8 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSessionType } from './chatInputNotificationService.js';
+import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
 const $ = dom.$;
@@ -63,9 +65,20 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
+	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
+	/**
+	 * Reports whether a notification is rendered. `focusTarget` is the widget
+	 * itself, so a host can route notice-focus commands into it while it shows.
+	 */
+	readonly onDidChangeVisibility?: (visible: boolean, focusTarget: IChatInputNoticeFocusTarget) => void;
+	/**
+	 * Hands focus back to the input. Called when a notification that had keyboard
+	 * focus goes away, so focus is not stranded on `<body>`.
+	 */
+	readonly focusInput?: () => void;
 }
 
 /**
@@ -73,13 +86,15 @@ export interface IChatInputNotificationDelegate {
  * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
  * active notification with severity-colored borders, action buttons, and a dismiss button.
  */
-export class ChatInputNotificationWidget extends Disposable {
+export class ChatInputNotificationWidget extends Disposable implements IChatInputNoticeFocusTarget {
 
 	readonly domNode: HTMLElement;
 
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
 	private _modelTargetChatSessionType: string | undefined;
+	private _sessionResource: URI | undefined;
+	private _visible = false;
 
 	constructor(
 		private readonly _delegate: IChatInputNotificationDelegate | undefined,
@@ -97,31 +112,73 @@ export class ChatInputNotificationWidget extends Disposable {
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
+			this._sessionResource = this._delegate?.sessionResource?.read(reader);
 			this._render();
 		}));
 	}
 
 	private _render(): void {
+		// Tearing the content down would strand keyboard focus on <body>, which also
+		// drops the context keys the chat keybindings depend on. Hand it back to the
+		// input instead, the same way an onboarding card does when it stands down.
+		const hadFocus = this.hasFocus();
 		this._contentDisposables.clear();
 		dom.clearNode(this.domNode);
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
+		this._setVisible(!!notification);
 		// Announce what this chat input actually renders, so session-scoped
 		// notifications are only spoken in a matching session (de-duped by the service).
 		this._notificationService.announceRendered(notification);
 		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			this._lastShownTelemetryData = undefined;
+			if (hadFocus) {
+				this._delegate?.focusInput?.();
+			}
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
+		if (hadFocus) {
+			// The region is rebuilt on every render; keep focus inside it.
+			this.focus();
+		}
+	}
+
+	private _setVisible(visible: boolean): void {
+		if (this._visible === visible) {
+			return;
+		}
+
+		this._visible = visible;
+		// The widget element outlives any one notification, so it only carries the
+		// region role and a tab stop while it actually renders something.
+		if (visible) {
+			this.domNode.tabIndex = 0;
+			this.domNode.setAttribute('role', 'region');
+			this.domNode.setAttribute('aria-roledescription', localize('chatInputNotificationRoleDescription', "notification"));
+		} else {
+			this.domNode.removeAttribute('tabindex');
+			this.domNode.removeAttribute('role');
+			this.domNode.removeAttribute('aria-roledescription');
+			this.domNode.removeAttribute('aria-label');
+		}
+		this._delegate?.onDidChangeVisibility?.(visible, this);
+	}
+
+	hasFocus(): boolean {
+		return dom.isAncestorOfActiveElement(this.domNode);
+	}
+
+	focus(): void {
+		this.domNode.focus();
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
-		return isChatInputNotificationApplicableToSessionType(notification, this._modelTargetChatSessionType);
+		return isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {
@@ -147,6 +204,9 @@ export class ChatInputNotificationWidget extends Disposable {
 			titleElement.textContent = notification.message;
 		}
 		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
+		// Names the focusable region: `aria-roledescription` alone would have focus
+		// land on something announced only as "notification".
+		this.domNode.setAttribute('aria-label', ariaTitle);
 
 		if (notification.mute) {
 			const mute = notification.mute;
@@ -210,7 +270,13 @@ export class ChatInputNotificationWidget extends Disposable {
 
 			if (notification.description) {
 				const descriptionElement = dom.append(bodyRow, $('.chat-input-notification-description'));
-				descriptionElement.textContent = notification.description;
+				if (isMarkdownString(notification.description)) {
+					const rendered = this._contentDisposables.add(this._markdownRendererService.render(notification.description));
+					rendered.element.classList.add('chat-input-notification-description-markdown');
+					descriptionElement.appendChild(rendered.element);
+				} else {
+					descriptionElement.textContent = notification.description;
+				}
 			}
 
 			if (actions.length > 0) {
@@ -277,7 +343,9 @@ export class ChatInputNotificationWidget extends Disposable {
 				this._switchToModel(action.modelIdentifier);
 				break;
 		}
-		this._notificationService.dismissNotification(notification.id);
+		if (!action.keepOpen) {
+			this._notificationService.dismissNotification(notification.id);
+		}
 	}
 
 	private _switchToModel(modelIdentifier: string): void {

@@ -67,6 +67,8 @@ export interface IContextViewCloseAnimation {
 
 export const CONTEXT_VIEW_MENU_MOTION_CLASS = 'context-view-menu-motion';
 export const CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS = 'context-view-menu-motion-closing';
+export const CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION = 150;
+export const CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES = ['style-override', 'monaco-enable-motion'] as const;
 export const CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE = '--vscode-context-view-close-animation-duration';
 export const CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE = '--vscode-context-view-menu-motion-shadow';
 const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_OPACITY_VARIABLE = '--vscode-context-view-menu-motion-close-start-opacity';
@@ -74,6 +76,12 @@ const CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE = '--vscode-contex
 
 const CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS = 250;
 const CONTEXT_VIEW_MENU_MOTION_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
+export const contextViewMenuCloseAnimation: IContextViewCloseAnimation = {
+	className: CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS,
+	duration: CONTEXT_VIEW_MENU_MOTION_CLOSE_ANIMATION_DURATION,
+	requiredAncestorClasses: CONTEXT_VIEW_MENU_MOTION_ANCESTOR_CLASSES,
+};
 
 function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	return /* css */ `
@@ -84,10 +92,10 @@ function getContextViewMenuMotionCss(enabledSelectorPrefix: string): string {
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS} > .monaco-scrollable-element {
-		animation: context-view-menu-motion-open ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+		animation: context-view-menu-motion-open ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} backwards;
 		box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 		transform-origin: top left;
-		will-change: transform, opacity;
+		will-change: opacity;
 	}
 
 	${enabledSelectorPrefix} .context-view.${CONTEXT_VIEW_MENU_MOTION_CLASS}.right > .monaco-scrollable-element {
@@ -327,6 +335,10 @@ export class ContextView extends Disposable {
 		const anchor = getAnchorRect(this.delegate!.getAnchor());
 		const containerWindow = this.container ? DOM.getWindow(this.container) : DOM.getActiveWindow();
 		const viewport = { top: containerWindow.pageYOffset, left: containerWindow.pageXOffset, width: containerWindow.innerWidth, height: containerWindow.innerHeight };
+		this.view.classList.toggle('fixed', this.useFixedPosition);
+		this.view.style.top = '0px';
+		this.view.style.left = '0px';
+		const positioningOrigin = DOM.getDomNodePagePosition(this.view);
 		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
@@ -337,16 +349,9 @@ export class ContextView extends Disposable {
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		this.view.classList.toggle('fixed', this.useFixedPosition);
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-
-		// Account for container scroll when positioning the context view
-		const containerScrollTop = this.container!.scrollTop || 0;
-		const containerScrollLeft = this.container!.scrollLeft || 0;
-
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top) + containerScrollTop}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left) + containerScrollLeft}px`;
+		this.view.style.top = `${top - positioningOrigin.top}px`;
+		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';
 	}
 
@@ -374,6 +379,7 @@ export class ContextView extends Disposable {
 		if (!skipAnimation && closeAnimation && closeAnimation.duration > 0 && this.hasRequiredAncestorClasses(closeAnimation.requiredAncestorClasses)) {
 			this.view.style.setProperty(CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, `${closeAnimation.duration}ms`);
 			this.prepareMenuCloseAnimation();
+			this.view.inert = true;
 			this.view.classList.add(closeAnimation.className);
 			const timeout = setTimeout(() => this.completeHideAnimation(), closeAnimation.duration);
 			this.hidingContextView = {
@@ -406,6 +412,7 @@ export class ContextView extends Disposable {
 		this.view.style.removeProperty(CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE);
 		hidingContextView.toDispose.dispose();
 		DOM.hide(this.view);
+		this.view.inert = false;
 	}
 
 	private prepareMenuCloseAnimation(): void {

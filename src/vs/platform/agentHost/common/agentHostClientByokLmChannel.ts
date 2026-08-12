@@ -23,8 +23,6 @@ import {
  * name on its `MessagePortClient`; the agent host reaches it via
  * `server.getChannel(name, c => c.ctx === clientId)` on its
  * `UtilityProcessServer`.
- *
- * Mirrors {@link AGENT_HOST_CLIENT_RESOURCE_CHANNEL} for the reverse FS bridge.
  */
 export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
 

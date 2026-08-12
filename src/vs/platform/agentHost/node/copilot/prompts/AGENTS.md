@@ -16,8 +16,8 @@ data the SDK accepts directly.
   shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and
   `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated
-  one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's
-  `tool_instructions` section. The browser line is the one registered today.
+  or unconditional one-line nudges (`TOOL_INSTRUCTION_LINES`) composed into the
+  SDK's `tool_instructions` section.
 - `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
 - `allPrompts.ts` — side-effect import hub; importing it registers every
   contributor into the shared `agentHostPromptRegistry`.
@@ -44,12 +44,13 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance for a tool that should apply to **every** model whenever that tool is in
-the session. This is what the browser line does.
+Guidance that should apply to **every** model. A line can be unconditional for
+host-wide behavior such as reading offloaded tool output, or gated on a client
+tool as the browser line is.
 
 1. Write a `ToolInstructionLine` — a function `(hasTool) => string | undefined`
-   that returns one sentence (no surrounding newlines) when its tool is present,
-   or `undefined` to contribute nothing.
+   that returns one sentence (no surrounding newlines), or `undefined` when its
+   gate does not apply.
 2. Add it to `TOOL_INSTRUCTION_LINES`.
 
 ```ts
@@ -58,7 +59,7 @@ const exampleToolInstructions: ToolInstructionLine = hasTool =>
 		? 'One sentence of guidance, shown only when that tool is present.'
 		: undefined;
 
-const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [browserToolInstructions, exampleToolInstructions];
+const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolInstructions, browserToolInstructions, exampleToolInstructions];
 ```
 
 **Caveat — `hasTool` sees CLIENT tools only.** It is `context.hasClientTool`,
@@ -72,6 +73,42 @@ default client-tool allowlist is `chat.agentHost.clientTools` (see
 
 These lines compose with a per-model `tool_instructions` override (see
 `composeToolInstructions`), so Lever 1 and Lever 2 stack.
+
+## Tool search (deferred tool loading)
+
+When `chat.agentHost.copilot.toolSearch.enabled` is on AND the session's model
+supports it (`agentHostModelSupportsToolSearch`), the launcher sets
+`toolSearch: { enabled: true, deferThreshold: 1 }` and the session defers MCP +
+non-core client tools behind the runtime's `tool_search_tool`:
+
+- **The override** (`copilotAgentSession._createClientSdkTools`): the client's
+  forwarded `toolSearch` tool is registered as `tool_search_tool` with
+  `overridesBuiltInTool: true` and `defer: 'never'`, so the runtime routes the
+  model's search to the client's semantic search. The SDK supplies the runtime's
+  live deferred-tool metadata to the override handler; Agent Host carries that
+  corpus as transient tool-call metadata and injects it only into the local
+  `toolSearch` invocation, so embeddings rank the runtime/MCP tools rather than
+  the extension's registry. The corpus is never added to model-facing tool input.
+  Every other client tool gets
+  `defer: 'never'` if it is in `NON_DEFERRED_CLIENT_TOOL_NAMES`
+  (`runTests`, `rename`, `usages`), else `defer: 'auto'`. Built-in runtime tools
+  are never deferred. The renderer (`agentHostSessionHandler._setupClientToolCall`)
+  maps `tool_search_tool` back to `toolSearch` to execute the real VS Code tool.
+- **The prompt** (this folder): `toolSearchInstructionLines(toolSearchActive)`
+  adds a `tool_instructions` line (`toolSearchToolInstructions`) telling the
+  model to load deferred tools via `tool_search_tool` first — gated on
+  `context.toolSearchActive` because the `toolSearch` tool is *always* forwarded,
+  so presence alone can't gate it. The runtime already emits its own
+  deferred-tools reminder (`build_deferred_tools_user_message`) with the accurate
+  deferred set, so this layer intentionally does NOT re-list the deferred tools.
+
+The two identity/count levers are independent: `deferThreshold` is a total
+tool-count gate (1 ⇒ always active), while each tool's `defer` flag decides
+whether *that* tool is deferred.
+
+This B-inject bridge is intentionally interim. A follow-up moves tool-search
+registration and ranking into VS Code core so Agent Host no longer depends on
+the Copilot extension's tool implementation or embeddings plumbing.
 
 ## Lever 2 — per-model contributor (`promptRegistry.ts` + `allPrompts.ts`)
 

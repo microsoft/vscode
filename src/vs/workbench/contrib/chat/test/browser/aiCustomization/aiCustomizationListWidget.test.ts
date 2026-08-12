@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -159,6 +159,13 @@ suite('aiCustomizationListWidget', () => {
 
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
+		const searchBarHeight = 40;
+		const headerHeight = 30;
+		const setLayoutHeights = (widget: AICustomizationListWidget, clientHeight: number): void => {
+			Object.defineProperty(widget.element, 'clientHeight', { configurable: true, value: clientHeight });
+			Object.defineProperty(widget.element.querySelector('.list-search-and-button-container')!, 'offsetHeight', { configurable: true, value: searchBarHeight });
+			Object.defineProperty(widget.element.querySelector('.section-title-header')!, 'offsetHeight', { configurable: true, value: headerHeight });
+		};
 
 		const descriptor: IHarnessDescriptor = {
 			id: 'test',
@@ -249,6 +256,30 @@ suite('aiCustomizationListWidget', () => {
 			widget.dispose();
 			const result = await widget.generateDebugReport();
 			assert.strictEqual(result, '');
+		});
+
+		test('uses the rendered container height for list layout when available', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			setLayoutHeights(widget, 500);
+
+			widget.layout(900, 320);
+
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '430px');
+		});
+
+		test('falls back to supplied layout height when rendered container height is 0', () => {
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			setLayoutHeights(widget, 0);
+
+			widget.layout(900, 320);
+
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
 		});
 	});
 });

@@ -20,7 +20,6 @@ export function narrowApprovalPolicy(value: unknown): CodexApprovalPolicy | unde
 	switch (value) {
 		case 'never':
 		case 'on-request':
-		case 'on-failure':
 		case 'untrusted':
 			return value;
 		default:
@@ -158,6 +157,8 @@ export function narrowReasoningEffort(value: unknown): ReasoningEffort | undefin
 		case 'medium':
 		case 'high':
 		case 'xhigh':
+		case 'max':
+		case 'ultra':
 			return value;
 		default:
 			return undefined;

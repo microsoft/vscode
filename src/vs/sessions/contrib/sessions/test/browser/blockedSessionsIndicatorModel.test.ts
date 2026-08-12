@@ -98,6 +98,22 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
 	});
 
+	test('keeps an approval acknowledged when its chat model reloads', () => {
+		const { model, blockedModel, approvalModel, sessionsService } = createModel();
+		const s1 = new TestSession('s1');
+		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(1000), 'tool-call-1'));
+		blockedModel.setBlocked([needsInput(s1)]);
+		sessionsService.setVisible([s1]);
+		sessionsService.setVisible([]);
+
+		approvalModel.setApproval(s1.resource, undefined);
+		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(2000), 'tool-call-1'));
+		const afterReload = blockedIds(model);
+		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(3000), 'tool-call-2'));
+
+		assert.deepStrictEqual({ afterReload, afterNewApproval: blockedIds(model) }, { afterReload: [], afterNewApproval: ['s1'] });
+	});
+
 	test('blinks again when an additional, not-yet-visible session becomes blocked', () => {
 		const { model, blockedModel } = createModel();
 		const s1 = new TestSession('s1');
@@ -231,6 +247,20 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.deepStrictEqual(blockedIds(model), ['s1']);
 	});
 
+	test('ignores all currently surfaced blocked sessions', () => {
+		const { model, blockedModel } = createModel();
+		const input = new TestSession('input');
+		const ci = new TestSession('ci');
+		blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha1')]);
+		model.ignoreAllSessions();
+		const ignored = blockedIds(model);
+
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha2')]);
+
+		assert.deepStrictEqual({ ignored, afterNewOccurrences: blockedIds(model) }, { ignored: [], afterNewOccurrences: ['input', 'ci'] });
+	});
+
 	test('reports nothing and never blinks when disabled (stable quality)', () => {
 		const { model, blockedModel } = createModel({ quality: 'stable' });
 		blockedModel.setBlocked([needsInput(new TestSession('s1'))]);
@@ -246,8 +276,8 @@ function failingCI(session: TestSession, headSha: string = 'sha'): IBlockedSessi
 	return { session: session as unknown as ISession, reason: BlockedSessionReason.FailingCI, occurrenceId: `${BlockedSessionReason.FailingCI}:${headSha}` };
 }
 
-function approval(kind: AgentSessionApprovalKind, since: Date = new Date()): IAgentSessionApprovalInfo {
-	return { kind, label: 'npm run build', languageId: undefined, since, confirm: () => { } };
+function approval(kind: AgentSessionApprovalKind, since: Date = new Date(), approvalId: string = `${kind}:${since.getTime()}`): IAgentSessionApprovalInfo {
+	return { approvalId, kind, label: 'npm run build', languageId: undefined, since, confirm: () => { } };
 }
 
 class TestSession {

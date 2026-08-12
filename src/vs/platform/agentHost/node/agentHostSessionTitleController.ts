@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -12,20 +13,69 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 
 const MAX_TITLE_LENGTH = 200;
+const MAX_TITLE_TOKENS = 32;
+const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
+const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
+const MAX_GITHUB_CONTEXT_BODY_CHARS = 4_000;
+const MAX_GITHUB_CONTEXT_REFERENCES = 10;
+const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
+const MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX = 4;
+const MIN_LATIN_LETTER_RATIO = 0.8;
+const HAN_CHARACTER = /\p{sc=Han}/u;
+const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
 
 /**
- * Soft upper bound, in characters, for the first-turn context fed to the
- * utility model when refining a session title. Sized to stay well within the
- * small model's context window while leaving room for the prompt scaffolding.
+ * Soft upper bound, in characters, for the whole context fed to the utility
+ * model when titling a session, including any appended GitHub context. Sized
+ * to stay well within the small model's context window while leaving room for
+ * the prompt scaffolding.
  */
 const MAX_TITLE_CONTEXT_CHARS = 20000;
+
+/**
+ * Slice of {@link MAX_TITLE_CONTEXT_CHARS} always available to GitHub context,
+ * so a referenced issue title survives even a budget-filling conversation.
+ */
+const MIN_GITHUB_CONTEXT_CHARS = 4_000;
+
+type GitHubReferenceKind = 'issue' | 'pull request';
+
+interface IGitHubReference {
+	readonly owner: string;
+	readonly repo: string;
+	readonly number: number;
+	readonly kind: GitHubReferenceKind;
+}
+
+interface IGitHubReferenceContext {
+	readonly reference: IGitHubReference;
+	readonly value: GitHubIssueOrPullRequest;
+}
+
+/** Everything the utility model is told about when asked for a title. */
+interface ITitlePromptContext {
+	/** The request or conversation to title. */
+	readonly content: string;
+	/** Whether {@link content} is a whole conversation rather than a single request. */
+	readonly isConversation: boolean;
+	/** Text scanned for GitHub links to enrich {@link content} with, or `undefined` to skip enrichment. */
+	readonly gitHubReferenceSource?: string;
+	/** The title in place already, offered to the model as the incumbent. */
+	readonly currentTitle?: string;
+}
 
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
 	readonly getGitHubCopilotToken?: () => string | undefined;
+	readonly getGitHubToken?: () => string | undefined;
+	readonly getGitHubHost?: () => string | undefined;
+	readonly gitHubContextRequestTimeout?: number;
+	readonly octoKitService?: IAgentHostOctoKitService;
 	readonly copilotApiService?: ICopilotApiService;
 }
 
@@ -41,6 +91,15 @@ export class AgentHostSessionTitleController extends Disposable {
 	 */
 	private readonly _lastAppliedTitle = new Map<ProtocolURI, string>();
 
+	/**
+	 * Session/chat keys whose current title is a provisional placeholder set by
+	 * {@link seedProvisionalTitle} (e.g. from a `!command`). Such a title does
+	 * not describe the session's topic, so the first subsequent request that
+	 * carries real intent replaces it with a generated title via
+	 * {@link seedTitleFromFirstMessage}.
+	 */
+	private readonly _provisionalTitles = new Set<ProtocolURI>();
+
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentHostSessionTitleControllerOptions,
@@ -50,52 +109,114 @@ export class AgentHostSessionTitleController extends Disposable {
 	}
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
-		const fallbackTitle = userPrompt.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
-		if (fallbackTitle.length === 0) {
+		const fallbackTitle = this._normalizeTitle(userPrompt);
+		if (!fallbackTitle) {
 			return;
 		}
 
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
-		if (isAdditionalChat) {
-			// Auto-title the additional chat from its own first message,
-			// independently of the session title.
-			const chatState = this._stateManager.getChatState(chatChannel);
-			if (!chatState || chatState.turns.length !== 0 || chatState.title) {
-				return;
-			}
-			const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
-			apply(fallbackTitle);
-			this._generateTitleSoon(
-				chatChannel,
-				userPrompt,
-				false,
-				fallbackTitle,
-				apply,
-				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
-				title => this._persistSessionFlag(channel, `customChatTitle:${chatChannel}`, title),
-			);
+		const additionalChat = this._additionalChatChannel(chatChannel);
+		const key = additionalChat ?? channel;
+		const state = additionalChat ? this._stateManager.getChatState(additionalChat) : this._stateManager.getSessionState(channel);
+		if (!state || !this._canSeedFirstMessageTitle(key, state.turns.length, state.title)) {
 			return;
 		}
-
-		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.turns.length !== 0 || state.title) {
-			return;
+		const replacesProvisionalTitle = this._provisionalTitles.has(key);
+		this._provisionalTitles.delete(key);
+		this._applySeedTitle(channel, additionalChat, fallbackTitle);
+		if (replacesProvisionalTitle) {
+			this._persistSeedTitle(channel, additionalChat, fallbackTitle);
 		}
-
-		const apply = (title: string) => this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
-			type: ActionType.SessionTitleChanged,
-			title: t,
-		}));
-		apply(fallbackTitle);
 		this._generateTitleSoon(
-			channel,
-			userPrompt,
-			false,
+			key,
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
 			fallbackTitle,
-			apply,
-			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistSessionFlag(channel, 'customTitle', title),
+			title => this._applySeedTitle(channel, additionalChat, title),
+			() => this._currentSeedTitle(channel, additionalChat) === this._lastAppliedTitle.get(key),
+			title => this._persistSeedTitle(channel, additionalChat, title),
 		);
+	}
+
+	/** Seeds and persists a provisional title suggested by a locally handled command. */
+	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void {
+		const title = this._normalizeTitle(suggestedTitle);
+		if (!title) {
+			return;
+		}
+
+		const additionalChat = this._additionalChatChannel(chatChannel);
+		const key = additionalChat ?? channel;
+		const state = additionalChat ? this._stateManager.getChatState(additionalChat) : this._stateManager.getSessionState(channel);
+		if (!state || !this._canSeedProvisionalTitle(key, state.title)) {
+			return;
+		}
+		this._provisionalTitles.add(key);
+		this._applySeedTitle(channel, additionalChat, title);
+		this._persistSeedTitle(channel, additionalChat, title);
+	}
+
+	/** Trims, collapses whitespace, and length-caps a candidate title. */
+	private _normalizeTitle(text: string): string {
+		return text.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
+	}
+
+	/**
+	 * The peer (additional) chat a seed should title, or `undefined` to title
+	 * the session itself. The default chat maps to the session.
+	 */
+	private _additionalChatChannel(chatChannel?: ProtocolURI): ProtocolURI | undefined {
+		return !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel) ? chatChannel : undefined;
+	}
+
+	/**
+	 * Applies `title` to the addressed peer chat (`additionalChat`) or, when
+	 * that is `undefined`, to the session itself, recording it as last-applied.
+	 */
+	private _applySeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
+		if (additionalChat) {
+			this._applyTitle(additionalChat, title, t => this._stateManager.updateChatTitle(channel, additionalChat, t));
+		} else {
+			this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionTitleChanged,
+				title: t,
+			}));
+		}
+	}
+
+	/** Persists `title` as the custom title of the addressed peer chat or session. */
+	private _persistSeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined, title: string): void {
+		this._persistSessionFlag(channel, additionalChat ? `customChatTitle:${additionalChat}` : 'customTitle', title);
+	}
+
+	/** The live title of the addressed peer chat or session. */
+	private _currentSeedTitle(channel: ProtocolURI, additionalChat: ProtocolURI | undefined): string | undefined {
+		return additionalChat ? this._stateManager.getChatState(additionalChat)?.title : this._stateManager.getSessionState(channel)?.title;
+	}
+
+	/**
+	 * Whether {@link seedTitleFromFirstMessage} may (re)title `key`: true for a
+	 * fresh, untitled target (its first message) or when its title is a
+	 * provisional placeholder we applied and no one has changed it since — the
+	 * first real request supersedes the placeholder.
+	 */
+	private _canSeedFirstMessageTitle(key: ProtocolURI, turnsLength: number, currentTitle: string | undefined): boolean {
+		if (turnsLength === 0 && !currentTitle) {
+			return true;
+		}
+		return this._provisionalTitles.has(key) && !!currentTitle && currentTitle === this._lastAppliedTitle.get(key);
+	}
+
+	/**
+	 * Whether {@link seedProvisionalTitle} may (re)title `key`: true when it is
+	 * untitled (the first message carried a suggestion) or when its title is a
+	 * provisional placeholder we applied and no one has changed it since —
+	 * successive suggestions keep the newest one visible without clobbering a
+	 * manual rename.
+	 */
+	private _canSeedProvisionalTitle(key: ProtocolURI, currentTitle: string | undefined): boolean {
+		if (!currentTitle) {
+			return true;
+		}
+		return this._provisionalTitles.has(key) && currentTitle === this._lastAppliedTitle.get(key);
 	}
 
 	/**
@@ -122,15 +243,15 @@ export class AgentHostSessionTitleController extends Disposable {
 			if (lastApplied === undefined || chatState.title !== lastApplied) {
 				return;
 			}
-			const context = this._buildFirstTurnContext(chatState.turns[0]);
+			const turn = chatState.turns[0];
+			const context = this._buildFirstTurnContext(turn);
 			if (!context) {
 				return;
 			}
 			const apply = (title: string) => this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
 			this._generateTitleSoon(
 				chatChannel,
-				context,
-				true,
+				{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
 				lastApplied,
 				apply,
 				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
@@ -147,7 +268,8 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (lastApplied === undefined || state.title !== lastApplied) {
 			return;
 		}
-		const context = this._buildFirstTurnContext(state.turns[0]);
+		const turn = state.turns[0];
+		const context = this._buildFirstTurnContext(turn);
 		if (!context) {
 			return;
 		}
@@ -157,8 +279,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}));
 		this._generateTitleSoon(
 			channel,
-			context,
-			true,
+			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
 			lastApplied,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
@@ -195,8 +316,7 @@ export class AgentHostSessionTitleController extends Disposable {
 			const apply = (title: string) => this._applyTitle(key, title, t => this._stateManager.updateChatTitle(channel, key, t));
 			this._generateTitleSoon(
 				key,
-				context,
-				true,
+				{ content: context, isConversation: true },
 				fallbackTitle,
 				apply,
 				() => this._stateManager.getChatState(key)?.title === this._lastAppliedTitle.get(key),
@@ -212,8 +332,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}));
 		this._generateTitleSoon(
 			channel,
-			context,
-			true,
+			{ content: context, isConversation: true },
 			fallbackTitle,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
@@ -232,8 +351,7 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	private _generateTitleSoon(
 		key: ProtocolURI,
-		promptContent: string,
-		isConversation: boolean,
+		prompt: ITitlePromptContext,
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
@@ -242,7 +360,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		this._cancelTitleGeneration(key);
 		const source = new CancellationTokenSource();
 		this._titleGenerationCancellationSources.set(key, source);
-		void this._generateTitle(key, promptContent, isConversation, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
+		void this._generateTitle(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist, source.token).catch(err => {
 			if (!source.token.isCancellationRequested) {
 				this._logService.warn(`[AgentHostSessionTitleController] Failed to apply generated title for ${key}`, err);
 			}
@@ -256,15 +374,14 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	private async _generateTitle(
 		key: ProtocolURI,
-		promptContent: string,
-		isConversation: boolean,
+		prompt: ITitlePromptContext,
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
 		persist: (title: string) => void,
 		token: CancellationToken,
 	): Promise<void> {
-		const generatedTitle = await this._generateTitleFromPrompt(promptContent, isConversation, token);
+		const generatedTitle = await this._generateTitleFromPrompt(prompt, token);
 		if (token.isCancellationRequested || !generatedTitle) {
 			return;
 		}
@@ -279,7 +396,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		persist(generatedTitle);
 	}
 
-	private async _generateTitleFromPrompt(promptContent: string, isConversation: boolean, token: CancellationToken): Promise<string | undefined> {
+	private async _generateTitleFromPrompt(prompt: ITitlePromptContext, token: CancellationToken): Promise<string | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -293,12 +410,19 @@ export class AgentHostSessionTitleController extends Disposable {
 		const abortController = new AbortController();
 		const cancellationListener = token.onCancellationRequested(() => abortController.abort());
 		try {
+			const titlePromptContent = prompt.gitHubReferenceSource === undefined
+				? prompt.content
+				: await this._appendGitHubContext(prompt.content, prompt.gitHubReferenceSource, abortController.signal, token);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
-				messages: this._buildTitlePrompt(promptContent, isConversation),
+				messages: this._buildTitlePrompt(titlePromptContent, prompt),
+				maxTokens: MAX_TITLE_TOKENS,
 			}, {
 				signal: abortController.signal,
 			});
-			return this._cleanTitle(rawTitle);
+			return this._cleanTitle(rawTitle, titlePromptContent);
 		} catch (err) {
 			if (token.isCancellationRequested) {
 				return undefined;
@@ -310,10 +434,124 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 	}
 
-	private _buildTitlePrompt(promptContent: string, isConversation: boolean): ICopilotUtilityChatMessage[] {
-		const userInstruction = isConversation
+	/**
+	 * Appends the GitHub issue / pull requests linked from `referenceSource` to
+	 * `promptContent`, keeping the combined text within
+	 * {@link MAX_TITLE_CONTEXT_CHARS}. Enrichment is guaranteed
+	 * {@link MIN_GITHUB_CONTEXT_CHARS}; whatever it leaves over bounds
+	 * `promptContent`, whose middle is dropped so the request at its head and
+	 * the response tail both survive.
+	 */
+	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
+		const references = this._parseGitHubReferences(referenceSource);
+		const githubToken = this._options.getGitHubToken?.();
+		const octoKitService = this._options.octoKitService;
+		if (references.length === 0 || !githubToken || !octoKitService) {
+			return promptContent;
+		}
+
+		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
+		const limiter = new Limiter<IGitHubReferenceContext | undefined>(MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS);
+		try {
+			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
+				try {
+					const value = await octoKitService.getIssueOrPullRequest(
+						reference.owner,
+						reference.repo,
+						reference.number,
+						githubToken,
+						signal,
+					);
+					return { reference, value };
+				} catch (error) {
+					if (!token.isCancellationRequested) {
+						this._logService.warn(`[AgentHostSessionTitleController] Failed to fetch GitHub ${reference.kind} ${reference.owner}/${reference.repo}#${reference.number}`, error);
+					}
+					return undefined;
+				}
+			})));
+			const successfulContexts = contexts.filter(context => context !== undefined);
+			if (successfulContexts.length === 0) {
+				return promptContent;
+			}
+			const separator = '\n\n';
+			const gitHubBudget = Math.max(MIN_GITHUB_CONTEXT_CHARS, MAX_TITLE_CONTEXT_CHARS - promptContent.length - separator.length);
+			const gitHubContext = this._formatGitHubContexts(successfulContexts, gitHubBudget);
+			const contentBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - gitHubContext.length - separator.length);
+			const content = promptContent.length > contentBudget ? truncateMiddle(promptContent, contentBudget) : promptContent;
+			return `${content}${separator}${gitHubContext}`;
+		} finally {
+			limiter.dispose();
+		}
+	}
+
+	private _parseGitHubReferences(text: string): IGitHubReference[] {
+		const references: IGitHubReference[] = [];
+		const seen = new Set<string>();
+		const configuredHost = this._normalizeGitHubHost(this._options.getGitHubHost?.() ?? 'github.com');
+		for (const match of text.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+			const host = match.groups?.host;
+			const owner = match.groups?.owner;
+			const repo = match.groups?.repo;
+			const rawKind = match.groups?.kind;
+			const number = Number(match.groups?.number);
+			if (!host || this._normalizeGitHubHost(host) !== configuredHost || !owner || !repo || (rawKind !== 'issues' && rawKind !== 'pull') || !Number.isSafeInteger(number) || number <= 0) {
+				continue;
+			}
+			const kind: GitHubReferenceKind = rawKind === 'issues' ? 'issue' : 'pull request';
+			const key = `${owner.toLowerCase()}/${repo.toLowerCase()}/${kind}/${number}`;
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			references.push({ owner, repo, number, kind });
+			if (references.length === MAX_GITHUB_CONTEXT_REFERENCES) {
+				break;
+			}
+		}
+		return references;
+	}
+
+	private _normalizeGitHubHost(host: string): string {
+		const normalizedHost = host.toLowerCase();
+		return normalizedHost === 'www.github.com' ? 'github.com' : normalizedHost;
+	}
+
+	private _formatGitHubContexts(contexts: readonly IGitHubReferenceContext[], budget: number): string {
+		const heading = 'GitHub issue and pull request context:\n\n';
+		const fixedLength = heading.length + contexts.reduce((length, context, index) => {
+			return length + this._formatGitHubContext(context.reference, context.value, '').length + (index === 0 ? 0 : 2);
+		}, 0);
+		let remainingBodyBudget = Math.max(0, budget - fixedLength);
+		const sections = contexts.map((context, index) => {
+			const bodyBudget = Math.min(
+				MAX_GITHUB_CONTEXT_BODY_CHARS,
+				Math.floor(remainingBodyBudget / (contexts.length - index)),
+			);
+			const body = truncateMiddle(context.value.body, bodyBudget);
+			remainingBodyBudget -= body.length;
+			return this._formatGitHubContext(context.reference, context.value, body);
+		});
+		return truncateMiddle(`${heading}${sections.join('\n\n')}`, budget);
+	}
+
+	private _formatGitHubContext(reference: IGitHubReference, value: GitHubIssueOrPullRequest, body: string): string {
+		return [
+			`GitHub ${reference.kind} ${reference.owner}/${reference.repo}#${reference.number}:`,
+			`The title of the ${reference.kind} is: ${value.title}`,
+			`The body of the ${reference.kind} is:`,
+			body,
+		].join('\n');
+	}
+
+	private _buildTitlePrompt(promptContent: string, prompt: ITitlePromptContext): ICopilotUtilityChatMessage[] {
+		const request = prompt.isConversation
 			? `Please write a brief title for the following conversation:\n\n${promptContent}`
 			: `Please write a brief title for the following request:\n\n${promptContent}`;
+		const currentTitle = prompt.currentTitle?.trim();
+		const userInstruction = currentTitle
+			? `${request}\n\nIts current title is: ${currentTitle}\nReply with that same title unless the text above supports a clearly more accurate one.`
+			: request;
 		return [
 			{
 				role: 'system',
@@ -337,7 +575,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		];
 	}
 
-	private _cleanTitle(rawTitle: string): string | undefined {
+	private _cleanTitle(rawTitle: string, promptContent: string): string | undefined {
 		let title = rawTitle.trim();
 		const firstLine = title.split(/\r?\n/).map(line => line.trim()).find(line => line.length > 0);
 		title = firstLine ?? '';
@@ -349,7 +587,28 @@ export class AgentHostSessionTitleController extends Disposable {
 		if (!title || title.includes('can\'t assist with that')) {
 			return undefined;
 		}
-		return title.slice(0, MAX_TITLE_LENGTH);
+		title = title.slice(0, MAX_TITLE_LENGTH + MAX_TRAILING_HAN_SUFFIX_CODE_UNITS);
+		return this._stripUnexpectedTrailingHanSuffix(title, promptContent).slice(0, MAX_TITLE_LENGTH);
+	}
+
+	private _stripUnexpectedTrailingHanSuffix(title: string, promptContent: string): string {
+		if (HAN_CHARACTER.test(promptContent)) {
+			return title;
+		}
+
+		const suffix = TRAILING_HAN_SUFFIX.exec(title);
+		if (!suffix) {
+			return title;
+		}
+
+		const prefix = title.slice(0, suffix.index).trimEnd();
+		const letterCount = prefix.match(/\p{L}/gu)?.length ?? 0;
+		const latinLetterCount = prefix.match(/\p{sc=Latin}/gu)?.length ?? 0;
+		if (latinLetterCount < MIN_LATIN_LETTERS_BEFORE_HAN_SUFFIX || latinLetterCount / letterCount < MIN_LATIN_LETTER_RATIO) {
+			return title;
+		}
+
+		return prefix;
 	}
 
 	/**
@@ -429,6 +688,7 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 		this._titleGenerationCancellationSources.clear();
 		this._lastAppliedTitle.clear();
+		this._provisionalTitles.clear();
 		super.dispose();
 	}
 }

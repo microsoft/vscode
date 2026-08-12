@@ -128,7 +128,72 @@ describe('ExtensionContributedChatEndpoint', () => {
 
 		expect(decodeStatefulMarker(getStatefulMarkerPart(converted[0])!.data).marker).toBe('resp-legacy');
 	});
+
+	// https://github.com/microsoft/vscode/issues/313920: the internal cache_control sentinel
+	// must only reach providers that handle it, or a naive serializer leaks it upstream.
+	it('omits the internal cache_control sentinel for providers that do not handle it, keeps it for those that do', () => {
+		const toolMessage: Raw.ChatMessage = {
+			role: Raw.ChatRole.Tool,
+			toolCallId: 'call-1',
+			content: [
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: 'the tool output' },
+				{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+			],
+		};
+
+		const withoutBreakpoints = convertToApiChatMessage([toolMessage], { emitCacheBreakpoints: false });
+		const withBreakpoints = convertToApiChatMessage([toolMessage], { emitCacheBreakpoints: true });
+
+		expect({
+			omitted: describeToolResult(withoutBreakpoints[0]),
+			emitted: describeToolResult(withBreakpoints[0]),
+		}).toEqual({
+			omitted: { text: 'the tool output', cacheControl: false },
+			emitted: { text: 'the tool output', cacheControl: true },
+		});
+	});
+
+	it('gates the cache_control sentinel on the model vendor end-to-end', async () => {
+		const capture = async (vendor: string) => {
+			let capturedMessages: readonly vscode.LanguageModelChatMessage[] | undefined;
+			const languageModel = createLanguageModel(() => { }, messages => capturedMessages = messages, vendor);
+			const endpoint = new ExtensionContributedChatEndpoint(
+				languageModel,
+				createInstantiationService(),
+				new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' })),
+			);
+
+			await endpoint.makeChatRequest2({
+				debugName: 'test',
+				messages: [{
+					role: Raw.ChatRole.Tool,
+					toolCallId: 'call-1',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'the tool output' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+					],
+				}],
+				finishedCb: undefined,
+				location: ChatLocation.Agent,
+				requestOptions: {},
+			}, new vscode.CancellationTokenSource().token);
+
+			return describeToolResult(capturedMessages![0]);
+		};
+
+		expect({ anthropic: await capture('anthropic'), ollama: await capture('ollama') }).toEqual({
+			anthropic: { text: 'the tool output', cacheControl: true },
+			ollama: { text: 'the tool output', cacheControl: false },
+		});
+	});
 });
+
+function describeToolResult(message: vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2): { text: string | undefined; cacheControl: boolean } {
+	const toolResult = message.content[0] as vscode.LanguageModelToolResultPart2;
+	const text = toolResult.content.find((part): part is vscode.LanguageModelTextPart => part instanceof vscode.LanguageModelTextPart)?.value;
+	const cacheControl = toolResult.content.some(part => part instanceof vscode.LanguageModelDataPart && part.mimeType === CustomDataPartMimeTypes.CacheControl);
+	return { text, cacheControl };
+}
 
 function createMarkerMessage(marker: string, summarizedAtRoundId: string | undefined): Raw.ChatMessage {
 	return {
@@ -153,11 +218,12 @@ function getStatefulMarkerPart(message: vscode.LanguageModelChatMessage | vscode
 function createLanguageModel(
 	captureOptions: (options: vscode.LanguageModelChatRequestOptions) => void,
 	captureMessages?: (messages: readonly vscode.LanguageModelChatMessage[]) => void,
+	vendor: string = 'test-vendor',
 ): vscode.LanguageModelChat {
 	return {
 		id: 'test-model',
 		name: 'Test Model',
-		vendor: 'test-vendor',
+		vendor,
 		family: 'test-family',
 		version: '1.0.0',
 		maxInputTokens: 1000,

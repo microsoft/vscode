@@ -1524,6 +1524,25 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(result, true, 'Should accept tool invocations as same content');
 		});
 
+		test('should return false when a tool becomes a parent subagent', () => {
+			const content = createThinkingPart('**Working**', 'id-1');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+			const toolInvocation = {
+				kind: 'toolInvocation' as const,
+				toolSpecificData: { kind: 'subagent' },
+				subAgentInvocationId: undefined,
+			} as unknown as IChatRendererContent;
+
+			assert.strictEqual(part.hasSameContent(toolInvocation, [], context.element), false);
+		});
+
 		test('should return true for markdown content', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
@@ -2082,6 +2101,41 @@ suite('ChatThinkingContentPart', () => {
 
 			button.click();
 			assert.notStrictEqual(externalResources.style.display, 'none', 'Should show external resources again after collapsing');
+		});
+
+		test('should not show external resources for terminal tools that render their own image pills', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const serializedTerminalImageTool: IChatToolInvocationSerialized = {
+				...createMockSerializedImageToolInvocation('run_in_terminal', 'Ran command', 'terminal-image-call-1'),
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'download image' },
+					language: 'shellscript',
+				},
+			};
+
+			part.appendItem(() => ({ domNode: $('div.test-terminal-tool') }), serializedTerminalImageTool.toolId, serializedTerminalImageTool);
+
+			const externalResources = part.domNode.querySelector('.chat-thinking-external-resources') as HTMLElement;
+			assert.deepStrictEqual({
+				display: externalResources.style.display,
+				attachmentCount: externalResources.querySelectorAll('.chat-attached-context-attachment').length,
+			}, {
+				display: 'none',
+				attachmentCount: 0,
+			});
 		});
 	});
 

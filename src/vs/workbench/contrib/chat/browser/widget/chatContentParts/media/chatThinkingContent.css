@@ -24,6 +24,10 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label {
+		position: relative;
+	}
+
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
 		display: flex;
 		align-items: center;
@@ -118,11 +122,11 @@
 	}
 
 	/* Curved connector from the header to the first thinking item */
-	&:not(.chat-used-context-collapsed)::after {
+	&:not(.chat-used-context-collapsed) > .chat-used-context-label::after {
 		content: '';
 		position: absolute;
 		left: 3px;
-		top: 22px;
+		top: 100%;
 		height: 16px;
 		width: 5px;
 		border-left: 1px solid var(--vscode-chat-requestBorder);
@@ -178,7 +182,7 @@
 
 			.progress-container,
 			.chat-confirmation-widget-container {
-				margin: 0 0 2px 6px;
+				margin: 0 0 0 6px;
 				box-sizing: border-box;
 				max-width: calc(100% - 6px);
 			}
@@ -393,10 +397,6 @@
 	/* Hide the header/collapse button while streaming — it reappears when chat-thinking-streaming is removed */
 	&:has(.chat-thinking-streaming) > .chat-used-context-label {
 		display: none;
-	}
-
-	&.chat-thinking-persistent-streaming {
-		margin-bottom: 3px;
 	}
 
 	> .monaco-scrollable-element > .shadow {

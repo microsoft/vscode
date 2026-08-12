@@ -52,7 +52,11 @@ async function formatLocalProxyConfig(nativeHostService: INativeHostService): Pr
 	let output = '## Local OS Proxy Configuration (@vscode/os-proxy-resolver)\n\n';
 	try {
 		const config = await nativeHostService.readProxyConfigWithPackage();
+		output += `- Proxy environment: ${formatEnvironmentProxyConfig(config.environment)}\n`;
 		output += `- Auto-detect: ${config.autoDetect}\n`;
+		output += `- DHCP WPAD: ${formatPacSourceStatus(config.wpadDhcp)}\n`;
+		output += `- DNS WPAD: ${formatPacSourceStatus(config.wpadDns)}\n`;
+		output += `- Configured PAC: ${formatPacSourceStatus(config.configuredPac)}\n`;
 		output += `- PAC: ${formatPacConfig(config)}\n`;
 		if (config.pac) {
 			output += `\n${appendEscapedMarkdownCodeBlockFence(config.pac.content, 'js')}\n\n`;
@@ -63,6 +67,19 @@ async function formatLocalProxyConfig(nativeHostService: INativeHostService): Pr
 		output += `- Error: ${err instanceof Error ? err.message : String(err)}\n\n`;
 	}
 	return output;
+}
+
+function formatEnvironmentProxyConfig(environment: IOSProxyConfig['environment']): string {
+	const values = [environment.httpProxy, environment.httpsProxy, environment.allProxy, environment.noProxy];
+	const configured = values.filter(value => value !== undefined);
+	return configured.length
+		? configured.map(value => `${value.variable}=${value.value}${value.error ? ` (error: ${value.error})` : ''}`).join(', ')
+		: '(none)';
+}
+
+function formatPacSourceStatus(status: IOSProxyConfig['wpadDhcp']): string {
+	const details = [status.url && `URL=${status.url}`, status.error && `error=${status.error}`].filter(value => !!value);
+	return details.length ? `${status.state} (${details.join(', ')})` : status.state;
 }
 
 function formatPacConfig(config: IOSProxyConfig): string {

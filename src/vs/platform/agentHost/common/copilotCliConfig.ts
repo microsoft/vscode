@@ -21,11 +21,17 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
+	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
+	ToolSearchEnabled = 'toolSearchEnabled',
+	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
+	ToolSearchDeferThreshold = 'toolSearchDeferThreshold',
 	/** Override reasoning effort regardless of the picker value; unsupported values are ignored. */
 	ReasoningEffortOverride = 'reasoningEffortOverride',
 	/** Per-model capability overrides (family aliases) keyed by model id. */
 	ModelCapabilityOverrides = 'modelCapabilityOverrides',
 }
+
+export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
 
 // VS Code `chat.agentHost.*` setting IDs that feed the root-config keys above,
 // kept beside the keys they forward to. Registered in `chat.shared.contribution.ts`
@@ -38,12 +44,23 @@ export const AgentHostCopilotSdkLogLevelSettingId = 'chat.agentHost.copilotSdk.l
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
-export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.reasoningEffortOverride';
+export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
+
+export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
+
+export const AgentHostReasoningEffortOverrideSettingId = 'chat.agentHost.copilot.reasoningEffortOverride';
 
 export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
+
+export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
+
+/** Floors valid tool-search thresholds and returns the default for invalid values. */
+export function normalizeToolSearchDeferThreshold(value: number | undefined): number {
+	return value !== undefined && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 1;
+}
 
 /** Per-model capability override; the agent-host equivalent of the extension's `IModelCapabilityOverride`. */
 interface ICopilotCliModelCapabilityOverride {
@@ -76,7 +93,7 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.rubberDuck.title', "Rubber Duck Agent"),
 		description: localize('agentHost.config.rubberDuck.description', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model."),
-		default: false,
+		default: DEFAULT_COPILOT_RUBBER_DUCK_ENABLED,
 	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -84,10 +101,22 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.toolSearchEnabled.title', "Agent Host Tool Search"),
+		description: localize('agentHost.config.toolSearchEnabled.description', "When enabled, Copilot SDK sessions defer MCP and non-core VS Code tools behind a tool-search tool so the model discovers them on demand instead of loading every tool definition up front."),
+		default: true,
+	}),
+	[CopilotCliConfigKey.ToolSearchDeferThreshold]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.toolSearchDeferThreshold.title', "Tool Search Defer Threshold"),
+		description: localize('agentHost.config.toolSearchDeferThreshold.description', "Minimum number of tools before MCP and external tools are deferred behind tool search. Set to 0 to always defer external tools. Only effective when tool search is enabled."),
+		default: 1,
+	}),
 	[CopilotCliConfigKey.ReasoningEffortOverride]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.reasoningEffortOverride.title', "Reasoning Effort Override"),
-		description: localize('agentHost.config.reasoningEffortOverride.description', "Overrides the reasoning effort for Copilot SDK sessions regardless of the per-model picker value. Set it to a level the selected model supports (e.g. `low`, `medium`, `high`, `xhigh`); a value that isn't a recognized effort level is ignored and the session falls back to the picker value. Only affects Copilot SDK sessions; intended for experimentation."),
+		description: localize('agentHost.config.reasoningEffortOverride.description', "Overrides the reasoning effort for Copilot SDK sessions regardless of the per-model picker value. Set it to a level the selected model supports (e.g. `low`, `medium`, `high`, `xhigh`, `max`); a value that isn't a recognized effort level is ignored and the session falls back to the picker value. Only affects Copilot SDK sessions; intended for experimentation."),
 		default: '',
 	}),
 	[CopilotCliConfigKey.ModelCapabilityOverrides]: schemaProperty<CopilotCliModelCapabilityOverrides>({

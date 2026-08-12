@@ -6,6 +6,7 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -62,13 +63,58 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 
 		const title = blocked ? localize('browser.blockedByPolicy', "Blocked by network domain policy") : (editor.title || 'Untitled');
 		const displayUrl = blocked ? '' : ` (${url})`;
+		const resourceNavigationHint = editor.associatedResource ? ' (resource-backed; navigation is limited to this resource)' : '';
 		const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : ' (not visible)';
 		const id = options?.excludeIds ? '' : `[${editor.id}] `;
 
 		// By default, use numbers only if we're excluding IDs, so models don't get confused about which ID to use.
 		const bullet = (options?.numbered ?? options?.excludeIds) ? `${index + 1}. ` : '- ';
-		return `${indent}${bullet}${id}${title}${displayUrl}${hint}`;
+		return `${indent}${bullet}${id}${title}${displayUrl}${resourceNavigationHint}${hint}`;
 	}).join('\n');
+}
+
+export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
+	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target)) {
+		return undefined;
+	}
+
+	return 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.';
+}
+
+export function getBrowserPagesContext(
+	editorService: IEditorService,
+	browserViewService: IBrowserViewWorkbenchService,
+	agentNetworkFilterService: IAgentNetworkFilterService,
+	options?: {
+		activeSessionId?: string;
+		canPromptUser?: boolean;
+	},
+): string | undefined {
+	const views = [...browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()];
+	const sharedViews = views.filter(view => view.model?.sharingState === BrowserViewSharingState.Shared);
+	const unsharedCount = views.length - sharedViews.length;
+
+	if (sharedViews.length === 0 && unsharedCount === 0) {
+		return undefined;
+	}
+
+	let value: string;
+	if (sharedViews.length > 0) {
+		value = 'The following browser pages are currently shared with you and can be interacted with using the browser tools:';
+		value += '\n' + formatBrowserEditorList(editorService, sharedViews, { agentNetworkFilterService });
+	} else {
+		value = 'No browser pages are currently shared with you.';
+	}
+
+	if (unsharedCount > 0) {
+		value += '\n\n';
+		value += `${unsharedCount} ${unsharedCount === 1 ? 'page is' : 'pages are'} open but not shared.`;
+		value += options?.canPromptUser
+			? `\nUse the 'open_browser_page' tool to open a new page or to help the user share an existing page.`
+			: `\nUse the 'open_browser_page' tool to open a new page.`;
+	}
+
+	return value;
 }
 
 /**

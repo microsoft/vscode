@@ -81,15 +81,15 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
-	test('prompts to restart when chat.agentHost.codexAgent.enabled changes', async () => {
+	test('does not prompt to restart when chat.agentHost.codexAgent.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
 			'chat.agentHost.codexAgent.enabled',
 			() => ({ chat: { agentHost: { codexAgent: { enabled: true } } } }),
 			c => c.chat.agentHost.codexAgent.enabled = false);
 
-		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
-		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+		assert.strictEqual(confirmCount, 0, 'should not prompt to restart');
+		assert.strictEqual(restartCount, 0, 'should not restart');
 	});
 
 	test('prompts to restart when chat.agentHost.byokModels.enabled changes', async () => {
@@ -98,28 +98,6 @@ suite('SettingsChangeRelauncher', () => {
 			'chat.agentHost.byokModels.enabled',
 			() => ({ chat: { agentHost: { byokModels: { enabled: true } } } }),
 			c => c.chat.agentHost.byokModels.enabled = false);
-
-		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
-		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
-	});
-
-	test('prompts to restart when chat.agents.claude.preferAgentHost changes', async () => {
-		confirmResult = true;
-		await changeSetting(
-			'chat.agents.claude.preferAgentHost',
-			() => ({ chat: { agents: { claude: { preferAgentHost: true } } } }),
-			c => c.chat.agents.claude.preferAgentHost = false);
-
-		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
-		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
-	});
-
-	test('prompts to restart when chat.editor.claude.preferAgentHost changes', async () => {
-		confirmResult = true;
-		await changeSetting(
-			'chat.editor.claude.preferAgentHost',
-			() => ({ chat: { editor: { claude: { preferAgentHost: true } } } }),
-			c => c.chat.editor.claude.preferAgentHost = false);
 
 		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');

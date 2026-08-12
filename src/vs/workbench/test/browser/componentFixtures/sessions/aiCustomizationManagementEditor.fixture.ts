@@ -22,12 +22,14 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
@@ -35,6 +37,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IOutputService } from '../../../../services/output/common/output.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -62,6 +65,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
+import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
+import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
+import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -140,8 +146,10 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 		override getCustomAgents() { return []; }
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }
+		override getWorkingDirectories() { return []; }
 		override getMcpServers() { return mcpServers; }
 		override addMcpServer() { }
+		override async authenticateMcpServer() { return true; }
 	}();
 }
 
@@ -405,11 +413,14 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidChangeFeedbackScope = Event.None;
 		override readonly onDidAddFeedback = Event.None;
 		override readonly onDidConvertFeedback = Event.None;
 		override readonly onDidAddReply = Event.None;
 		override readonly onDidSubmitFeedback = Event.None;
 		override getFeedback() { return []; }
+		override getSessionForFile() { return undefined; }
+		override getFeedbackSessionResource() { return undefined; }
 		override getMostRecentSessionForResource() { return undefined; }
 		override async revealFeedback(): Promise<void> { }
 		override getNextFeedback() { return undefined; }
@@ -544,14 +555,16 @@ const mcpUserServers = [
 	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
 const mcpRuntimeServers = [
-	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }) },
-	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }) },
+	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), showOutput() { } },
+	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error }), showOutput() { } },
+	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
+	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
 ];
 
 const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
-	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
-	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:component-explorer', name: 'component-explorer', enabled: true, status: McpServerStatus.Ready, state: { kind: McpServerStatus.Ready }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Browser', name: 'Remote Browser', enabled: true, status: McpServerStatus.AuthRequired, state: { kind: McpServerStatus.AuthRequired, reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
+	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
 interface IRenderEditorOptions {
@@ -751,6 +764,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override getRegisteredChatSessionItemProviders() { return []; }
 				override hasCustomizationsProvider() { return false; }
 			}());
+			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
+				override readonly automations = constObservable([]);
+				override readonly runs = constObservable([]);
+				override runsFor() { return constObservable([]); }
+			}());
+			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
+			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() {
+				override async showAutomationDialog() { return undefined; }
+			}());
+			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
+			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
@@ -837,6 +861,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
 				override async openView<T extends {}>(_id: string, _focus?: boolean) { return null as T | null; }
+			}());
+			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
+				override async showChannel() { }
 			}());
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override get lastFocusedWidget() { return undefined; }
@@ -1021,6 +1048,9 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService());
+			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
+				override async showChannel() { }
+			}());
 		},
 	});
 
@@ -1045,6 +1075,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 function makeInstalledPlugin(name: string, uri: URI, enabled: boolean): IAgentPlugin {
 	return new class extends mock<IAgentPlugin>() {
 		override readonly uri = uri;
+		override readonly format = PluginFormat.Copilot;
 		override readonly label = name;
 		override readonly enablement = constObservable(enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		override readonly hooks = constObservable([]);
@@ -1238,6 +1269,9 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 			reg.defineInstance(IAgentHostCustomizationService, createMockAgentHostCustomizationService());
+			reg.defineInstance(IOutputService, new class extends mock<IOutputService>() {
+				override async showChannel() { }
+			}());
 		},
 	});
 
