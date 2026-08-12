@@ -170,7 +170,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions sometimes lose titles');
 		const prompt = await controller.preparePromptForAgent(session.toString(), buildDefaultChatUri(session), 'Continue');
 
-		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions']);
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
 		assert.ok(prompt.includes('<system_notification>'));
 		assert.ok(prompt.includes('`rename_session`'));
@@ -182,7 +182,15 @@ suite('AgentHostSessionTitleController', () => {
 
 		controller.seedTitleFromFirstMessage(session.toString(), 'x'.repeat(50));
 
-		assert.deepStrictEqual(titleActions, ['x'.repeat(40)]);
+		assert.deepStrictEqual(titleActions, [`${'x'.repeat(37)}...`]);
+	});
+
+	test('active-agent fallback omits the ellipsis when the crossing word completes the prompt', () => {
+		const { controller, session, titleActions } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, true);
+
+		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate why restored Agent Host sessions');
+
+		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions']);
 	});
 
 	test('utility-model mode does not add an active-agent reminder', async () => {

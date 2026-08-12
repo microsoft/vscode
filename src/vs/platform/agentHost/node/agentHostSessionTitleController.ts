@@ -181,12 +181,12 @@ export class AgentHostSessionTitleController extends Disposable {
 		}
 		const limited = characters.slice(0, MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH).join('');
 		if (!limited.includes(' ')) {
-			return limited;
+			return `${Array.from(limited).slice(0, MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH - 3).join('')}...`;
 		}
 		const remaining = characters.slice(MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH).join('');
 		const nextWordBoundary = remaining.indexOf(' ');
 		return nextWordBoundary >= 0
-			? `${limited}${remaining.slice(0, nextWordBoundary)}`
+			? `${limited}${remaining.slice(0, nextWordBoundary)}...`
 			: normalized;
 	}
 
