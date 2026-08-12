@@ -52,9 +52,6 @@ const FILES_TO_SKIP = [
 	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/**',
 	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/**',
-	// onnxruntime-node (on-device transcription) ships only a darwin/arm64 binary,
-	// not darwin/x64; the universal app carries the arm64 binary as-is.
-	'**/node_modules.asar.unpacked/onnxruntime-node/bin/**',
 ];
 
 

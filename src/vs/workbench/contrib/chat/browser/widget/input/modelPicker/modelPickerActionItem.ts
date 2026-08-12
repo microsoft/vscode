@@ -8,9 +8,11 @@ import { IManagedHoverContent } from '../../../../../../../base/browser/ui/hover
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAnchor } from '../../../../../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -39,23 +41,20 @@ export interface IModelConfigurationAccess {
 	readonly onDidChange?: Event<string /* modelId */>;
 }
 
+export interface IModelPickerPresentationOptions {
+	readonly useGroupedModelPicker: boolean;
+	readonly showManageModelsAction: boolean;
+	readonly showUnavailableFeatured: boolean;
+	readonly showFeatured: boolean;
+	readonly showAutoModel: boolean;
+	readonly showModelIcon: boolean;
+}
+
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
-	useGroupedModelPicker(): boolean;
-	showManageModelsAction(): boolean;
-	showUnavailableFeatured(): boolean;
-	showFeatured(): boolean;
-	useGenericModelIcon?(): boolean;
-	/**
-	 * Whether the synthetic "Auto" model is available for the current session,
-	 * so it can fall back to Auto. Defaults to `true` when omitted. When this
-	 * returns `false` and {@link getModels} is empty, the picker shows a
-	 * "No models available" entry (and an upgrade prompt for Copilot Free /
-	 * Student users) instead of an Auto entry.
-	 */
-	showAutoModel?(): boolean;
+	getPresentationOptions(): IModelPickerPresentationOptions;
 	/**
 	 * The id of the current chat session, used to correlate model-picker
 	 * changes with the session in telemetry. Matches the `chatSessionId`
@@ -76,6 +75,11 @@ export interface IModelPickerDelegate {
 	 * writes configuration through the global {@link ILanguageModelsService}.
 	 */
 	readonly modelConfiguration?: IModelConfigurationAccess;
+	onDidChangeVisibility?(visible: boolean): void | Promise<void>;
+	readonly anchorPosition?: AnchorPosition;
+	readonly actionWidgetContainer?: HTMLElement;
+	getActionWidgetAnchor?(anchor: HTMLElement): HTMLElement | IAnchor;
+	readonly openOnMouseUp?: boolean;
 }
 
 /**

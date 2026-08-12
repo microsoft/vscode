@@ -144,6 +144,7 @@ export type ChatProviderInvokedEvent = {
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
 	chatSessionId: string;
+	requestId: string;
 	agent: string;
 	agentExtensionId: string | undefined;
 	slashCommand: string | undefined;
@@ -166,6 +167,7 @@ export type ChatProviderInvokedClassification = {
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The identifier of the chat request, used to correlate workbench and agent host telemetry.' };
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
 	agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
@@ -307,6 +309,7 @@ export class ChatRequestTelemetry {
 			totalTime,
 			result,
 			requestType,
+			requestId: request.id,
 			agent: detectedAgent?.id ?? this.opts.agent.id,
 			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agent.extensionId.value,
 			slashCommand: this.opts.agentSlashCommandPart ? this.opts.agentSlashCommandPart.command.name : this.opts.commandPart?.slashCommand.command,

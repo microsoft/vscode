@@ -6,22 +6,30 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
-import { ActiveSessionState, IChangesViewService } from '../common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
 export const ChangesetHasOperationsContext = new RawContextKey<boolean>('sessions.changesetHasOperations', false);
+
+const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.freeze({
+	otherFiles: false,
+	checks: true,
+});
 
 export class ChangesViewService extends Disposable implements IChangesViewService {
 
@@ -41,6 +49,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
+	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+
+	private readonly _sectionCollapseStateBySession = new ResourceMap<IChangesViewSectionCollapseState>();
+	private readonly _sectionCollapseStateChanged = observableSignal('changesView.sectionCollapseStateChanged');
 
 	private readonly _selectedChangesetId = observableValue<string | undefined>(this, undefined);
 	setChangesetId(changesetId: string | undefined): void {
@@ -63,6 +75,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -70,6 +83,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession?.resource;
+		});
+		this.activeSessionSectionCollapseStateObs = derivedOpts({ equalsFn: structuralEquals }, reader => {
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			this._sectionCollapseStateChanged.read(reader);
+			return sessionResource ? this._sectionCollapseStateBySession.get(sessionResource) ?? DEFAULT_SECTION_COLLAPSE_STATE : DEFAULT_SECTION_COLLAPSE_STATE;
 		});
 
 		// Active session type
@@ -148,9 +166,17 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return changeset?.isLoadingChanges.read(reader) ?? false;
 		});
 
+		const activeSessionBaseBranchProtected = derived(reader => {
+			const activeSession = this.sessionsService.activeSession.read(reader);
+			return activeSession?.workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected === true;
+		});
+
 		this.activeSessionChangesetOperationsObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
-			return changeset?.operations.read(reader) ?? [];
+			const operations = changeset?.operations.read(reader) ?? [];
+			return activeSessionBaseBranchProtected.read(reader)
+				? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID)
+				: operations;
 		});
 
 		// Changes
@@ -181,9 +207,44 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			this.activeSessionResourceObs.read(reader);
 			this.setChangesetId(undefined);
 		}));
+		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			const state = this._sectionCollapseStateBySession.get(from.resource);
+			if (!state) {
+				return;
+			}
+			this._sectionCollapseStateBySession.delete(from.resource);
+			this._sectionCollapseStateBySession.set(to.resource, state);
+			this._sectionCollapseStateChanged.trigger(undefined);
+		}));
+		this._register(sessionsManagementService.onDidDeleteSession(session => {
+			this._deleteSectionCollapseState(session.resource);
+		}));
+		this._register(sessionsManagementService.onDidDiscardNewSession(session => this._deleteSectionCollapseState(session.resource)));
+		this._register(sessionsManagementService.onDidReplaceNewDraftSession(({ from }) => this._deleteSectionCollapseState(from.resource)));
 
 		// Global context keys
 		this._bindContextKeys();
+	}
+
+	setSectionCollapsed(sessionResource: URI, section: ChangesViewSection, collapsed: boolean): void {
+		const current = this._sectionCollapseStateBySession.get(sessionResource) ?? DEFAULT_SECTION_COLLAPSE_STATE;
+		if (current[section] === collapsed) {
+			return;
+		}
+
+		const next = { ...current, [section]: collapsed };
+		if (next.otherFiles === DEFAULT_SECTION_COLLAPSE_STATE.otherFiles && next.checks === DEFAULT_SECTION_COLLAPSE_STATE.checks) {
+			this._sectionCollapseStateBySession.delete(sessionResource);
+		} else {
+			this._sectionCollapseStateBySession.set(sessionResource, next);
+		}
+		this._sectionCollapseStateChanged.trigger(undefined);
+	}
+
+	private _deleteSectionCollapseState(sessionResource: URI): void {
+		if (this._sectionCollapseStateBySession.delete(sessionResource)) {
+			this._sectionCollapseStateChanged.trigger(undefined);
+		}
 	}
 
 	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
@@ -287,10 +348,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const didChangeFeedbackSignal = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
 
 		return derived(reader => {
-			const sessionResource = this.activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
-				return new Map<string, number>();
-			}
+			const sessionResource = this.agentFeedbackService.activeFeedbackSessionResource.read(reader);
 
 			didChangeFeedbackSignal.read(reader);
 
@@ -327,7 +385,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				return lastValue ?? 0;
 			}
 
-			const operations = changeset.operations.read(reader);
+			const operations = this.activeSessionChangesetOperationsObs.read(reader);
 			return operations.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset)).length;
 		});
 

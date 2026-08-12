@@ -25,3 +25,7 @@ See the agent host protocol documentation for more details.
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.
 
 By default this will listen on `ws://127.0.0.1:8081`. You can then use the `ahp-websocket` client, when available, to connect to and communicate with it.
+
+## Learnings
+
+- Provider-owned session configuration inheritance must be selected by the owning `IAgent`; `AgentService` only orchestrates transfer and must not encode provider-specific configuration keys.

@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -11,98 +11,58 @@ exchanges:
       content:
         - type: tool_use
           id: toolcall_0
-          name: report_intent
-          input:
-            intent: Spawning subagent task
-        - type: tool_use
-          id: toolcall_1
           name: task
           input:
             name: list-files
-            prompt: |-
-              Begin your response with this sentence on its own line: subagent replay note sentinel-7f3a
-
-              Then list all files in the current working directory ${workdir}/ahp-subagent-replay-D1IH5t using the glob tool or ls command.
+            prompt: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
             agent_type: explore
-            description: Listing directory files
+            description: List files in cwd
             mode: sync
       stopReason: tool_use
-      usage:
-        inputTokens: 3
-        outputTokens: 316
   - request:
       model: claude-haiku-4.5
       system: ${system}
       messages:
         - role: user
-          content: |-
-            Begin your response with this sentence on its own line: subagent replay note sentinel-7f3a
-
-            Then list all files in the current working directory ${workdir}/ahp-subagent-replay-D1IH5t using the glob tool or ls command.
+          content: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
     response:
       content:
-        - type: text
-          text: subagent replay note sentinel-7f3a
         - type: tool_use
-          id: toolcall_2
-          name: glob
+          id: toolcall_1
+          name: view
           input:
-            pattern: '**'
-            paths: ${workdir}/ahp-subagent-replay-D1IH5t
-        - type: tool_use
-          id: toolcall_3
-          name: bash
-          input:
-            command: ls -la ${workdir}/ahp-subagent-replay-D1IH5t
+            path: ${workdir}
       stopReason: tool_use
-      usage:
-        inputTokens: 4043
-        outputTokens: 439
   - request:
       model: claude-haiku-4.5
       system: ${system}
       messages:
         - role: user
-          content: |-
-            Begin your response with this sentence on its own line: subagent replay note sentinel-7f3a
-
-            Then list all files in the current working directory ${workdir}/ahp-subagent-replay-D1IH5t using the glob tool or ls command.
+          content: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
         - role: assistant
           content:
             - type: thinking
-            - type: text
-              text: subagent replay note sentinel-7f3a
             - type: tool_use
-              name: glob
+              name: view
               input:
-                pattern: '**'
-                paths: ${workdir}/ahp-subagent-replay-D1IH5t
-            - type: tool_use
-              name: bash
-              input:
-                command: ls -la ${workdir}/ahp-subagent-replay-D1IH5t
+                path: ${workdir}
         - role: user
           content:
             - type: tool_result
-              tool_use_id: toolcall_2
+              tool_use_id: toolcall_1
               content: |-
-                ${workdir}/ahp-subagent-replay-D1IH5t/file-a.txt
-                ${workdir}/ahp-subagent-replay-D1IH5t/file-b.txt
-            - type: tool_result
-              tool_use_id: toolcall_3
-              content: "Shell ID: ${uuid_0}\nExit code: 0\nls -la /var/folders/yj \r/46gvyjxx5479vlbnxz_914xw0000gn/T/ahp-subagent-replay-D1IH5t\r\ntotal 16\r\ndrwx------    4 ${user}  staff    128 Jul  7 16:05 .\r\ndrwx------@ 975 ${user}  staff  31200 Jul  7 16:06 ..\r\n-rw-r--r--    1 ${user}  staff      5 Jul  7 16:05 file-a.txt\r\n-rw-r--r--    1 ${user}  staff      4 Jul  7 16:05 file-b.txt"
+                file-a.txt
+                file-b.txt
     response:
       content: |-
-        **Files in the current working directory:**
+        subagent replay note sentinel-7f3a
 
-        1. `${workdir}/ahp-subagent-replay-D1IH5t/file-a.txt`
-        2. `${workdir}/ahp-subagent-replay-D1IH5t/file-b.txt`
+        Files in the current working directory:
+        - file-a.txt
+        - file-b.txt
       stopReason: end_turn
-      usage:
-        inputTokens: 7
-        outputTokens: 121
   - request:
-      model: claude-opus-4.6
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
@@ -111,35 +71,23 @@ exchanges:
           content:
             - type: thinking
             - type: tool_use
-              name: report_intent
-              input:
-                intent: Spawning subagent task
-            - type: tool_use
               name: task
               input:
                 name: list-files
-                prompt: |-
-                  Begin your response with this sentence on its own line: subagent replay note sentinel-7f3a
-
-                  Then list all files in the current working directory ${workdir}/ahp-subagent-replay-D1IH5t using the glob tool or ls command.
+                prompt: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
                 agent_type: explore
-                description: Listing directory files
+                description: List files in cwd
                 mode: sync
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: Intent logged
-            - type: tool_result
-              tool_use_id: toolcall_1
               content: |-
-                **Files in the current working directory:**
+                subagent replay note sentinel-7f3a
 
-                1. `${workdir}/ahp-subagent-replay-D1IH5t/file-a.txt`
-                2. `${workdir}/ahp-subagent-replay-D1IH5t/file-b.txt`
+                Files in the current working directory:
+                - file-a.txt
+                - file-b.txt
     response:
       content: SUBAGENT_DONE
       stopReason: end_turn
-      usage:
-        inputTokens: 1
-        outputTokens: 10

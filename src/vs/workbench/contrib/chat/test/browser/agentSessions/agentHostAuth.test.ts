@@ -21,7 +21,8 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
@@ -389,6 +390,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
@@ -427,6 +429,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
@@ -466,6 +469,7 @@ suite('resolveMcpServerAuthentication', () => {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
@@ -489,25 +493,35 @@ suite('resolveMcpServerAuthentication', () => {
 		});
 	});
 
-	test('does not attempt dynamic provider creation without user interaction', async () => {
+	test('does not create a dynamic provider silently without a persisted registration', async () => {
 		const warnings: string[] = [];
+		const providerCreations: string[] = [];
+		const metadataRequests: string[] = [];
 		const logService = new class extends NullLogService {
 			override warn(message: string): void {
 				warnings.push(message);
 			}
 		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+		instantiationService.stub(IAuthenticationService, createMockAuthService({
+			createDynamicAuthenticationProvider: async authorizationServer => {
+				providerCreations.push(authorizationServer.toString(true));
+				return undefined;
+			},
+		}));
 		instantiationService.stub(IAuthenticationMcpAccessService, {});
 		instantiationService.stub(IAuthenticationMcpService, {
 			getAccountPreference: () => undefined,
 		});
 		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve(undefined),
+		});
 		instantiationService.stub(ILogService, logService);
 
 		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
 			resource: 'https://mcp.example.com',
-			authorization_servers: ['not-a-valid-authorization-server'],
+			authorization_servers: ['https://auth.example.com'],
 		}, {
 			allowInteraction: false,
 			logPrefix: '[AgentHost]',
@@ -515,12 +529,195 @@ suite('resolveMcpServerAuthentication', () => {
 			mcpServerName: 'Example',
 			mcpServerUrl: 'https://mcp.example.com',
 			scopes: [],
+			authorizationServerMetadataFetcher: async authorizationServer => {
+				metadataRequests.push(authorizationServer);
+				throw new Error('Unexpected metadata request');
+			},
 			authenticate: async () => { },
 		});
 
-		assert.deepStrictEqual({ result, warnings }, {
+		assert.deepStrictEqual({ result, warnings, metadataRequests, providerCreations }, {
 			result: false,
 			warnings: [],
+			metadataRequests: [],
+			providerCreations: [],
+		});
+	});
+
+	test('restores a persisted dynamically registered provider without user interaction', async () => {
+		const dynamicProviderId = 'https://mcp.notion.com/ https://mcp.notion.com/mcp';
+		const providerCreations: { clientId: string | undefined; clientSecret: string | undefined }[] = [];
+		const sessionRequests: { silent: boolean | undefined }[] = [];
+		const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+		const authService = createMockAuthService({
+			createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId, clientSecret) => {
+				providerCreations.push({ clientId, clientSecret });
+				return { id: dynamicProviderId };
+			},
+			getSessions: (_providerId, _scopes, options) => {
+				sessionRequests.push({ silent: options.silent });
+				return Promise.resolve([{
+					id: 'notion-session',
+					scopes: [],
+					accessToken: 'notion-token',
+					account: { id: 'account-id', label: 'Notion Account' },
+				}]);
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => true,
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => 'Notion Account',
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {
+			addAccountUsage: () => { },
+		});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve({ clientId: 'notion-client-id', clientSecret: 'notion-client-secret' }),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.notion.com/mcp',
+			authorization_servers: ['https://mcp.notion.com'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'notion',
+			mcpServerName: 'notion',
+			mcpServerUrl: 'https://mcp.notion.com/mcp',
+			scopes: [],
+			authorizationServerMetadataFetcher: async authorizationServer => ({
+				metadata: {
+					issuer: authorizationServer,
+					response_types_supported: ['code'],
+				},
+				discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
+				errors: [],
+			}),
+			authenticate: async request => {
+				authenticateRequests.push(request);
+			},
+		});
+
+		assert.deepStrictEqual({ result, providerCreations, sessionRequests, authenticateRequests }, {
+			result: true,
+			providerCreations: [{ clientId: 'notion-client-id', clientSecret: 'notion-client-secret' }],
+			sessionRequests: [{ silent: true }],
+			authenticateRequests: [{
+				resource: 'https://mcp.notion.com/mcp',
+				scopes: [],
+				token: 'notion-token',
+			}],
+		});
+	});
+
+	test('serializes authentication transactions for different configured clients', async () => {
+		const dynamicProviderId = 'https://mcp.example.com/ https://mcp.example.com/resource';
+		const firstSessionStarted = new DeferredPromise<void>();
+		const firstSessionGate = new DeferredPromise<void>();
+		const providerCreations: string[] = [];
+		const sessionRequests: string[] = [];
+		const authenticateRequests: string[] = [];
+		let activeClient: string | undefined;
+		let providerActive = false;
+		const authService = createMockAuthService({
+			isDynamicAuthenticationProvider: providerId => providerId === dynamicProviderId && providerActive,
+			createDynamicAuthenticationProvider: async (_authorizationServer, _metadata, _resource, clientId) => {
+				activeClient = clientId;
+				providerActive = true;
+				providerCreations.push(clientId ?? '');
+				return { id: dynamicProviderId };
+			},
+			unregisterAuthenticationProvider: () => {
+				providerActive = false;
+			},
+			getSessions: async () => {
+				const clientId = activeClient ?? '';
+				sessionRequests.push(clientId);
+				if (clientId === 'first-client') {
+					firstSessionStarted.complete();
+					await firstSessionGate.p;
+				}
+				return [{
+					id: `${clientId}-session`,
+					scopes: [],
+					accessToken: `${clientId}-token`,
+					account: { id: 'account-id', label: 'MCP Account' },
+				}];
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, authService);
+		instantiationService.stub(IAuthenticationMcpAccessService, {
+			isAccessAllowedForUrl: () => true,
+		});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => 'MCP Account',
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {
+			addAccountUsage: () => { },
+		});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve(activeClient ? { clientId: activeClient } : undefined),
+			removeDynamicProvider: async () => {
+				activeClient = undefined;
+			},
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		const protectedResource = {
+			resource: 'https://mcp.example.com/resource',
+			authorization_servers: ['https://mcp.example.com'],
+		};
+		const options = (clientId: string) => ({
+			allowInteraction: true,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'example',
+			mcpServerName: 'Example',
+			mcpServerUrl: 'https://mcp.example.com/resource',
+			oauthClient: { clientId },
+			scopes: [],
+			authorizationServerMetadataFetcher: async (authorizationServer: string) => ({
+				metadata: {
+					issuer: authorizationServer,
+					response_types_supported: ['code'],
+				},
+				discoveryUrl: `${authorizationServer}/.well-known/oauth-authorization-server`,
+				errors: [],
+			}),
+			authenticate: async (request: { token: string }) => {
+				authenticateRequests.push(request.token);
+			},
+		});
+
+		const first = instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, options('first-client'));
+		const second = instantiationService.invokeFunction(resolveMcpServerAuthentication, protectedResource, options('second-client'));
+		await firstSessionStarted.p;
+		const beforeResolution = {
+			providerCreations: [...providerCreations],
+			sessionRequests: [...sessionRequests],
+		};
+		firstSessionGate.complete();
+		const results = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			beforeResolution,
+			results,
+			providerCreations,
+			sessionRequests,
+			authenticateRequests,
+		}, {
+			beforeResolution: {
+				providerCreations: ['first-client'],
+				sessionRequests: ['first-client'],
+			},
+			results: [true, true],
+			providerCreations: ['first-client', 'second-client'],
+			sessionRequests: ['first-client', 'second-client'],
+			authenticateRequests: ['first-client-token', 'second-client-token'],
 		});
 	});
 
@@ -745,6 +942,52 @@ suite('resolveMcpServerAuthentication', () => {
 				},
 			],
 			removedProviders: [dynamicProviderId, dynamicProviderId],
+		});
+	});
+});
+
+suite('modelRequiresAgentAuthentication', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const requiredResource: ProtectedResourceMetadata = { resource: 'https://api.github.com', required: true };
+	const byokModel = {
+		id: 'gemini/gemini-2.5-pro',
+		_meta: createAgentModelByokMeta('gemini/Gemini/gemini-2.5-pro'),
+	};
+	const copilotModel = { id: 'gpt-5' };
+	const agent = {
+		models: [byokModel, copilotModel],
+		protectedResources: [requiredResource],
+	} as AgentInfo;
+
+	test('bypasses required agent auth only for an advertised BYOK model', () => {
+		const optionalResourceAgent = { ...agent, protectedResources: [{ ...requiredResource, required: false }] };
+		const optionalResourceAgentWithoutByok = { ...optionalResourceAgent, models: [copilotModel] } as AgentInfo;
+		assert.deepStrictEqual({
+			byokEnabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, true),
+			byokDisabled: modelRequiresAgentAuthentication(agent, { id: byokModel.id }, false),
+			copilot: modelRequiresAgentAuthentication(agent, { id: copilotModel.id }, true),
+			unknown: modelRequiresAgentAuthentication(agent, { id: 'unknown' }, true),
+			noSelection: modelRequiresAgentAuthentication(agent, undefined, true),
+			optionalResourceByok: modelRequiresAgentAuthentication(optionalResourceAgent, { id: byokModel.id }, true),
+			optionalResourceCopilot: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, true),
+			optionalResourceUnknown: modelRequiresAgentAuthentication(optionalResourceAgent, { id: 'unknown' }, true),
+			optionalResourceSignedOutDisabled: modelRequiresAgentAuthentication(optionalResourceAgent, { id: copilotModel.id }, false),
+			optionalResourceWithoutByok: modelRequiresAgentAuthentication(optionalResourceAgentWithoutByok, { id: copilotModel.id }, true),
+			noProtectedResource: modelRequiresAgentAuthentication({ ...agent, protectedResources: [] }, { id: copilotModel.id }, true),
+		}, {
+			byokEnabled: false,
+			byokDisabled: true,
+			copilot: true,
+			unknown: true,
+			noSelection: true,
+			optionalResourceByok: false,
+			optionalResourceCopilot: true,
+			optionalResourceUnknown: true,
+			optionalResourceSignedOutDisabled: false,
+			optionalResourceWithoutByok: false,
+			noProtectedResource: false,
 		});
 	});
 });

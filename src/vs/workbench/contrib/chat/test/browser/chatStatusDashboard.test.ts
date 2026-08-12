@@ -108,6 +108,18 @@ function getQuotaValues(element: HTMLElement): string[] {
 	return Array.from(values).map(el => el.textContent ?? '');
 }
 
+function getCreditsUsed(element: HTMLElement): { value: string; suffix: string; reset: string } | undefined {
+	const indicator = element.querySelector('.quota-indicator.credits-used');
+	if (!indicator) {
+		return undefined;
+	}
+	return {
+		value: indicator.querySelector('.quota-value')?.textContent ?? '',
+		suffix: indicator.querySelector('.quota-value-suffix')?.textContent ?? '',
+		reset: indicator.querySelector('.quota-reset')?.textContent ?? ''
+	};
+}
+
 const dashboardOptions: IChatStatusDashboardOptions = {
 	disableInlineSuggestionsSettings: true,
 	disableModelSelection: true,
@@ -644,15 +656,36 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
 	});
 
-	test('Enterprise Managed — PRU with credits used: shows consumed credits', () => {
+	test('Enterprise Managed — PRU with credits used: shows consumed credits with reset time', () => {
+		const resetAt = Math.floor(Date.UTC(2026, 6, 5, 14, 0, 0) / 1000);
 		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 127 },
+			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
 			completions: { percentRemaining: 100, unlimited: true },
 			entitlement: ChatEntitlement.Business,
 		}));
 
-		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
-		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['127 used']);
+		const credits = getCreditsUsed(dashboard.element);
+		assert.strictEqual(credits?.value, '1,284');
+		assert.strictEqual(credits?.suffix, 'Credits Used');
+		assert.ok(credits?.reset.startsWith('Resets Jul 5 at '));
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), []);
+	});
+
+	test('Enterprise Managed — PRU with credits used (compact): shows plan title, credits and reset', () => {
+		const resetAt = Math.floor(Date.UTC(2026, 4, 31, 21, 0, 0) / 1000);
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 1284, resetAt },
+			completions: { percentRemaining: 100, unlimited: true },
+			entitlement: ChatEntitlement.Business,
+		}), { dashboardOptions: { ...dashboardOptions, compactQuotaLayout: true } });
+
+		const indicator = dashboard.element.querySelector('.quota-indicator.credits-used');
+		const credits = getCreditsUsed(dashboard.element);
+		assert.ok(indicator?.classList.contains('compact'));
+		assert.strictEqual(indicator?.querySelector('.quota-title')?.textContent, 'Copilot Business');
+		assert.strictEqual(credits?.value, '1,284');
+		assert.strictEqual(credits?.suffix, 'Credits used');
+		assert.ok(credits?.reset.startsWith('Resets May 31 at '));
 	});
 
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {

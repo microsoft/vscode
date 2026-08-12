@@ -313,19 +313,21 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A rejected envelope must never mutate confirmed state — it only rolls
+		// back the originating client's matching optimistic action. Guarding all
+		// apply branches also prevents a broadcast rejection from leaking the
+		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
-				if (envelope.rejectionReason) {
-					this._pendingActions.splice(idx, 1);
-				} else {
+				if (!envelope.rejectionReason) {
 					this._confirmedApply(envelope.action);
-					this._pendingActions.splice(idx, 1);
 				}
-			} else {
+				this._pendingActions.splice(idx, 1);
+			} else if (!envelope.rejectionReason) {
 				this._confirmedApply(envelope.action);
 			}
-		} else {
+		} else if (!envelope.rejectionReason) {
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
@@ -457,19 +459,21 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 	}
 
 	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		// A rejected envelope must never mutate confirmed state — it only rolls
+		// back the originating client's matching optimistic action. Guarding all
+		// apply branches also prevents a broadcast rejection from leaking the
+		// rejected action into a non-origin client's state.
 		if (isOwnAction && envelope.origin) {
 			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
 			if (idx !== -1) {
-				if (envelope.rejectionReason) {
-					this._pendingActions.splice(idx, 1);
-				} else {
+				if (!envelope.rejectionReason) {
 					this._confirmedApply(envelope.action);
-					this._pendingActions.splice(idx, 1);
 				}
-			} else {
+				this._pendingActions.splice(idx, 1);
+			} else if (!envelope.rejectionReason) {
 				this._confirmedApply(envelope.action);
 			}
-		} else {
+		} else if (!envelope.rejectionReason) {
 			this._promotePendingTurnStartIfTerminal(envelope.action);
 			this._confirmedApply(envelope.action);
 		}
@@ -1084,7 +1088,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * subscription when {@link ROOT_STATE_URI} matches, otherwise reseats the
 	 * matching entry in {@link _subscriptions}. Unknown resources are ignored.
 	 */
-	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number): void {
+	applyReconnectSnapshot(resource: string, state: unknown, fromSeq: number, preservePending = false): void {
 		if (isAhpRootChannel(resource)) {
 			this._rootState.handleSnapshot(state as RootState, fromSeq);
 			return;
@@ -1096,7 +1100,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
-		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
+		if (!preservePending && (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription)) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);

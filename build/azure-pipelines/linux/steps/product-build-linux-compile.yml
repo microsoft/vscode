@@ -5,6 +5,9 @@ parameters:
     type: boolean
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
+    type: boolean
+    default: false
   - name: VSCODE_BUILD_LINUX_SNAP
     type: boolean
     default: false
@@ -28,6 +31,10 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ if eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true) }}:
+    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+      displayName: Disable Foundry Local Native Install
 
   - template: ../../distro/download-distro.yml@self
 
@@ -187,6 +194,10 @@ steps:
 
   - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
     - template: ../../common/agent-sdk-produce.yml@self
+      parameters:
+        vscodePlatform: linux
+
+    - template: ../../common/dictation-runtime-produce.yml@self
       parameters:
         vscodePlatform: linux
 

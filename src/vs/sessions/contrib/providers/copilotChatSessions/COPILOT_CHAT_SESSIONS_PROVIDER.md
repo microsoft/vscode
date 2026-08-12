@@ -1,15 +1,15 @@
 # CopilotChatSessionsProvider — Default Copilot Provider
 
-**File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
+**File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local) when Agent Host is unavailable and **Copilot Cloud** (remote).
 
 ## Registration
 
 Registered via `DefaultSessionsProviderContribution` workbench contribution at `WorkbenchPhase.AfterRestored`:
 
 ```
-src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessions.contribution.ts
+src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts
 ```
 
 ```typescript
@@ -28,7 +28,7 @@ class DefaultSessionsProviderContribution extends Disposable {
 | `id` | `'default-copilot'` |
 | `label` | `'Copilot Chat'` |
 | `icon` | `Codicon.copilot` |
-| `sessionTypes` | `[CopilotCLISessionType, CopilotCloudSessionType]` (+ `ClaudeCodeSessionType` when enabled) |
+| `sessionTypes` | `[CopilotCloudSessionType]`, plus `CopilotCLISessionType` when Agent Host is unavailable |
 
 ## Browse Actions
 
@@ -54,18 +54,15 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 - Provides `getModelOptionsSnapshot()`, `getOtherOptionGroups()` for UI to render provider-specific pickers
 - Watches context key changes to dynamically show/hide option groups
 
-**`ClaudeCodeNewSession`** — For Claude agent sessions (local `file://` workspaces):
-- Implements `ISession` with simplified configuration (Claude manages its own worktrees and branches)
-- No-ops for `setIsolationMode()` and `setBranch()`
-- `setOption()` writes to `selectedOptions` map; options are propagated to `IChatSessionsService` during `_sendFirstChat()` via `updateSessionOptions()`
-- Gated by the `sessions.chat.claudeAgent.enabled` setting (default: `true`)
-
 ## `AgentSessionAdapter` — Wrapping Existing Sessions
 
 Adapts an existing `IAgentSession` from the chat layer into the `ISession` facade:
 - Constructs with initial values from the agent session's metadata and timing
 - `update(session)` performs a batched observable transaction to update all reactive properties
 - Extracts workspace info, changes, description, and GitHub info from session metadata
+- Treats a cloud provider's `pullRequestUrl` as authoritative for owner, repository, and PR number (including URL-only metadata), and falls back to resolving the PR from `owner`/`name`/`branch` when the URL is absent
+- PR-less task cards must carry `diffRefs.headRef` into their session metadata as `branch`; repository-only metadata cannot drive the branch fallback
+- Uses the shared GitHub PR model, background polling contribution, and persistent icon cache for github.com; provider-reported GitHub Enterprise links retain their provider state icon but skip the public `api.github.com` polling path
 - Maps `ChatSessionStatus` → `SessionStatus`
 - Handles both CLI and Cloud session metadata formats for repository resolution
 

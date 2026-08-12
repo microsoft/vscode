@@ -176,6 +176,10 @@ export interface IChatAgentRequest {
 	 */
 	hasHooksEnabled?: boolean;
 	/**
+	 * Whether this request was submitted through Agents Voice Mode.
+	 */
+	isVoiceModeInput?: boolean;
+	/**
 	 * The permission level for tool auto-approval in this request.
 	 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
 	 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
@@ -198,6 +202,8 @@ export interface IChatAgentRequest {
 	 * When true, this request was initiated by the system rather than the user.
 	 */
 	isSystemInitiated?: boolean;
+	/** Whether the request and response should be hidden from the transcript. */
+	hideFromTranscript?: boolean;
 }
 
 export interface IChatQuestion {

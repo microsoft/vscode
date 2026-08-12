@@ -20,6 +20,7 @@ import type { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks }
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IPromptMigrationInfo } from './promptMigration.js';
+import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../actions/configureVoiceInstructionsAction.js';
 
 const $ = DOM.$;
 
@@ -29,6 +30,13 @@ interface IPromptLaunchersCategoryDescription {
 	readonly icon: ThemeIcon;
 	readonly description: string;
 	readonly promptType?: PromptsType;
+}
+
+interface IStandaloneCustomizationDescription {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly description: string;
+	readonly commandId: string;
 }
 
 export class PromptLaunchersAICustomizationWelcomePage extends Disposable implements IAICustomizationWelcomePageImplementation {
@@ -97,11 +105,26 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		},
 	];
 
+	private readonly standaloneCustomizations: IStandaloneCustomizationDescription[] = [
+		{
+			label: localize('voiceModeInstructions', "Voice Mode Instructions"),
+			icon: Codicon.voiceMode,
+			description: localize('voiceModeInstructionsDesc', "Customize Voice Mode behavior and terminology with voice.md."),
+			commandId: CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID,
+		},
+		{
+			label: localize('dictationInstructions', "Dictation Instructions"),
+			icon: Codicon.mic,
+			description: localize('dictationInstructionsDesc', "Customize Dictation terminology and transcript formatting with dictation.md."),
+			commandId: CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID,
+		},
+	];
+
 	constructor(
 		parent: HTMLElement,
 		private readonly welcomePageFeatures: IWelcomePageFeatures | undefined,
 		private readonly callbacks: IWelcomePageCallbacks,
-		_commandService: ICommandService,
+		private readonly commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
 		private harnessLabel: string,
@@ -293,12 +316,60 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			}));
 		}
 
+		if (!this.workspaceService.isSessionsWindow) {
+			for (const customization of this.standaloneCustomizations) {
+				this.renderStandaloneCustomization(customization);
+			}
+		}
+
 		if (this.promptMigrationInfo) {
 			this.renderPromptMigrationCard();
 		}
 
 		// Content changed — recompute scroll dimensions.
 		this.scrollable.scanDomNode();
+	}
+
+	private renderStandaloneCustomization(customization: IStandaloneCustomizationDescription): void {
+		if (!this.cardsContainer) {
+			return;
+		}
+
+		const card = DOM.append(this.cardsContainer, $('.welcome-prompts-card'));
+		card.setAttribute('tabindex', '0');
+		card.setAttribute('role', 'button');
+		if (!this.firstCard) {
+			this.firstCard = card;
+		}
+
+		const cardHeader = DOM.append(card, $('.welcome-prompts-card-header'));
+		const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
+		iconEl.classList.add(...ThemeIcon.asClassNameArray(customization.icon));
+		const labelEl = DOM.append(cardHeader, $('span.welcome-prompts-card-label'));
+		labelEl.textContent = customization.label;
+
+		const descEl = DOM.append(card, $('p.welcome-prompts-card-description'));
+		descEl.textContent = customization.description;
+
+		const footer = DOM.append(card, $('.welcome-prompts-card-footer'));
+		const configureButton = DOM.append(footer, $('button.welcome-prompts-card-action'));
+		configureButton.textContent = localize('configure', "Configure...");
+		configureButton.setAttribute('aria-label', localize('configureCategoryAriaLabel', "Configure {0}...", customization.label));
+
+		const configure = () => {
+			void this.commandService.executeCommand(customization.commandId);
+		};
+		this.cardDisposables.add(DOM.addDisposableListener(configureButton, 'click', e => {
+			e.stopPropagation();
+			configure();
+		}));
+		this.cardDisposables.add(DOM.addDisposableListener(card, 'click', configure));
+		this.cardDisposables.add(DOM.addDisposableListener(card, 'keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				configure();
+			}
+		}));
 	}
 
 	setPromptMigrationInfo(info: IPromptMigrationInfo | undefined): void {

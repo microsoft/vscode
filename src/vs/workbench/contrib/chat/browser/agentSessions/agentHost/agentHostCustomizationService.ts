@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { compare } from '../../../../../../base/common/strings.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableResourceMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { NKeyMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -53,6 +55,13 @@ export interface IAgentHostCustomizationService {
 	getWorkingDirectory(sessionResource: URI): string | undefined;
 
 	/**
+	 * The full ordered set of working-directory roots for a session (index 0 =
+	 * primary). Used as the workspace identity for durable MCP-server enablement.
+	 * Returns an empty array for sessions with no working directory.
+	 */
+	getWorkingDirectories(sessionResource: URI): readonly string[];
+
+	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
 	 * carries the current status, a {@link IAgentHostMcpServer.setEnabled}
 	 * method that dispatches the protocol-level toggle on behalf of the
@@ -94,7 +103,7 @@ export interface IAgentHostCustomizationService {
 	 * {@link authenticateMcpServer}. No-op when the session/server cannot be
 	 * resolved.
 	 */
-	showMcpServerLog(sessionResource: URI, serverId: string): void;
+	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void>;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -109,6 +118,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	}
 	getWorkingDirectory(sessionResource: URI): string | undefined {
 		return undefined;
+	}
+	getWorkingDirectories(_sessionResource: URI): readonly string[] {
+		return [];
 	}
 	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
 		return [];
@@ -128,14 +140,15 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	prepareMcpServersForTurn(_sessionResource: URI): void {
 		// no-op
 	}
-	showMcpServerLog(_sessionResource: URI, _serverId: string): void {
-		// no-op
+	async showMcpServerLog(_sessionResource: URI, _serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
+		await beforeShow?.();
 	}
 }
 
 export interface IAgentHostCustomizationTarget {
 	readonly customizations: readonly Customization[];
 	readonly workingDirectory?: string;
+	readonly workingDirectories?: readonly string[];
 	readonly rootConfig?: RootConfigState;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
 	setCustomizationEnabled(rawId: string, enabled: boolean): void;
@@ -157,10 +170,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private readonly _mcpLogRegistry: AgentHostMcpServerLogRegistry;
 	/**
 	 * Sessions whose MCP diagnostics we mirror into per-server Output channels.
-	 * A session is tracked once the UI first queries its MCP servers; from then
+	 * A session is tracked once the user reveals a server's output; from then
 	 * on every state change is recorded via {@link onDidChangeCustomizations},
-	 * independent of whether the UI re-queries -- so a failure and a later
-	 * recovery both land in the channel history.
+	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
 
@@ -189,15 +201,15 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		return this._resolveTarget(sessionResource)?.workingDirectory;
 	}
 
+	getWorkingDirectories(sessionResource: URI): readonly string[] {
+		return this._resolveTarget(sessionResource)?.workingDirectories ?? [];
+	}
+
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
 		const target = this._resolveTarget(sessionResource);
 		if (!target) {
 			return [];
 		}
-		// Start mirroring this session's MCP diagnostics (idempotent). Recording
-		// itself is driven by state-change events, not this getter, so a later
-		// failure/recovery is captured even without a re-query.
-		this._trackMcpDiagnostics(sessionResource, target);
 		return this._flattenMcpServers(target.customizations)
 			.map((c): IAgentHostMcpServer => ({
 				id: this._scopedMcpServerId(sessionResource, c.id),
@@ -205,25 +217,26 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				enabled: c.enabled,
 				status: c.state.kind,
 				state: c.state,
+				logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), c.id),
 				setEnabled: (enabled: boolean) => target.setCustomizationEnabled(c.id, enabled),
 				start: () => target.startMcpServer(c.id),
 				stop: () => target.stopMcpServer(c.id),
 			}));
 	}
 
-	showMcpServerLog(sessionResource: URI, serverId: string): void {
+	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
 		const target = this._resolveTarget(sessionResource);
 		if (!target) {
-			return;
+			return Promise.resolve();
 		}
 		const server = this._flattenMcpServers(target.customizations).find(c => this._scopedMcpServerId(sessionResource, c.id) === serverId);
 		if (!server) {
-			return;
+			return Promise.resolve();
 		}
 		// Ensure the session is tracked and its channels exist, then reveal.
 		this._trackMcpDiagnostics(sessionResource, target);
 		const channelId = this._mcpLogRegistry.record({ sessionResource, rawId: server.id, name: server.name, enabled: server.enabled, state: server.state });
-		this._mcpLogRegistry.show(channelId);
+		return this._mcpLogRegistry.show(channelId, beforeShow);
 	}
 
 	/**
@@ -357,8 +370,71 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	private _mcpServerWorkspaceEnablementKey(sessionResource: URI, serverName: string): string | undefined {
-		const workingDirectory = this.getWorkingDirectory(sessionResource);
-		return workingDirectory ? JSON.stringify([sessionResource.scheme, workingDirectory, serverName]) : undefined;
+		const roots = this.getWorkingDirectories(sessionResource);
+		if (roots.length === 0) {
+			// No working directory (defensive): fall through to profile/default.
+			return undefined;
+		}
+		if (roots.length === 1) {
+			// Single-root (incl. workspace-less scratch cwd): exact legacy shape means
+			// byte-identical with pre-multi-root keys, so no migration is needed.
+			return JSON.stringify([sessionResource.scheme, roots[0], serverName]);
+		}
+		// Multi-root: canonicalize (dedup by URI identity) + sort so the key is
+		// order-independent (re-picking the primary keeps the same identity).
+		const canonical = this._canonicalWorkspaceRoots(roots);
+		if (canonical.length === 1) {
+			return JSON.stringify([sessionResource.scheme, canonical[0], serverName]);
+		}
+		// Versioned discriminator so a multi-root key can never be mistaken for a
+		// legacy 3-tuple. Never falls back to a single-primary key.
+		return JSON.stringify(['roots-v2', sessionResource.scheme, canonical, serverName]);
+	}
+
+	/**
+	 * De-duplicates working-directory roots by canonical URI identity (so
+	 * `file:///a` and `file:///a/` or case variants collapse to one root) and
+	 * returns a stable, order-independent list of representative strings.
+	 *
+	 * Order-independence requires that (a) a trailing path separator does not
+	 * change identity — {@link IExtUri.getComparisonKey} preserves it, so it is
+	 * stripped first — and (b) among case-variant spellings that share a
+	 * comparison key, a deterministic representative is chosen (the
+	 * lexicographically smallest) rather than the first one encountered.
+	 *
+	 * @example
+	 * // Distinct roots (any order) → same sorted list:
+	 * _canonicalWorkspaceRoots(['file:///b', 'file:///a']) // ['file:///a', 'file:///b']
+	 * _canonicalWorkspaceRoots(['file:///a', 'file:///b']) // ['file:///a', 'file:///b']
+	 *
+	 * // Trailing separator collapses (`/a/` === `/a`):
+	 * _canonicalWorkspaceRoots(['file:///a/', 'file:///a']) // ['file:///a']
+	 *
+	 * // Case-variant spellings of one root collapse to the smallest spelling,
+	 * // regardless of order (for case-insensitive schemes):
+	 * _canonicalWorkspaceRoots(['vscode-remote://h/Repo', 'vscode-remote://h/repo'])
+	 * _canonicalWorkspaceRoots(['vscode-remote://h/repo', 'vscode-remote://h/Repo'])
+	 * // both → ['vscode-remote://h/Repo']  ('R' (0x52) sorts before 'r' (0x72))
+	 */
+	private _canonicalWorkspaceRoots(roots: readonly string[]): string[] {
+		const byComparisonKey = new Map<string, string>();
+		for (const root of roots) {
+			let key: string;
+			let representative: string;
+			try {
+				const uri = extUriBiasedIgnorePathCase.removeTrailingPathSeparator(URI.parse(root));
+				key = extUriBiasedIgnorePathCase.getComparisonKey(uri);
+				representative = uri.toString();
+			} catch {
+				key = root;
+				representative = root;
+			}
+			const existing = byComparisonKey.get(key);
+			if (existing === undefined || compare(representative, existing) < 0) {
+				byComparisonKey.set(key, representative);
+			}
+		}
+		return [...byComparisonKey.values()].sort(compare);
 	}
 
 	private _mcpTrackingResource(sessionResource: URI): URI {
@@ -454,7 +530,8 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		const channel = target.backendSession.toString();
 		return {
 			customizations: sessionState?.customizations ?? [],
-			workingDirectory: sessionState?.workingDirectory,
+			workingDirectory: sessionState?.workingDirectories?.[0],
+			workingDirectories: sessionState?.workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			authenticate: request => target.connection.authenticate(request),
 			setCustomizationEnabled: (rawId, enabled) => {
@@ -610,12 +687,13 @@ class AgentHostMcpServerLogRegistry extends Disposable {
 	}
 
 	/** Reveals the diagnostics channel `channelId`, making its hidden logger visible. */
-	show(channelId: string): void {
+	async show(channelId: string, beforeShow?: () => Promise<void>): Promise<void> {
 		if (!this._entries.has(channelId)) {
 			return;
 		}
 		this._loggerService.setVisibility(channelId, true);
-		void this._outputService.showChannel(channelId);
+		await beforeShow?.();
+		await this._outputService.showChannel(channelId);
 	}
 
 	/** Disposes every channel/logger owned by `sessionResource` (session teardown). */

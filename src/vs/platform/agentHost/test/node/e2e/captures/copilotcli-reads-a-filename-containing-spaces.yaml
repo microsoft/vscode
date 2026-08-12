@@ -39,7 +39,7 @@ exchanges:
           id: toolcall_1
           name: view
           input:
-            path: ${workdir}/ahp-coverage-spaces-${temp}/file with spaces.txt
+            path: ${workdir}/file with spaces.txt
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -64,7 +64,7 @@ exchanges:
             - type: tool_use
               name: view
               input:
-                path: ${workdir}/ahp-coverage-spaces-${temp}/file with spaces.txt
+                path: ${workdir}/file with spaces.txt
         - role: user
           content:
             - type: tool_result

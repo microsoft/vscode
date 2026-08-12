@@ -30,11 +30,17 @@ interface IDispatchedToggle {
  */
 class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly dispatched: IDispatchedToggle[] = [];
+	readonly workingDirectories?: readonly string[];
 
 	constructor(
 		readonly customizations: McpServerCustomization[],
 		readonly workingDirectory?: string,
-	) { }
+		workingDirectories?: readonly string[],
+	) {
+		// Mirror the real targets, which populate both the singular primary and the
+		// full ordered set from the same session state.
+		this.workingDirectories = workingDirectories ?? (workingDirectory !== undefined ? [workingDirectory] : undefined);
+	}
 
 	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
 	setCustomizationEnabled(rawId: string, enabled: boolean): void {
@@ -94,7 +100,11 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 	function createSut() {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
-		instantiationService.stub(IOutputService, { showChannel: async () => { } });
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
 		const sut = store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService(), store.add(new InMemoryStorageService())));
 		return sut;
 	}
@@ -149,6 +159,70 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		});
 	});
 
+	test('multi-root workspace enablement is keyed by the whole root set, order-independent', () => {
+		const sut = createSut();
+		// Same two roots, different primary order — must share the workspace preference.
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-b']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-b', ['file:///repo-b', 'file:///repo-a']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
+	test('a superset of roots has an independent workspace preference from a single root', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-b']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.deepStrictEqual({
+			singleRoot: sut.getMcpServerEnablement(sessionA1, 'GitHub'),
+			superset: sut.getMcpServerEnablement(sessionA2, 'GitHub'),
+		}, {
+			singleRoot: ContributionEnablementState.DisabledWorkspace,
+			superset: ContributionEnablementState.EnabledProfile,
+		});
+	});
+
+	test('collapses duplicate roots to a single-root workspace key', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
+		// A duplicated root canonicalizes to one, so it must share the single-root key.
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-a']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
+	test('canonicalizes case-variant entries within a set order-independently (case-insensitive scheme)', () => {
+		const sut = createSut();
+		// A set that lists the same root under two case spellings (`Repo-A`/`repo-a`) plus a
+		// distinct second root. Reversing the entries must not change the durable key: among
+		// spellings that share a comparison key, the representative is chosen deterministically
+		// (lexicographically smallest) rather than by first-seen order. Non-`file` schemes are
+		// case-insensitive on every platform, so this is stable across OSes.
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'vscode-remote://host/repo-a', ['vscode-remote://host/Repo-A', 'vscode-remote://host/repo-a', 'vscode-remote://host/repo-b']));
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'vscode-remote://host/repo-b', ['vscode-remote://host/repo-b', 'vscode-remote://host/repo-a', 'vscode-remote://host/Repo-A']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
+	test('a trailing-separator-only variant of a single root shares the single-root key', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a']));
+		// `/repo-a/` collapses to `/repo-a`, so the two-entry set is really one root.
+		sut.setTarget(sessionA2, new FakeTarget([mcpServer('gh-2', 'GitHub', true)], 'file:///repo-a', ['file:///repo-a', 'file:///repo-a/']));
+
+		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledWorkspace);
+
+		assert.strictEqual(sut.getMcpServerEnablement(sessionA2, 'GitHub'), ContributionEnablementState.DisabledWorkspace);
+	});
+
 	test('getMcpServers is pure and prepare applies an explicit durable policy', () => {
 		const sut = createSut();
 		sut.setMcpServerEnablement(sessionA1, 'GitHub', ContributionEnablementState.DisabledProfile);
@@ -167,6 +241,17 @@ suite('AbstractAgentHostCustomizationService - MCP server enablement', () => {
 		sut.setTarget(sessionA2, otherTarget);
 		sut.prepareMcpServersForTurn(sessionA2);
 		assert.deepStrictEqual(otherTarget.dispatched, []);
+	});
+
+	test('getMcpServers provides a stable diagnostics output channel id without creating a logger', () => {
+		const sut = createSut();
+		sut.setTarget(sessionA1, new FakeTarget([mcpServer('gh-1', 'GitHub', true)]));
+
+		const [first] = sut.getMcpServers(sessionA1);
+		const [second] = sut.getMcpServers(sessionA1);
+
+		assert.ok(first.logOutputChannelId);
+		assert.strictEqual(second.logOutputChannelId, first.logOutputChannelId);
 	});
 
 	test('does not reapply unchanged durable policy, preserving a later session-level toggle', () => {

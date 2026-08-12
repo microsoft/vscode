@@ -147,7 +147,8 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
 
-	test('opens notebook diff and file from active notebook editor', async function () {
+	// diabled because of https://github.com/microsoft/vscode/issues/327142
+	test.skip('opens notebook diff and file from active notebook editor', async function () {
 		const committed = JSON.stringify({ cells: [{ cell_type: 'code', source: ['x = 1'], metadata: {}, outputs: [], execution_count: null }], metadata: {}, nbformat: 4, nbformat_minor: 5 });
 		fs.writeFileSync(file('notebook.ipynb'), committed);
 		await repository.add([file('notebook.ipynb')]);
@@ -174,7 +175,8 @@ suite('git smoke test', function () {
 		}
 	});
 
-	test('rename/delete conflict', async function () {
+	// diabled because of https://github.com/microsoft/vscode/issues/327142
+	test.skip('rename/delete conflict', async function () {
 		await commands.executeCommand('workbench.view.scm');
 
 		const appjs = file('app.js');

@@ -37,10 +37,12 @@ import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from '
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
 
+type KimiToolCallIdStyle = 'function-indexed' | 'name-indexed';
+
 /**
- * Rewrites tool call IDs into Kimi's native function-indexed format while preserving tool result pairings.
+ * Rewrites tool call IDs into the selected Kimi-native indexed format while preserving tool result pairings.
  */
-function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[] {
+export function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: KimiToolCallIdStyle = 'function-indexed'): CAPIChatMessage[] {
 	let nextIndex = 0;
 	const mappedToolCallIds = new Map<string, string>();
 
@@ -52,7 +54,7 @@ function normalizeKimiToolCallIds(messages: CAPIChatMessage[]): CAPIChatMessage[
 					return toolCall;
 				}
 
-				const id = `functions.${toolName}:${nextIndex++}`;
+				const id = `${style === 'function-indexed' ? 'functions.' : ''}${toolName}:${nextIndex++}`;
 				if (toolCall.id) {
 					mappedToolCallIds.set(toolCall.id, id);
 				}
@@ -173,13 +175,14 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
+	public readonly autoDiscount?: number | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
 	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
-	public readonly promo?: { id: string; discountPercent: number; endsAt: string; message: string } | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -192,7 +195,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IChatWebSocketManager private readonly _chatWebSocketService: IChatWebSocketManager,
-		@ILogService _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		// This metadata should always be present, but if not we will default to 8192 tokens
 		this._maxTokens = modelMetadata.capabilities.limits?.max_prompt_tokens ?? 8192;
@@ -209,6 +212,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
+		this.autoDiscount = modelMetadata.billing?.auto_discount;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
 			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
@@ -430,12 +434,19 @@ export class ChatEndpoint implements IChatEndpoint {
 		// ReasoningEffortOverride setting would otherwise be dropped. The override
 		// setting takes precedence over the UI selection; both are validated
 		// against the levels the model advertises.
-		const declaredLevels = this.supportsReasoningEffort?.length ? this.supportsReasoningEffort : undefined;
-		if (declaredLevels) {
+		// Keep the raw value so an explicitly empty `[]` (server declares no accepted
+		// levels) is distinguished from `undefined` (no declaration) and still surfaces
+		// a dropped client/override value below.
+		const declaredLevels = this.supportsReasoningEffort;
+		if (declaredLevels !== undefined) {
 			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 				?? options.modelCapabilities?.reasoningEffort;
-			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && declaredLevels.includes(candidateEffort)) {
-				body.reasoning_effort = candidateEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (declaredLevels.includes(candidateEffort)) {
+					body.reasoning_effort = candidateEffort;
+				} else {
+					this._logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${this.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
 		}
 
@@ -454,7 +465,10 @@ export class ChatEndpoint implements IChatEndpoint {
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
 			if (body.messages) {
-				body.messages = normalizeKimiToolCallIds(body.messages);
+				const toolCallIdStyle = this.family.toLowerCase().includes('kimi-k3') || this.model.toLowerCase().includes('kimi-k3')
+					? 'name-indexed'
+					: 'function-indexed';
+				body.messages = normalizeKimiToolCallIds(body.messages, toolCallIdStyle);
 			}
 			body.temperature = 1;
 			body.top_p = 0.95;
@@ -499,7 +513,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			useWebSocket
 			&& options.conversationId
 			&& options.turnId
-			&& this._chatWebSocketService.hasActiveConnection(options.conversationId)
+			&& this._chatWebSocketService.hasActiveConnection({ conversationId: options.conversationId, modelId: this.model, connectionId: options.webSocketConnectionId })
 		);
 		const response = await this._makeChatRequest2({
 			...options,

@@ -13,7 +13,7 @@ import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
+import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
 
 
 /**
@@ -49,12 +49,13 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
+		// A skill's synced-bundle copy has a different URI than its on-disk file, so dedupe by name + description, not URI.
 		const skillsSeen = new Set<string>();
 		return candidates
 			.filter(skill => {
-				const uri = skill.uri;
-				if ((!typed.length || skill.slashCommandName.startsWith(typed)) && !skillsSeen.has(uri)) {
-					skillsSeen.add(uri);
+				const identity = `${skill.slashCommandName}\0${skill.description ?? ''}`;
+				if (matchesSlashCompletion(typed, skill.slashCommandName) && !skillsSeen.has(identity)) {
+					skillsSeen.add(identity);
 					return true;
 				}
 				return false;

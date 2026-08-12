@@ -36,6 +36,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
 	protected _collapseButton: ButtonWithIcon | undefined;
+	protected _hoverChevron: HTMLElement | undefined;
 
 	private readonly _overrideIcon = observableValue<ThemeIcon | undefined>(this, undefined);
 	protected readonly _showCheckmarks: IObservable<boolean>;
@@ -106,6 +107,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 		// Add hover chevron indicator on the right (decorative, hide from screen readers)
 		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
+		this._hoverChevron = hoverChevron;
 		collapseButton.element.appendChild(hoverChevron);
 
 		if (this.hoverMessage) {

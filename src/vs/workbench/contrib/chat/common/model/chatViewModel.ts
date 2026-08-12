@@ -113,6 +113,7 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
@@ -188,23 +189,6 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
-	/**
-	 * When present, the working progress will show elapsed time and token usage.
-	 */
-	state?: IChatWorkingProgressState;
-}
-
-export interface IChatWorkingProgressState {
-	/** The confirmation-adjusted timestamp observable for computing elapsed time */
-	readonly confirmationAdjustedTimestamp: IObservable<number>;
-	/** Observable for tracking completion token count as it arrives */
-	readonly completionTokenCountObs: IObservable<number | undefined>;
-	/** Whether the response is complete (for past-tense display) */
-	readonly isComplete: boolean;
-	/** The completedAt timestamp for completed responses */
-	readonly completedAt?: number;
-	/** Pre-computed elapsed generation time in ms (reliable for restored sessions) */
-	readonly elapsedMs?: number;
 }
 
 
@@ -269,6 +253,7 @@ export interface IChatResponseViewModel {
 	readonly usageObs: IObservable<IChatUsage | undefined>;
 	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
 	renderData?: IChatResponseRenderData;
@@ -394,7 +379,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
 		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
-			if (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop) {
+			if (item.isHiddenFromTranscript || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
 			}
 			return true;
@@ -403,7 +388,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests();
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
@@ -515,6 +500,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
 	}
 
 	get shouldBeBlocked() {
@@ -653,6 +642,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
 	}
 
 	get isCompleteAddedRequest() {

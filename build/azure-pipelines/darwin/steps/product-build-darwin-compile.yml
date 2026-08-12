@@ -3,6 +3,9 @@ parameters:
     type: string
   - name: VSCODE_CIBUILD
     type: boolean
+  - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
+    type: boolean
+    default: false
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
@@ -20,6 +23,10 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ if eq(parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL, true) }}:
+    - script: node build/azure-pipelines/common/disableFoundryLocalInstall.ts
+      displayName: Disable Foundry Local Native Install
 
   - template: ../../distro/download-distro.yml@self
 
@@ -139,6 +146,10 @@ steps:
   - template: ../../common/install-builtin-extensions.yml@self
 
   - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: darwin
+
+  - template: ../../common/dictation-runtime-produce.yml@self
     parameters:
       vscodePlatform: darwin
 

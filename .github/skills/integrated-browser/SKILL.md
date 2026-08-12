@@ -80,6 +80,18 @@ Cookies/login/storage → **sessions**. "Which pages can this client see" → **
 
 When a page must load as if from a remote machine (forwarded `localhost` in a remote workspace, container, or Codespace), a **tunnel proxy is applied to the page's session**; credentials come from the extension host, and navigation can defer until the proxy is live. "Open localhost" isn't always local — remote URLs are rewritten to their forwarded form, and the proxy lives on the **session**, not an individual call.
 
+## Testing strategy
+
+**Keep every test layer lean and scenario-focused.** Protect major functionality whose failure would damage a core browser scenario, and use the lowest-cost layer that still exercises the actual risk. Do not duplicate behavior across layers or encode incidental implementation details.
+
+- **Unit tests** cover important isolated logic such as state transitions, protocol translation, persistence rules, security gates, and failure handling. Use representative cases rather than exhaustive tests of trivial branches or private structure.
+- **Widget tests** cover major renderer interactions, commands, context-key-driven visibility, and central rendering behavior that do not require a native page. Avoid pixel-level or DOM-structure assertions unless that structure is the contract.
+- **Extension API tests** under `extensions/vscode-api-tests/src/singlefolder-tests/browser*.test.ts` are the preferred integration layer for browser APIs, CDP behavior, browser tools, extension-host wiring, and cross-process contracts exposed to extensions.
+- **Other E2E integration tests** cover important process boundaries or runtime integrations that need real services but not a complete workbench journey.
+- **Smoke tests** cover only major user journeys whose meaningful failure mode requires the actual Electron workbench, renderer/main/shared-process wiring, or native `WebContentsView`. This includes core risks in preload keyboard routing, native focus/visibility/lifecycle, Electron permissions, popup editors, workbench UI over the native view, and live page-to-chat attachments. Keep each test to the happy-path spine, group related assertions into one coherent journey, and leave variants, edge cases, and visual details to lower layers.
+
+Good assertions express the user contract and remain stable through non-behavior-breaking changes and refactoring. Tests should protect behavior whose failure would materially break a major browser scenario and live at the cheapest layer that still exercises that failure mode. Smoke coverage should extend an existing journey when it stays coherent or use at most a small number of scenarios for the major journey.
+
 ## Practical guidance
 
 - **Desktop-only.** Nothing runs in web; add to `electron-*` / `node` and let the `browser/` stubs throw "not available in web".

@@ -51,10 +51,11 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 
 		// When a session's data directory is about to be deleted, delete the
 		// reviewed ref we created for it. The working directory needed to
-		// resolve the repository root is supplied by the event (resolved from
-		// live session state) so we don't persist our own copy.
+		// resolve the repository root is supplied by the event (resolved
+		// before the session's live state was torn down) so we don't
+		// persist our own copy.
 		this._register(this._sessionDataService.onWillDeleteSessionData(e => {
-			e.waitUntil(this.disposeSessionData(e.session.toString()));
+			e.waitUntil(this.disposeSessionData(e.session.toString(), e.workingDirectories));
 		}));
 	}
 
@@ -68,7 +69,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		if (!sessionState) {
 			throw new Error(`Session not found: ${parsed.sessionUri}`);
 		}
-		if (!sessionState.workingDirectory) {
+		if (!sessionState.workingDirectories?.[0]) {
 			throw new Error(`Session has no working directory: ${parsed.sessionUri}`);
 		}
 
@@ -80,7 +81,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			databaseRef.dispose();
 		}
 
-		const workingDirectory = URI.parse(sessionState.workingDirectory);
+		const workingDirectory = URI.parse(sessionState.workingDirectories?.[0]);
 		const baseBranch = resolveDiffBaseBranchName(persistedBaseBranch, readSessionGitState(sessionState._meta)?.baseBranchName);
 		await this._sequencer.queue(parsed.sessionUri, async () => {
 			for (const resource of resources) {
@@ -229,30 +230,31 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		return { repoRoot, baselineTree, reviewedRef, reviewedCommit, reviewedTree };
 	}
 
-	async disposeSessionData(session: ProtocolURI): Promise<void> {
-		await this._sequencer.queue(session, () => this._disposeSessionData(session));
+	async disposeSessionData(session: ProtocolURI, workingDirectories?: readonly string[]): Promise<void> {
+		await this._sequencer.queue(session, () => this._disposeSessionData(session, workingDirectories));
 	}
 
-	private async _disposeSessionData(session: ProtocolURI): Promise<void> {
-		const workingDirectory = this._stateManager.getSessionState(session)?.workingDirectory;
-		if (!workingDirectory) {
-			// No working directory means we can't resolve the repository root
-			// (session was never git-backed, or its working directory is gone).
+	private async _disposeSessionData(session: ProtocolURI, workingDirectories?: readonly string[]): Promise<void> {
+		if (!workingDirectories || workingDirectories.length === 0) {
 			return;
 		}
 
-		const repoRoot = await this._gitService.getRepositoryRoot(URI.parse(workingDirectory));
-		if (!repoRoot) {
-			return;
-		}
+		const sanitizedSessionId = this._sanitizedSessionId(session);
+		const reviewedRef = buildReviewedRefName(sanitizedSessionId);
 
-		try {
-			const reviewedRef = buildReviewedRefName(this._sanitizedSessionId(session));
-			await this._gitService.deleteRefs(repoRoot, [reviewedRef]);
+		for (const workingDirectory of workingDirectories) {
+			try {
+				const workingDirectoryUri = URI.parse(workingDirectory);
+				const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
+				if (!repositoryRootUri) {
+					continue;
+				}
 
-			this._logService.trace(`[AgentHostReview][_disposeSessionData] Deleted reviewed ref for ${session}`);
-		} catch (err) {
-			this._logService.warn(`[AgentHostReview][_disposeSessionData] Failed to dispose reviewed ref for ${session}`, err);
+				await this._gitService.deleteRefs(repositoryRootUri, [reviewedRef]);
+				this._logService.trace(`[AgentHostReview][_disposeSessionData] Deleted reviewed ref for ${session} in working directory ${workingDirectory}`);
+			} catch (err) {
+				this._logService.warn(`[AgentHostReview][_disposeSessionData] Failed to dispose reviewed ref for ${session} in working directory ${workingDirectory}`, err);
+			}
 		}
 	}
 

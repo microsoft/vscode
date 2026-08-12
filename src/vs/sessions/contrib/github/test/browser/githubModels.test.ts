@@ -14,11 +14,13 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubIssueModelReferenceCollection, MIN_REFRESH_INTERVAL_MS } from '../../browser/models/githubIssueModel.js';
 import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
+import { GitHubApiClient } from '../../browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
 
 //#region Mock Fetchers
 
@@ -650,6 +652,107 @@ suite('GitHubPullRequestCIModel', () => {
 		await timeout(60_000);
 
 		assert.strictEqual(mockFetcher.getCheckRunsCalls, 2);
+	}));
+});
+
+suite('GitHubIssueModel', () => {
+
+	const store = new DisposableStore();
+	const logService = new NullLogService();
+
+	/**
+	 * Stands in for the low-level API client so the tests can observe the exact
+	 * `If-None-Match` value each request carries and replay `304` responses.
+	 */
+	class MockGitHubApiClient {
+		readonly sentETags: (string | undefined)[] = [];
+		readonly responses: { data?: unknown; statusCode: number; etag?: string }[] = [];
+
+		async request(_method: string, _path: string, _callSite: string, options?: { etag?: string }) {
+			this.sentETags.push(options?.etag);
+			return this.responses.shift() ?? { data: undefined, statusCode: 304 };
+		}
+	}
+
+	function issueResponse(state: 'open' | 'closed', title: string) {
+		return {
+			number: 7,
+			title,
+			body: 'body',
+			state,
+			state_reason: state === 'closed' ? 'completed' : null,
+			user: { login: 'octocat', avatar_url: '' },
+			created_at: '2026-01-01T00:00:00Z',
+			updated_at: '2026-01-02T00:00:00Z',
+			closed_at: null,
+		};
+	}
+
+	function createCollection(client: MockGitHubApiClient) {
+		return new GitHubIssueModelReferenceCollection(client as unknown as GitHubApiClient, logService);
+	}
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('revalidates with the stored ETag and keeps the last payload on 304', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		client.responses.push({ data: undefined, statusCode: 304, etag: 'W/"v1"' });
+		const collection = createCollection(client);
+		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+
+		await reference.object.refresh();
+		await timeout(MIN_REFRESH_INTERVAL_MS);
+		await reference.object.refresh();
+
+		assert.deepStrictEqual({
+			sentETags: client.sentETags,
+			title: reference.object.issue.get()?.title,
+		}, {
+			sentETags: [undefined, 'W/"v1"'],
+			title: 'Original',
+		});
+	}));
+
+	test('on-demand refreshes inside the debounce window collapse into one request', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		const collection = createCollection(client);
+		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+
+		await reference.object.refresh();
+		await timeout(MIN_REFRESH_INTERVAL_MS - 1);
+		await reference.object.refresh();
+
+		assert.strictEqual(client.sentETags.length, 1);
+	}));
+
+	test('a re-created model starts from the previous one\'s payload and ETag', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		client.responses.push({ data: issueResponse('closed', 'Original'), statusCode: 200, etag: 'W/"v2"' });
+		const collection = createCollection(client);
+
+		const first = collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7);
+		await first.object.refresh();
+		first.dispose();
+
+		const second = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+		const restoredState = second.object.issue.get()?.state;
+		await timeout(MIN_REFRESH_INTERVAL_MS);
+		await second.object.refresh();
+
+		assert.deepStrictEqual({
+			restoredState,
+			sentETags: client.sentETags,
+			state: second.object.issue.get()?.state,
+		}, {
+			restoredState: GitHubIssueState.Open,
+			sentETags: [undefined, 'W/"v1"'],
+			state: GitHubIssueState.Closed,
+		});
 	}));
 });
 

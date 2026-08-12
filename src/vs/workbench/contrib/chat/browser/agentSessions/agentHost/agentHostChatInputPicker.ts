@@ -255,6 +255,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
 	SessionConfigKey.WorktreeBranchPrefix,
+	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeIncludeFiles,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
@@ -681,7 +682,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _readWorkingDirectory(): URI | undefined {
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			const cwd = state.workingDirectory;
+			const cwd = state.workingDirectories?.[0];
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
