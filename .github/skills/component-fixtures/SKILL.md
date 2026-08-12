@@ -15,6 +15,27 @@ Use tools `mcp_component-exp_`* to list and screenshot fixtures. If you cannot s
 2. Use the `mcp_component-exp_list_fixtures` tool to see all available fixtures and their URLs
 3. Use the `mcp_component-exp_screenshot` tool to capture screenshots programmatically
 
+### Opening the explorer in a browser
+
+The UI lives at **`/___explorer`**, not at the server root. Plain `http://localhost:<port>/` serves
+an unrelated VS Code web page, which looks like the explorer failed to start.
+
+Deep-link straight to a fixture (or a single variant) with the `fixture` query parameter, using the
+tree path from the sidebar:
+
+```
+http://localhost:<port>/___explorer?fixture=Chat%2FMy+Component%2FmyComponent
+http://localhost:<port>/___explorer?fixture=Chat%2FMy+Component%2FmyComponent%2FDemo
+```
+
+If starting the server from a terminal instead of the task, note two things:
+
+- **The port is chosen at startup and drifts between runs** (5123, 5124, 5125 are all common). Read
+  the actual URL from the server's output rather than assuming a port.
+- **Port 5337 is a singleton redirection server.** A stale daemon from *another worktree* will hold
+  it and the new server dies with `EADDRINUSE ::1:5337`. Find it with
+  `lsof -nP -iTCP:5337 -sTCP:LISTEN` and stop that process first.
+
 ## File Structure
 
 Each fixture file exports a default `defineThemedFixtureGroup(...)`. The file must end with `.fixture.ts`.
