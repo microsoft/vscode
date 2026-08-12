@@ -109,7 +109,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const detailParts: string[] = [];
 			if (workspace?.label) {
 				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
+				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
 				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);

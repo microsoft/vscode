@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import type { IAutomationDescriptor, IAutomationRun, AutomationRunStatus } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import type { IAutomationDescriptor, IAutomationRun, AutomationRunStatus, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -34,7 +34,7 @@ import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/
 import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -106,6 +106,7 @@ export class AutomationsCardsWidget extends Disposable {
 						session,
 						isRead: session.isRead.read(reader),
 						supportsDelete: session.capabilities.read(reader).supportsDelete === true,
+						sessionStatus: run.status === 'running' ? session.status?.read(reader) : undefined,
 					});
 				}
 			}
@@ -196,7 +197,7 @@ class AutomationCardsSection extends Disposable {
 		scheduleEl.textContent = formatSchedule(automation);
 
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
-		const folderLabel = automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : localize('quickChat', "Quick Chat");
+		const folderLabel = getAutomationTargetLabel(automation.target);
 		folderEl.textContent = folderLabel;
 		this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), folderEl, folderLabel));
 
@@ -476,11 +477,13 @@ class AutomationHistorySection extends Disposable {
 
 		const automation = automationMap.get(run.automationId);
 		const title = automation?.name ?? localize('unknownAutomation', "Unknown");
-		const statusLabel = getRunStatusLabel(run.status);
+		const isNeedsInput = run.status === 'running' && sessionState?.sessionStatus === SessionStatus.NeedsInput;
+		const statusLabel = isNeedsInput ? localize('automationRunNeedsInput', "Needs input") : getRunStatusLabel(run.status);
 		const timestamp = formatTimestamp(run.startedAt, bucketKind);
+		const targetLabel = automation ? getAutomationTargetLabel(automation.target) : undefined;
 		const ariaLabelParts = [title];
-		if (automation?.target.kind === 'workspace') {
-			ariaLabelParts.push(basename(automation.target.folderUri));
+		if (targetLabel) {
+			ariaLabelParts.push(targetLabel);
 		}
 		ariaLabelParts.push(statusLabel, timestamp);
 		if (run.errorMessage) {
@@ -509,9 +512,9 @@ class AutomationHistorySection extends Disposable {
 		}
 		const titleSpan = DOM.append(nameEl, $('span.automations-run-card-name-title'));
 		titleSpan.textContent = title;
-		if (automation?.target.kind === 'workspace') {
+		if (targetLabel) {
 			const suffixSpan = DOM.append(nameEl, $('span.automations-run-card-name-workspace'));
-			suffixSpan.textContent = ` \u00B7 ${basename(automation.target.folderUri)}`;
+			suffixSpan.textContent = ` \u00B7 ${targetLabel}`;
 		}
 
 		// Status icon + timestamp + error (single row)
@@ -520,7 +523,12 @@ class AutomationHistorySection extends Disposable {
 		if (run.status === 'running' || run.status === 'pending') {
 			const spinnerContainer = DOM.append(statusRow, $('span.automations-run-card-icon'));
 			spinnerContainer.setAttribute('aria-hidden', 'true');
-			this.disposables.add(createPixelSpinner(spinnerContainer, { variant: 'grid' }));
+			this.disposables.add(createPixelSpinner(spinnerContainer, { variant: isNeedsInput ? 'ring' : 'grid' }));
+			if (isNeedsInput) {
+				card.classList.add('needs-input');
+				const needsInputLabel = DOM.append(statusRow, $('span.automations-run-card-needs-input-label'));
+				needsInputLabel.textContent = localize('automationRunNeedsInputLabel', "Input needed");
+			}
 		} else {
 			const statusInfo = runStatusIcon(run.status);
 			const iconEl = DOM.append(statusRow, $('span.automations-run-card-icon.codicon'));
@@ -742,6 +750,7 @@ interface IAutomationRunSessionState {
 	readonly session: ISession;
 	readonly isRead: boolean;
 	readonly supportsDelete: boolean;
+	readonly sessionStatus: SessionStatus | undefined;
 }
 
 function isUnreadAutomationRun(run: IAutomationRun, sessionState: IAutomationRunSessionState | undefined): boolean {
@@ -766,6 +775,10 @@ function formatSchedule(automation: IAutomationDescriptor): string {
 function formatHourMinute(hour: number, minute: number): string {
 	const date = new Date(Date.UTC(2000, 0, 1, Math.max(0, Math.min(23, hour | 0)), Math.max(0, Math.min(59, minute | 0))));
 	return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+}
+
+function getAutomationTargetLabel(target: AutomationTarget): string {
+	return target.kind === 'workspace' ? basename(target.folderUri) : localize('quickChat', "Quick Chat");
 }
 
 function groupRunsByDate(runs: readonly IAutomationRun[]): { label: string; kind: DateBucketKind; runs: IAutomationRun[] }[] {
