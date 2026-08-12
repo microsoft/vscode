@@ -156,7 +156,7 @@ interface IActionMenuTemplateData {
 	readonly submenuIndicator: HTMLElement;
 	readonly inlineToggleContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
-	previousClassName?: string;
+	previousClassNames?: readonly string[];
 }
 
 export const enum ActionListItemKind {
@@ -310,15 +310,16 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		// Apply optional className - clean up previous to avoid stale classes
-		// from virtualized row reuse
-		if (data.previousClassName) {
-			data.container.classList.remove(data.previousClassName);
+		// from virtualized row reuse. Accepts a space-separated list.
+		if (data.previousClassNames?.length) {
+			data.container.classList.remove(...data.previousClassNames);
 		}
-		data.container.classList.toggle('action-list-custom', !!element.className);
-		if (element.className) {
-			data.container.classList.add(element.className);
+		const classNames = element.className?.split(' ').filter(Boolean) ?? [];
+		data.container.classList.toggle('action-list-custom', classNames.length > 0);
+		if (classNames.length > 0) {
+			data.container.classList.add(...classNames);
 		}
-		data.previousClassName = element.className;
+		data.previousClassNames = classNames;
 
 		data.text.textContent = stripNewlines(element.label);
 
@@ -1258,6 +1259,30 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
+	 * Scrolls back to the first item. A list that swaps its whole contents — switching
+	 * source, category, or filter — keeps the previous scroll offset, which lands the new
+	 * contents part-way down and hides whatever heading introduces them.
+	 */
+	scrollToTop(): void {
+		this._list.scrollTop = 0;
+	}
+
+	/**
+	 * Scrolls the item into view without touching focus. Separate from
+	 * {@link focusItemById} because a list that is revealed on open should show the
+	 * relevant item without claiming the keyboard.
+	 */
+	revealItemById(itemId: string): void {
+		for (let i = 0; i < this._list.length; i++) {
+			const el = this._list.element(i);
+			if ((el.item as { id?: string })?.id === itemId) {
+				this._list.reveal(i);
+				return;
+			}
+		}
+	}
+
+	/**
 	 * Focuses the item whose {@link IActionListItem.item}'s `id` matches
 	 * {@link itemId}, without rebuilding the list. Re-applies the focus after the
 	 * current event so a mouse click's own pointer handling cannot reset it.
@@ -1393,9 +1418,13 @@ export class ActionListWidget<T> extends Disposable {
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
 
-		// Place filter container on the preferred side.
-		if (this._filterContainer && this._filterContainer.parentElement) {
-			this._filterContainer.parentElement.insertBefore(this._filterContainer, this.domNode);
+		// Place filter container on the preferred side. Hosts are free to mount the filter
+		// somewhere other than alongside the list, in which case there is nothing to
+		// reposition — and reaching for a sibling that isn't there would throw.
+		const filterContainer = this._filterContainer;
+		const filterParent = filterContainer?.parentElement;
+		if (filterContainer && filterParent && filterParent === this.domNode.parentElement) {
+			filterParent.insertBefore(filterContainer, this.domNode);
 		}
 	}
 
@@ -2179,6 +2208,14 @@ export class ActionList<T> extends Disposable {
 
 	focusItemById(itemId: string): void {
 		this._widget.focusItemById(itemId);
+	}
+
+	scrollToTop(): void {
+		this._widget.scrollToTop();
+	}
+
+	revealItemById(itemId: string): void {
+		this._widget.revealItemById(itemId);
 	}
 
 	private hasDynamicHeight(): boolean {
