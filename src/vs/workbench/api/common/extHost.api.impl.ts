@@ -1067,6 +1067,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
 				return extHostQuickDiff.createSourceControlDiffInformation(uri);
 			},
+			createDataWatcher<T extends vscode.DataWatcherParams>(params: T): vscode.DataWatcher<vscode.DataWatcherData<T>> {
+				checkProposedApiEnabled(extension, 'dataChannels');
+				return extHostDataChannels.createDataWatcher(extension, params);
+			},
 			createAgentEditorComments(uri: vscode.Uri): vscode.AgentEditorCommentsProvider {
 				checkProposedApiEnabled(extension, 'agentEditorComments');
 				return extHostAgentEditorComments.createAgentEditorComments(uri);
@@ -2037,6 +2041,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			DiagnosticTag: extHostTypes.DiagnosticTag,
 			Disposable: extHostTypes.Disposable,
+			DataWatcherKind: extHostTypes.DataWatcherKind,
+			AgentSessionStatus: extHostTypes.AgentSessionStatus,
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
 			MultiDocumentHighlight: extHostTypes.MultiDocumentHighlight,
