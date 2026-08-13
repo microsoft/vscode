@@ -18,7 +18,9 @@ Each contract has one authoritative home:
 - Git history, issues, and pull requests preserve implementation chronology and
   rejected approaches.
 
-Do not duplicate a rule across these artifacts.
+Do not duplicate detailed guidance across these artifacts. Concise routing
+summaries may restate enough of a rule to identify its owning specification,
+which remains authoritative.
 
 ## Architecture specifications
 

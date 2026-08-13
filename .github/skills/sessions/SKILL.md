@@ -91,10 +91,12 @@ than a full build.
 ## 6. Record feedback correctly
 
 When a user explicitly corrects or rejects an approach, invoke the
-`feedback-learning` skill. A durable architecture invariant belongs in the
-owning specification, concrete behavior belongs in a regression test, and
-unproven reusable guidance belongs temporarily in the scoped learning inbox.
-Never append every correction to this skill.
+`feedback-learning` skill unless they use the literal `learn!` trigger. Literal
+`learn!` requests follow `.github/instructions/learnings.instructions.md`
+instead. A durable architecture invariant belongs in the owning specification,
+concrete behavior belongs in a regression test, and unproven reusable guidance
+belongs temporarily in the scoped learning inbox. Never append every correction
+to this skill.
 
 ## 7. Maintain this skill
 

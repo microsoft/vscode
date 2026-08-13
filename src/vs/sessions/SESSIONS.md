@@ -212,7 +212,7 @@ mutable fields remain observable on each facade.
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft is not
 part of the provider's committed session catalog until its first request
-succeeds. `deleteNewSession` disposes an abandoned draft.
+is sent. `deleteNewSession` disposes an abandoned draft.
 
 The management service owns which draft is currently presented for each
 workflow. Providers own the backend resources behind those drafts.
@@ -311,11 +311,16 @@ Background sends do not implicitly steal active view or focus.
 ### Multi-chat lifecycle
 
 ```text
-user creates, forks, or opens a peer chat
+user creates or forks a peer chat
     -> capability is checked
     -> management operation routes to the owning provider
     -> provider returns an IChat and updates session.chats
     -> ISessionsService chooses whether and where to present it
+
+user opens an existing peer chat
+    -> ISessionsService.openChat activates the owning session
+    -> the chat is resolved from session.chats after the session loads
+    -> the service opens the chat in the visibility model and makes it active
 ```
 
 User-created peer chats participate in normal chat navigation. Hidden

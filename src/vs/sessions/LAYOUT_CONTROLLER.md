@@ -1,9 +1,10 @@
 # Layout Controller — Per-Session Layout State
 
 This document specifies how the session layout controllers manage workbench layout as the user
-switches between sessions. The implementation is split across three files, each with its own
-file-level spec. Each spec states the behaviour as numbered **scenario rules** (and keeps the *how* in
-a separate "Implementation notes" section); the code and tests reference these rules by tag:
+switches between sessions. The classic and mobile implementation is split across three files, each
+with its own file-level spec. Each spec states the behaviour as numbered **scenario rules** (and
+keeps the *how* in a separate "Implementation notes" section); the code and tests reference these
+rules by tag:
 
 | File | Spec | Rules |
 |------|------|-------|

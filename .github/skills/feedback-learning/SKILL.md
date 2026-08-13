@@ -6,11 +6,12 @@ description: Classify and record explicit corrective feedback without turning sk
 # Feedback learning
 
 Use this skill when a user explicitly corrects an implementation or design
-approach, rejects a pattern, or asks the agent to learn from feedback.
+approach, rejects a pattern, or asks the agent to learn from feedback, except
+when the user invokes the literal `learn!` trigger.
 
-This workflow is separate from the literal `learn!` workflow in
-`.github/instructions/learnings.instructions.md`. Do not replace or reinterpret
-that instruction.
+Literal `learn!` requests are governed exclusively by
+`.github/instructions/learnings.instructions.md` and are outside this skill's
+scope. Do not replace or reinterpret that instruction.
 
 ## Goal
 
