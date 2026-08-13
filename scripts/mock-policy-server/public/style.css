@@ -14,13 +14,56 @@
 	--accent: #0e639c;
 	--accent-hover: #1177bb;
 	--ok: #4ec9b0;
+	--warn: #d7ba7d;
 	--error: #f48771;
 	--code-bg: #1b1b1b;
 	--code-border: #3c3c3c;
+	--focus: #4daafc;
+}
+
+/*
+ * The palette above is dark-only, but `color-scheme: light dark` lets the UA
+ * paint form controls light on a light OS, which mixes the two. Follow the OS
+ * instead of half-following it.
+ */
+@media (prefers-color-scheme: light) {
+	:root {
+		--bg: #f7f7f7;
+		--surface: #ffffff;
+		--surface-alt: #ececec;
+		--border: #c8c8c8;
+		--text: #1f1f1f;
+		--text-secondary: #5c5c5c;
+		--accent: #0b5c92;
+		--accent-hover: #0a4d7a;
+		--ok: #0a7a5e;
+		--warn: #8a6100;
+		--error: #b3261e;
+		--code-bg: #f0f0f0;
+		--code-border: #d4d4d4;
+		--focus: #0b5c92;
+	}
 }
 
 * {
 	box-sizing: border-box;
+}
+
+/* Visible only to screen readers. */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
 }
 
 body {
@@ -39,8 +82,25 @@ header {
 }
 
 .header-content {
-	max-width: 1200px;
+	max-width: 1400px;
 	margin: 0 auto;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 24px;
+	flex-wrap: wrap;
+}
+
+.header-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 4px;
+	max-width: 320px;
+}
+
+.header-hint {
+	text-align: right;
 }
 
 h1 {
@@ -282,8 +342,33 @@ button {
 }
 
 .btn-secondary:hover {
-	background: #3c3c3e;
+	background: var(--surface-alt);
 	border-color: var(--text-secondary);
+	filter: brightness(1.15);
+}
+
+.btn-warn {
+	background: transparent;
+	border-color: var(--warn);
+	color: var(--warn);
+	font-weight: 500;
+}
+
+.btn-warn:hover {
+	background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+.btn-link {
+	background: none;
+	border: none;
+	padding: 0;
+	color: var(--text-secondary);
+	text-decoration: underline;
+	margin-left: auto;
+}
+
+.btn-link:hover {
+	color: var(--text);
 }
 
 .btn-full {
@@ -331,7 +416,7 @@ button {
 }
 
 .status[data-kind='warn'] {
-	color: #d7ba7d;
+	color: var(--warn);
 }
 
 strong[data-kind='error'] {
@@ -572,17 +657,12 @@ code {
 }
 
 .validation-warn {
-	color: #d7ba7d;
+	color: var(--warn);
 }
 
 .validation-summary {
 	font-size: 12px;
 	margin-top: 6px;
-}
-
-.section-header-toggle {
-	cursor: pointer;
-	user-select: none;
 }
 
 .section-header-toggle:hover {
@@ -598,4 +678,203 @@ code {
 
 .chevron.open {
 	transform: rotate(90deg);
+}
+
+/* --- Endpoint mock/passthrough toggle -------------------------------------- */
+
+.endpoint-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	background: var(--surface);
+	cursor: pointer;
+	white-space: nowrap;
+	font-weight: 500;
+}
+
+.toggle:hover {
+	border-color: var(--text-secondary);
+}
+
+.toggle input {
+	margin: 0;
+	cursor: pointer;
+	accent-color: var(--accent);
+}
+
+.toggle:has(input:checked) {
+	border-color: var(--ok);
+	color: var(--ok);
+}
+
+/* Status dot on each endpoint tab: filled means this server answers it. */
+.dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	margin-right: 8px;
+	border-radius: 50%;
+	background: var(--text-secondary);
+	opacity: 0.5;
+	vertical-align: baseline;
+}
+
+.dot.on {
+	background: var(--ok);
+	opacity: 1;
+}
+
+/* --- Save state ------------------------------------------------------------ */
+
+.save-state {
+	margin-left: auto;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	color: var(--text-secondary);
+}
+
+.save-state[data-kind='live'] {
+	color: var(--ok);
+}
+
+.save-state[data-kind='error'] {
+	color: var(--error);
+}
+
+kbd {
+	font-family: 'SF Mono', Menlo, Consolas, monospace;
+	font-size: 11px;
+	border: 1px solid var(--code-border);
+	border-radius: 3px;
+	padding: 1px 5px;
+	background: var(--code-bg);
+}
+
+/* --- Live request log ------------------------------------------------------ */
+
+.log {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	max-height: 260px;
+	overflow-y: auto;
+	font-family: 'SF Mono', Menlo, Consolas, monospace;
+	font-size: 11px;
+}
+
+.log-item {
+	display: flex;
+	gap: 8px;
+	align-items: baseline;
+	padding: 3px 6px;
+	border-left: 2px solid transparent;
+	border-radius: 2px;
+}
+
+.log-item:nth-child(odd) {
+	background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.log-item.mocked {
+	border-left-color: var(--ok);
+}
+
+.log-item.passthrough {
+	border-left-color: var(--text-secondary);
+}
+
+.log-item.upstream-error {
+	border-left-color: var(--error);
+}
+
+.log-time {
+	color: var(--text-secondary);
+	flex: none;
+}
+
+.log-status {
+	font-variant-numeric: tabular-nums;
+	flex: none;
+}
+
+.log-item.mocked .log-status {
+	color: var(--ok);
+}
+
+.log-item.upstream-error .log-status {
+	color: var(--error);
+}
+
+.log-path {
+	color: var(--text-secondary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* --- Proxy setup ----------------------------------------------------------- */
+
+.kv {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+code.block {
+	display: block;
+	word-break: break-all;
+	background: var(--code-bg);
+	border: 1px solid var(--code-border);
+	padding: 6px 8px;
+	border-radius: 4px;
+}
+
+/* --- Toast ----------------------------------------------------------------- */
+
+.toast {
+	position: fixed;
+	inset-block-end: 20px;
+	inset-inline-end: 20px;
+	z-index: 2000;
+	max-width: 360px;
+	padding: 10px 14px;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	color: var(--text);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.toast[hidden] {
+	display: none;
+}
+
+.toast[data-kind='error'] {
+	border-color: var(--error);
+	color: var(--error);
+}
+
+/* --- Collapsible schema header --------------------------------------------- */
+
+.section-header-toggle {
+	width: 100%;
+	background: none;
+	border: none;
+	padding: 0;
+	text-align: left;
+	cursor: pointer;
+	user-select: none;
 }
