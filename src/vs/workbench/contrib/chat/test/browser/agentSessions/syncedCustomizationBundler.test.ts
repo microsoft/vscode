@@ -12,8 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type ISyncableMcpServer, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,6 +25,12 @@ suite('SyncedCustomizationBundler', () => {
 	const disposables = new DisposableStore();
 	let fileService: FileService;
 	let instantiationService: TestInstantiationService;
+
+	const enabledMcpServer = (name: string, configuration: IMcpServerConfiguration): ISyncableMcpServer => ({
+		name,
+		configuration,
+		enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+	});
 
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
@@ -348,7 +355,7 @@ suite('SyncedCustomizationBundler', () => {
 
 	test('unchanged MCP-only rebundle reuses the previous result', async () => {
 		const bundler = createBundler();
-		const server = { name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'srv' } } as const;
+		const server = enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' });
 
 		const result1 = await bundler.bundle([], [server]);
 		assert.ok(result1);
@@ -422,8 +429,8 @@ suite('SyncedCustomizationBundler', () => {
 		const bundler = createBundler();
 		const mcpUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent/.mcp.json' });
 
-		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
-		await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+		await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v1' })]);
+		await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v2' })]);
 
 		const parsed = JSON.parse((await fileService.readFile(mcpUri)).value.toString());
 		assert.deepStrictEqual(parsed, {
@@ -450,7 +457,7 @@ suite('SyncedCustomizationBundler', () => {
 		const bundler = createBundler();
 
 		const result = await bundler.bundle([], [
-			{ name: 'my-server', configuration: { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
+			enabledMcpServer('my-server', { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] }),
 		]);
 		assert.ok(result, 'a bundle with only MCP servers should still produce a result');
 
@@ -459,12 +466,15 @@ suite('SyncedCustomizationBundler', () => {
 		assert.deepStrictEqual(parsed, {
 			mcpServers: { 'my-server': { type: McpServerType.LOCAL, command: 'my-server', args: ['--flag'] } },
 		});
+		assert.deepStrictEqual(result.ref.childEnablement, {
+			'my-server': [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+		});
 	});
 
 	test('MCP server bundle nonce is stable and order-independent', async () => {
 		const bundler = createBundler();
-		const a = { name: 'a', configuration: { type: McpServerType.LOCAL, command: 'a' } } as const;
-		const b = { name: 'b', configuration: { type: McpServerType.LOCAL, command: 'b' } } as const;
+		const a = enabledMcpServer('a', { type: McpServerType.LOCAL, command: 'a' });
+		const b = enabledMcpServer('b', { type: McpServerType.LOCAL, command: 'b' });
 
 		const result1 = await bundler.bundle([], [a, b]);
 		const result2 = await bundler.bundle([], [b, a]);
@@ -473,8 +483,8 @@ suite('SyncedCustomizationBundler', () => {
 
 	test('MCP server bundle nonce changes when a server changes', async () => {
 		const bundler = createBundler();
-		const result1 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v1' } }]);
-		const result2 = await bundler.bundle([], [{ name: 'srv', configuration: { type: McpServerType.LOCAL, command: 'v2' } }]);
+		const result1 = await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v1' })]);
+		const result2 = await bundler.bundle([], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'v2' })]);
 		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
 

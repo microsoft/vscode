@@ -41,6 +41,16 @@
 					</div>
 				</div>
 
+				<div class="form-group">
+					<div class="label-row">
+						<label for="response-status">HTTP status code</label>
+					</div>
+					<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
+						inputmode="numeric" aria-describedby="response-status-help response-status-validation">
+					<p id="response-status-help" class="helper-text">Enter the status returned by this endpoint, from 200 to 599. Changes save automatically.</p>
+					<p id="response-status-validation" class="status" aria-live="polite"></p>
+				</div>
+
 				<div id="schema-section" class="section-block" hidden>
 					<div class="section-header section-header-toggle" id="schema-toggle">
 						<span class="chevron" id="schema-chevron">&#9654;</span>

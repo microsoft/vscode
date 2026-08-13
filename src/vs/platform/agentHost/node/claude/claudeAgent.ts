@@ -2433,24 +2433,26 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	private async _syncClientCustomizations(chat: URI, configurationResource: URI, clientId: string, customizations: ClientPluginCustomization[], hostCustomizations: readonly Customization[] | undefined, options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
-		const synced = await this._pluginManager.syncCustomizations(
+		const sync = () => this._pluginManager.syncCustomizations(
 			clientId,
 			customizations,
 			options?.quiet ? undefined : status => this._fireCustomizationUpdated(configurationResource, { customization: status }),
 		);
 		const target = this._findChatByUri(chat);
 		if (target) {
-			await this._sessionSequencer.queue(target.sessionId, async () => {
+			return this._sessionSequencer.queue(target.sessionId, async () => {
+				const synced = await sync();
 				// Only a real host snapshot is applied. `undefined` means the host
 				// has published none yet — reconciling against an empty list there
 				// would drop enablement state the session already resolved.
 				if (hostCustomizations) {
 					target.setHostCustomizations(hostCustomizations);
 				}
-				target.adoptClientCustomizations(clientId, synced);
+				target.adoptClientCustomizations(clientId, synced, customizations);
+				return synced;
 			});
 		}
-		return synced;
+		return sync();
 	}
 
 	/**

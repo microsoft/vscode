@@ -47,6 +47,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -664,6 +665,46 @@ suite('ChatService', () => {
 			request: true,
 			response: true,
 			visibleItems: 0,
+		});
+	});
+
+	test('can serialize and deserialize a request origin', () => {
+		const sourceSessionResource = URI.parse('agent-host-codex:/source-thread');
+		const testService = createChatService();
+		const chatModelRef = testDisposables.add(startSessionModel(testService));
+		const chatModel = chatModelRef.object as ChatModel;
+		chatModel.addRequest(
+			{ parts: [], text: 'delegated request' },
+			{ variables: [] },
+			0,
+			undefined, // modeInfo
+			undefined, // chatAgent
+			undefined, // slashCommand
+			undefined, // confirmation
+			undefined, // locationData
+			undefined, // attachments
+			undefined, // isCompleteAddedRequest
+			undefined, // modelId
+			undefined, // userSelectedTools
+			undefined, // id
+			undefined, // isSystemInitiated
+			undefined, // systemInitiatedLabel
+			undefined, // terminalExecutionId
+			undefined, // isTerminalCommand
+			undefined, // timestamp
+			undefined, // hideFromTranscript
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource,
+			},
+		);
+		const serialized: ISerializableChatData = JSON.parse(JSON.stringify(chatModel));
+
+		const restored = testDisposables.add(createChatService().loadSessionFromData(serialized)!);
+
+		assert.deepStrictEqual(restored.object.getRequests()[0].origin, {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource,
 		});
 	});
 
