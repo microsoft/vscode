@@ -17,7 +17,7 @@ import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessi
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { IAdditionalRoutableSession } from '../../../common/sessionRouter.js';
+import { IChatSessionRoutingProvider } from '../../../common/sessionRouter.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -661,10 +661,11 @@ suite('ChatSessionRoutingController', () => {
 		container.remove();
 	});
 
-	test('does not offer a local Open action for a remotely owned delivery', () => {
+	test('uses the provider reveal operation for delivery Open', async () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		let localOpenCount = 0;
+		let providerOpenCount = 0;
 		const controller = new ChatSessionRoutingController(
 			{
 				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
@@ -686,25 +687,28 @@ suite('ChatSessionRoutingController', () => {
 		);
 		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
 			label: string,
-			result: { status: 'sent'; resource: URI; canOpenInCurrentWindow: false },
+			result: { status: 'sent'; resource: URI; reveal: () => Promise<void> },
 		) => void;
 
-		showDeliveryConfirmation.call(controller, 'Remote session', {
+		showDeliveryConfirmation.call(controller, 'Provider session', {
 			status: 'sent',
-			resource: URI.parse('agent-host-copilotcli:/remote-delivery'),
-			canOpenInCurrentWindow: false,
+			resource: URI.parse('agent-host-copilotcli:/provider-delivery'),
+			reveal: async () => { providerOpenCount++; },
 		});
 		const actions = [...container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')];
 		actions[0]?.click();
+		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			actions: actions.map(action => action.textContent),
 			localOpenCount,
+			providerOpenCount,
 			badgeConnected: !!container.querySelector('.chat-routing-badge'),
 		}, {
-			actions: ['Dismiss'],
+			actions: ['Open', 'Dismiss'],
 			localOpenCount: 0,
-			badgeConnected: false,
+			providerOpenCount: 1,
+			badgeConnected: true,
 		});
 
 		controller.dispose();
@@ -779,23 +783,31 @@ suite('ChatSessionRoutingController', () => {
 		controller.dispose();
 	});
 
-	test('selects the created Agent Host session agent for a new route', async () => {
+	test('dispatches new sessions through the routing provider hook', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/new-route');
-		let sentOptions: { agentIdSilent?: string } | undefined;
-		const chatService = {
-			acquireOrLoadSession: async () => ({
-				object: { sessionResource: resource },
-				dispose: () => { },
-			}),
-			sendRequest: async (_resource: URI, _message: string, options: typeof sentOptions): Promise<ChatSendResult> => {
-				sentOptions = options;
-				return { kind: 'rejected', reason: 'stop after option capture' };
+		const folder = URI.file('/workspace');
+		let dispatched: { folder: URI | undefined; message: string; modelId: string | undefined } | undefined;
+		let localCreateCount = 0;
+		const routingProvider: IChatSessionRoutingProvider = {
+			getCandidateSessions: () => [],
+			resolveSessionResource: () => undefined,
+			dispatchToSession: async () => ({ status: 'rejected' }),
+			dispatchToNewSession: async (targetFolder, message, options) => {
+				dispatched = { folder: targetFolder, message, modelId: options.userSelectedModelId };
+				return { status: 'sent', resource };
 			},
-		} as unknown as IChatService;
+			revealSession: async () => { },
+		};
 		const controller = new ChatSessionRoutingController(
-			{ getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot } as IChatSessionRoutingHost,
+			{
+				widget: {
+					inputEditor: { getValue: () => 'different draft', setValue: () => { } },
+					attachmentModel: { attachments: [], clear: () => { } },
+				},
+				getRoutingProvider: () => routingProvider,
+			} as unknown as IChatSessionRoutingHost,
 			'test',
-			chatService,
+			{ startNewLocalSession: () => { localCreateCount++; return undefined; } } as unknown as IChatService,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -817,46 +829,46 @@ suite('ChatSessionRoutingController', () => {
 			token: CancellationToken,
 			notifyRoute: boolean,
 			folder: URI,
-		) => Promise<unknown>;
+		) => Promise<{ status: string; resource?: URI; reveal?: () => Promise<void> }>;
 
-		await dispatch.call(controller, 'run', [], 'run', {}, CancellationToken.None, false, URI.file('/workspace'));
+		const result = await dispatch.call(controller, 'run', [], 'run', { userSelectedModelId: 'model' }, CancellationToken.None, false, folder);
 
-		assert.strictEqual(sentOptions?.agentIdSilent, AgentSessionProviders.AgentHostCopilot);
+		assert.deepStrictEqual({
+			dispatched,
+			localCreateCount,
+			result: { status: result.status, resource: result.resource?.toString(), hasReveal: !!result.reveal },
+		}, {
+			dispatched: { folder, message: 'run', modelId: 'model' },
+			localCreateCount: 0,
+			result: { status: 'sent', resource: resource.toString(), hasReveal: true },
+		});
 		controller.dispose();
 	});
 
-	test('adds host candidates without duplicating sessions available locally', async () => {
-		const localResource = URI.parse('agent-host-copilotcli:/local');
-		const remoteResource = URI.parse('agent-host-copilotcli:/remote');
-		const additionalCandidates: IAdditionalRoutableSession[] = [
-			{
-				sessionId: 'global-omni-session:source:local',
-				rawSessionResource: localResource,
-				label: 'Local duplicate',
-			},
-			{
-				sessionId: 'global-omni-session:source:remote',
-				rawSessionResource: remoteResource,
-				label: 'Remote',
-			},
-		];
+	test('uses provider candidates instead of the renderer-local catalog', async () => {
+		let localResolveCount = 0;
+		const routingProvider: IChatSessionRoutingProvider = {
+			getCandidateSessions: () => [
+				{ sessionId: 'provider:b', label: 'B' },
+				{ sessionId: 'provider:a', label: 'A' },
+				{ sessionId: 'provider:a', label: 'Duplicate A' },
+			],
+			resolveSessionResource: () => undefined,
+			dispatchToSession: async () => ({ status: 'rejected' }),
+			dispatchToNewSession: async () => ({ status: 'rejected' }),
+			revealSession: async () => { },
+		};
 		const controller = new ChatSessionRoutingController(
 			{
 				getOwnSessionResource: () => undefined,
-				getAdditionalCandidates: () => additionalCandidates,
+				getRoutingProvider: () => routingProvider,
 			} as unknown as IChatSessionRoutingHost,
 			'test',
 			undefined!,
 			{
 				model: {
-					resolve: async () => { },
-					sessions: [{
-						resource: localResource,
-						providerType: AgentSessionProviders.AgentHostCopilot,
-						label: 'Local',
-						status: undefined,
-						isArchived: () => false,
-					}],
+					resolve: async () => { localResolveCount++; },
+					sessions: [],
 				},
 			} as never,
 			{ getChatSessionContribution: () => ({ isReadOnly: false }) } as never,
@@ -876,24 +888,32 @@ suite('ChatSessionRoutingController', () => {
 		const candidates = await collect.call(controller, CancellationToken.None);
 
 		assert.deepStrictEqual(candidates.map(candidate => candidate.sessionId), [
-			localResource.toString(),
-			'global-omni-session:source:remote',
+			'provider:a',
+			'provider:b',
 		]);
+		assert.strictEqual(localResolveCount, 0);
 		controller.dispose();
 	});
 
-	test('dispatches a recognized host candidate without parsing it as a local resource', async () => {
-		const remoteResource = URI.parse('agent-host-copilotcli:/remote');
-		const remoteCandidate: IAdditionalRoutableSession = {
-			sessionId: 'global-omni-session:source:remote',
-			rawSessionResource: remoteResource,
-			label: 'Remote',
-		};
+	test('dispatches provider candidates without using renderer-local chat services', async () => {
+		const providerResource = URI.parse('agent-host-copilotcli:/provider');
+		const providerCandidate = { sessionId: 'provider:session', label: 'Provider' };
 		let input = 'Run tests';
 		let clearedAttachments = false;
 		let localAcquireCount = 0;
-		let dispatched: { candidateId: string; message: string; queue: ChatRequestQueueKind | undefined } | undefined;
+		let providerRevealCount = 0;
+		let dispatched: { candidateId: string; message: string; modelId: string | undefined } | undefined;
 		const callbacks: string[] = [];
+		const routingProvider: IChatSessionRoutingProvider = {
+			getCandidateSessions: () => [providerCandidate],
+			resolveSessionResource: candidateId => candidateId === providerCandidate.sessionId ? providerResource : undefined,
+			dispatchToSession: async (candidateId, message, options) => {
+				dispatched = { candidateId, message, modelId: options.userSelectedModelId };
+				return { status: 'sent', resource: providerResource, requestId: 'request-1' };
+			},
+			dispatchToNewSession: async () => ({ status: 'rejected' }),
+			revealSession: async () => { providerRevealCount++; },
+		};
 		const host = {
 			widget: {
 				inputEditor: {
@@ -906,11 +926,7 @@ suite('ChatSessionRoutingController', () => {
 				},
 			},
 			getOwnSessionResource: () => undefined,
-			getAdditionalCandidates: () => [remoteCandidate],
-			dispatchToAdditionalSession: async (candidateId: string, message: string, options: { queue?: ChatRequestQueueKind }) => {
-				dispatched = { candidateId, message, queue: options.queue };
-				return { status: 'sent' as const, resource: remoteResource, requestId: 'request-1' };
-			},
+			getRoutingProvider: () => routingProvider,
 			onWillDispatchRoute: () => callbacks.push('will'),
 			onDidResolveRoute: () => callbacks.push('resolved'),
 		} as unknown as IChatSessionRoutingHost;
@@ -946,28 +962,31 @@ suite('ChatSessionRoutingController', () => {
 			options: object,
 			token: CancellationToken,
 			notifyRoute: boolean,
-		) => Promise<{ status: string; resource?: URI }>;
+		) => Promise<{ status: string; resource?: URI; reveal?: () => Promise<void> }>;
 
-		const result = await dispatch.call(controller, remoteCandidate.sessionId, input, [], 'Run tests', {}, CancellationToken.None, true);
+		const result = await dispatch.call(controller, providerCandidate.sessionId, input, [], 'Run tests', { userSelectedModelId: 'model' }, CancellationToken.None, true);
+		await result.reveal?.();
 
 		assert.deepStrictEqual({
 			dispatched,
 			localAcquireCount,
+			providerRevealCount,
 			callbacks,
 			input,
 			clearedAttachments,
 			result: { status: result.status, resource: result.resource?.toString() },
 		}, {
 			dispatched: {
-				candidateId: remoteCandidate.sessionId,
+				candidateId: providerCandidate.sessionId,
 				message: 'Run tests',
-				queue: ChatRequestQueueKind.Queued,
+				modelId: 'model',
 			},
 			localAcquireCount: 0,
+			providerRevealCount: 1,
 			callbacks: ['will', 'resolved'],
 			input: '',
 			clearedAttachments: true,
-			result: { status: 'sent', resource: remoteResource.toString() },
+			result: { status: 'sent', resource: providerResource.toString() },
 		});
 		controller.dispose();
 	});

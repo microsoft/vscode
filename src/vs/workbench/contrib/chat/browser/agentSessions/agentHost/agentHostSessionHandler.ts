@@ -91,7 +91,6 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ILanguageModelToolsService, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
-import { requestAgentSessionTargetWorkspaceTrust } from '../agentSessionWorkspaceTrust.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -5440,11 +5439,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * never double-prompts.
 	 */
 	private async _ensureWorkspaceTrust(sessionResource: URI): Promise<boolean> {
-		return requestAgentSessionTargetWorkspaceTrust(
-			this._resolveRequestedWorkingDirectory(sessionResource),
-			this._workspaceContextService,
-			this._workspaceTrustRequestService,
-		);
+		const message = localize('agentHost.workspaceTrust', "AI features are currently only supported in trusted workspaces.");
+		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
+
+		if (!workingDirectory || this._workspaceContextService.getWorkspaceFolder(workingDirectory)) {
+			return !!await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
+		}
+
+		return !!await this._workspaceTrustRequestService.requestResourcesTrust({ uri: workingDirectory, message });
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {

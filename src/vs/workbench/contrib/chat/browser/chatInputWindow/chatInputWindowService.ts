@@ -57,7 +57,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { getQuickInputWidth } from '../../../../../platform/quickinput/browser/quickInputController.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IGlobalOmniSessionBroker, OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
+import { IChatSessionRoutingProviderService, OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -162,7 +162,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IHostService private readonly hostService: IHostService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IGlobalOmniSessionBroker private readonly globalOmniSessionBroker: IGlobalOmniSessionBroker,
+		@IChatSessionRoutingProviderService private readonly routingProviderService: IChatSessionRoutingProviderService,
 	) {
 		super();
 
@@ -499,10 +499,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
-			getAdditionalCandidates: localCandidates => this.globalOmniSessionBroker.getAdditionalCandidates(localCandidates.map(candidate => candidate.sessionId)),
-			dispatchToAdditionalSession: (candidateId, message, options, token) => this.globalOmniSessionBroker.dispatch(candidateId, message, options, token),
+			getRoutingProvider: () => this.routingProviderService.getProvider(),
 			getPendingReplySessionResource: () => this._activePendingSessionResource,
-			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
 			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
 			prepareForCommandExecution: () => this.hostService.focus(this._invokingWindow),
 			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),

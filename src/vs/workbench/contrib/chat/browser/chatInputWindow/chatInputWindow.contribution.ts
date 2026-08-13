@@ -6,36 +6,23 @@
 import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID, IChatInputWindowService } from '../../common/chatInputWindow.js';
-import { IGlobalOmniSessionBroker, OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
-import { ChatViewId } from '../chat.js';
+import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 
 // Registers the singleton implementation (side-effect import).
 import './chatInputWindowService.js';
-import './globalOmniSessionBroker.js';
+import '../sessionRouter/chatSessionRoutingProviderService.js';
 
 const inputWindowEnabled = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals(`config.${OmniChatEnabledSettingId}`, true)
 );
-
-class GlobalOmniSessionBrokerContribution implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.globalOmniSessionBroker';
-
-	constructor(
-		@IGlobalOmniSessionBroker _globalOmniSessionBroker: IGlobalOmniSessionBroker,
-	) { }
-}
-
-registerWorkbenchContribution2(GlobalOmniSessionBrokerContribution.ID, GlobalOmniSessionBrokerContribution, WorkbenchPhase.AfterRestored);
 
 CommandsRegistry.registerCommand(CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, (accessor, text: string) => {
 	return accessor.get(IChatInputWindowService).acceptVoiceInput(text);
@@ -46,24 +33,9 @@ registerAction2(class extends Action2 {
 		super({
 			id: CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID,
 			title: nls.localize2('chat.toggleInputWindow', "Toggle Floating Chat Input Window"),
-			category: Categories.View,
 			icon: Codicon.arrowCircleUpSparkle,
-			f1: true,
+			f1: false,
 			precondition: inputWindowEnabled,
-			menu: [
-				{
-					id: MenuId.CommandCenter,
-					group: 'navigation',
-					order: 4,
-					when: inputWindowEnabled,
-				},
-				{
-					id: MenuId.ViewTitle,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(inputWindowEnabled, ContextKeyExpr.equals('view', ChatViewId)),
-				},
-			],
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {

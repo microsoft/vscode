@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatSendRequestOptions } from './chatService/chatService.js';
@@ -190,15 +191,7 @@ export interface IRoutableSession {
 	readonly lastResponse?: string;
 }
 
-/**
- * A routing candidate supplied by a host extension. The aggregate candidate id
- * remains distinct from the raw session resource used by the destination.
- */
-export interface IAdditionalRoutableSession extends IRoutableSession {
-	readonly rawSessionResource: URI;
-}
-
-export type ChatSessionRoutingDispatchReasonCode = 'cancelled' | 'providerRemoved' | 'workspaceNotTrusted';
+export type ChatSessionRoutingDispatchReasonCode = 'cancelled' | 'providerRemoved' | 'unsupportedOptions' | 'workspaceNotTrusted';
 
 export interface IChatSessionRoutingDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
@@ -206,27 +199,40 @@ export interface IChatSessionRoutingDispatchResult {
 	readonly requestId?: string;
 	readonly reason?: string;
 	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
-	/** Whether the returned resource is owned by and can be opened in the current renderer. */
-	readonly canOpenInCurrentWindow?: boolean;
+	/** Reveals the routed session in its owning presentation service. */
+	readonly reveal?: () => Promise<void>;
 	readonly completion?: Promise<IChatSessionRoutingDispatchResult>;
 }
 
-export const IGlobalOmniSessionBroker = createDecorator<IGlobalOmniSessionBroker>('globalOmniSessionBroker');
-
 /**
- * Same-profile, same-remote-authority broker used by the Omni owner to discover
- * and dispatch to agent sessions whose authoritative renderer is another window.
+ * Provider-neutral catalog and dispatch boundary used by routing hosts that own
+ * a broader session model than the workbench's renderer-local chat catalog.
  */
-export interface IGlobalOmniSessionBroker {
-	readonly _serviceBrand: undefined;
-
-	getAdditionalCandidates(localSessionResources: readonly string[]): readonly IAdditionalRoutableSession[];
-	dispatch(
-		candidateId: string,
+export interface IChatSessionRoutingProvider {
+	getCandidateSessions(token: CancellationToken): readonly IRoutableSession[] | Promise<readonly IRoutableSession[]>;
+	resolveSessionResource(sessionId: string): URI | undefined;
+	dispatchToSession(
+		sessionId: string,
 		message: string,
 		options: IChatSendRequestOptions,
 		token: CancellationToken,
-	): Promise<IChatSessionRoutingDispatchResult | undefined>;
+	): Promise<IChatSessionRoutingDispatchResult>;
+	dispatchToNewSession(
+		folder: URI | undefined,
+		message: string,
+		options: IChatSendRequestOptions,
+		token: CancellationToken,
+	): Promise<IChatSessionRoutingDispatchResult>;
+	revealSession(resource: URI): Promise<void>;
+}
+
+export const IChatSessionRoutingProviderService = createDecorator<IChatSessionRoutingProviderService>('chatSessionRoutingProviderService');
+
+export interface IChatSessionRoutingProviderService {
+	readonly _serviceBrand: undefined;
+
+	registerProvider(provider: IChatSessionRoutingProvider): IDisposable;
+	getProvider(): IChatSessionRoutingProvider | undefined;
 }
 
 /** A single scored candidate produced by the router, sorted best-first. */
