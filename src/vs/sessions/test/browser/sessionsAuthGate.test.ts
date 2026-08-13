@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldAllowSignedOutWhenUsable, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
 import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
 
 suite('Sessions - Auth Gate', () => {
@@ -25,6 +25,20 @@ suite('Sessions - Auth Gate', () => {
 			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
 			nativeProvider: SignedOutWindowGate.Proceed,
 			nativeProviderInitializing: SignedOutWindowGate.Proceed,
+		});
+	});
+
+	test('signed-out operation is disabled on web', () => {
+		assert.deepStrictEqual({
+			desktopDisabled: shouldAllowSignedOutWhenUsable(false, false),
+			desktopEnabled: shouldAllowSignedOutWhenUsable(true, false),
+			webDisabled: shouldAllowSignedOutWhenUsable(false, true),
+			webEnabled: shouldAllowSignedOutWhenUsable(true, true),
+		}, {
+			desktopDisabled: false,
+			desktopEnabled: true,
+			webDisabled: false,
+			webEnabled: false,
 		});
 	});
 

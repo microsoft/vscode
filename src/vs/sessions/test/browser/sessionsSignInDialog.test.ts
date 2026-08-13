@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { shouldAllowSignedOutWhenUsable } from '../../browser/sessionsAuthGate.js';
 import { createSessionsSignInDialogOptions } from '../../browser/sessionsSignInDialog.js';
 
 suite('Sessions - Sign-In Dialog', () => {
@@ -18,6 +19,7 @@ suite('Sessions - Sign-In Dialog', () => {
 		let continueCount = 0;
 		const required = createSessionsSignInDialogOptions(commandService, false);
 		const optional = createSessionsSignInDialogOptions(commandService, false, true, () => continueCount++);
+		const web = createSessionsSignInDialogOptions(commandService, false, shouldAllowSignedOutWhenUsable(true, true));
 
 		optional.onDidDismissDialog?.();
 
@@ -34,6 +36,11 @@ suite('Sessions - Sign-In Dialog', () => {
 				hasFooter: optional.renderDialogFooter !== undefined,
 				continueCount,
 			},
+			web: {
+				disableCloseButton: web.disableCloseButton,
+				allowContinueWithoutSignIn: web.allowContinueWithoutSignIn,
+				hasDismissHandler: web.onDidDismissDialog !== undefined,
+			},
 		}, {
 			required: {
 				disableCloseButton: true,
@@ -46,6 +53,11 @@ suite('Sessions - Sign-In Dialog', () => {
 				allowContinueWithoutSignIn: true,
 				hasFooter: false,
 				continueCount: 1,
+			},
+			web: {
+				disableCloseButton: true,
+				allowContinueWithoutSignIn: false,
+				hasDismissHandler: false,
 			},
 		});
 	});

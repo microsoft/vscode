@@ -5,6 +5,7 @@
 
 import { Event } from '../../base/common/event.js';
 import { IObservable, observableFromEvent } from '../../base/common/observable.js';
+import { isWeb } from '../../base/common/platform.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../platform/agentHost/common/agentService.js';
 import type { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SessionTypeAuthRequirement } from '../services/sessions/common/session.js';
@@ -35,11 +36,18 @@ import { SessionTypeAuthRequirement } from '../services/sessions/common/session.
 
 /**
  * Whether the `chat.agentHost.allowSignedOutWhenUsable` experimentation opt-in
- * is enabled. When off (the default), the conditional-auth feature is dark and
- * every caller behaves as it did before.
+ * is enabled in a desktop window. Web always requires sign-in.
  */
 export function isAllowSignedOutWhenUsableEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+	return shouldAllowSignedOutWhenUsable(
+		configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true,
+		isWeb,
+	);
+}
+
+/** Whether the signed-out opt-in applies in the current environment. */
+export function shouldAllowSignedOutWhenUsable(settingEnabled: boolean, web: boolean): boolean {
+	return settingEnabled && !web;
 }
 
 /**
