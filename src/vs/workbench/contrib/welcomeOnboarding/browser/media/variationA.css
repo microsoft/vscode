@@ -261,11 +261,11 @@
 	position: relative;
 	align-items: center;
 	justify-content: center;
-	gap: 16px;
+	gap: 12px;
 	width: 100%;
 	margin: 0 auto;
 	padding: 4px 0;
-	padding-bottom: 60px;
+	padding-bottom: 76px;
 	min-height: 0;
 	flex: 1;
 }
@@ -282,8 +282,8 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 152px;
-	height: 152px;
+	width: 56px;
+	height: 56px;
 	border-radius: 0;
 	border: none;
 	background: transparent;
@@ -291,14 +291,14 @@
 	background-image: url('../../../../browser/media/code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
-	background-size: 148px;
+	background-size: 52px;
 }
 
 .onboarding-a-signin-content {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	flex: 1;
+	flex: 0 1 auto;
 	min-height: 0;
 	min-width: 0;
 	width: 100%;
@@ -307,9 +307,9 @@
 
 .onboarding-a-signin-content-main {
 	display: flex;
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	flex-direction: column;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: 10px;
 	min-width: 0;
 }

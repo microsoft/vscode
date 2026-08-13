@@ -484,10 +484,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 	private _renderSignInStep(container: HTMLElement): void {
 		const wrapper = append(container, $('.onboarding-a-signin'));
-		const brand = append(wrapper, $('.onboarding-a-signin-brand'));
-		const brandIcon = append(brand, $('span.onboarding-a-signin-brand-icon'));
-		brandIcon.setAttribute('role', 'img');
-		brandIcon.setAttribute('aria-label', product.nameLong);
 
 		const content = append(wrapper, $('.onboarding-a-signin-content'));
 		const contentMain = append(content, $('.onboarding-a-signin-content-main'));
