@@ -104,7 +104,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 export { toolDataToDefinition };
 
@@ -231,8 +231,8 @@ interface IObserveTurnOptions {
  * subagent tool calls already have observers so they aren't double-subscribed.
  */
 interface ISubagentContext {
-	/** Tool call IDs already subscribed — prevents duplicate observers. */
-	readonly observedToolIds: Set<string>;
+	/** Active child-chat observers keyed by their spawning tool call. */
+	readonly observations: DisposableMap<string>;
 }
 
 interface IOutputTerminalAttachment {
@@ -2967,7 +2967,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Subagent observation context: dedups subagent tool calls so each is
 		// observed once.
 		const subagentContext: ISubagentContext = {
-			observedToolIds: new Set<string>(),
+			observations: store.add(new DisposableMap()),
 		};
 
 		// Per response part. Markdown / reasoning / tool calls each get a
@@ -3774,7 +3774,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		const isObserved = subagentContext.observedToolIds.has(toolCallId);
+		const isObserved = subagentContext.observations.has(toolCallId);
 		const currentData = invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : undefined;
 		const prepared = toolCallStateToPreparedInvocation(toolCall, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority);
 		const protocolData = prepared.toolSpecificData?.kind === 'subagent' ? prepared.toolSpecificData : undefined;
@@ -3799,10 +3799,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invocation.notifyToolSpecificDataChanged();
 		}
 
+		if (isObserved && !shouldObserveSubagentChat(toolCall)) {
+			subagentContext.observations.deleteAndDispose(toolCallId);
+			return;
+		}
 		if (isObserved) {
 			return;
 		}
-		if (toolCall.status !== ToolCallStatus.Running && toolCall.status !== ToolCallStatus.Completed) {
+		if (!shouldObserveSubagentChat(toolCall)) {
 			return;
 		}
 
@@ -3810,12 +3814,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (subagentData?.kind !== 'subagent') {
 			return;
 		}
-		subagentContext.observedToolIds.add(toolCallId);
+		const observationStore = new DisposableStore();
+		subagentContext.observations.set(toolCallId, observationStore);
 		subagentData.isActive = true;
 		invocation.notifyToolSpecificDataChanged();
 
 		const perInvocationCredits = observableValue<number>('subagentInvocationCredits', 0);
-		store.add(autorun(reader => {
+		observationStore.add(autorun(reader => {
 			const total = perInvocationCredits.read(reader);
 			if (total > 0 && invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.credits !== total) {
 				invocation.toolSpecificData.credits = total;
@@ -3824,7 +3829,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		const perInvocationModel = observableValue<string | undefined>('subagentInvocationModel', undefined);
-		store.add(autorun(reader => {
+		observationStore.add(autorun(reader => {
 			const modelName = perInvocationModel.read(reader);
 			if (modelName && invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.modelName !== modelName) {
 				invocation.toolSpecificData.modelName = modelName;
@@ -3835,7 +3840,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const rootInvocationId = opts.subAgentInvocationId ?? toolCallId;
 		const childChatUri = subagentData.chatResource
 			|| buildSubagentChatUri(opts.backendSession.toString(), toolCallId);
-		this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, opts.sink, store, subagentContext, perInvocationCredits, perInvocationModel);
+		this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, opts.sink, observationStore, subagentContext, perInvocationCredits, perInvocationModel);
 	}
 
 	/**
@@ -4692,7 +4697,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			));
 		} catch (err) {
 			// Remove from observed set so a later state change can retry
-			subagentContext.observedToolIds.delete(parentToolCallId);
+			subagentContext.observations.deleteAndDispose(parentToolCallId);
 			this._logService.warn(`[AgentHost] Failed to subscribe to subagent chat: ${childChatUri}`, err);
 		}
 	}
