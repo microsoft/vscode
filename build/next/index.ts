@@ -19,7 +19,7 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { copyFile, transpileFile } from './transpile.ts';
+import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 
 const globAsync = promisify(glob);
 
@@ -545,11 +545,11 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 
 	const allFiles = [...new Set([...files, ...dtsFiles])];
 
-	await Promise.all(allFiles.map(file => {
+	await mapWithConcurrency(allFiles, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file);
 		return copyFile(srcPath, destPath);
-	}));
+	});
 
 	console.log(`[resources] Copied ${allFiles.length} files`);
 }
@@ -700,12 +700,11 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 
 	console.log(`[transpile] Found ${files.length} files`);
 
-	// Transpile all files in parallel using esbuild.transform (fastest approach)
-	await Promise.all(files.map(file => {
+	await mapWithConcurrency(files, MAX_CONCURRENT_FILE_OPERATIONS, file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
 		return transpileFile(srcPath, destPath);
-	}));
+	});
 }
 
 // ============================================================================
@@ -1065,25 +1064,23 @@ async function watch(): Promise<void> {
 		pendingCopyFiles = new Set();
 
 		try {
-			// Transform changed TypeScript files in parallel
 			if (tsFiles.length > 0) {
 				console.log(`[watch] Transpiling ${tsFiles.length} file(s)...`);
-				await Promise.all(tsFiles.map(srcPath => {
+				await mapWithConcurrency(tsFiles, MAX_CONCURRENT_FILE_OPERATIONS, srcPath => {
 					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
 					const destPath = path.join(REPO_ROOT, outDir, relativePath.replace(/\.ts$/, '.js'));
 					return transpileFile(srcPath, destPath);
-				}));
+				});
 			}
 
-			// Copy changed resource files in parallel
 			if (filesToCopy.length > 0) {
-				await Promise.all(filesToCopy.map(async (srcPath) => {
+				await mapWithConcurrency(filesToCopy, MAX_CONCURRENT_FILE_OPERATIONS, async srcPath => {
 					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
 					const destPath = path.join(REPO_ROOT, outDir, relativePath);
 					await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
 					await copyFile(srcPath, destPath);
 					console.log(`[watch] Copied ${relativePath}`);
-				}));
+				});
 			}
 
 			if (tsFiles.length > 0 || filesToCopy.length > 0) {
