@@ -25,6 +25,7 @@ import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
@@ -126,6 +127,7 @@ export interface IAgentHostCustomizationTarget {
 	readonly workingDirectory?: string;
 	readonly workingDirectories?: readonly string[];
 	readonly rootConfig?: RootConfigState;
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
@@ -189,7 +191,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 				enablement: server.enablement,
 				isPluginProvided: plugin !== undefined,
-				isClientBundled: server.isClientBundled,
+				isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
 				owningPluginClientId: plugin?.clientId,
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
@@ -376,6 +378,7 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IChatService private readonly _chatService: IChatService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super(instantiationService, logService);
 
@@ -422,6 +425,7 @@ class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizat
 			workingDirectory: sessionState?.workingDirectories?.[0],
 			workingDirectories: sessionState?.workingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
+			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
 			setCustomizationEnablement: (rawId, enablement) => {
 				target.connection.dispatch(channel, {

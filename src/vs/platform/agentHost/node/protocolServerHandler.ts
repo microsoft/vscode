@@ -451,7 +451,7 @@ export class ProtocolServerHandler extends Disposable {
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
-						responsePromise = result.responsePromise;
+						responsePromise = this._trackRequest(result.responsePromise);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 						return;
@@ -717,7 +717,7 @@ export class ProtocolServerHandler extends Disposable {
 			));
 			return;
 		}
-		requestAgentHostUpgrade(socketPath).then(
+		this._trackRequest(requestAgentHostUpgrade(socketPath)).then(
 			(result) => transport.send(jsonRpcSuccess(id, result)),
 			(err: unknown) => {
 				this._logService.warn(`[ProtocolServer] vscodeUpgrade signal failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1538,6 +1538,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _reverseRequestId = 0;
 	private readonly _pendingReverseRequests = new Map<number, { client: IConnectedClient; resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+	private readonly _inflightRequests = new Set<Promise<unknown>>();
 
 	/**
 	 * Sends a JSON-RPC request to a connected client and waits for the response.
@@ -1573,7 +1574,7 @@ export class ProtocolServerHandler extends Disposable {
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (handler) {
-			(handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params).then(result => {
+			this._trackRequest((handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params)).then(result => {
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
@@ -1588,7 +1589,7 @@ export class ProtocolServerHandler extends Disposable {
 		// VS Code extension methods (not in the typed protocol maps yet)
 		const extensionResult = this._handleExtensionRequest(method, params);
 		if (extensionResult) {
-			extensionResult.then(result => {
+			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				this._logService.error(`[ProtocolServer] Extension request '${method}' failed`, err);
@@ -1605,7 +1606,7 @@ export class ProtocolServerHandler extends Disposable {
 		const mcpChannel = readMcpChannel(params);
 		if (mcpChannel !== undefined) {
 			const paramsObj = isParamsObject(params) ? params : undefined;
-			this._agentService.handleMcpRequest(mcpChannel, method, paramsObj).then(result => {
+			this._trackRequest(this._agentService.handleMcpRequest(mcpChannel, method, paramsObj)).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
 				if (err instanceof Error && err.message.startsWith('Method not found')) {
@@ -1619,6 +1620,19 @@ export class ProtocolServerHandler extends Disposable {
 		}
 
 		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
+	}
+
+	async whenIdle(): Promise<void> {
+		while (this._inflightRequests.size > 0) {
+			await Promise.all([...this._inflightRequests].map(promise => promise.then(() => { }, () => { })));
+		}
+	}
+
+	private _trackRequest<T>(promise: Promise<T>): Promise<T> {
+		this._inflightRequests.add(promise);
+		const remove = () => this._inflightRequests.delete(promise);
+		void promise.then(remove, remove);
+		return promise;
 	}
 
 	/**

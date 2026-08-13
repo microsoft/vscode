@@ -116,15 +116,41 @@ export async function getCopilotManagedSettingsDiagnostics(
 	host: string,
 	signal: AbortSignal,
 	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
+	proxy: string | undefined = undefined,
 ): Promise<{ account?: string; resolved: ManagedSettingsResolvedData }> {
-	const result = await raceTimeout(runtimeSdk.getManagedSettings({
+	const request = invokeWithProxyEnvironment(proxy, () => runtimeSdk.getManagedSettings({
 		...(token ? { authInfo: { type: 'token', host, token } as const, token } : {}),
 		signal,
-	}), timeoutMs);
+	}));
+	const result = await raceTimeout(request, timeoutMs);
 	if (!result) {
 		throw new Error(`Copilot runtime managed-settings query exceeded ${timeoutMs / 1000} seconds while waiting for native MDM or GitHub policy resolution.`);
 	}
 	return result;
+}
+
+function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
+	if (!proxy) {
+		return invoke();
+	}
+	const previousValues = COPILOT_PROXY_SET_ENV_KEYS.map(key => process.env[key]);
+	for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+		process.env[key] = proxy;
+	}
+	try {
+		// The SDK snapshots process.env while constructing the native request.
+		return invoke();
+	} finally {
+		for (let index = 0; index < COPILOT_PROXY_SET_ENV_KEYS.length; index++) {
+			const key = COPILOT_PROXY_SET_ENV_KEYS[index];
+			const value = previousValues[index];
+			if (value === undefined) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	}
 }
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
@@ -1148,12 +1174,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error('Copilot runtime SDK does not expose getManagedSettings()');
 			}
 
+			stage = 'resolving the proxy';
+			const proxy = await this._resolveProxyForSdk();
 			stage = 'querying native MDM and GitHub managed settings';
 			return getCopilotManagedSettingsDiagnostics(
 				runtimeSdk,
 				this._githubToken,
 				this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com',
 				AbortSignal.timeout(COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS),
+				COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
+				proxy,
 			);
 		})();
 		const result = await raceTimeout(diagnostics, COPILOT_MANAGED_SETTINGS_DIAGNOSTICS_TIMEOUT_MS);
@@ -4986,7 +5016,7 @@ class SessionPluginController extends Disposable {
 	}
 
 	public resolveTopLevelMcpCustomizations(customizations: readonly Customization[], mcpServerOwners?: ReadonlyMap<string, string>): readonly Customization[] {
-		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, undefined, undefined, mcpServerOwners).customizations;
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, this._clientChildEnablement(), undefined, mcpServerOwners).customizations;
 	}
 
 	private _resolveCustomizationEnablement() {

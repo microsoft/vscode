@@ -57,8 +57,8 @@ export interface IMcpCustomizationControllerOptions {
 	readonly sessionUri: URI;
 	/** Emits a {@link SessionAction} into the session's action stream. */
 	readonly emit: (action: SessionAction) => void;
-	/** Durable plugin source URIs for plugin-provided MCP servers in the launch snapshot. */
-	readonly pluginMcpServerSources?: ReadonlyMap<string, string>;
+	/** Returns durable plugin source URIs for plugin-provided MCP servers. */
+	readonly pluginMcpServerSources?: () => ReadonlyMap<string, string> | undefined;
 	/** Resolves the scoped enablement to publish for a temporarily top-level server. */
 	readonly resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
 	/**
@@ -154,7 +154,7 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	get pluginMcpServerSources(): ReadonlyMap<string, string> | undefined {
-		return this._options.pluginMcpServerSources;
+		return this._options.pluginMcpServerSources?.();
 	}
 
 	/**
@@ -391,7 +391,7 @@ export class McpCustomizationController extends Disposable {
 
 	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean): McpServerCustomization {
 		const channel = this._buildChannel(serverName, state);
-		const owningPluginUri = this._options.pluginMcpServerSources?.get(serverName);
+		const owningPluginUri = this.pluginMcpServerSources?.get(serverName);
 		// Per AHP spec, `mcpApp` is a static capability declaration —
 		// "SHOULD be present whenever the server can host Apps". We
 		// proxy every MCP server uniformly, so advertise the host's
