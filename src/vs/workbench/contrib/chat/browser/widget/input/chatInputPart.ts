@@ -129,7 +129,7 @@ import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentW
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
-import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
+import { IChatContextPickerDelegate, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
@@ -205,6 +205,7 @@ export interface IChatInputPartOptions {
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
 	inputEditorMaxHeight?: number;
+	deferredNotificationsEnabled?: boolean;
 	widgetViewKindTag: string;
 	/**
 	 * Optional delegate for the session target picker.
@@ -269,6 +270,7 @@ export interface IChatInputPartOptions {
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
+	contextPicker?: IChatContextPickerDelegate;
 }
 
 export interface IWorkingSetEntry {
@@ -448,6 +450,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatGoalBannerContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
+	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
 	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
@@ -460,6 +463,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	get inputRowHeight(): number {
+		return this.inputAndSideToolbar.offsetHeight;
 	}
 
 	get persistentContentContainerElement(): HTMLElement {
@@ -2910,6 +2917,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private updateDeferredNotificationsEligibility(e?: IChatWidgetViewModelChangeEvent): void {
+		if (this.options.deferredNotificationsEnabled !== undefined) {
+			this._deferredNotificationsEnabled.set(this.options.deferredNotificationsEnabled, undefined);
+			return;
+		}
+
 		if (this.environmentService.isSessionsWindow) {
 			this._deferredNotificationsEnabled.set(true, undefined);
 			return;
@@ -3101,6 +3113,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.followupsContainer = elements.followupsContainer;
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
+		this.inputAndSideToolbar = inputAndSideToolbar;
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
 		const editorContainer = elements.editorContainer;
@@ -3417,7 +3430,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
-		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this.inputActionsToolbar.context = { widget, contextPicker: this.options.contextPicker } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
 			const toolbarElement = this.inputActionsToolbar.getElement();
@@ -3499,7 +3512,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
-		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this.executeToolbar.context = { widget, contextPicker: this.options.contextPicker } satisfies IChatExecuteActionContext;
 		// The lone dictation / Voice Mode control drops its circular border and
 		// only regains it when both share the row (see the matching rules in
 		// chat.css). Count the voice-input actions from the toolbar's action
@@ -3539,7 +3552,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			this.inputSideToolbarContainer = toolbarSide.getElement();
 			toolbarSide.getElement().classList.add('chat-side-toolbar');
-			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
+			toolbarSide.context = { widget, contextPicker: this.options.contextPicker } satisfies IChatExecuteActionContext;
 		}
 
 		// Secondary toolbar (permissions) — below the input box.
