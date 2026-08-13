@@ -66,6 +66,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 				get togglingSidePane() { return that._togglingSidePane; },
 				get multipleSessionsVisibleObs() { return that.multipleSessionsVisibleObs; },
 				get activeSessionResourceObs() { return that.activeSessionResourceObs; },
+				hasSavedWorkingSet: sessionResource => that._workingSets.has(sessionResource),
 			};
 		}
 		return this._context;

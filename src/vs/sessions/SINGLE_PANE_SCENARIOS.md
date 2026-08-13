@@ -81,7 +81,7 @@ width) captures a width to restore later.
 | **Hide Editor** (`right-panel-hide`) | Editor title bar (tab strip), after Maximize/Restore | Closes the editor content and keeps the detail (→ *Detail only*). The docked side pane shrinks to the detail width so the freed editor width goes to the **chat**, not the detail. Always shown and always enabled, regardless of whether a detail panel is currently visible. |
 | **Show Editor** (`right-panel-show`) | Editor title bar (tab strip), same slot as Hide Editor | Reveals the (possibly empty) editor content again. Always shown whenever the editor area is closed, regardless of the active tab's detail support. |
 | **Collapse All Diffs** | Changes editor header, primary inline | Collapses every file in the Changes multi-diff (`SessionChangesEditor.collapseAllDiffs`). |
-| **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`, Search `⌘K S`; a **Changes** entry when the Changes editor tab is absent, and a **Files** entry `⌘K B` when the Files tab is absent — both for any workspace session). Restored managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor. **Hidden when the editor area is closed.** |
+| **`+` Add Tab** | End of the tab strip | Opens the Add Tab menu (Browser `⇧⌘K B`; Search `⌘K S` for workspace-backed sessions; a **Changes** entry when the Changes editor tab is absent, and a **Files** entry `⌘K B` when the Files tab is absent — both for any workspace session). Restored managed Changes/Files tabs are inserted at the **end** of the tab strip. Search opens a new Search editor and is unavailable for Quick Chats. **Hidden when the editor area is closed.** |
 | **Toggle Side Panel** | Command / keybinding | Closes/opens the **whole** side pane (editor + detail together) → chat-only and back. The mechanics live on the workbench layout service (`toggleSidePane`); while the editor area is maximized, the shared `Workbench.toggleSidePane()` remembers maximization, un-maximizes, then performs the collapse so the restored detail is also hidden. Reopening restores the complete side-pane composition before re-maximizing the editor. Hiding a focused side pane moves focus to the sessions list. |
 | **Toggle Sessions List** | Title bar / command | Collapses/opens the left sessions list. Collapsing it gives the freed width to the editor/detail side pane (not the chat); reopening restores the previous editor/detail width so the chat gets that space back. No single-pane editor or detail action changes this visibility. |
 | **Grid sash** | Between the chat and the third pane | Dragging a detail-only side pane wider keeps the editor content closed. When editor content and details are visible but no longer fit, the detail panel hides; widening past the hysteresis threshold restores it. |
@@ -159,8 +159,10 @@ Rules:
 Existing Sessions share an Editor/Details visibility profile. New Sessions do not own lifecycle visibility state; their one-time entry rule hides redundant Editor content only when Empty Files is the sole input. Submitting preserves the current composition and updates the Existing profile.
 
 ### Quick chats / no workspace
-Quick Chat hides the whole side pane once when it becomes active in single-session mode. It does not
-listen to editor-list or active-editor changes; later explicit editor opens use normal workbench behavior.
+Quick Chat hides the whole side pane once when it becomes active in single-session mode. If it has a
+saved editor working set, the Editor is revealed after that working set has restored while Details stays
+hidden. It does not listen to later editor-list or active-editor changes; later explicit editor opens use
+normal workbench behavior.
 
 ### Multiple visible sessions
 Visibility restoration is reveal-only while multiple sessions are visible. Focusing a workspace
