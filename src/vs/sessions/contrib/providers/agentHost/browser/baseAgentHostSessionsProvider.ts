@@ -2014,16 +2014,25 @@ class NewSession extends Disposable {
 		connection.trackSessionCreate?.(backendUri, created.p);
 
 		void (async () => {
+			const clearUncreatedBackend = () => {
+				if (this._backendUri?.toString() === backendUri.toString()) {
+					this._backendUri = undefined;
+					this._connection = undefined;
+				}
+			};
 			try {
 				if (ensureTrusted && !await ensureTrusted()) {
 					this.setLoading(false);
+					clearUncreatedBackend();
 					return;
 				}
 				if (this.cancellationToken.isCancellationRequested || this._backendUri?.toString() !== backendUri.toString()) {
+					clearUncreatedBackend();
 					return;
 				}
 				await this._activeClientScope?.whenResolved();
 				if (this.cancellationToken.isCancellationRequested || this._backendUri?.toString() !== backendUri.toString()) {
+					clearUncreatedBackend();
 					return;
 				}
 				const activeClient = this._activeClientScope?.activeClient(connection.clientId).get();
@@ -2049,10 +2058,7 @@ class NewSession extends Disposable {
 				// created. Only do this if we're still the current attempt
 				// (the caller may have already overwritten these fields by
 				// disposing this NewSession and constructing a new one).
-				if (this._backendUri?.toString() === backendUri.toString()) {
-					this._backendUri = undefined;
-					this._connection = undefined;
-				}
+				clearUncreatedBackend();
 				if (!created.isSettled) {
 					created.error(err);
 				}

@@ -172,6 +172,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
+	/** Fail the first `getSubscription` for the URI returned by the next `createSession`. */
+	public failNextCreatedSessionSubscribe = false;
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
 	// ---- Pending→error subscription support (repro for #5242) --------------
@@ -232,6 +234,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			this.createSessionCalls.push(config);
 		}
 		const session = config?.session ?? AgentSession.uri('copilot', `sdk-session-${this._nextId++}`);
+		if (this.failNextCreatedSessionSubscribe) {
+			this.failNextCreatedSessionSubscribe = false;
+			this.failNextSubscriptionFor.add(session.toString());
+		}
 		this._sessions.set(session.toString(), { session, startTime: Date.now(), modifiedTime: Date.now() });
 		// Simulate the server's eager active-client claim: if the caller
 		// provided activeClient, seed the session state so subscribers see it.
@@ -3781,6 +3787,21 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({ channel: dispatch.channel.toString(), action: { type: 'chat/turnComplete', turnId: action.turnId } as ChatAction, serverSeq: 2, origin: undefined });
 			await turnPromise;
 			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['Hello']);
+		}));
+
+		test('retries subscribe after createSession when first subscribe is session-not-found (issue #330531)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			agentHostService.failNextCreatedSessionSubscribe = true;
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'After create',
+			});
+
+			assert.ok(agentHostService.createSessionCalls.length >= 1, 'must createSession before the post-create subscribe retry');
+			assert.ok(session, 'turn must start after retrying the first post-create subscribe');
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+			assert.deepStrictEqual(agentHostService.turnActions.map(d => (d.action as ITurnStartedAction).message.text), ['After create']);
 		}));
 
 		test('rejects generic contributed-chat untitled resource', async () => {

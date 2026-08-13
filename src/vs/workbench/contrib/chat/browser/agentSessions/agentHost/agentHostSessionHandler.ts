@@ -6,7 +6,7 @@
 import { Delayer, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -1284,10 +1284,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const inflight = this._config.connection.getInflightSessionCreate?.(resolvedSession);
 					if (inflight) {
 						try {
-							await inflight;
+							await raceCancellation(inflight, token);
 						} catch {
 							// Create failed — fall through; a missing backend session
 							// is handled as a new session below (issue #330531).
+						}
+						if (token.isCancellationRequested) {
+							throw new CancellationError();
 						}
 					}
 					const sub = this._ensureSessionSubscription(resolvedSession.toString());
