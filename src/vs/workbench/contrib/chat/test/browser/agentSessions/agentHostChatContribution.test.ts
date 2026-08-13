@@ -9473,9 +9473,7 @@ suite('AgentHostChatContribution', () => {
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-completed-tool');
 			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString(), { streamingText: 'The real fix is' });
-			// A settled tool call ahead of the partial trailing markdown: the
-			// snapshot renders it as serialized progress, so re-emitting it
-			// would split the response mid-sentence.
+			// A settled tool call ahead of the partial trailing markdown, which the snapshot renders as serialized progress.
 			sessionState.activeTurn!.responseParts.unshift({
 				kind: ResponsePartKind.ToolCall,
 				toolCall: {

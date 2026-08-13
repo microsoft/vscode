@@ -4727,10 +4727,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionKey = backendSession.toString();
 		const chatURI = this._getChatURI(chatSession.sessionResource);
 
-		// Extract live ChatToolInvocation objects from the initial progress
-		// array so per-tool setup adopts the same instances the chat UI holds.
-		// Settled tool calls arrive as serialized progress instead, so track
-		// their ids separately to keep per-tool setup from emitting them twice.
+		// Live invocations are adopted by per-tool setup; settled calls arrive serialized and are only tracked by id.
 		const adoptInvocations = new Map<string, ChatToolInvocation>();
 		const renderedToolCallIds = new Set<string>();
 		for (const item of initialProgress) {
