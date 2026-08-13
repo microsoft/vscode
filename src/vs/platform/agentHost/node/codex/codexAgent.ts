@@ -40,8 +40,8 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers } from './codexCustomizations.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfigFromPlugins, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents } from './codexCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -1474,10 +1474,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
+	private _workingDirectories(session: ICodexSession): readonly URI[] {
+		return session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : []);
+	}
+
 	private _runtimeWorkspaceRoots(session: ICodexSession): string[] {
-		const workingDirectories = session.workingDirectories
-			?? (session.workingDirectory ? [session.workingDirectory] : []);
-		return distinctAbsolutePaths(workingDirectories.map(directory => directory.fsPath));
+		return distinctAbsolutePaths(this._workingDirectories(session).map(directory => directory.fsPath));
 	}
 
 	private _isMultiRootActive(session: ICodexSession): boolean {
@@ -1508,7 +1510,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		readonly signature: string;
 	}> {
 		const plugins = session.clientCustomizations.enabledPlugins();
-		const customization = await codexCustomizationConfigFromPlugins(plugins, session.agent, this._fileService);
+		const workspaceAgents = await discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService);
+		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const config: Record<string, JsonValue> = {};
 		if (customization.agentRoles.length > 0) {
 			const root = session.customizationDirectory?.fsPath
@@ -4134,9 +4137,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.serverToolsAdvertised = true;
 			this._serverToolHost.advertise(configResource.toString());
 		}
-		// Surface the skills/hooks codex loaded for this working directory (from
-		// `.agents`/`.codex`) in the Customizations view now that the connection
-		// is ready and the cwd is known. Best-effort and fire-and-forget.
+		// Surface workspace agents and the skills/hooks codex loaded for this
+		// working directory in the Customizations view now that the connection is
+		// ready and the cwd is known. Best-effort and fire-and-forget.
 		void this._refreshSkillHookCustomizations(session);
 		// Re-apply the client-plugin skill roots against the now-ready
 		// connection (they may have been synced before it came up).
@@ -5466,14 +5469,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		const controller = this._getOrCreateMcpController(session);
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
 		this._refreshMcpCustomizationIds(session, controller);
-		// Append the skills/hooks codex loaded for this session's working
-		// directory (best-effort; empty until the app-server connection is
-		// ready, after which `_refreshSkillHookCustomizations` pushes updates).
-		const skillHookContainers = await this._fetchSkillHookContainers(session);
-		// Client-pushed ("Open Plugin") customizations first (they carry the
-		// user's enablement overlay), then codex's discovered MCP servers and
-		// the `.agents`/`.codex` skills/hooks.
+		const [workspaceAgents, skillHookContainers] = await Promise.all([
+			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
+			this._fetchSkillHookContainers(session),
+		]);
+		// Workspace custom agents come from the Agent Host's session-scoped
+		// scan. Client-pushed customizations remain for plugins/extensions, then
+		// codex's own MCP, skill, and hook catalogs complete the surface.
 		return [
+			...workspaceAgents.containers,
 			...session.clientCustomizations.toCustomizations(),
 			...controller.topLevelCustomizations(),
 			...skillHookContainers,
@@ -5503,22 +5507,26 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Re-fetches this session's skill/hook customizations and upserts each
+	 * Re-fetches this session's workspace agent, skill, and hook customizations and upserts each
 	 * container into session state via {@link ActionType.SessionCustomizationUpdated}.
 	 * Called after materialization (when the connection is ready and the cwd is
-	 * known) so the workbench Customizations surface reflects what codex loaded
-	 * from the working directory's `.agents`/`.codex` folders. Upserts (keyed by
-	 * customization id) leave the MCP customizations untouched.
+	 * known) so the workbench Customizations surface reflects workspace agents
+	 * and what codex loaded from the working directory's `.agents`/`.codex`
+	 * folders. Upserts (keyed by customization id) leave MCP customizations
+	 * untouched.
 	 */
 	private async _refreshSkillHookCustomizations(session: ICodexSession): Promise<void> {
 		if (session.disposed) {
 			return;
 		}
-		const containers = await this._fetchSkillHookContainers(session);
+		const [workspaceAgents, skillHookContainers] = await Promise.all([
+			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
+			this._fetchSkillHookContainers(session),
+		]);
 		if (session.disposed) {
 			return;
 		}
-		for (const container of containers) {
+		for (const container of [...workspaceAgents.containers, ...skillHookContainers]) {
 			this._fire(session.sessionUri, { type: ActionType.SessionCustomizationUpdated, customization: container });
 		}
 	}
