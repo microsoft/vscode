@@ -24,7 +24,7 @@
  *     npm run mock-policy-server
  *
  * Then open the printed URL, pick an endpoint, edit the status and JSON, and
- * either Wire the overrides or add the proxy rule shown in the GUI. See
+ * either apply the overrides or add the proxy rule shown in the GUI. See
  * README.md — in particular the managed-settings disk cache section, which is
  * the most common reason an override appears to do nothing.
  */
@@ -48,21 +48,14 @@ const PRODUCT_OVERRIDES_JSON = path.join(ROOT, 'product.overrides.json');
 const PRODUCT_OVERRIDES_BACKUP = path.join(ROOT, 'product.overrides.json.pre-mock-server');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-/**
- * Default location of the managed-settings JSON schema, resolved against the
- * app's current working directory (i.e. where `npm run mock-policy-server` is
- * invoked — normally the vscode repo root). On dev machines the schema sits at
- * `./copilot-agent-runtime/schema/managed-settings-schema.json`. Override with
- * `--schema <url|file-uri|path>` or the `MANAGED_SETTINGS_SCHEMA` env var; web
- * (`http(s)://`) and `file://` URIs are both accepted.
- */
-const DEFAULT_SCHEMA_SOURCE = 'copilot-agent-runtime/schema/managed-settings-schema.json';
+const DEFAULT_SCHEMA_RELATIVE_PATH = 'copilot-agent-runtime/schema/managed-settings-schema.json';
+const DEFAULT_SCHEMA_SOURCE = resolveDefaultSchemaSource();
 
 /** Real API that un-mocked requests are forwarded to. */
 const DEFAULT_UPSTREAM = 'https://api.github.com';
+const PORT = 3000;
 
 const args = parseArgs(process.argv.slice(2));
-const PORT = Number(args.port || process.env.PORT || 3000);
 const HOST = args.host || '127.0.0.1';
 const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFAULT_SCHEMA_SOURCE;
 const UPSTREAM = stripTrailingSlash(args.upstream || process.env.MOCK_POLICY_UPSTREAM || DEFAULT_UPSTREAM);
@@ -100,13 +93,14 @@ interface EndpointState {
 }
 
 const state = new Map<string, EndpointState>();
-for (const endpoint of endpoints) {
-	const preset = endpoint.presets[0];
-	state.set(endpoint.id, {
-		status: preset?.status ?? 200,
-		body: preset ? clone(preset.body) : {},
-		active: endpoint.mockedByDefault === true
-	});
+resetEndpointState();
+
+interface EndpointUpdate {
+	endpoint: string;
+	preset?: string;
+	status?: number;
+	body?: unknown;
+	active?: boolean;
 }
 
 interface LogEntry {
@@ -129,8 +123,8 @@ const server = http.createServer((req, res) => {
 		// Control API and GUI assets are same-origin only — no CORS headers — so
 		// an unrelated website cannot drive /api/wire and rewrite the local
 		// product.overrides.json from the user's browser.
-		if (pathname.startsWith('/api/')) {
-			return handleControlApi(req, res, url);
+		if (pathname === '/api' || pathname.startsWith('/api/')) {
+			return handleControlApi(req, res, pathname);
 		}
 
 		if (req.method === 'GET' && GUI_ASSETS.has(pathname)) {
@@ -174,11 +168,30 @@ const server = http.createServer((req, res) => {
 });
 
 /** Same-origin control API used by the GUI. */
-function handleControlApi(req: IncomingMessage, res: ServerResponse, url: URL): void {
-	const pathname = url.pathname;
-
+function handleControlApi(req: IncomingMessage, res: ServerResponse, pathname: string): void {
 	if (pathname === '/api/state' && req.method === 'GET') {
 		return sendJson(res, 200, getState());
+	}
+
+	if ((pathname === '/api' || pathname === '/api/') && req.method === 'GET') {
+		return sendJson(res, 200, {
+			name: 'Mock Policy Server Control API',
+			stateUpdate: {
+				single: { endpoint: 'managedSettings', preset: 'empty', status: 200, body: {}, active: true },
+				bulk: { endpoints: [{ endpoint: 'managedSettings', active: true }, { endpoint: 'entitlements', active: false }] }
+			},
+			routes: [
+				{ method: 'GET', path: '/api/state', purpose: 'Read endpoint definitions, presets, and current state.' },
+				{ method: 'POST', path: '/api/state', purpose: 'Apply one update or an atomic endpoints array.' },
+				{ method: 'POST', path: '/api/reset', purpose: 'Restore startup endpoint state.' },
+				{ method: 'GET', path: '/api/schema', purpose: 'Read the managed-settings schema.' },
+				{ method: 'GET', path: '/api/log', purpose: 'Read the request log.' },
+				{ method: 'DELETE', path: '/api/log', purpose: 'Clear the request log.' },
+				{ method: 'DELETE', path: '/api/cache', purpose: 'Clear the managed-settings disk cache.' },
+				{ method: 'POST', path: '/api/wire', purpose: 'Apply product.overrides.json.' },
+				{ method: 'POST', path: '/api/unwire', purpose: 'Restore product.overrides.json.' }
+			]
+		});
 	}
 
 	if (pathname === '/api/state' && req.method === 'POST') {
@@ -186,36 +199,27 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, url: URL): 
 			if (err) {
 				return sendJson(res, 400, { error: String(err) });
 			}
-			let payload;
+			let payload: unknown;
 			try {
 				payload = JSON.parse(raw);
 			} catch (e) {
 				return sendJson(res, 400, { error: `Invalid JSON: ${errorMessage(e)}` });
 			}
-			const def = endpoints.find(e => e.id === payload?.endpoint);
-			if (!def) {
-				return sendJson(res, 400, { error: `Unknown endpoint "${payload?.endpoint}".` });
-			}
-			const entry = state.get(def.id)!;
-			if (payload.status !== undefined) {
-				if (!Number.isInteger(payload.status) || payload.status < 200 || payload.status > 599) {
-					return sendJson(res, 400, { error: 'Status must be an integer from 200 to 599.' });
-				}
-				entry.status = payload.status;
-			}
-			if (payload.body !== undefined) {
-				entry.body = payload.body;
-			}
-			if (payload.active !== undefined) {
-				entry.active = Boolean(payload.active);
+			const result = applyEndpointUpdates(payload);
+			if (!result.ok) {
+				return sendJson(res, 400, { error: result.error });
 			}
 			return sendJson(res, 200, getState());
 		});
 	}
 
+	if (pathname === '/api/reset' && req.method === 'POST') {
+		resetEndpointState();
+		return sendJson(res, 200, getState());
+	}
+
 	if (pathname === '/api/schema' && req.method === 'GET') {
-		const sourceParam = url.searchParams.get('source') || undefined;
-		return void loadSchema(sourceParam)
+		return void loadSchema()
 			.then(result => sendJson(res, 200, result))
 			.catch(e => sendJson(res, 500, { error: errorMessage(e) }));
 	}
@@ -258,6 +262,128 @@ function handleControlApi(req: IncomingMessage, res: ServerResponse, url: URL): 
 	return sendJson(res, 404, { error: 'Not found' });
 }
 
+function applyEndpointUpdates(payload: unknown): { ok: true } | { ok: false; error: string } {
+	if (!isRecord(payload)) {
+		return { ok: false, error: 'Request body must be a JSON object.' };
+	}
+
+	let rawUpdates: unknown[];
+	if (Object.hasOwn(payload, 'endpoints')) {
+		const unknownKeys = Object.keys(payload).filter(key => key !== 'endpoints');
+		if (unknownKeys.length) {
+			return { ok: false, error: `Unknown top-level field${unknownKeys.length > 1 ? 's' : ''}: ${unknownKeys.join(', ')}.` };
+		}
+		if (!Array.isArray(payload.endpoints) || payload.endpoints.length === 0) {
+			return { ok: false, error: '"endpoints" must be a non-empty array.' };
+		}
+		rawUpdates = payload.endpoints;
+	} else {
+		rawUpdates = [payload];
+	}
+
+	const updates: EndpointUpdate[] = [];
+	const seen = new Set<string>();
+	for (const [index, rawUpdate] of rawUpdates.entries()) {
+		const prefix = rawUpdates.length > 1 ? `endpoints[${index}]` : 'Update';
+		if (!isRecord(rawUpdate)) {
+			return { ok: false, error: `${prefix} must be a JSON object.` };
+		}
+
+		const unknownKeys = Object.keys(rawUpdate).filter(key => !['endpoint', 'preset', 'status', 'body', 'active'].includes(key));
+		if (unknownKeys.length) {
+			return { ok: false, error: `${prefix} has unknown field${unknownKeys.length > 1 ? 's' : ''}: ${unknownKeys.join(', ')}.` };
+		}
+		if (typeof rawUpdate.endpoint !== 'string') {
+			return { ok: false, error: `${prefix}.endpoint must be a string.` };
+		}
+		if (seen.has(rawUpdate.endpoint)) {
+			return { ok: false, error: `Endpoint "${rawUpdate.endpoint}" appears more than once.` };
+		}
+		seen.add(rawUpdate.endpoint);
+
+		const def = endpoints.find(endpoint => endpoint.id === rawUpdate.endpoint);
+		if (!def) {
+			return { ok: false, error: `Unknown endpoint "${rawUpdate.endpoint}". Valid endpoints: ${endpoints.map(endpoint => endpoint.id).join(', ')}.` };
+		}
+		if (!['preset', 'status', 'body', 'active'].some(key => Object.hasOwn(rawUpdate, key))) {
+			return { ok: false, error: `${prefix} must include preset, status, body, or active.` };
+		}
+		if (Object.hasOwn(rawUpdate, 'preset')) {
+			if (typeof rawUpdate.preset !== 'string') {
+				return { ok: false, error: `${prefix}.preset must be a string.` };
+			}
+			if (!def.presets.some(preset => preset.id === rawUpdate.preset)) {
+				return { ok: false, error: `Unknown preset "${rawUpdate.preset}" for "${def.id}". Valid presets: ${def.presets.map(preset => preset.id).join(', ')}.` };
+			}
+		}
+		if (Object.hasOwn(rawUpdate, 'status')) {
+			if (typeof rawUpdate.status !== 'number' || !Number.isInteger(rawUpdate.status) || rawUpdate.status < 200 || rawUpdate.status > 599) {
+				return { ok: false, error: `${prefix}.status must be an integer from 200 to 599.` };
+			}
+		}
+		if (Object.hasOwn(rawUpdate, 'active') && typeof rawUpdate.active !== 'boolean') {
+			return { ok: false, error: `${prefix}.active must be a boolean.` };
+		}
+
+		const update: EndpointUpdate = { endpoint: rawUpdate.endpoint };
+		if (typeof rawUpdate.preset === 'string') {
+			update.preset = rawUpdate.preset;
+		}
+		if (typeof rawUpdate.status === 'number') {
+			update.status = rawUpdate.status;
+		}
+		if (Object.hasOwn(rawUpdate, 'body')) {
+			update.body = rawUpdate.body;
+		}
+		if (typeof rawUpdate.active === 'boolean') {
+			update.active = rawUpdate.active;
+		}
+		updates.push(update);
+	}
+
+	const nextState = new Map<string, EndpointState>();
+	for (const [id, entry] of state) {
+		nextState.set(id, { status: entry.status, body: clone(entry.body), active: entry.active });
+	}
+
+	for (const update of updates) {
+		const def = endpoints.find(endpoint => endpoint.id === update.endpoint)!;
+		const entry = nextState.get(update.endpoint)!;
+		if (update.preset !== undefined) {
+			const preset = def.presets.find(candidate => candidate.id === update.preset)!;
+			entry.status = preset.status ?? 200;
+			entry.body = clone(preset.body);
+			entry.active = true;
+		}
+		if (update.status !== undefined) {
+			entry.status = update.status;
+		}
+		if (Object.hasOwn(update, 'body')) {
+			entry.body = clone(update.body);
+		}
+		if (update.active !== undefined) {
+			entry.active = update.active;
+		}
+	}
+
+	for (const [id, entry] of nextState) {
+		state.set(id, entry);
+	}
+	return { ok: true };
+}
+
+function resetEndpointState(): void {
+	state.clear();
+	for (const endpoint of endpoints) {
+		const preset = endpoint.presets[0];
+		state.set(endpoint.id, {
+			status: preset?.status ?? 200,
+			body: preset ? clone(preset.body) : {},
+			active: endpoint.mockedByDefault === true
+		});
+	}
+}
+
 /**
  * Forward a request to the real upstream API and stream the response back, so
  * anything this server is not deliberately faking still behaves normally.
@@ -296,26 +422,26 @@ function passthrough(req: IncomingMessage, res: ServerResponse, url: URL): void 
 	req.pipe(upstreamReq);
 }
 
+server.on('error', error => {
+	if (Reflect.get(error, 'code') === 'EADDRINUSE') {
+		console.error(`\n  Error: server already running at http://${HOST}:${PORT}/\n`);
+		process.exitCode = 1;
+		return;
+	}
+	throw error;
+});
+
 server.listen(PORT, HOST, () => {
 	const base = `http://${HOST}:${PORT}`;
 	console.log('');
 	console.log('  Mock Copilot policy endpoints dev server');
 	console.log('  ----------------------------------------');
-	console.log(`  GUI       ${base}/`);
+	console.log('');
+	console.log(`  Open the GUI: ${base}/`);
+	console.log('  Configure endpoint mocking and client routing in the GUI.');
+	console.log('');
 	console.log(`  Upstream  ${UPSTREAM}  (anything not mocked is proxied here)`);
 	console.log(`  Schema    ${SCHEMA_SOURCE}`);
-	console.log('');
-	for (const endpoint of endpoints) {
-		const mode = state.get(endpoint.id)?.active ? 'MOCK' : 'pass';
-		console.log(`  [${mode}] ${endpoint.label.padEnd(18)} ${base}${endpoint.path}`);
-	}
-	console.log('');
-	console.log('  Open the GUI and either apply product.overrides.json, or add a proxy rule:');
-	console.log(`    map  ${UPSTREAM}/copilot_internal/*`);
-	console.log(`    to   ${base}/copilot_internal/*`);
-	console.log('');
-	console.log('  If a policy change seems to do nothing, clear the managed-settings');
-	console.log('  disk cache from the GUI — a fresh entry makes the client skip the network.');
 	console.log('');
 });
 
@@ -327,7 +453,6 @@ function printHelp(): void {
 	console.log('    npm run mock-policy-server [-- <options>]');
 	console.log('');
 	console.log('  Options:');
-	console.log('    --port <n>        Port to listen on (default 3000, env PORT)');
 	console.log('    --host <addr>     Address to bind (default 127.0.0.1)');
 	console.log('    --upstream <url>  Real API that un-mocked requests are proxied to');
 	console.log(`                      (default ${DEFAULT_UPSTREAM}, env MOCK_POLICY_UPSTREAM)`);
@@ -412,11 +537,11 @@ function endpointUrl(endpoint: EndpointDef): string {
 /**
  * Resolve and load the managed-settings JSON schema from {@link SCHEMA_SOURCE}.
  * Accepts a web URL (`http(s)://`), a `file://` URI, or a filesystem path
- * (relative paths are resolved against the app's cwd). Re-reads on every call so
- * a dev can edit the schema and refresh the GUI without restarting the server.
+ * (relative paths are resolved against the app's cwd). The GUI loads it once
+ * during initialization.
  */
-async function loadSchema(sourceOverride?: string): Promise<{ source: string; resolved: string; ok: boolean; schema?: unknown; error?: string }> {
-	const source = sourceOverride || SCHEMA_SOURCE;
+async function loadSchema(): Promise<{ source: string; resolved: string; ok: boolean; schema?: unknown; error?: string }> {
+	const source = SCHEMA_SOURCE;
 	try {
 		if (/^https?:\/\//i.test(source)) {
 			const res = await fetch(source);
@@ -443,6 +568,51 @@ async function loadSchema(sourceOverride?: string): Promise<{ source: string; re
 	} catch (e) {
 		return { source, resolved: source, ok: false, error: e instanceof Error ? e.message : String(e) };
 	}
+}
+
+/**
+ * Prefer the schema checkout beside the primary VS Code checkout. Git worktrees
+ * point their `.git` file back to that checkout, so this also finds repositories
+ * such as `/Users/name/git/copilot-agent-runtime` when VS Code is running from a
+ * nested worktree.
+ */
+function resolveDefaultSchemaSource(): string {
+	const candidates: string[] = [];
+	const primaryCheckout = primaryCheckoutRoot();
+	if (primaryCheckout) {
+		candidates.push(path.join(path.dirname(primaryCheckout), DEFAULT_SCHEMA_RELATIVE_PATH));
+	}
+	candidates.push(
+		path.resolve(process.cwd(), DEFAULT_SCHEMA_RELATIVE_PATH),
+		path.resolve(ROOT, DEFAULT_SCHEMA_RELATIVE_PATH)
+	);
+
+	return candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0];
+}
+
+function primaryCheckoutRoot(): string | undefined {
+	const dotGit = path.join(ROOT, '.git');
+	try {
+		if (fs.statSync(dotGit).isDirectory()) {
+			return ROOT;
+		}
+
+		const match = /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(dotGit, 'utf8'));
+		if (!match) {
+			return undefined;
+		}
+
+		let gitDir = path.resolve(ROOT, match[1].trim());
+		while (path.dirname(gitDir) !== gitDir) {
+			if (path.basename(gitDir) === '.git') {
+				return path.dirname(gitDir);
+			}
+			gitDir = path.dirname(gitDir);
+		}
+	} catch {
+		return undefined;
+	}
+	return undefined;
 }
 
 /** Build the state object the GUI renders. */
@@ -639,6 +809,10 @@ function readBody(req: IncomingMessage, cb: (err: Error | null, raw: string) => 
 	req.on('data', chunk => { raw += chunk; if (raw.length > 1_000_000) { req.destroy(); } });
 	req.on('end', () => cb(null, raw));
 	req.on('error', err => cb(err, ''));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {

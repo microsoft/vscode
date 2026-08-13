@@ -72,117 +72,80 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 			label: 'Managed Settings',
 			path: '/copilot_internal/managed_settings',
 			productKey: 'managedSettingsUrl',
-			description: 'Enterprise Copilot policy from .github/copilot/settings.json. A 200 with {} means "a policy exists but sets nothing"; 404 means "no policy for this account".',
+			description: 'Enterprise copilot settings from .github/copilot/settings.json. An empty object means no policy file is present.',
 			mockedByDefault: true,
 			schema: true,
 			presets: [
 				{
 					id: 'empty',
-					label: 'Empty (no policy set)',
-					description: 'A 200 with an empty object: policy resolved successfully and constrains nothing.',
+					label: 'Empty (no policy file)',
+					description: 'An empty object is a successful "no enterprise policy file present" response.',
 					status: 200,
 					body: {}
 				},
 				{
-					id: 'locked-down',
-					label: 'Locked down (everything on)',
-					description: 'Bypass blocked, sandbox forced, remote control off, model pinned to auto.',
+					id: 'disable-bypass-permissions',
+					label: 'Disable bypass permissions',
+					description: 'Disables bypass permissions mode.',
 					status: 200,
 					body: {
-						model: 'auto',
 						permissions: {
-							disableBypassPermissionsMode: 'disable',
-							deny: ['shell(rm)', 'shell(curl)', 'write(**/.env)'],
-							ask: ['shell(git push)'],
-							allow: ['shell(ls)', 'shell(cat)', 'read(**)']
-						},
-						remoteControl: { mode: 'disabled' },
-						sandbox: { enabled: true, allowBypass: false },
-						telemetry: { enabled: true }
-					}
-				},
-				{
-					id: 'bypass-disabled',
-					label: 'Bypass permissions disabled',
-					description: 'Blocks every allow-all / "yolo" escalation, including advisory auto-approval.',
-					status: 200,
-					body: { permissions: { disableBypassPermissionsMode: 'disable' } }
-				},
-				{
-					id: 'bypass-auto-only',
-					label: 'Bypass: allow-auto-only',
-					description: 'Blocks full allow-all but still permits advisory auto-approval.',
-					status: 200,
-					body: { permissions: { disableBypassPermissionsMode: 'allow-auto-only' } }
-				},
-				{
-					id: 'mcp-policy',
-					label: 'MCP allow/deny policy',
-					description: 'Restricts which MCP servers may load. A deny entry always wins over an allow entry.',
-					status: 200,
-					body: {
-						allowedMcpServers: [
-							{ serverUrl: 'https://api.githubcopilot.com/mcp/*' },
-							{ serverName: 'internal-tools' }
-						],
-						deniedMcpServers: [
-							{ serverCommand: ['npx', '-y', '@contoso/unreviewed-mcp'] }
-						]
-					}
-				},
-				{
-					id: 'remote-control-sso',
-					label: 'Remote control requires SSO',
-					description: 'Control from other devices only when SSO-authorized for the listed organization.',
-					status: 200,
-					body: {
-						remoteControl: {
-							mode: 'requireSSO',
-							githubDotComOrganizations: ['contoso']
+							disableBypassPermissionsMode: 'disable'
 						}
 					}
 				},
 				{
-					id: 'plugins',
-					label: 'Plugin / marketplace policy',
-					description: 'Pins plugin enablement and restricts which marketplaces may be used.',
+					id: 'model-auto',
+					label: 'Model: auto',
+					description: 'Sets the managed model to auto.',
 					status: 200,
 					body: {
-						enabledPlugins: {
-							'code-review@contoso': true,
-							'unreviewed-plugin@community': false
-						},
-						extraKnownMarketplaces: {
-							contoso: {
-								autoUpdate: true,
-								source: { source: 'github', repo: 'contoso/copilot-marketplace' }
-							}
-						},
-						strictKnownMarketplaces: [
-							{ source: 'github', repo: 'contoso/copilot-marketplace' }
-						]
+						model: 'auto'
 					}
 				},
 				{
-					id: 'force-refresh',
-					label: 'Force remote settings refresh',
-					description: 'Tells the client to re-fetch on next startup instead of trusting its fresh disk cache.',
+					id: 'extra-known-marketplaces',
+					label: 'Extra known marketplaces',
+					description: 'Adds marketplaces with managed auto-update settings.',
 					status: 200,
-					body: { forceRemoteSettingsRefresh: true }
+					body: {
+						extraKnownMarketplaces: {
+							'vscode-team-kit': {
+								source: {
+									source: 'github',
+									repo: 'microsoft/vscode-team-kit'
+								},
+								autoUpdate: true
+							},
+							'awesome-copilot': {
+								source: {
+									source: 'github',
+									repo: 'github/awesome-copilot',
+									ref: 'marketplace'
+								},
+								autoUpdate: false
+							}
+						}
+					}
+				},
+				{
+					id: 'customization-lockdown',
+					label: 'Customization lockdown',
+					description: 'Allows only managed plugins, MCP servers, and hooks, and forces a remote settings refresh.',
+					status: 200,
+					body: {
+						strictPluginOnlyCustomization: true,
+						allowManagedMcpServersOnly: true,
+						allowManagedHooksOnly: true,
+						forceRemoteSettingsRefresh: true
+					}
 				},
 				{
 					id: 'not-configured',
-					label: 'No policy (404)',
-					description: 'No server-managed policy is configured for this account.',
+					label: 'Not configured (404)',
+					description: 'No server-managed policy is configured.',
 					status: 404,
-					body: { message: 'Not Found' }
-				},
-				{
-					id: 'server-error',
-					label: 'Server error (500)',
-					description: 'Exercises the cache-fallback path: the client falls back to its last cached policy.',
-					status: 500,
-					body: { message: 'Internal Server Error' }
+					body: {}
 				},
 				{
 					id: 'update-required',
@@ -209,7 +172,6 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					id: 'enterprise-enabled',
 					label: 'Enterprise, chat enabled',
 					description: 'Chat enabled with cloud session storage; the common dev case.',
-					status: 200,
 					body: {
 						access_type_sku: 'copilot_enterprise_seat',
 						chat_enabled: true,
@@ -219,33 +181,6 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 						organization_login_list: ['contoso'],
 						analytics_tracking_id: 'dev-analytics-id',
 						cloud_session_storage_enabled: true
-					}
-				},
-				{
-					id: 'individual',
-					label: 'Individual, chat enabled',
-					description: 'No organization, no cloud session storage.',
-					status: 200,
-					body: {
-						access_type_sku: 'copilot_for_individuals',
-						chat_enabled: true,
-						copilot_plan: 'individual',
-						can_signup_for_limited: false,
-						organization_login_list: [],
-						cloud_session_storage_enabled: false
-					}
-				},
-				{
-					id: 'chat-disabled',
-					label: 'Chat disabled',
-					description: 'Stops the flow early: no token and no managed-settings fetch follow.',
-					status: 200,
-					body: {
-						access_type_sku: 'copilot_enterprise_seat',
-						chat_enabled: false,
-						copilot_plan: 'enterprise',
-						can_signup_for_limited: false,
-						organization_login_list: ['contoso']
 					}
 				}
 			]
@@ -261,15 +196,7 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					id: 'all-enabled',
 					label: 'All features enabled',
 					description: 'agent_mode=1, editor_preview_features=1, mcp=1.',
-					status: 200,
 					body: { token: 'agent_mode=1;editor_preview_features=1;mcp=1;sn=dev;fcv1=dev:devsignature' }
-				},
-				{
-					id: 'mcp-disabled',
-					label: 'MCP disabled',
-					description: 'mcp=0, so the MCP registry is never fetched.',
-					status: 200,
-					body: { token: 'agent_mode=1;editor_preview_features=1;mcp=0;sn=dev;fcv1=dev:devsignature' }
 				}
 			]
 		},
@@ -284,15 +211,7 @@ declare var MOCK_POLICY_ENDPOINTS: EndpointDef[];
 					id: 'registry-only',
 					label: 'Registry only',
 					description: 'Restrict MCP servers to the enterprise registry.',
-					status: 200,
 					body: { mcp_registries: [{ url: 'https://mcp.contoso.example/registry', registry_access: 'registry_only' }] }
-				},
-				{
-					id: 'none',
-					label: 'No registries',
-					description: 'No enterprise registry is configured.',
-					status: 200,
-					body: { mcp_registries: [] }
 				}
 			]
 		}

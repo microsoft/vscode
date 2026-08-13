@@ -15,17 +15,8 @@
 <body>
 	<header>
 		<div class="header-content">
-			<div>
-				<h1>Mock Policy Server</h1>
-				<p class="sub">Endpoints you mock are served from here. Everything else is proxied to
-					<code id="upstream">&hellip;</code>.
-				</p>
-			</div>
-			<div class="header-actions">
-				<button id="clear-cache" type="button" class="btn-warn">Clear managed-settings cache</button>
-				<p class="helper-text header-hint">A cached policy less than an hour old stops the client
-					requesting a new one.</p>
-			</div>
+			<h1>Mock Policy Server</h1>
+			<button id="clear-cache" type="button" class="btn-warn">Clear Policy Cache</button>
 		</div>
 	</header>
 
@@ -36,33 +27,17 @@
 			</div>
 
 			<div class="content-section">
-				<div class="endpoint-head">
-					<p id="endpoint-meta" class="endpoint-description"></p>
-					<label class="toggle" for="active">
-						<input id="active" type="checkbox" />
-						<span>Mock this endpoint</span>
-					</label>
-				</div>
-				<p id="active-help" class="helper-text"></p>
+				<p id="endpoint-meta" class="endpoint-meta"></p>
 
 				<div class="form-group">
-					<div class="label-row">
-						<label for="preset">Preset</label>
-					</div>
-					<div class="row">
-						<select id="preset"></select>
-						<button id="apply-preset" type="button" class="btn-primary">Apply</button>
-					</div>
-					<p id="preset-description" class="helper-text"></p>
+					<label for="preset">Preset</label>
+					<select id="preset"></select>
 				</div>
 
 				<div class="form-group">
-					<div class="label-row">
-						<label for="response-status">HTTP status code</label>
-					</div>
+					<label for="response-status">HTTP status code</label>
 					<input id="response-status" class="status-code-input" type="number" min="200" max="599" step="1"
-						inputmode="numeric" aria-describedby="response-status-help response-status-validation">
-					<p id="response-status-help" class="helper-text">From 200 to 599.</p>
+						inputmode="numeric" aria-describedby="response-status-validation">
 					<p id="response-status-validation" class="status" aria-live="polite"></p>
 				</div>
 
@@ -74,17 +49,9 @@
 						<span id="schema-badge" class="schema-badge" data-tooltip="">&hellip;</span>
 					</button>
 					<div id="schema-details" class="schema-details" hidden>
-						<label class="label-small" for="schema-source">Schema source</label>
-						<input id="schema-source" type="text" class="schema-source-input"
-							placeholder="Path or URL to managed-settings-schema.json">
-						<p class="helper-text">Clone <code>github/copilot-agent-runtime</code> next to this repo to
-							get the default path.</p>
-						<div class="button-group">
-							<button id="refresh-schema" type="button" class="btn-secondary">Load</button>
-							<button id="hydrate-schema" type="button" class="btn-secondary">Generate example</button>
-							<button id="toggle-schema" type="button" class="btn-secondary">View</button>
-						</div>
-						<pre id="schema-view" class="code schema-view" hidden></pre>
+						<span class="label-small">Schema source</span>
+						<code id="schema-source" class="block"></code>
+						<button id="hydrate-schema" type="button" class="btn-secondary">Generate Example</button>
 					</div>
 				</div>
 
@@ -98,16 +65,6 @@
 					<p id="editor-status" class="status" aria-live="polite"></p>
 					<div id="validation-results" hidden></div>
 				</div>
-
-				<div class="button-group">
-					<button id="format" type="button" class="btn-secondary">Format JSON</button>
-					<span class="helper-text">Edits save automatically. <kbd>&#8984;S</kbd> saves now.</span>
-				</div>
-
-				<div class="endpoint-url-box">
-					<span class="label-small">Endpoint URL</span>
-					<span id="endpoint-url" class="code endpoint-url"></span>
-				</div>
 			</div>
 		</section>
 
@@ -117,47 +74,31 @@
 					<h2>Live requests</h2>
 					<button id="clear-log" type="button" class="btn-link">Clear</button>
 				</div>
-				<p id="log-empty" class="helper-text">No requests yet. If this stays empty, the client is not
-					reaching this server.</p>
+				<p id="log-empty" class="helper-text">No requests yet.</p>
 				<ul id="log" class="log"></ul>
 			</div>
 
 			<div class="section-block">
 				<div class="section-header">
-					<h2>Option 1 &mdash; product.overrides.json</h2>
-					<span class="info-icon"
-						data-tooltip="Code OSS from sources only. Redirects the Copilot policy URLs to this server.">&#9432;</span>
+					<h2>Code OSS Overrides</h2>
+					<button type="button" class="info-button"
+						aria-label="About Code OSS overrides"
+						data-tooltip="Code OSS from sources only. Writes product.overrides.json; reload after applying or restoring. Does not redirect the independent Agent Runtime Resolution probe.">&#9432;</button>
 				</div>
 				<div class="status-box">
 					<span class="label-small">Status</span>
 					<strong id="wired-status">&hellip;</strong>
 				</div>
-				<div class="button-group-vertical">
-					<button id="wire" type="button" class="btn-primary btn-full">Apply overrides</button>
-					<button id="unwire" type="button" class="btn-secondary btn-full">Restore original</button>
-					<button id="copy-overrides" type="button" class="btn-secondary btn-full">Copy JSON</button>
-					<button id="copy-overrides-path" type="button" class="btn-secondary btn-full">Copy file
-						path</button>
-				</div>
-				<p class="helper-text">The current file is backed up first, and restored by
-					<strong>Restore original</strong>. Reload Code OSS after either.
-				</p>
-				<ol class="steps">
-					<li>Reload the Code OSS window</li>
-					<li>Sign in with your GitHub account</li>
-					<li>Run <strong>Developer: Sync Account Policy</strong></li>
-					<li>Run <strong>Developer: Policy Diagnostics</strong></li>
-				</ol>
+				<button id="overrides-action" type="button" class="btn-primary btn-full">Apply Overrides</button>
 			</div>
 
 			<div class="section-block">
 				<div class="section-header">
-					<h2>Option 2 &mdash; system proxy</h2>
-					<span class="info-icon"
-						data-tooltip="Works for stable/Insiders builds and the CLI, and needs no reload.">&#9432;</span>
+					<h2>System Proxy</h2>
+					<button type="button" class="info-button"
+						aria-label="About system proxy setup"
+						data-tooltip="Redirects policy requests for VS Code, the Copilot CLI, and Agent Runtime Resolution. Clear the policy cache after changing responses.">&#9432;</button>
 				</div>
-				<p class="helper-text">Add one Map Remote rule in Proxyman, Charles, mitmproxy or Fiddler. You never
-					have to touch it again.</p>
 				<div class="kv">
 					<span class="label-small">Map from</span>
 					<code id="map-from" class="block"></code>
@@ -166,7 +107,7 @@
 					<span class="label-small">Map to</span>
 					<code id="map-to" class="block"></code>
 				</div>
-				<button id="copy-map" type="button" class="btn-secondary btn-full">Copy both</button>
+				<button id="copy-map" type="button" class="btn-secondary btn-full">Copy Mapping</button>
 			</div>
 		</aside>
 	</main>

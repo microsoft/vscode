@@ -19,7 +19,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	interface Preset {
 		id: string;
 		label: string;
-		description: string;
 		status?: number;
 		body: unknown;
 	}
@@ -29,7 +28,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		label: string;
 		path: string;
 		productKey: string;
-		description: string;
 		schema?: boolean;
 		url?: string;
 		status?: number;
@@ -41,11 +39,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	interface ServerState {
 		endpoints: Endpoint[];
 		wired: boolean;
-		overridesSnippet?: string;
-		overridesPath?: string;
 		baseUrl?: string;
 		upstream?: string;
-		cacheDirs?: string[];
 	}
 
 	interface LogEntry {
@@ -58,12 +53,10 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 	interface CacheResult {
 		cleared: { dir: string; files: number }[];
-		missing: string[];
 	}
 
 	interface SchemaResult {
 		ok: boolean;
-		source?: string;
 		resolved?: string;
 		error?: string;
 		schema?: JsonSchema;
@@ -78,6 +71,19 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		const?: unknown;
 		default?: unknown;
 		description?: string;
+		allOf?: JsonSchema[];
+		anyOf?: JsonSchema[];
+		oneOf?: JsonSchema[];
+	}
+
+	interface ValidationRow {
+		key: string;
+		path: string;
+		depth: number;
+		schema?: JsonSchema;
+		inSchema: boolean;
+		inBody: boolean;
+		dynamic: boolean;
 	}
 
 	const $ = (id: string): HTMLElement => document.getElementById(id)!;
@@ -86,9 +92,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	const responseStatusInput = $('response-status') as HTMLInputElement;
 	const responseStatusValidation = $('response-status-validation');
 	const presetSelect = $('preset') as HTMLSelectElement;
-	const activeCheckbox = $('active') as HTMLInputElement;
 	const endpointMeta = $('endpoint-meta');
-	const endpointUrlEl = $('endpoint-url');
 	const editorStatus = $('editor-status');
 	const saveStateEl = $('save-state');
 	const wiredStatusEl = $('wired-status');
@@ -100,24 +104,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	const drafts: Record<string, string> = {};
 	/** Loaded managed-settings schema (or null if unavailable). */
 	let schema: JsonSchema | null = null;
-	/** Latest overrides snippet + path for copy-to-clipboard. */
-	let overridesSnippet = '';
-	let overridesPath = '';
-
-	/** Restore drafts from localStorage. */
-	function loadDrafts(): void {
-		try {
-			const saved = localStorage.getItem('mock-policy-drafts');
-			if (saved) {
-				Object.assign(drafts, JSON.parse(saved));
-			}
-		} catch { /* ignore */ }
-	}
-
-	/** Persist drafts to localStorage. */
-	function saveDrafts(): void {
-		try { localStorage.setItem('mock-policy-drafts', JSON.stringify(drafts)); } catch { /* quota */ }
-	}
+	let overridesWired = false;
 
 	function activeEndpoint(): Endpoint | undefined {
 		return endpoints.find(e => e.id === activeId);
@@ -128,11 +115,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		editorStatus.dataset.kind = kind || '';
 	}
 
-	/**
-	 * Everything in this GUI auto-saves, so the one thing a user needs to know
-	 * is whether what they are looking at is what the server is serving. This
-	 * pill is that answer.
-	 */
 	function setSaveState(kind: 'live' | 'pending' | 'error', message: string): void {
 		saveStateEl.textContent = message;
 		saveStateEl.dataset.kind = kind;
@@ -171,7 +153,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		if (warning) {
 			setStatus(`Valid JSON. ${warning}`, 'warn');
 		} else {
-			setStatus('Valid JSON.', 'ok');
+			setStatus('');
 		}
 		if (schemaApplies(responseStatus) && schema && isPlainObject(parsed)) {
 			renderValidationResults(parsed);
@@ -194,22 +176,93 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		return activeEndpoint()?.schema === true && responseStatus >= 200 && responseStatus < 300;
 	}
 
-	/**
-	 * Best-effort check of a managed-settings body against the loaded JSON schema:
-	 * warn about top-level keys not declared in `schema.properties`. Mirrors the
-	 * way `projectManagedSettings` drops undeclared keys. Returns a warning string
-	 * or '' when nothing to report.
-	 */
 	function validateAgainstSchema(parsed: unknown, responseStatus: number): string {
 		if (!schemaApplies(responseStatus) || !schema || !isPlainObject(parsed)) {
 			return '';
 		}
-		const properties = schema.properties;
-		if (!properties || typeof properties !== 'object') {
-			return '';
-		}
-		const unknown = Object.keys(parsed).filter(key => !Object.hasOwn(properties, key));
+		const unknown = validationRows(schema, parsed).filter(row => row.inBody && !row.inSchema).map(row => row.path);
 		return unknown.length ? `Keys not in schema (will be dropped): ${unknown.join(', ')}.` : '';
+	}
+
+	function validationRows(schemaNode: JsonSchema, body: unknown, path: readonly string[] = [], depth = 0): ValidationRow[] {
+		schemaNode = resolvedSchema(schemaNode, body);
+		const properties = schemaNode.properties ?? {};
+		const bodyObject = isPlainObject(body) ? body : {};
+		const explicitKeys = Object.keys(properties);
+		const bodyKeys = Object.keys(bodyObject);
+		const keys = [...explicitKeys, ...bodyKeys.filter(key => !Object.hasOwn(properties, key)).sort()];
+		const rows: ValidationRow[] = [];
+
+		if (keys.length === 0 && typeof schemaNode.additionalProperties === 'object') {
+			const dynamicPath = [...path, '*'];
+			rows.push({
+				key: '*',
+				path: dynamicPath.join('.'),
+				depth,
+				schema: schemaNode.additionalProperties,
+				inSchema: true,
+				inBody: false,
+				dynamic: true
+			});
+			rows.push(...validationRows(schemaNode.additionalProperties, undefined, dynamicPath, depth + 1));
+			return rows;
+		}
+
+		function resolvedSchema(schemaNode: JsonSchema, body: unknown): JsonSchema {
+			const bodyObject = isPlainObject(body) ? body : undefined;
+			const alternatives = [...(schemaNode.oneOf ?? []), ...(schemaNode.anyOf ?? [])];
+			const matchingAlternatives = bodyObject
+				? alternatives.filter(alternative => schemaMatchesValue(alternative, bodyObject))
+				: [];
+			const selectedAlternatives = matchingAlternatives.length ? matchingAlternatives : alternatives;
+			return mergeSchemas(schemaNode, ...(schemaNode.allOf ?? []), ...selectedAlternatives);
+		}
+
+		function schemaMatchesValue(schemaNode: JsonSchema, value: Record<string, unknown>): boolean {
+			const constants = Object.entries(schemaNode.properties ?? {}).filter(([, property]) => property.const !== undefined);
+			return constants.length > 0 && constants.every(([key, property]) => value[key] === property.const);
+		}
+
+		function mergeSchemas(...schemas: JsonSchema[]): JsonSchema {
+			const merged: JsonSchema = {};
+			for (const schemaNode of schemas) {
+				const previousProperties = merged.properties;
+				Object.assign(merged, schemaNode);
+				if (schemaNode.properties) {
+					merged.properties = { ...previousProperties };
+					for (const [key, property] of Object.entries(schemaNode.properties)) {
+						merged.properties[key] = merged.properties[key]
+							? mergeSchemas(merged.properties[key], property)
+							: property;
+					}
+				}
+			}
+			return merged;
+		}
+
+		for (const key of keys) {
+			const explicitSchema = properties[key];
+			const additionalSchema = !explicitSchema && typeof schemaNode.additionalProperties === 'object'
+				? schemaNode.additionalProperties
+				: undefined;
+			const childSchema = explicitSchema ?? additionalSchema;
+			const childPath = [...path, key];
+			const inBody = Object.hasOwn(bodyObject, key);
+			rows.push({
+				key,
+				path: childPath.join('.'),
+				depth,
+				schema: childSchema,
+				inSchema: childSchema !== undefined || schemaNode.additionalProperties === true,
+				inBody,
+				dynamic: additionalSchema !== undefined
+			});
+			if (childSchema && (childSchema.properties || typeof childSchema.additionalProperties === 'object')) {
+				rows.push(...validationRows(childSchema, inBody ? bodyObject[key] : undefined, childPath, depth + 1));
+			}
+		}
+
+		return rows;
 	}
 
 	/**
@@ -265,25 +318,34 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	function renderTabs(): void {
 		tabs.textContent = '';
 		for (const endpoint of endpoints) {
+			const item = document.createElement('div');
+			item.className = 'tab-item' + (endpoint.id === activeId ? ' active' : '');
+
 			const tab = document.createElement('button');
 			tab.type = 'button';
-			tab.className = 'tab' + (endpoint.id === activeId ? ' active' : '');
+			tab.className = 'tab';
 			if (endpoint.id === activeId) {
 				tab.setAttribute('aria-current', 'true');
 			}
-
-			const dot = document.createElement('span');
-			dot.className = 'dot' + (endpoint.active ? ' on' : '');
-			dot.title = endpoint.active ? 'Mocked by this server' : 'Proxied to the real API';
-			tab.append(dot, document.createTextNode(endpoint.label));
-
-			const state = document.createElement('span');
-			state.className = 'sr-only';
-			state.textContent = endpoint.active ? ' (mocked)' : ' (proxied)';
-			tab.append(state);
-
+			tab.textContent = endpoint.label;
 			tab.addEventListener('click', () => selectEndpoint(endpoint.id));
-			tabs.appendChild(tab);
+
+			const toggle = document.createElement('label');
+			toggle.className = 'tab-toggle';
+			const checkbox = document.createElement('input');
+			checkbox.type = 'checkbox';
+			checkbox.checked = endpoint.active === true;
+			checkbox.setAttribute('aria-label', `Mock ${endpoint.label}`);
+			checkbox.addEventListener('change', () => {
+				void setEndpointActive(endpoint, checkbox.checked);
+			});
+			const track = document.createElement('span');
+			track.className = 'tab-toggle-track';
+			track.setAttribute('aria-hidden', 'true');
+			toggle.append(checkbox, track);
+
+			item.append(tab, toggle);
+			tabs.appendChild(item);
 		}
 	}
 
@@ -300,21 +362,20 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 		const routeSpan = document.createElement('span');
 		routeSpan.className = 'meta-route';
+		const routeLink = document.createElement('a');
+		routeLink.href = endpoint.url ?? endpoint.path;
+		routeLink.target = '_blank';
+		routeLink.rel = 'noopener';
+		routeLink.setAttribute('aria-label', `Open ${endpoint.label} endpoint`);
 		const codePath = document.createElement('code');
 		codePath.textContent = `GET ${endpoint.path}`;
+		routeLink.appendChild(codePath);
 		const codeKey = document.createElement('code');
 		codeKey.textContent = endpoint.productKey;
-		routeSpan.append(codePath, ' · ', codeKey);
+		routeSpan.append(routeLink, ' · ', codeKey);
 
-		const descSpan = document.createElement('span');
-		descSpan.className = 'meta-desc';
-		descSpan.textContent = endpoint.description;
-
-		endpointMeta.replaceChildren(routeSpan, descSpan);
-		endpointUrlEl.textContent = endpoint.url ?? '';
+		endpointMeta.replaceChildren(routeSpan);
 		responseStatusInput.value = String(endpoint.status ?? 200);
-		activeCheckbox.checked = endpoint.active === true;
-		renderActiveHelp();
 		parseResponseStatus();
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
@@ -326,12 +387,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		setSaveState('live', 'Serving');
 	}
 
-	function renderActiveHelp(): void {
-		$('active-help').textContent = activeCheckbox.checked
-			? 'This server answers this path. Edits below take effect on the next request.'
-			: 'Requests to this path are proxied to the real API. Nothing below is served until you turn mocking on.';
-	}
-
 	function renderPresets(): void {
 		const endpoint = activeEndpoint();
 		presetSelect.textContent = '';
@@ -341,12 +396,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			option.textContent = preset.label;
 			presetSelect.appendChild(option);
 		});
-		renderPresetDescription();
-	}
-
-	function renderPresetDescription(): void {
-		const preset = activeEndpoint()?.presets.find(p => p.id === presetSelect.value);
-		$('preset-description').textContent = preset?.description ?? '';
 	}
 
 	function applyPreset(): void {
@@ -359,30 +408,25 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		responseStatusInput.value = String(endpoint.status);
 		// Applying a preset is an unambiguous "serve this", so switch mocking on
 		// rather than saving a body that is still being proxied past.
-		activeCheckbox.checked = true;
-		renderActiveHelp();
+		endpoint.active = true;
 		parseResponseStatus();
 		editor.value = JSON.stringify(preset.body, null, '\t');
 		drafts[activeId] = editor.value;
-		saveDrafts();
 		parseEditor();
 		void save();
 	}
 
 	function renderWired(state: ServerState): void {
+		overridesWired = state.wired;
 		wiredStatusEl.textContent = state.wired ? 'Applied \u2713' : 'Not applied';
 		wiredStatusEl.dataset.kind = state.wired ? 'ok' : '';
-		if (state.overridesSnippet) {
-			overridesSnippet = state.overridesSnippet;
-		}
-		if (state.overridesPath) {
-			overridesPath = state.overridesPath;
-		}
+		const action = $('overrides-action');
+		action.textContent = state.wired ? 'Restore Original' : 'Apply Overrides';
+		action.className = `${state.wired ? 'btn-secondary' : 'btn-primary'} btn-full`;
 	}
 
 	function renderProxy(state: ServerState): void {
 		if (state.upstream) {
-			$('upstream').textContent = state.upstream;
 			$('map-from').textContent = `${state.upstream}/copilot_internal/*`;
 		}
 		if (state.baseUrl) {
@@ -395,6 +439,24 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		renderWired(state);
 		renderProxy(state);
 		renderTabs();
+	}
+
+	async function setEndpointActive(endpoint: Endpoint, active: boolean): Promise<void> {
+		const previousActive = endpoint.active;
+		endpoint.active = active;
+		try {
+			const state = await api<ServerState>('/api/state', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ endpoint: endpoint.id, active })
+			});
+			applyState(state);
+			toast(active ? `Mocking ${endpoint.label}` : `Proxying ${endpoint.label}`);
+		} catch (e) {
+			endpoint.active = previousActive;
+			renderTabs();
+			toast(`Save failed: ${e instanceof Error ? e.message : String(e)}`, true);
+		}
 	}
 
 	async function save(): Promise<void> {
@@ -416,11 +478,10 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			const state = await api<ServerState>('/api/state', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint: activeId, status: responseStatus, body: parsed, active: activeCheckbox.checked })
+				body: JSON.stringify({ endpoint: activeId, status: responseStatus, body: parsed, active: endpoint?.active })
 			});
 			applyState(state);
 			drafts[activeId] = editor.value;
-			saveDrafts();
 			setSaveState('live', 'Serving');
 		} catch (e) {
 			setSaveState('error', 'Not saved');
@@ -445,61 +506,39 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		}
 	}
 
-	function formatJson(): void {
-		const parsed = parseEditor();
-		if (parsed !== undefined) {
-			editor.value = JSON.stringify(parsed, null, '\t');
-			drafts[activeId] = editor.value;
-			saveDrafts();
-		}
-	}
-
 	async function loadSchema(): Promise<void> {
-		const sourceEl = $('schema-source') as HTMLInputElement;
 		const badgeEl = $('schema-badge');
-		const viewEl = $('schema-view');
-
-		const customSource = sourceEl.value.trim();
-		const url = customSource ? '/api/schema?source=' + encodeURIComponent(customSource) : '/api/schema';
 
 		try {
-			const result = await api<SchemaResult>(url);
-			if (!customSource) {
-				sourceEl.value = result.resolved || result.source || '';
-			}
+			const result = await api<SchemaResult>('/api/schema');
 			if (result.ok) {
 				schema = result.schema ?? null;
 				badgeEl.textContent = 'Loaded \u2713';
 				badgeEl.dataset.kind = 'ok';
 				badgeEl.dataset.tooltip = result.resolved || 'Schema loaded';
-				viewEl.textContent = JSON.stringify(result.schema, null, '\t');
-				if (customSource) {
-					try { localStorage.setItem('mock-policy-schema-source', customSource); } catch { /* quota */ }
-				}
+				$('schema-source').textContent = result.resolved || '';
 			} else {
 				schema = null;
 				badgeEl.textContent = 'Not loaded';
 				badgeEl.dataset.kind = 'error';
 				badgeEl.dataset.tooltip = result.error || 'Schema unavailable';
-				viewEl.textContent = '';
+				$('schema-source').textContent = result.resolved || '';
 			}
 		} catch (e) {
 			schema = null;
 			badgeEl.textContent = 'Not loaded';
 			badgeEl.dataset.kind = 'error';
 			badgeEl.dataset.tooltip = e instanceof Error ? e.message : String(e);
+			$('schema-source').textContent = '';
 		}
 		parseEditor();
 	}
 
 	function renderValidationResults(parsed: Record<string, unknown>): void {
 		const container = $('validation-results');
-		const properties = schema?.properties ?? {};
-		const schemaKeys = Object.keys(properties);
-		const bodyKeys = Object.keys(parsed);
-		const allKeys = [...new Set([...schemaKeys, ...bodyKeys])].sort();
+		const rows = schema ? validationRows(schema, parsed) : [];
 
-		if (allKeys.length === 0) {
+		if (rows.length === 0) {
 			container.hidden = true;
 			setStatus('Schema has no properties to validate against.', 'warn');
 			return;
@@ -517,42 +556,50 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		head.appendChild(headRow);
 		const tbody = document.createElement('tbody');
 
-		for (const key of allKeys) {
-			const inSchema = Object.hasOwn(properties, key);
-			const inBody = Object.hasOwn(parsed, key);
+		for (const validation of rows) {
 			let statusText: string;
 			let cls = '';
-			if (inSchema && inBody) {
+			if (validation.dynamic && !validation.inBody) {
+				statusText = 'Any name';
+			} else if (validation.inSchema && validation.inBody) {
 				statusText = '\u2713 Present';
 				cls = 'validation-ok';
-			} else if (inSchema) {
+			} else if (validation.inSchema) {
 				statusText = '\u2014 Not set';
 			} else {
-				statusText = '\u26A0 Unknown (will be dropped)';
+				statusText = '\u26A0 Not in schema';
 				cls = 'validation-warn';
 			}
 
 			const row = document.createElement('tr');
 			const keyCell = document.createElement('td');
+			keyCell.className = 'validation-key';
 			const keyCode = document.createElement('code');
-			keyCode.textContent = key;
+			keyCode.textContent = validation.key;
+			keyCode.title = validation.path;
+			keyCode.setAttribute('aria-label', validation.path);
+			keyCode.style.setProperty('--validation-depth', String(validation.depth));
+			if (validation.depth > 0) {
+				keyCode.classList.add('nested');
+			}
 			keyCell.appendChild(keyCode);
 			const statusCell = document.createElement('td');
 			statusCell.className = cls;
 			statusCell.textContent = statusText;
 			const descCell = document.createElement('td');
-			descCell.textContent = (properties[key]?.description || '').split('.')[0];
+			descCell.textContent = (validation.schema?.description || '').split('.')[0];
 			row.append(keyCell, statusCell, descCell);
 			tbody.appendChild(row);
 		}
 
 		table.append(head, tbody);
 
-		const unknownCount = bodyKeys.filter(k => !Object.hasOwn(properties, k)).length;
-		const presentCount = bodyKeys.length - unknownCount;
+		const schemaRows = rows.filter(row => row.inSchema && !row.dynamic);
+		const presentCount = schemaRows.filter(row => row.inBody).length;
+		const unknownCount = rows.filter(row => row.inBody && !row.inSchema).length;
 		const summary = document.createElement('p');
 		summary.className = 'validation-summary';
-		summary.textContent = `${presentCount} of ${schemaKeys.length} schema keys set`
+		summary.textContent = `${presentCount} of ${schemaRows.length} schema keys set`
 			+ (unknownCount ? `, ${unknownCount} unknown` : '');
 		if (unknownCount) {
 			summary.classList.add('validation-warn');
@@ -560,13 +607,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 
 		container.replaceChildren(table, summary);
 		container.hidden = false;
-		setStatus(unknownCount ? `${unknownCount} key${unknownCount > 1 ? 's' : ''} not in schema.` : 'All keys match the schema.', unknownCount ? 'warn' : 'ok');
-	}
-
-	function toggleSchemaView(): void {
-		const viewEl = $('schema-view');
-		viewEl.hidden = !viewEl.hidden;
-		$('toggle-schema').textContent = viewEl.hidden ? 'View' : 'Hide';
+		setStatus(unknownCount ? `${unknownCount} key${unknownCount > 1 ? 's' : ''} not in schema.` : '', unknownCount ? 'warn' : '');
 	}
 
 	function toggleSchemaSection(): void {
@@ -632,15 +673,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	}
 
 	async function init(): Promise<void> {
-		const savedSource = localStorage.getItem('mock-policy-schema-source');
-		if (savedSource) {
-			($('schema-source') as HTMLInputElement).value = savedSource;
-		}
-		loadDrafts();
-
 		editor.addEventListener('input', () => {
 			drafts[activeId] = editor.value;
-			saveDrafts();
 			parseEditor();
 			debouncedSave();
 		});
@@ -650,36 +684,25 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			parseEditor();
 			debouncedSave();
 		});
-		activeCheckbox.addEventListener('change', async () => {
-			renderActiveHelp();
-			await save();
-			toast(activeCheckbox.checked ? 'Mocking this endpoint' : 'Proxying this endpoint upstream');
-		});
-		presetSelect.addEventListener('change', renderPresetDescription);
-		$('apply-preset').addEventListener('click', applyPreset);
-		$('format').addEventListener('click', formatJson);
-		$('wire').addEventListener('click', () => wire(true));
-		$('unwire').addEventListener('click', () => wire(false));
-		$('copy-overrides').addEventListener('click', e => copy(overridesSnippet, e.currentTarget as HTMLElement));
-		$('copy-overrides-path').addEventListener('click', e => copy(overridesPath, e.currentTarget as HTMLElement));
+		presetSelect.addEventListener('change', applyPreset);
+		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
 		$('copy-map').addEventListener('click', e => {
 			copy(`${$('map-from').textContent}\n${$('map-to').textContent}`, e.currentTarget as HTMLElement);
 		});
 		$('schema-toggle').addEventListener('click', toggleSchemaSection);
-		$('toggle-schema').addEventListener('click', toggleSchemaView);
-		$('refresh-schema').addEventListener('click', loadSchema);
 		$('hydrate-schema').addEventListener('click', () => {
 			if (!schema) {
-				setStatus('Load a schema first.', 'error');
+				setStatus('Schema unavailable.', 'error');
 				return;
 			}
 			responseStatusInput.value = '200';
-			activeCheckbox.checked = true;
-			renderActiveHelp();
+			const endpoint = activeEndpoint();
+			if (endpoint) {
+				endpoint.active = true;
+			}
 			parseResponseStatus();
 			editor.value = JSON.stringify(hydrateFromSchema(schema), null, '\t');
 			drafts[activeId] = editor.value;
-			saveDrafts();
 			parseEditor();
 			void save();
 			setStatus('Generated an example from the schema.', 'ok');
