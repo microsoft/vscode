@@ -10,6 +10,7 @@ import {
 	PullRequestRef,
 	PullRequestSnapshot,
 } from './githubPullRequestService.js';
+import { GitHubRepositoryRef } from './githubQueryService.js';
 
 export type GitHubMutationOutcome = 'succeeded' | 'reconciled' | 'indeterminate';
 
@@ -20,6 +21,26 @@ export interface PullRequestMutationResult<T> {
 
 export interface PullRequestOperation {
 	readonly operationId: string;
+}
+
+export interface CreatePullRequestOptions {
+	readonly title: string;
+	readonly body: string;
+	readonly head: string;
+	readonly base: string;
+	readonly draft: boolean;
+}
+
+export interface CreatedPullRequest {
+	readonly ref: PullRequestRef;
+	readonly id?: string;
+	readonly url: string;
+	readonly createdAt?: string;
+}
+
+export interface EnablePullRequestAutoMergeOptions {
+	readonly pullRequestId: string;
+	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
 }
 
 export interface PullRequestCommentOptions extends PullRequestOperation {
@@ -124,6 +145,8 @@ export interface PullRequestEnqueueResult {
 }
 
 export interface PullRequestMutationApi {
+	createPullRequest(ref: GitHubRepositoryRef, options: CreatePullRequestOptions, signal: AbortSignal): Promise<CreatedPullRequest>;
+	enableAutoMerge(ref: GitHubRepositoryRef, options: EnablePullRequestAutoMergeOptions, signal: AbortSignal): Promise<void>;
 	addComment(ref: PullRequestRef, options: PullRequestCommentOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestComment>>;
 	replyToThread(ref: PullRequestRef, options: PullRequestReplyOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestInlineComment>>;
 	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void>;

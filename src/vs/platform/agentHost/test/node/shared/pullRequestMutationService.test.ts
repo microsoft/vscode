@@ -166,6 +166,7 @@ suite('PullRequestMutationService', () => {
 						value: [{ id: '1', body: `hello\n\n${operationMarker}` }],
 					},
 				});
+
 			};
 
 			const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
@@ -179,6 +180,58 @@ suite('PullRequestMutationService', () => {
 					value: { id: '1', body: `hello\n\n${operationMarker}` },
 				},
 				requestCount: 1,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('creates pull requests and enables auto-merge through typed operations', async () => {
+		await withServers(async server => {
+			server.enqueue(
+				gitHubRestStep({
+					method: 'POST',
+					path: '/repos/octo/repo/pulls',
+					assert: request => assert.deepStrictEqual(request.bodyJson, {
+						title: 'PR',
+						body: 'Body',
+						head: 'feature',
+						base: 'main',
+						draft: true,
+					}),
+					response: gitHubJsonResponse({
+						number: 8,
+						node_id: 'PR8',
+						html_url: 'https://example.test/pull/8',
+						created_at: '2026-01-01T00:00:00Z',
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostEnablePullRequestAutoMerge',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, {
+						pullRequestId: 'PR8',
+						mergeMethod: 'SQUASH',
+					}),
+					response: gitHubGraphQLResponse({
+						enablePullRequestAutoMerge: { pullRequest: { id: 'PR8' } },
+					}),
+				}),
+			);
+			const { ref, service } = setup(server);
+
+			const created = await service.createPullRequest(ref, {
+				title: 'PR',
+				body: 'Body',
+				head: 'feature',
+				base: 'main',
+				draft: true,
+			}, signal());
+			await service.enableAutoMerge(ref, { pullRequestId: 'PR8', method: 'SQUASH' }, signal());
+
+			assert.deepStrictEqual(created, {
+				ref: { ...ref, number: 8 },
+				id: 'PR8',
+				url: 'https://example.test/pull/8',
+				createdAt: '2026-01-01T00:00:00Z',
 			});
 			server.assertSatisfied();
 		});

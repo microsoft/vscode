@@ -8,6 +8,9 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import {
+	CreatedPullRequest,
+	CreatePullRequestOptions,
+	EnablePullRequestAutoMergeOptions,
 	GitHubCheckAnnotation,
 	GitHubWorkflowJob,
 	GitHubWorkflowLog,
@@ -26,6 +29,7 @@ import {
 	PullRequestReplyAndResolveResult,
 	PullRequestReplyOptions,
 } from '../../common/githubPullRequestMutationService.js';
+import { GitHubRepositoryRef } from '../../common/githubQueryService.js';
 import {
 	PullRequestComment,
 	GitHubFragmentError,
@@ -87,6 +91,13 @@ const enqueuePullRequestMutation = `mutation AgentHostEnqueuePullRequest($pullRe
 	rateLimit { limit remaining used resetAt }
 }`;
 
+const enableAutoMergeMutation = `mutation AgentHostEnablePullRequestAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
+	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
+		pullRequest { id }
+	}
+	rateLimit { limit remaining used resetAt }
+}`;
+
 export class PullRequestMutationService extends Disposable implements IPullRequestMutationService {
 
 	declare readonly _serviceBrand: undefined;
@@ -110,6 +121,59 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	}
 
 	private readonly _clock: IGitHubScheduler;
+
+	createPullRequest(
+		ref: GitHubRepositoryRef,
+		options: CreatePullRequestOptions,
+		signal: AbortSignal,
+	): Promise<CreatedPullRequest> {
+		return this._serializeRepository(ref, async () => {
+			const created = await this._withCredential(ref, signal, async (credential, combinedSignal) => {
+				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					method: 'POST',
+					url: this._restUrl(ref, 'pulls'),
+					body: {
+						title: options.title,
+						body: options.body,
+						head: options.head,
+						base: options.base,
+						draft: options.draft,
+					},
+					priority: 'mutation',
+				}, combinedSignal);
+				const value = asObject(response.data, 'GitHub create pull request response was malformed');
+				const number = requiredNumber(value, 'number');
+				return {
+					ref: { ...ref, number },
+					id: idProperty(value, 'node_id'),
+					url: requiredString(value, 'html_url'),
+					createdAt: stringProperty(value, 'created_at'),
+				};
+			});
+			return created;
+		});
+	}
+
+	enableAutoMerge(
+		ref: GitHubRepositoryRef,
+		options: EnablePullRequestAutoMergeOptions,
+		signal: AbortSignal,
+	): Promise<void> {
+		return this._serializeRepository(ref, async () => {
+			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
+				const response = await this._transport.graphql(
+					credential.account,
+					credential.token,
+					this._endpoint.getGraphQlUri(),
+					enableAutoMergeMutation,
+					{ pullRequestId: options.pullRequestId, mergeMethod: options.method },
+					combinedSignal,
+					'mutation',
+				);
+				throwGraphQLErrors(response.errors);
+			});
+		});
+	}
 
 	addComment(
 		ref: PullRequestRef,
@@ -689,7 +753,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	}
 
 	private async _withCredential<T>(
-		ref: PullRequestRef,
+		ref: GitHubRepositoryRef,
 		signal: AbortSignal,
 		task: (credential: GitHubCredential, combinedSignal: AbortSignal) => Promise<T>,
 	): Promise<T> {
@@ -729,6 +793,25 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return result;
 	}
 
+	private _serializeRepository<T>(ref: GitHubRepositoryRef, task: () => Promise<T>): Promise<T> {
+		const key = [
+			ref.host.toLowerCase(),
+			ref.accountId,
+			ref.owner.toLowerCase(),
+			ref.repo.toLowerCase(),
+		].join('\x00');
+		const previous = this._mutationTails.get(key) ?? Promise.resolve();
+		const result = previous.then(task, task);
+		const tail = result.then(() => undefined, () => undefined);
+		this._mutationTails.set(key, tail);
+		void tail.then(() => {
+			if (this._mutationTails.get(key) === tail) {
+				this._mutationTails.delete(key);
+			}
+		});
+		return result;
+	}
+
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
 		for (const [token, preparation] of this._preparations) {
 			if (!event.credential || sameAccount(preparation.value.ref, event.credential)) {
@@ -748,7 +831,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		this._preparationScheduler.clear();
 	}
 
-	private _restUrl(ref: PullRequestRef, route: string): string {
+	private _restUrl(ref: GitHubRepositoryRef, route: string): string {
 		return `${this._endpoint.getApiBaseUri()}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/${route}`;
 	}
 }
@@ -1075,6 +1158,14 @@ function requiredId(value: object, ...keys: readonly string[]): string {
 		}
 	}
 	throw new GitHubRequestError(`GitHub response did not contain ${keys.join(' or ')}`, 'malformedResponse');
+}
+
+function requiredNumber(value: object, key: string): number {
+	const property = numberProperty(value, key);
+	if (property === undefined) {
+		throw new GitHubRequestError(`GitHub response property ${key} was not a number`, 'malformedResponse');
+	}
+	return property;
 }
 
 function toActor(value: object | undefined): { readonly id?: string; readonly login: string } | undefined {

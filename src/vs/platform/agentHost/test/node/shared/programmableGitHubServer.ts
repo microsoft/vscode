@@ -107,6 +107,9 @@ export interface IGitHubGraphQLError {
 	readonly message: string;
 	readonly type?: string;
 	readonly path?: readonly (string | number)[];
+	readonly extensions?: {
+		readonly code?: string;
+	};
 }
 
 interface IGitHubServerStepBase {

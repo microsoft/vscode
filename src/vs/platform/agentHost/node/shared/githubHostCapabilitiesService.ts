@@ -131,7 +131,13 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 
 function isSchemaValidationError(error: GitHubGraphQLError): boolean {
 	const type = error.type?.toUpperCase();
-	return type === 'VALIDATION' || type === 'GRAPHQL_VALIDATION_ERROR' || type === 'GRAPHQL_VALIDATION_FAILED';
+	const code = error.extensions?.code?.toUpperCase();
+	return type === 'VALIDATION'
+		|| type === 'GRAPHQL_VALIDATION_ERROR'
+		|| type === 'GRAPHQL_VALIDATION_FAILED'
+		|| code === 'UNDEFINEDFIELD'
+		|| code === 'ARGUMENTNOTACCEPTED'
+		|| code === 'VARIABLEMISMATCH';
 }
 
 function fieldNames(type: ITypeFields | undefined): ReadonlySet<string> {

@@ -29,6 +29,9 @@ export interface GitHubGraphQLError {
 	readonly message?: string;
 	readonly type?: string;
 	readonly path?: readonly (string | number)[];
+	readonly extensions?: {
+		readonly code?: string;
+	};
 }
 
 export class GitHubRequestError extends Error {
