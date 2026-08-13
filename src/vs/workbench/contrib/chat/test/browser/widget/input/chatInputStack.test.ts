@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { chatInputStackClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackSlot } from '../../../../browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputState, setChatInputStackSlot } from '../../../../browser/widget/input/chatInputStack.js';
 
 suite('chat input stack', () => {
 
@@ -145,5 +145,36 @@ suite('chat input stack', () => {
 		assert.deepStrictEqual(
 			{ afterBareRemoval: afterBareRemoval[1], afterStandDown: s.slots[1].classList.contains('chat-input-stack-continues') },
 			{ afterBareRemoval: true, afterStandDown: false });
+	});
+
+	test('the input reports its frame state to the stack, one piece at a time', () => {
+		// Focus and progress are tracked in different places, so reporting one
+		// must not clear the other.
+		const s = stack(Docked);
+		const input = dom.append(s.root, dom.$('.interactive-input-and-side-toolbar', undefined, dom.$('.chat-input-container')));
+		const inner = input.firstElementChild as HTMLElement;
+		const state = () => ({
+			focused: s.root.classList.contains('chat-input-stack-input-focused'),
+			working: s.root.classList.contains('chat-input-stack-input-working'),
+		});
+
+		setChatInputStackInputState(inner, { focused: true });
+		const focused = state();
+		setChatInputStackInputState(inner, { working: true });
+		const alsoWorking = state();
+		setChatInputStackInputState(inner, { focused: false });
+		const blurred = state();
+
+		assert.deepStrictEqual({ focused, alsoWorking, blurred }, {
+			focused: { focused: true, working: false },
+			alsoWorking: { focused: true, working: true },
+			blurred: { focused: false, working: true },
+		});
+	});
+
+	test('an input outside a stack reports nothing', () => {
+		const orphan = dom.$('.chat-input-container');
+
+		assert.doesNotThrow(() => setChatInputStackInputState(orphan, { focused: true }));
 	});
 });

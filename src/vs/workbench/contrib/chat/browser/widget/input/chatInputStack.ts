@@ -40,6 +40,9 @@ const dockedClass = 'chat-input-stack-docked';
 const standaloneClass = 'chat-input-stack-standalone';
 /** Set by the stack, not by slots: this slot continues the run above it. */
 const continuesClass = 'chat-input-stack-continues';
+/** Set from the input: what its frame is doing, for the run above to match. */
+const inputFocusedClass = 'chat-input-stack-input-focused';
+const inputWorkingClass = 'chat-input-stack-input-working';
 
 /**
  * Report what a slot is showing.
@@ -61,6 +64,31 @@ export function setChatInputStackSlot(slot: HTMLElement | null | undefined, stat
 /** Whether a slot is showing anything. */
 export function isChatInputStackSlotShowing(slot: HTMLElement): boolean {
 	return slot.classList.contains(dockedClass) || slot.classList.contains(standaloneClass);
+}
+
+/**
+ * Report what the input's frame is doing, so a surface joined to it can match -
+ * a docked notice carries the focus ring across the join.
+ *
+ * Reported up rather than read back down with `:has()`. The stack contains
+ * every surface above the input, and that is where notices, todos and artifacts
+ * render, so a selector that inspects the subtree is re-evaluated far more
+ * often than this state actually changes.
+ *
+ * Only the state passed is applied: focus and progress are tracked in different
+ * places, and neither knows the other's value.
+ */
+export function setChatInputStackInputState(input: HTMLElement, state: { readonly focused?: boolean; readonly working?: boolean }): void {
+	const stack = input.closest(`.${chatInputStackClass}`);
+	if (!stack) {
+		return;
+	}
+	if (state.focused !== undefined) {
+		stack.classList.toggle(inputFocusedClass, state.focused);
+	}
+	if (state.working !== undefined) {
+		stack.classList.toggle(inputWorkingClass, state.working);
+	}
 }
 
 /**

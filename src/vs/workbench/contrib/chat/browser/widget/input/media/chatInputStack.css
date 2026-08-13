@@ -30,7 +30,7 @@
 
 /*
  * Members read `--chat-input-stack-radius-top` for their top corners. It is
- * unset outside a stack, so a notice used elsewhere keeps its own full frame.
+ * unset outside a stack, so a notice used elsewhere keeps its own rounding.
  */
 .chat-input-stack > .chat-input-stack-continues {
 	--chat-input-stack-radius-top: 0px;
