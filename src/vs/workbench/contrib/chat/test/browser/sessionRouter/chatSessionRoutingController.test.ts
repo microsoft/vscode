@@ -1048,7 +1048,7 @@ suite('ChatSessionRoutingController', () => {
 			label: container.querySelector('.chat-routing-badge-label')?.textContent,
 			code: container.querySelector('.chat-routing-badge-label code')?.textContent,
 		}, {
-			label: 'Completed in Update routing badge: Implemented the...',
+			label: 'Completed Update routing badge: Implemented the...',
 			code: 'Implemented',
 		});
 		const clearCompletedDeliveries = Reflect.get(controller, '_clearCompletedDeliveryConfirmations') as () => void;

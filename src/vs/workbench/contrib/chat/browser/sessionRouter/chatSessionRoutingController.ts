@@ -1288,7 +1288,7 @@ export class ChatSessionRoutingController extends Disposable {
 				icon = Codicon.error;
 				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", sessionLabel);
 			} else if (observedActivity && (sessionStatus === AgentSessionStatus.Completed || model?.hasRequests)) {
-				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", sessionLabel);
+				statusLabel = localize('chatSessionRouting.completed', "Completed {0}", sessionLabel);
 				isCompleted = true;
 			}
 			setCompleted(isCompleted);
@@ -1299,7 +1299,7 @@ export class ChatSessionRoutingController extends Disposable {
 			if (preview) {
 				const markdown = new MarkdownString(localize(
 					'chatSessionRouting.completedInWithResponse',
-					"Completed in {0}: {1}",
+					"Completed {0}: {1}",
 					escapeMarkdownSyntaxTokens(sessionLabel),
 					preview
 				));
@@ -1387,7 +1387,7 @@ export class ChatSessionRoutingController extends Disposable {
 				icon = Codicon.error;
 				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", session.label);
 			} else if (observedActivity && session.status === 'idle') {
-				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", session.label);
+				statusLabel = localize('chatSessionRouting.completed', "Completed {0}", session.label);
 				isCompleted = true;
 			}
 			setCompleted(isCompleted);
@@ -1396,7 +1396,7 @@ export class ChatSessionRoutingController extends Disposable {
 			if (preview) {
 				const markdown = new MarkdownString(localize(
 					'chatSessionRouting.completedInWithResponse',
-					"Completed in {0}: {1}",
+					"Completed {0}: {1}",
 					escapeMarkdownSyntaxTokens(session.label),
 					preview
 				));
