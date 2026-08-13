@@ -2284,19 +2284,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const startedClientToolCalls = new Set<string>();
 		/**
-		 * Execution signature of the client tool call currently running for a
-		 * given call key, so a repeated ready for the same execution is ignored
-		 * while a genuinely changed one still supersedes it.
-		 *
-		 * `startedClientToolCalls` cannot serve this purpose: it is armed from
-		 * `markInvocationStarted`, which `_executeClientTool` only calls after
-		 * awaiting `resolveToolInput`, so two readies delivered in quick
-		 * succession both pass the started check before either arms it. A client
-		 * tool call receives two as a matter of course, one from the permission
-		 * flow and one from the agent's stream mapper, and they differ only in
-		 * approval metadata, so `equals(observedRequest, request)` treats the
-		 * second as new. The signature therefore ignores approval metadata and
-		 * compares what actually gets executed.
+		 * Execution signature of the running client tool call per call key, armed
+		 * synchronously at execution start: `startedClientToolCalls` only arms
+		 * after an await, so two quick readies both pass it. Ignores approval
+		 * metadata so a repeated ready is a duplicate, not a superseding request.
 		 */
 		const inFlightClientToolCalls = new Map<string, string>();
 		const executionSignature = (request: SessionToolClientExecutionRequest): string => {
@@ -2421,8 +2412,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								}
 							},
 						).finally(() => {
-							// Only clear our own entry: a superseding attempt may
-							// already have replaced it.
+							// Only clear our own entry; a superseding attempt may already have replaced it.
 							if (inFlightClientToolCalls.get(key) === inFlightSignature) {
 								inFlightClientToolCalls.delete(key);
 							}
