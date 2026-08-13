@@ -1005,7 +1005,9 @@ export class ChangesViewPane extends ViewPane {
 						}
 					} else if (!isEqual(renderedSessionResource, detailsViewStateTransfer.to)) {
 						this.captureDetailsViewState();
-						return;
+						if (sessionResource && isEqual(sessionResource, renderedSessionResource)) {
+							return;
+						}
 					}
 				}
 			} else {
