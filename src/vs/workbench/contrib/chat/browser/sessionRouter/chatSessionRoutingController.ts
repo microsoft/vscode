@@ -16,15 +16,17 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { TabbedActionListWidget } from '../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { MenuItemAction, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -33,7 +35,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, IChatSessionRoutingDispatchResult, IChatSessionRoutingProvider, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
+import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, IChatSessionRoutingDispatchResult, IChatSessionRoutingNewSessionTarget, IChatSessionRoutingProvider, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceBrowseAction, IChatSessionRoutingWorkspaceCatalog, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -41,7 +43,7 @@ import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js'
 import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
 import { withChatInputPickerMotion } from '../widget/input/chatInputPickerActionItem.js';
-import { parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
+import { IChatSessionRoutingFolder, parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
 
 import './media/chatSessionRouting.css';
 
@@ -68,11 +70,19 @@ type NewSessionTarget = {
 	readonly kind: 'new';
 	readonly label: string;
 	readonly folder?: URI;
+	readonly providerId?: string;
 };
 
 type FolderPickerItem =
 	| { readonly id: string; readonly kind: 'workspace'; readonly folder: IWorkspaceFolder }
+	| { readonly id: string; readonly kind: 'providerWorkspace'; readonly workspace: IChatSessionRoutingWorkspace }
+	| { readonly id: string; readonly kind: 'providerBrowse'; readonly action: IChatSessionRoutingWorkspaceBrowseAction }
 	| { readonly id: 'choose-folder'; readonly kind: 'choose' };
+
+type RoutingFolder = IChatSessionRoutingFolder & {
+	readonly providerId?: string;
+	readonly workspace?: IChatSessionRoutingWorkspace;
+};
 
 type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
 
@@ -182,6 +192,8 @@ export class ChatSessionRoutingController extends Disposable {
 	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _submitDraftListeners = this._register(new MutableDisposable<IDisposable>());
 	private _routingProvider: IChatSessionRoutingProvider | undefined;
+	private _workspaceCatalog: IChatSessionRoutingWorkspaceCatalog | undefined;
+	private readonly _tabbedFolderPicker: TabbedActionListWidget | undefined;
 
 	constructor(
 		private readonly host: IChatSessionRoutingHost,
@@ -199,8 +211,12 @@ export class ChatSessionRoutingController extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this._tabbedFolderPicker = instantiationService
+			? this._register(instantiationService.createInstance(TabbedActionListWidget))
+			: undefined;
 	}
 
 	/**
@@ -221,7 +237,8 @@ export class ChatSessionRoutingController extends Disposable {
 		this._submitCts.value?.cancel();
 		this._submitDraftListeners.clear();
 		this._pendingSend.clear();
-		this._routingProvider = undefined;
+		this._routingProvider = this.host.getRoutingProvider?.();
+		this._workspaceCatalog = undefined;
 
 		// Immediately reflect that the request was accepted so the send button
 		// greys out while routing runs (it is intercepted off-model, so the
@@ -256,6 +273,10 @@ export class ChatSessionRoutingController extends Disposable {
 		};
 		if (explicitNewSessionTask) {
 			this.host.onWillRoute?.();
+			await this._refreshWorkspaceCatalog(token);
+			if (token.isCancellationRequested) {
+				return true;
+			}
 			const target = this._resolveNewSessionTarget(utterance, attachedContext, [], []);
 			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
@@ -308,11 +329,15 @@ export class ChatSessionRoutingController extends Disposable {
 		ariaAlert(localize('chatSessionRouting.findingDestination', "Finding the best chat for your request."));
 		this.host.onWillRoute?.();
 
-		const folders = this.workspaceContextService.getWorkspace().folders;
+		await this._refreshWorkspaceCatalog(token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const folders = this._getRoutingFolders();
 		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders);
 		const collectedCandidates = await this._collectCandidateSessions(token);
 		const candidates = mentionedFolder
-			? collectedCandidates.filter(candidate => resolveSessionWorkspaceFolder(candidate, folders) === mentionedFolder)
+			? collectedCandidates.filter(candidate => isEqual(resolveSessionWorkspaceFolder(candidate, folders)?.uri, mentionedFolder.uri))
 			: collectedCandidates;
 		this.logService.info(
 			`[chatSessionRouting] owner=${this.debugOwner} voice=${requestOptions.isVoiceModeInput === true} workspaceFolders=[${folders.map(folder => folder.name).join(', ')}] mentionedFolder=${mentionedFolder?.name ?? '<none>'} candidates=${collectedCandidates.length} filteredCandidates=${candidates.length}`
@@ -357,7 +382,7 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	private _dispatchOrReviewNewSession(target: NewSessionTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, cts: CancellationTokenSource): void {
-		if (this.workspaceContextService.getWorkspace().folders.length <= 1) {
+		if (!this._hasWorkspacePickerOptions()) {
 			this._dispatchImmediately(target, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 			return;
 		}
@@ -525,32 +550,112 @@ export class ChatSessionRoutingController extends Disposable {
 		results: readonly ISessionRouteResult[],
 		candidates: readonly IRoutableSession[],
 	): NewSessionTarget {
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders)?.uri;
-		const attachmentFolder = this._folderFromAttachments(attachedContext);
-		const inferredFolder = resolveNewSessionWorkspaceFolder(utterance, folders, results, candidates, this.newSessionFolderService.getDefaultFolder());
-		const folder = mentionedFolder ?? attachmentFolder ?? inferredFolder;
+		const folders = this._getRoutingFolders();
+		const mentionedFolder = resolveMentionedWorkspaceFolder(utterance, folders);
+		const attachmentFolder = this._folderFromAttachments(attachedContext, folders);
+		const defaultWorkspace = this._workspaceCatalog?.defaultWorkspace;
+		const inferredFolderUri = resolveNewSessionWorkspaceFolder(
+			utterance,
+			folders,
+			results,
+			candidates,
+			defaultWorkspace?.uri ?? this.newSessionFolderService.getDefaultFolder(),
+		);
+		const selectedFolder = mentionedFolder
+			?? attachmentFolder
+			?? this._findRoutingFolder(inferredFolderUri, defaultWorkspace?.providerId);
+		const folder = selectedFolder?.uri ?? inferredFolderUri;
 		this.logService.info(
-			`[chatSessionRouting] owner=${this.debugOwner} newSessionFolder=${folder?.toString() ?? '<none>'} source=${mentionedFolder ? 'mention' : attachmentFolder ? 'attachment' : 'inferred'}`
+			`[chatSessionRouting] owner=${this.debugOwner} newSessionFolder=${folder?.toString() ?? '<none>'} providerId=${selectedFolder?.providerId ?? '<none>'} source=${mentionedFolder ? 'mention' : attachmentFolder ? 'attachment' : 'inferred'}`
 		);
 		return {
 			kind: 'new',
 			label: folder
-				? localize('chatSessionRouting.newSessionInFolder', "New session in {0}", this.workspaceContextService.getWorkspaceFolder(folder)?.name ?? folder.path)
+				? localize('chatSessionRouting.newSessionInFolder', "New session in {0}", selectedFolder?.name ?? this.workspaceContextService.getWorkspaceFolder(folder)?.name ?? basename(folder))
 				: localize('chatSessionRouting.newSession', "New session"),
 			folder,
+			providerId: selectedFolder?.providerId,
 		};
 	}
 
-	private _folderFromAttachments(attachedContext: readonly IChatRequestVariableEntry[] | undefined): URI | undefined {
+	private _folderFromAttachments(attachedContext: readonly IChatRequestVariableEntry[] | undefined, folders: readonly RoutingFolder[]): RoutingFolder | undefined {
 		for (const attachment of attachedContext ?? []) {
 			const resource = IChatRequestVariableEntry.toUri(attachment);
-			const folder = resource && this.workspaceContextService.getWorkspaceFolder(resource);
+			const folder = resource && folders
+				.filter(candidate => isEqualOrParent(resource, candidate.uri))
+				.sort((a, b) => b.uri.path.length - a.uri.path.length)[0];
 			if (folder) {
-				return folder.uri;
+				return folder;
 			}
 		}
 		return undefined;
+	}
+
+	private async _refreshWorkspaceCatalog(token: CancellationToken): Promise<void> {
+		const provider = this._routingProvider ?? this.host.getRoutingProvider?.();
+		this._routingProvider = provider;
+		if (!provider?.getNewSessionWorkspaceCatalog) {
+			this._workspaceCatalog = undefined;
+			return;
+		}
+		try {
+			const catalog = await provider.getNewSessionWorkspaceCatalog();
+			if (!token.isCancellationRequested) {
+				this._workspaceCatalog = catalog;
+			}
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				this.logService.warn('[chatSessionRouting] Failed to load new-session workspaces', error);
+				this._workspaceCatalog = undefined;
+			}
+		}
+	}
+
+	private _getRoutingFolders(): RoutingFolder[] {
+		const folders: RoutingFolder[] = [];
+		const add = (folder: RoutingFolder) => {
+			if (!folders.some(candidate => isEqual(candidate.uri, folder.uri) && candidate.providerId === folder.providerId)) {
+				folders.push(folder);
+			}
+		};
+		for (const workspace of this._workspaceCatalog?.workspaces ?? []) {
+			add({
+				uri: workspace.uri,
+				name: workspace.label,
+				aliases: workspace.description ? [workspace.description] : undefined,
+				providerId: workspace.providerId,
+				workspace,
+			});
+		}
+		const defaultWorkspace = this._workspaceCatalog?.defaultWorkspace;
+		if (defaultWorkspace) {
+			add({
+				uri: defaultWorkspace.uri,
+				name: defaultWorkspace.label,
+				aliases: defaultWorkspace.description ? [defaultWorkspace.description] : undefined,
+				providerId: defaultWorkspace.providerId,
+				workspace: defaultWorkspace,
+			});
+		}
+		for (const folder of this.workspaceContextService.getWorkspace().folders) {
+			add(folder);
+		}
+		return folders;
+	}
+
+	private _findRoutingFolder(folderUri: URI | undefined, preferredProviderId?: string): RoutingFolder | undefined {
+		if (!folderUri) {
+			return undefined;
+		}
+		const folders = this._getRoutingFolders().filter(folder => isEqual(folder.uri, folderUri));
+		return folders.find(folder => folder.providerId === preferredProviderId) ?? folders[0];
+	}
+
+	private _hasWorkspacePickerOptions(): boolean {
+		if (this._workspaceCatalog) {
+			return this._workspaceCatalog.workspaces.length > 0 || this._workspaceCatalog.browseActions.length > 0;
+		}
+		return this.workspaceContextService.getWorkspace().folders.length > 1;
 	}
 
 	/**
@@ -813,7 +918,7 @@ export class ChatSessionRoutingController extends Disposable {
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
-		const routeAutosendDelay = this.workspaceContextService.getWorkspace().folders.length > 1
+		const routeAutosendDelay = this._hasWorkspacePickerOptions()
 			? MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS
 			: ROUTE_AUTOSEND_DELAY_MS;
 		badge.classList.add('chat-routing-badge-ranked');
@@ -883,7 +988,7 @@ export class ChatSessionRoutingController extends Disposable {
 				: requestOptions.userSelectedModelId
 					? localize('chatSessionRouting.selectedModel', "Selected model")
 					: '';
-			if (option.kind === 'new' && this.workspaceContextService.getWorkspace().folders.length > 1) {
+			if (option.kind === 'new' && this._hasWorkspacePickerOptions()) {
 				const changeFolder = dom.append(row, dom.$('button.chat-routing-badge-folder-action', {
 					type: 'button',
 					'aria-label': localize('chatSessionRouting.changeTargetFolderAria', "Change target folder for new session"),
@@ -891,7 +996,9 @@ export class ChatSessionRoutingController extends Disposable {
 					'aria-expanded': 'false',
 				})) as HTMLButtonElement;
 				changeFolderAction = changeFolder;
-				selectedFolderName = option.folder ? this.workspaceContextService.getWorkspaceFolder(option.folder)?.name : undefined;
+				selectedFolderName = option.folder
+					? this._findRoutingFolder(option.folder, option.providerId)?.name ?? this.workspaceContextService.getWorkspaceFolder(option.folder)?.name ?? basename(option.folder)
+					: undefined;
 				renderChangeFolderAction(false);
 				store.add(dom.addDisposableListener(changeFolder, dom.EventType.CLICK, async event => {
 					event.preventDefault();
@@ -902,7 +1009,11 @@ export class ChatSessionRoutingController extends Disposable {
 						renderChangeFolderAction(false);
 						if (folderPickerShown) {
 							folderPickerShown = false;
-							this.actionWidgetService.hide(true);
+							if (this._tabbedFolderPicker?.isVisible) {
+								this._tabbedFolderPicker.hide();
+							} else {
+								this.actionWidgetService.hide(true);
+							}
 						}
 						if (folderPickerSurfaceOpen) {
 							folderPickerSurfaceOpen = false;
@@ -919,28 +1030,18 @@ export class ChatSessionRoutingController extends Disposable {
 					choosingFolder = true;
 					renderChangeFolderAction(true);
 					const request = ++folderPickerRequest;
-					const folders = this.workspaceContextService.getWorkspace().folders;
-					const selectedFolder = options[index].kind === 'new' ? options[index].folder : undefined;
-					const pickFolder = this.host.pickFolder;
-					const items: IActionListItem<FolderPickerItem>[] = folders.map(folder => ({
-						kind: ActionListItemKind.Action,
-						item: { id: folder.uri.toString(), kind: 'workspace', folder },
-						group: {
-							title: '',
-							icon: isEqual(folder.uri, selectedFolder) ? Codicon.check : Codicon.folder,
-						},
-						label: folder.name,
-						description: folder.uri.fsPath,
-					}));
-					if (pickFolder) {
-						items.push({
-							kind: ActionListItemKind.Action,
-							item: { id: 'choose-folder', kind: 'choose' },
-							group: { title: '', icon: Codicon.folderOpened },
-							label: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…"),
-						});
+					await this._refreshWorkspaceCatalog(cts.token);
+					if (request !== folderPickerRequest || disposed || cts.token.isCancellationRequested || didDispatch) {
+						return;
 					}
-					const selectFolder = (folder: URI, name: string) => {
+					const catalog = this._workspaceCatalog;
+					const folders = this.workspaceContextService.getWorkspace().folders;
+					const selectedTarget = options[index].kind === 'new' ? options[index] : undefined;
+					const selectedFolder = selectedTarget?.folder;
+					const pickFolder = this.host.pickFolder;
+					const isSelectedWorkspace = (workspace: IChatSessionRoutingWorkspace) => isEqual(workspace.uri, selectedFolder)
+						&& (!selectedTarget?.providerId || workspace.providerId === selectedTarget.providerId);
+					const selectFolder = (folder: URI, name: string, providerId?: string) => {
 						if (options[index].kind !== 'new') {
 							return;
 						}
@@ -948,12 +1049,61 @@ export class ChatSessionRoutingController extends Disposable {
 							kind: 'new',
 							label: localize('chatSessionRouting.newSessionInFolder', "New session in {0}", name),
 							folder,
+							providerId,
 						};
 						options[index] = updatedTarget;
 						label.textContent = updatedTarget.label;
 						selectedFolderName = name;
 						renderChangeFolderAction(false);
 						ariaAlert(localize('chatSessionRouting.targetFolderChanged', "New session will use folder {0}.", name));
+					};
+					const getItems = (group?: string): IActionListItem<FolderPickerItem>[] => {
+						if (!catalog) {
+							const items: IActionListItem<FolderPickerItem>[] = folders.map(folder => ({
+								kind: ActionListItemKind.Action,
+								item: { id: folder.uri.toString(), kind: 'workspace', folder },
+								group: {
+									title: '',
+									icon: isEqual(folder.uri, selectedFolder) ? Codicon.check : Codicon.folder,
+								},
+								label: folder.name,
+								description: folder.uri.fsPath,
+							}));
+							if (pickFolder) {
+								items.push({
+									kind: ActionListItemKind.Action,
+									item: { id: 'choose-folder', kind: 'choose' },
+									group: { title: '', icon: Codicon.folderOpened },
+									label: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…"),
+								});
+							}
+							return items;
+						}
+
+						const workspaces = catalog.workspaces.filter(workspace => !group || workspace.group === group);
+						const browseActions = catalog.browseActions.filter(action => !group || action.group === group);
+						const items: IActionListItem<FolderPickerItem>[] = workspaces.map(workspace => ({
+							kind: ActionListItemKind.Action,
+							item: { id: `${workspace.providerId}:${workspace.uri.toString()}`, kind: 'providerWorkspace', workspace },
+							group: { title: '', icon: isSelectedWorkspace(workspace) ? Codicon.check : workspace.icon ?? Codicon.folder },
+							label: workspace.label,
+							description: workspace.description,
+							disabled: workspace.disabled,
+						}));
+						if (items.length && browseActions.length) {
+							items.push({ kind: ActionListItemKind.Separator, label: '' });
+						}
+						for (const action of browseActions) {
+							items.push({
+								kind: ActionListItemKind.Action,
+								item: { id: action.id, kind: 'providerBrowse', action },
+								group: { title: '', icon: action.icon ?? Codicon.folderOpened },
+								label: action.label,
+								description: action.description,
+								disabled: action.disabled,
+							});
+						}
+						return items;
 					};
 					const closeFolderPicker = () => {
 						if (request !== folderPickerRequest) {
@@ -967,8 +1117,102 @@ export class ChatSessionRoutingController extends Disposable {
 							void this.host.onDidChangeActionWidgetVisibility?.(false);
 						}
 						if (!browsingForFolder && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+							changeFolder.focus();
 							startCountdown();
 						}
+					};
+					const hideFolderPicker = () => {
+						if (this._tabbedFolderPicker?.isVisible) {
+							this._tabbedFolderPicker.hide();
+						} else {
+							this.actionWidgetService.hide();
+						}
+					};
+					const selectProviderWorkspace = async (workspace: IChatSessionRoutingWorkspace) => {
+						try {
+							await this._routingProvider?.selectNewSessionWorkspace?.(workspace);
+							if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+								selectFolder(workspace.uri, workspace.label, workspace.providerId);
+							}
+						} catch (error) {
+							this.logService.error('[chatSessionRouting] Failed to select workspace', error);
+						}
+					};
+					const browseForProviderWorkspace = async (action: IChatSessionRoutingWorkspaceBrowseAction) => {
+						try {
+							const workspace = await this._routingProvider?.browseNewSessionWorkspace?.(action.id, cts.token);
+							if (workspace && request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+								await selectProviderWorkspace(workspace);
+							}
+						} catch (error) {
+							this.logService.error('[chatSessionRouting] Failed to browse for workspace', error);
+						}
+					};
+					const onSelect = (folderPick: FolderPickerItem) => {
+						if (folderPick.kind === 'providerWorkspace') {
+							browsingForFolder = true;
+							hideFolderPicker();
+							void selectProviderWorkspace(folderPick.workspace).finally(() => {
+								browsingForFolder = false;
+								if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+									changeFolder.focus();
+									startCountdown();
+								}
+							});
+							return;
+						}
+						if (folderPick.kind === 'providerBrowse') {
+							browsingForFolder = true;
+							hideFolderPicker();
+							void browseForProviderWorkspace(folderPick.action).finally(() => {
+								browsingForFolder = false;
+								if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+									changeFolder.focus();
+									startCountdown();
+								}
+							});
+							return;
+						}
+						if (folderPick.kind === 'workspace') {
+							selectFolder(folderPick.folder.uri, folderPick.folder.name);
+							hideFolderPicker();
+							return;
+						}
+						if (!pickFolder) {
+							return;
+						}
+						browsingForFolder = true;
+						hideFolderPicker();
+						void pickFolder(selectedFolder).then(folder => {
+							if (folder && request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+								selectFolder(folder, basename(folder));
+							}
+						}, error => {
+							this.logService.error('[chatSessionRouting] Failed to choose folder', error);
+						}).finally(() => {
+							browsingForFolder = false;
+							if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
+								changeFolder.focus();
+								startCountdown();
+							}
+						});
+					};
+					const accessibilityProvider = {
+						getAriaLabel: (item: IActionListItem<FolderPickerItem>) => item.item
+							? item.item.kind === 'workspace'
+								? localize('chatSessionRouting.folderPickerItem', "{0}, {1}", item.item.folder.name, item.item.folder.uri.fsPath)
+								: item.item.kind === 'providerWorkspace'
+									? localize('chatSessionRouting.folderPickerItem', "{0}, {1}", item.item.workspace.label, item.item.workspace.description ?? item.item.workspace.uri.path)
+									: item.label ?? ''
+							: '',
+						getWidgetAriaLabel: () => localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session"),
+						getWidgetRole: () => 'menu' as const,
+						getRole: (item: IActionListItem<FolderPickerItem>) => item.item?.kind === 'providerBrowse' || item.item?.kind === 'choose' ? 'menuitem' as const : 'menuitemradio' as const,
+						isChecked: (item: IActionListItem<FolderPickerItem>) => item.item?.kind === 'workspace'
+							? isEqual(item.item.folder.uri, selectedFolder)
+							: item.item?.kind === 'providerWorkspace'
+								? isSelectedWorkspace(item.item.workspace)
+								: undefined,
 					};
 					const showFolderPicker = () => {
 						if (request !== folderPickerRequest || disposed || cts.token.isCancellationRequested || didDispatch) {
@@ -976,61 +1220,60 @@ export class ChatSessionRoutingController extends Disposable {
 							return;
 						}
 						folderPickerShown = true;
+						const groups = catalog?.groups ?? [];
+						const selectedWorkspace = catalog?.workspaces.find(isSelectedWorkspace) ?? catalog?.defaultWorkspace;
+						const initialGroup = selectedWorkspace?.group && groups.some(group => group.id === selectedWorkspace.group)
+							? selectedWorkspace.group
+							: groups[0]?.id;
+						const anchor = this.host.getActionWidgetAnchor?.(changeFolder) ?? changeFolder;
+						const container = this.host.getActionWidgetContainer?.();
+						const listOptions = (items: readonly IActionListItem<FolderPickerItem>[]) => withChatInputPickerMotion({
+							className: 'chat-folder-picker-dropdown',
+							anchorPosition: this.host.getActionWidgetAnchorPosition?.() ?? AnchorPosition.ABOVE,
+							minWidth: groups.length > 1 ? 360 : 280,
+							maxWidth: 420,
+							showFilter: catalog
+								? items.filter(item => item.kind === ActionListItemKind.Action).length > 10
+								: true,
+							filterPlaceholder: catalog
+								? localize('chatSessionRouting.searchWorkspaces', "Search workspaces")
+								: localize('chatSessionRouting.searchFolders', "Search folders"),
+							focusFilterOnOpen: true,
+							initialFocusItemId: selectedTarget?.providerId && selectedFolder
+								? `${selectedTarget.providerId}:${selectedFolder.toString()}`
+								: selectedFolder?.toString(),
+							inlineDescription: true,
+							showGroupTitleOnFirstItem: true,
+							hideDefaultKeybindingTooltip: true,
+						});
+						if (groups.length > 1 && initialGroup && this._tabbedFolderPicker) {
+							this._tabbedFolderPicker.show<FolderPickerItem>({
+								user: 'chat-folder-picker',
+								anchor,
+								container,
+								tabs: groups,
+								initialTab: initialGroup,
+								createActionList: group => {
+									const items = getItems(group);
+									return { items, listOptions: listOptions(items) };
+								},
+								delegate: { onSelect, onHide: closeFolderPicker },
+								accessibilityProvider,
+								width: 360,
+							});
+							return;
+						}
+						const items = getItems();
 						this.actionWidgetService.show(
 							'chat-folder-picker',
 							false,
 							items,
-							{
-								onSelect: folderPick => {
-									if (folderPick.kind === 'workspace') {
-										selectFolder(folderPick.folder.uri, folderPick.folder.name);
-										this.actionWidgetService.hide();
-										return;
-									}
-									if (!pickFolder) {
-										return;
-									}
-									browsingForFolder = true;
-									this.actionWidgetService.hide();
-									void pickFolder(selectedFolder).then(folder => {
-										if (folder && request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
-											selectFolder(folder, basename(folder));
-										}
-									}, error => {
-										this.logService.error('[chatSessionRouting] Failed to choose folder', error);
-									}).finally(() => {
-										browsingForFolder = false;
-										if (request === folderPickerRequest && !disposed && !cts.token.isCancellationRequested && !didDispatch) {
-											startCountdown();
-										}
-									});
-								},
-								onHide: closeFolderPicker,
-							},
-							this.host.getActionWidgetAnchor?.(changeFolder) ?? changeFolder,
-							this.host.getActionWidgetContainer?.(),
+							{ onSelect, onHide: closeFolderPicker },
+							anchor,
+							container,
 							undefined,
-							{
-								getAriaLabel: item => item.item
-									? item.item.kind === 'workspace'
-										? localize('chatSessionRouting.folderPickerItem', "{0}, {1}", item.item.folder.name, item.item.folder.uri.fsPath)
-										: localize('chatSessionRouting.chooseExternalFolder', "Choose Folder…")
-									: '',
-								getWidgetAriaLabel: () => localize('chatSessionRouting.selectTargetFolder', "Select the folder for the new session"),
-								getWidgetRole: () => 'menu',
-								getRole: item => item.item?.kind === 'choose' ? 'menuitem' : 'menuitemradio',
-								isChecked: item => item.item?.kind === 'workspace' ? isEqual(item.item.folder.uri, selectedFolder) : undefined,
-							},
-							withChatInputPickerMotion({
-								className: 'chat-folder-picker-dropdown',
-								anchorPosition: this.host.getActionWidgetAnchorPosition?.() ?? AnchorPosition.ABOVE,
-								minWidth: 280,
-								maxWidth: 420,
-								showFilter: true,
-								filterPlaceholder: localize('chatSessionRouting.searchFolders', "Search folders"),
-								focusFilterOnOpen: true,
-								initialFocusItemId: selectedFolder?.toString(),
-							}),
+							accessibilityProvider,
+							listOptions(items),
 						);
 					};
 					folderPickerSurfaceOpen = true;
@@ -1225,7 +1468,11 @@ export class ChatSessionRoutingController extends Disposable {
 			choosingFolder = false;
 			if (folderPickerShown) {
 				folderPickerShown = false;
-				this.actionWidgetService.hide(true);
+				if (this._tabbedFolderPicker?.isVisible) {
+					this._tabbedFolderPicker.hide();
+				} else {
+					this.actionWidgetService.hide(true);
+				}
 			}
 			if (folderPickerSurfaceOpen) {
 				folderPickerSurfaceOpen = false;
@@ -1455,7 +1702,7 @@ export class ChatSessionRoutingController extends Disposable {
 	/** Dispatch a resolved pending target. */
 	private async _dispatchTo(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute = true): Promise<IChatSessionRoutingDispatchResult> {
 		if (target.kind === 'new') {
-			return this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target.folder);
+			return this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target);
 		}
 		return this._dispatchToSession(target.sessionId, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute);
 	}
@@ -1570,14 +1817,15 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IChatSessionRoutingDispatchResult> {
+	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, target?: IChatSessionRoutingNewSessionTarget): Promise<IChatSessionRoutingDispatchResult> {
 		const routingProvider = this._routingProvider ?? this.host.getRoutingProvider?.();
 		if (routingProvider) {
-			return this._dispatchToProviderNewSession(routingProvider, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, folder);
+			return this._dispatchToProviderNewSession(routingProvider, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target);
 		}
 
 		let routeResource: URI | undefined;
 		try {
+			let folder = target?.folder;
 			const sessionTarget = this.host.getNewSessionTarget?.() ?? AgentSessionProviders.Local;
 			const ref = sessionTarget === AgentSessionProviders.Local
 				? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: `${this.debugOwner}-new` })
@@ -1638,10 +1886,13 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private async _dispatchToProviderNewSession(routingProvider: IChatSessionRoutingProvider, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IChatSessionRoutingDispatchResult> {
+	private async _dispatchToProviderNewSession(routingProvider: IChatSessionRoutingProvider, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, target?: IChatSessionRoutingNewSessionTarget): Promise<IChatSessionRoutingDispatchResult> {
 		try {
-			folder ??= this._resolveNewSessionTarget(utterance, requestOptions.attachedContext, [], []).folder;
-			const result = await routingProvider.dispatchToNewSession(folder, utterance, requestOptions, token);
+			const resolvedTarget = target ?? this._resolveNewSessionTarget(utterance, requestOptions.attachedContext, [], []);
+			const result = await routingProvider.dispatchToNewSession({
+				folder: resolvedTarget.folder,
+				providerId: resolvedTarget.providerId,
+			}, utterance, requestOptions, token);
 			const resource = result.resource;
 			if (result.status === 'rejected' || !resource) {
 				if (notifyRoute && resource) {

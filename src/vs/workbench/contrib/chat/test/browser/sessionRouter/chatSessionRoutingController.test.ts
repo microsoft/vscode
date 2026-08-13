@@ -12,12 +12,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ITabbedActionListShowOptions } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { IChatSessionRoutingProvider } from '../../../common/sessionRouter.js';
+import { IChatSessionRoutingProvider, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceBrowseAction } from '../../../common/sessionRouter.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -57,6 +58,7 @@ suite('ChatSessionRoutingController', () => {
 			} as never,
 			undefined!,
 			{ warn: () => { } } as never,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -104,6 +106,7 @@ suite('ChatSessionRoutingController', () => {
 			} as never,
 			undefined!,
 			{ warn: () => { } } as never,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -193,6 +196,7 @@ suite('ChatSessionRoutingController', () => {
 				undefined!,
 				undefined!,
 				undefined!,
+				undefined!,
 			);
 			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
 
@@ -257,6 +261,7 @@ suite('ChatSessionRoutingController', () => {
 				undefined!,
 				undefined!,
 				{ executeCommand } as never,
+				undefined!,
 				undefined!,
 				undefined!,
 				undefined!,
@@ -328,6 +333,7 @@ suite('ChatSessionRoutingController', () => {
 				undefined!,
 				undefined!,
 				undefined!,
+				undefined!,
 			);
 			Reflect.set(controller, '_collectCommandCandidates', () => [command]);
 
@@ -386,6 +392,7 @@ suite('ChatSessionRoutingController', () => {
 				undefined!,
 				undefined!,
 				{ executeCommand } as never,
+				undefined!,
 				undefined!,
 				undefined!,
 				undefined!,
@@ -489,6 +496,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
+			undefined!,
 		);
 
 		await controller.handleSubmit('create a new session to update docs', undefined!);
@@ -513,6 +521,7 @@ suite('ChatSessionRoutingController', () => {
 			clock.tick(3_000);
 			assert.strictEqual(countdown?.textContent, 'sending in 7s');
 			changeFolder?.click();
+			await Promise.resolve();
 			await Promise.resolve();
 			assert.strictEqual(countdown?.textContent, 'waiting for you');
 			assert.strictEqual(changeFolder?.getAttribute('aria-expanded'), 'true');
@@ -541,6 +550,7 @@ suite('ChatSessionRoutingController', () => {
 			});
 			changeFolder?.click();
 			await Promise.resolve();
+			await Promise.resolve();
 			const chooseFolder = pickerItems?.find(item => item.item?.kind === 'choose')?.item;
 			assert.ok(chooseFolder);
 			pickerDelegate?.onSelect(chooseFolder);
@@ -568,6 +578,265 @@ suite('ChatSessionRoutingController', () => {
 		}
 	});
 
+	test('shows the provider workspace picker with an empty workbench and dispatches the selected provider', async () => {
+		const clock = sinon.useFakeTimers();
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const localWorkspace: IChatSessionRoutingWorkspace = {
+			uri: URI.file('/work/local'),
+			providerId: 'local',
+			group: 'Local',
+			label: 'local',
+			description: '~/work',
+			icon: { id: 'folder' },
+		};
+		const githubWorkspace: IChatSessionRoutingWorkspace = {
+			uri: URI.parse('github-remote-file://github/microsoft/vscode'),
+			providerId: 'github',
+			group: 'GitHub',
+			label: 'microsoft/vscode',
+			description: 'GitHub',
+			icon: { id: 'github' },
+		};
+		const browseAction: IChatSessionRoutingWorkspaceBrowseAction = {
+			id: 'provider:github:0',
+			providerId: 'github',
+			group: 'GitHub',
+			label: 'Select...',
+			icon: { id: 'folder-opened' },
+		};
+		type TestFolderPickerItem =
+			| { readonly kind: 'providerWorkspace'; readonly workspace: IChatSessionRoutingWorkspace }
+			| { readonly kind: 'providerBrowse'; readonly action: IChatSessionRoutingWorkspaceBrowseAction };
+		let tabbedOptions: ITabbedActionListShowOptions<TestFolderPickerItem> | undefined;
+		let tabbedVisible = false;
+		const tabbedWidget = {
+			get isVisible() { return tabbedVisible; },
+			show: (options: ITabbedActionListShowOptions<TestFolderPickerItem>) => {
+				tabbedOptions = options;
+				tabbedVisible = true;
+			},
+			hide: () => {
+				if (!tabbedVisible) {
+					return;
+				}
+				tabbedVisible = false;
+				tabbedOptions?.delegate.onHide();
+			},
+			dispose: () => { },
+		};
+		let input = 'create a new session to update docs';
+		const pickerVisibility: boolean[] = [];
+		const pickerErrors: string[] = [];
+		const selectedProviders: string[] = [];
+		let dispatchedTarget: { readonly folder?: URI; readonly providerId?: string } | undefined;
+		const routingProvider: IChatSessionRoutingProvider = {
+			getCandidateSessions: () => [],
+			getNewSessionWorkspaceCatalog: () => ({
+				groups: [{ id: 'Local' }, { id: 'GitHub' }, { id: 'Remote' }],
+				workspaces: [localWorkspace, githubWorkspace],
+				browseActions: [browseAction, {
+					id: 'provider:remote:0',
+					providerId: 'remote',
+					group: 'Remote',
+					label: 'Select...',
+					icon: { id: 'remote' },
+				}],
+				defaultWorkspace: localWorkspace,
+			}),
+			selectNewSessionWorkspace: workspace => {
+				selectedProviders.push(workspace.providerId);
+			},
+			browseNewSessionWorkspace: async () => undefined,
+			resolveSessionResource: () => undefined,
+			dispatchToSession: async () => ({ status: 'rejected' }),
+			dispatchToNewSession: async target => {
+				dispatchedTarget = target;
+				return { status: 'sent', resource: URI.parse('session:/created') };
+			},
+			revealSession: async () => { },
+		};
+		const host = {
+			widget: {
+				inputEditor: {
+					onDidChangeModelContent: Event.None,
+					getValue: () => input,
+					setValue: (value: string) => input = value,
+				},
+				attachmentModel: {
+					onDidChange: Event.None,
+					attachments: [],
+					clear: () => { },
+				},
+				input: { setSubmitPending: () => { } },
+				getSelectedModelRequestOptions: () => ({}),
+				getModeRequestOptions: () => ({}),
+			},
+			getOwnSessionResource: () => undefined,
+			getRoutingProvider: () => routingProvider,
+			onDidChangeActionWidgetVisibility: (visible: boolean) => pickerVisibility.push(visible),
+			getActionWidgetContainer: () => container,
+			getActionWidgetAnchor: (anchor: HTMLElement) => anchor,
+			getActionWidgetAnchorPosition: () => AnchorPosition.BELOW,
+			placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+		} as unknown as IChatSessionRoutingHost;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ info: () => { }, warn: () => { }, error: (message: string, error: Error) => pickerErrors.push(`${message}: ${error.message}`) } as never,
+			{
+				getWorkspace: () => ({ folders: [] }),
+				getWorkspaceFolder: () => undefined,
+			} as unknown as IWorkspaceContextService,
+			{ getDefaultFolder: () => undefined, setFolder: () => { } } as never,
+			{ hide: () => { } } as unknown as IActionWidgetService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ createInstance: () => tabbedWidget } as never,
+		);
+
+		try {
+			await controller.handleSubmit(input, ChatModeKind.Agent);
+			const label = container.querySelector<HTMLElement>('.chat-routing-badge-name');
+			const changeFolder = container.querySelector<HTMLButtonElement>('.chat-routing-badge-folder-action');
+			assert.deepStrictEqual({
+				label: label?.textContent,
+				changeFolder: changeFolder?.textContent,
+			}, {
+				label: 'New session in local',
+				changeFolder: 'local',
+			});
+
+			changeFolder?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				tabs: tabbedOptions?.tabs.map(tab => tab.id),
+				githubItems: tabbedOptions?.createActionList('GitHub').items.map(item => item.label),
+				pickerVisibility,
+				pickerErrors,
+			}, {
+				tabs: ['Local', 'GitHub', 'Remote'],
+				githubItems: ['microsoft/vscode', '', 'Select...'],
+				pickerVisibility: [true],
+				pickerErrors: [],
+			});
+
+			const githubItem = tabbedOptions?.createActionList('GitHub').items
+				.find(item => item.item?.kind === 'providerWorkspace')?.item;
+			assert.ok(githubItem);
+			tabbedOptions?.delegate.onSelect(githubItem!);
+			await Promise.resolve();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				label: label?.textContent,
+				changeFolder: changeFolder?.textContent,
+				selectedProviders,
+				pickerVisibility,
+				focused: document.activeElement === changeFolder,
+			}, {
+				label: 'New session in microsoft/vscode',
+				changeFolder: 'microsoft/vscode',
+				selectedProviders: ['github'],
+				pickerVisibility: [true, false],
+				focused: true,
+			});
+
+			container.querySelector<HTMLElement>('.chat-routing-badge-row')?.click();
+			await Promise.resolve();
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				folder: dispatchedTarget?.folder?.toString(),
+				providerId: dispatchedTarget?.providerId,
+			}, {
+				folder: githubWorkspace.uri.toString(),
+				providerId: 'github',
+			});
+		} finally {
+			controller.dispose();
+			container.remove();
+			clock.restore();
+		}
+	});
+
+	test('uses provider workspace labels for mentions and the provider default', () => {
+		const localWorkspace: IChatSessionRoutingWorkspace = {
+			uri: URI.file('/work/local'),
+			providerId: 'local',
+			group: 'Local',
+			label: 'local',
+		};
+		const githubWorkspace: IChatSessionRoutingWorkspace = {
+			uri: URI.parse('github-remote-file://github/microsoft/vscode'),
+			providerId: 'github',
+			group: 'GitHub',
+			label: 'microsoft/vscode',
+		};
+		const controller = new ChatSessionRoutingController(
+			{} as IChatSessionRoutingHost,
+			'test',
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ info: () => { } } as never,
+			{
+				getWorkspace: () => ({ folders: [] }),
+				getWorkspaceFolder: () => undefined,
+			} as unknown as IWorkspaceContextService,
+			{ getDefaultFolder: () => undefined } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		Reflect.set(controller, '_workspaceCatalog', {
+			groups: [{ id: 'Local' }, { id: 'GitHub' }],
+			workspaces: [localWorkspace, githubWorkspace],
+			browseActions: [],
+			defaultWorkspace: localWorkspace,
+		});
+		const resolveTarget = Reflect.get(controller, '_resolveNewSessionTarget') as (
+			utterance: string,
+			attachments: undefined,
+			results: readonly [],
+			candidates: readonly [],
+		) => { folder?: URI; providerId?: string; label: string };
+
+		assert.deepStrictEqual([
+			resolveTarget.call(controller, 'update microsoft/vscode', undefined, [], []),
+			resolveTarget.call(controller, 'start something new', undefined, [], []),
+		].map(target => ({
+			folder: target.folder?.toString(),
+			providerId: target.providerId,
+			label: target.label,
+		})), [
+			{
+				folder: githubWorkspace.uri.toString(),
+				providerId: 'github',
+				label: 'New session in microsoft/vscode',
+			},
+			{
+				folder: localWorkspace.uri.toString(),
+				providerId: 'local',
+				label: 'New session in local',
+			},
+		]);
+		controller.dispose();
+	});
+
 	test('returns the stable request id for an immediately sent route', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/untitled-route');
 		const chatService = {
@@ -592,6 +861,7 @@ suite('ChatSessionRoutingController', () => {
 			{ info: () => { }, warn: () => { } } as never,
 			undefined!,
 			{ setFolder: () => { } } as never,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -640,6 +910,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
+			undefined!,
 		);
 		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
 			label: string,
@@ -676,6 +947,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			{ openSession: () => localOpenCount++ } as never,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -753,6 +1025,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
+			undefined!,
 		);
 		const dispatch = Reflect.get(controller, '_dispatchToSession') as (
 			sessionId: string,
@@ -786,14 +1059,14 @@ suite('ChatSessionRoutingController', () => {
 	test('dispatches new sessions through the routing provider hook', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/new-route');
 		const folder = URI.file('/workspace');
-		let dispatched: { folder: URI | undefined; message: string; modelId: string | undefined } | undefined;
+		let dispatched: { folder: URI | undefined; providerId: string | undefined; message: string; modelId: string | undefined } | undefined;
 		let localCreateCount = 0;
 		const routingProvider: IChatSessionRoutingProvider = {
 			getCandidateSessions: () => [],
 			resolveSessionResource: () => undefined,
 			dispatchToSession: async () => ({ status: 'rejected' }),
-			dispatchToNewSession: async (targetFolder, message, options) => {
-				dispatched = { folder: targetFolder, message, modelId: options.userSelectedModelId };
+			dispatchToNewSession: async (target, message, options) => {
+				dispatched = { folder: target.folder, providerId: target.providerId, message, modelId: options.userSelectedModelId };
 				return { status: 'sent', resource };
 			},
 			revealSession: async () => { },
@@ -820,6 +1093,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
+			undefined!,
 		);
 		const dispatch = Reflect.get(controller, '_dispatchToNewSession') as (
 			input: string,
@@ -828,17 +1102,17 @@ suite('ChatSessionRoutingController', () => {
 			options: object,
 			token: CancellationToken,
 			notifyRoute: boolean,
-			folder: URI,
+			target: { folder: URI; providerId: string },
 		) => Promise<{ status: string; resource?: URI; reveal?: () => Promise<void> }>;
 
-		const result = await dispatch.call(controller, 'run', [], 'run', { userSelectedModelId: 'model' }, CancellationToken.None, false, folder);
+		const result = await dispatch.call(controller, 'run', [], 'run', { userSelectedModelId: 'model' }, CancellationToken.None, false, { folder, providerId: 'provider' });
 
 		assert.deepStrictEqual({
 			dispatched,
 			localCreateCount,
 			result: { status: result.status, resource: result.resource?.toString(), hasReveal: !!result.reveal },
 		}, {
-			dispatched: { folder, message: 'run', modelId: 'model' },
+			dispatched: { folder, providerId: 'provider', message: 'run', modelId: 'model' },
 			localCreateCount: 0,
 			result: { status: 'sent', resource: resource.toString(), hasReveal: true },
 		});
@@ -875,6 +1149,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			{ warn: () => { } } as never,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,
@@ -951,6 +1226,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			undefined!,
+			undefined!,
 		);
 		const collect = Reflect.get(controller, '_collectCandidateSessions') as (token: CancellationToken) => Promise<unknown>;
 		await collect.call(controller, CancellationToken.None);
@@ -1017,6 +1293,7 @@ suite('ChatSessionRoutingController', () => {
 			undefined!,
 			undefined!,
 			{ info: () => { }, warn: () => { } } as never,
+			undefined!,
 			undefined!,
 			undefined!,
 			undefined!,

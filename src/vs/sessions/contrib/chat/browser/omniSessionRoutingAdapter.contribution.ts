@@ -4,17 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionRoutingDispatchResult, IChatSessionRoutingProvider, IChatSessionRoutingProviderService, IRoutableSession } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
+import { IChatSessionRoutingDispatchResult, IChatSessionRoutingNewSessionTarget, IChatSessionRoutingProvider, IChatSessionRoutingProviderService, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceCatalog, IRoutableSession } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../services/sessions/common/sessionsManagement.js';
+import { SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
+import { buildSessionWorkspacePickerCatalog } from './sessionWorkspacePickerModel.js';
 
 interface ISessionRoutingTarget {
 	readonly session: ISession;
@@ -24,15 +38,52 @@ interface ISessionRoutingTarget {
 export class OmniSessionRoutingAdapter extends Disposable implements IChatSessionRoutingProvider {
 
 	private readonly sessions = new Map<string, ISession>();
+	private readonly _onDidChangeNewSessionWorkspaceCatalog = this._register(new Emitter<void>());
+	readonly onDidChangeNewSessionWorkspaceCatalog = this._onDidChangeNewSessionWorkspaceCatalog.event;
+	private readonly sessionWorkspaceFallback: SessionWorkspaceFallback;
+	private readonly localBrowseAction: ISessionWorkspaceBrowseAction = {
+		label: localize('omniSessionRouting.selectLocalWorkspace', "Select..."),
+		group: SESSION_WORKSPACE_GROUP_LOCAL,
+		icon: Codicon.folderOpened,
+		providerId: '',
+		run: async () => undefined,
+	};
 
 	constructor(
 		private readonly sessionsManagementService: ISessionsManagementService,
 		private readonly sessionsService: ISessionsService,
+		private readonly sessionsProvidersService: ISessionsProvidersService,
+		private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
+		private readonly configurationService: IConfigurationService,
+		private readonly fileDialogService: IFileDialogService,
+		fileService: IFileService,
+		uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
+		private readonly notificationService: INotificationService,
 	) {
 		super();
+		this.sessionWorkspaceFallback = this._register(new SessionWorkspaceFallback({
+			canUseProvider: () => true,
+			isProviderUnavailable: providerId => this._isProviderUnavailable(providerId),
+			resolveWorkspace: (folderUri, preferredProviderId) => this._resolveWorkspace(folderUri, preferredProviderId),
+		}, this.sessionsProvidersService, fileService, uriIdentityService));
+		this._register(this.sessionWorkspaceFallback.onDidChange(() => this._onDidChangeNewSessionWorkspaceCatalog.fire()));
 		this._refreshSessions();
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this._refreshSessions()));
-		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => this._refreshSessions()));
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			this._refreshSessions();
+			this._onDidChangeNewSessionWorkspaceCatalog.fire();
+		}));
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+			this.sessionWorkspaceFallback.refreshProviders();
+			this._onDidChangeNewSessionWorkspaceCatalog.fire();
+		}));
+		this._register(this.recentWorkspacesService.onDidChangeRecentWorkspaces(() => this._onDidChangeNewSessionWorkspaceCatalog.fire()));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._onDidChangeNewSessionWorkspaceCatalog.fire();
+			}
+		}));
 	}
 
 	getCandidateSessions(token: CancellationToken): readonly IRoutableSession[] {
@@ -41,6 +92,79 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		}
 		this._refreshSessions();
 		return [...this.sessions.values()].map(session => this._toCandidate(session));
+	}
+
+	async getNewSessionWorkspaceCatalog(): Promise<IChatSessionRoutingWorkspaceCatalog> {
+		const providers = this.sessionsProvidersService.getProviders();
+		const catalog = buildSessionWorkspacePickerCatalog({
+			providers,
+			recentWorkspaces: this.recentWorkspacesService.getRecentWorkspaces(),
+			ownRecentWorkspaces: this.recentWorkspacesService.getRecentWorkspaces(false),
+			localBrowseAction: providers.some(provider => provider.supportsLocalWorkspaces) ? this.localBrowseAction : undefined,
+			remoteAgentHostsEnabled: this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId),
+			isProviderUnavailable: providerId => this._isProviderUnavailable(providerId),
+		});
+		const defaultWorkspace = catalog.defaultWorkspace ?? await this.sessionWorkspaceFallback.findWorkspace();
+		return {
+			groups: catalog.tabs.map(tab => ({
+				id: tab.id,
+				label: tab.label,
+				tooltip: tab.tooltip,
+				icon: tab.icon,
+			})),
+			workspaces: catalog.workspaces.map(recent => this._toRoutingWorkspace(recent.workspace, recent.providerId)),
+			browseActions: catalog.browseActions.map(action => ({
+				id: this._getBrowseActionId(action),
+				providerId: action.providerId || undefined,
+				group: action.group,
+				label: localize('omniSessionRouting.selectWorkspace', "Select..."),
+				description: action.description,
+				icon: action.icon,
+				disabled: !!action.providerId && this._isProviderUnavailable(action.providerId),
+			})),
+			defaultWorkspace: defaultWorkspace
+				? this._toRoutingWorkspace(defaultWorkspace.workspace, defaultWorkspace.providerId)
+				: undefined,
+		};
+	}
+
+	selectNewSessionWorkspace(workspace: IChatSessionRoutingWorkspace): void {
+		const provider = this.sessionsProvidersService.getProvider(workspace.providerId);
+		if (!provider?.resolveWorkspace(workspace.uri)) {
+			throw new Error(localize('omniSessionRouting.workspaceProviderUnavailable', "The selected workspace provider is no longer available."));
+		}
+		this.recentWorkspacesService.addRecentWorkspace(workspace.uri, workspace.providerId, true);
+	}
+
+	async browseNewSessionWorkspace(actionId: string, token: CancellationToken): Promise<IChatSessionRoutingWorkspace | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		try {
+			if (actionId === 'local') {
+				return await this._browseForLocalWorkspace(token);
+			}
+			const action = this._findBrowseAction(actionId);
+			if (!action) {
+				throw new Error(localize('omniSessionRouting.workspaceBrowseUnavailable', "The selected workspace browser is no longer available."));
+			}
+			const workspace = await action.run();
+			if (!workspace || token.isCancellationRequested) {
+				return undefined;
+			}
+			const folderUri = workspace.folders[0]?.root;
+			const provider = this.sessionsProvidersService.getProvider(action.providerId);
+			if (!folderUri || !provider?.resolveWorkspace(folderUri)) {
+				throw new Error(localize('omniSessionRouting.workspaceProviderUnavailable', "The selected workspace provider is no longer available."));
+			}
+			return this._toRoutingWorkspace(workspace, action.providerId);
+		} catch (error) {
+			if (!isCancellationError(error) && !token.isCancellationRequested) {
+				this.logService.error('[omniSessionRouting] Failed to browse for a workspace', error);
+				this.notificationService.error(localize('omniSessionRouting.workspaceBrowseFailed', "Unable to select a workspace."));
+			}
+			return undefined;
+		}
 	}
 
 	resolveSessionResource(sessionId: string): URI | undefined {
@@ -76,7 +200,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		}
 	}
 
-	async dispatchToNewSession(folder: URI | undefined, message: string, options: IChatSendRequestOptions, token: CancellationToken): Promise<IChatSessionRoutingDispatchResult> {
+	async dispatchToNewSession(target: IChatSessionRoutingNewSessionTarget, message: string, options: IChatSendRequestOptions, token: CancellationToken): Promise<IChatSessionRoutingDispatchResult> {
 		if (token.isCancellationRequested) {
 			return this._cancelled();
 		}
@@ -90,10 +214,21 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 			attachedContext: options.attachedContext?.length ? [...options.attachedContext] : undefined,
 			background: true,
 		};
-		const createOptions = this._toCreateOptions(options);
+		if (target.providerId) {
+			const provider = this.sessionsProvidersService.getProvider(target.providerId);
+			const canCreate = target.folder ? !!provider?.resolveWorkspace(target.folder) : !!provider?.supportsQuickChats;
+			if (!canCreate) {
+				return {
+					status: 'rejected',
+					reasonCode: 'providerRemoved',
+					reason: localize('omniSessionRouting.workspaceProviderUnavailable', "The selected workspace provider is no longer available."),
+				};
+			}
+		}
+		const createOptions = this._toCreateOptions(options, target.providerId);
 		try {
-			const session = folder
-				? await this.sessionsManagementService.createAndSendNewChatRequest(folder, sendOptions, createOptions, token)
+			const session = target.folder
+				? await this.sessionsManagementService.createAndSendNewChatRequest(target.folder, sendOptions, createOptions, token)
 				: await this.sessionsManagementService.createAndSendQuickChatRequest(sendOptions, createOptions, token);
 			if (!session) {
 				return {
@@ -119,6 +254,89 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 				this.sessions.set(session.sessionId, session);
 			}
 		}
+	}
+
+	private _toRoutingWorkspace(workspace: ISessionWorkspace, providerId: string): IChatSessionRoutingWorkspace {
+		const folderUri = workspace.folders[0]?.root ?? workspace.uri;
+		return {
+			uri: folderUri,
+			providerId,
+			group: workspace.group,
+			label: workspace.label,
+			description: workspace.description,
+			icon: workspace.icon,
+			disabled: this._isProviderUnavailable(providerId),
+		};
+	}
+
+	private _resolveWorkspace(folderUri: URI, preferredProviderId?: string): { readonly providerId: string; readonly workspace: ISessionWorkspace } | undefined {
+		if (preferredProviderId) {
+			const provider = this.sessionsProvidersService.getProvider(preferredProviderId);
+			const workspace = provider?.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: preferredProviderId, workspace };
+			}
+		}
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			const workspace = provider.resolveWorkspace(folderUri);
+			if (workspace) {
+				return { providerId: provider.id, workspace };
+			}
+		}
+		return undefined;
+	}
+
+	private _getBrowseActionId(action: ISessionWorkspaceBrowseAction): string {
+		if (action === this.localBrowseAction) {
+			return 'local';
+		}
+		const provider = this.sessionsProvidersService.getProvider(action.providerId);
+		const index = provider?.browseActions.indexOf(action) ?? -1;
+		return `provider:${encodeURIComponent(action.providerId)}:${index}`;
+	}
+
+	private _findBrowseAction(actionId: string): ISessionWorkspaceBrowseAction | undefined {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			for (let index = 0; index < provider.browseActions.length; index++) {
+				const action = provider.browseActions[index];
+				if (actionId === `provider:${encodeURIComponent(provider.id)}:${index}`) {
+					return action;
+				}
+			}
+		}
+		return undefined;
+	}
+
+	private async _browseForLocalWorkspace(token: CancellationToken): Promise<IChatSessionRoutingWorkspace | undefined> {
+		const providers = this.sessionsProvidersService.getProviders().filter(provider => provider.supportsLocalWorkspaces);
+		if (!providers.length) {
+			throw new Error(localize('omniSessionRouting.localWorkspaceProviderUnavailable', "No local workspace provider is available."));
+		}
+		const selected = await this.fileDialogService.showOpenDialog({
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+		});
+		if (!selected?.length || token.isCancellationRequested) {
+			return undefined;
+		}
+		for (const provider of providers) {
+			const workspace = provider.resolveWorkspace(selected[0]);
+			if (workspace) {
+				return this._toRoutingWorkspace(workspace, provider.id);
+			}
+		}
+		throw new Error(localize('omniSessionRouting.localWorkspaceUnsupported', "No Sessions provider can use the selected folder."));
+	}
+
+	private _isProviderUnavailable(providerId: string): boolean {
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
+			return false;
+		}
+		const status = provider.connectionStatus.get();
+		return RemoteAgentHostConnectionStatus.isIncompatible(status)
+			|| (!RemoteAgentHostConnectionStatus.isConnected(status) && !provider.canConnectOnDemand);
 	}
 
 	private _resolveTarget(sessionId: string): ISessionRoutingTarget | undefined {
@@ -217,16 +435,17 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		return undefined;
 	}
 
-	private _toCreateOptions(options: IChatSendRequestOptions): ICreateNewSessionOptions | undefined {
+	private _toCreateOptions(options: IChatSendRequestOptions, providerId?: string): ICreateNewSessionOptions | undefined {
 		const modeId = options.modeInfo?.modeInstructions?.uri?.toString()
 			?? options.modeInfo?.modeInstructions?.name
 			?? options.modeInfo?.kind;
 		const createOptions: ICreateNewSessionOptions = {
+			providerId,
 			modelId: options.userSelectedModelId,
 			modeId,
 			permissionLevel: options.modeInfo?.permissionLevel,
 		};
-		return createOptions.modelId || createOptions.modeId || createOptions.permissionLevel ? createOptions : undefined;
+		return createOptions.providerId || createOptions.modelId || createOptions.modeId || createOptions.permissionLevel ? createOptions : undefined;
 	}
 
 	private _unsupported(reason: string): IChatSessionRoutingDispatchResult {
@@ -266,9 +485,28 @@ class OmniSessionRoutingContribution extends Disposable implements IWorkbenchCon
 		@IChatSessionRoutingProviderService routingProviderService: IChatSessionRoutingProviderService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILogService logService: ILogService,
+		@INotificationService notificationService: INotificationService,
 	) {
 		super();
-		const adapter = this._register(new OmniSessionRoutingAdapter(sessionsManagementService, sessionsService));
+		const adapter = this._register(new OmniSessionRoutingAdapter(
+			sessionsManagementService,
+			sessionsService,
+			sessionsProvidersService,
+			recentWorkspacesService,
+			configurationService,
+			fileDialogService,
+			fileService,
+			uriIdentityService,
+			logService,
+			notificationService,
+		));
 		this._register(routingProviderService.registerProvider(adapter));
 	}
 }
