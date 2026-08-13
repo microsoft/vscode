@@ -15,10 +15,6 @@
 	overflow: hidden;
 }
 
-.chat-input-window:focus-within {
-	border-color: var(--vscode-focusBorder) !important;
-}
-
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;
@@ -194,6 +190,10 @@
 	color: var(--vscode-list-warningForeground);
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
+}
+
+.chat-input-window .chat-input-window-pending-header.hidden {
+	display: none;
 }
 
 .chat-input-window .chat-input-window-pending-marker {
@@ -418,4 +418,9 @@
 	border: 0;
 	border-radius: 0;
 	background: transparent;
+	min-height: 120px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.question .chat-question-carousel-content {
+	flex: 1;
 }

@@ -51,9 +51,13 @@ suite('Voice Mode onboarding', () => {
 	}
 
 	function register(service: VoiceModeOnboardingService, host: ITestHost) {
-		return service.registerHost(host.container, host.root, () => {
-			host.focused++;
-			host.root.focus();
+		return service.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => {
+				host.focused++;
+				host.root.focus();
+			},
 		});
 	}
 
@@ -313,14 +317,14 @@ suite('Voice Mode onboarding', () => {
 				activeElement: document.activeElement,
 				card,
 				tabIndex: card?.tabIndex,
-				closeIcon: host.container.querySelector('.voice-mode-onboarding-close .codicon')?.className,
+				closeIcon: host.container.querySelector('.voice-mode-onboarding-close')?.className,
 				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice'),
 			},
 			{
 				activeElement: document.body,
 				card,
 				tabIndex: 0,
-				closeIcon: 'codicon codicon-close-compact',
+				closeIcon: 'action-label codicon codicon-close-compact voice-mode-onboarding-close chat-input-notice-dismiss',
 				listeningNotice: null,
 			});
 	});

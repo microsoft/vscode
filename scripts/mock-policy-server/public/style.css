@@ -202,7 +202,8 @@ label {
 }
 
 select,
-textarea {
+textarea,
+.status-code-input {
 	font-family: inherit;
 	font-size: inherit;
 	color: var(--text);
@@ -214,12 +215,14 @@ textarea {
 }
 
 select:hover,
-textarea:hover {
+textarea:hover,
+.status-code-input:hover {
 	border-color: var(--border);
 }
 
 select:focus,
-textarea:focus {
+textarea:focus,
+.status-code-input:focus {
 	outline: none;
 	border-color: var(--accent);
 	box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.1);
@@ -229,6 +232,12 @@ select {
 	flex: 1;
 	min-width: 160px;
 	cursor: pointer;
+}
+
+.status-code-input {
+	width: 112px;
+	font-family: 'SF Mono', Menlo, Consolas, monospace;
+	font-variant-numeric: tabular-nums;
 }
 
 textarea {
