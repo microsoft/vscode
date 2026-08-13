@@ -910,7 +910,7 @@ following list content ends up with no space above it. Add a matching top margin
 .interactive-item-container .value .rendered-markdown {
 	ul + [data-code],
 	ol + [data-code],
-	li > [data-code]:not(:first-child) {
+	li > [data-code] {
 		margin-top: 16px;
 	}
 }
@@ -3852,6 +3852,43 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-collapsible-io-resource-actions {
 	align-self: center;
+}
+
+.chat-generated-image-result {
+	margin: 8px 0 4px;
+
+	.chat-collapsible-io-resource-items,
+	.chat-attached-context {
+		min-width: 0;
+		width: 100%;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+		width: min(100%, 512px);
+		height: auto;
+		background: transparent;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		height: auto;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
+		display: block;
+		height: auto;
+		max-height: min(60vh, 640px);
+		object-fit: contain;
+	}
+
+	&.multiple .chat-attached-context {
+		max-width: 512px;
+	}
+
+	&.multiple .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+		flex: 1 1 calc(50% - 4px);
+		width: calc(50% - 4px);
+		max-width: 252px;
+	}
 }
 
 .interactive-session .chat-scroll-down {
