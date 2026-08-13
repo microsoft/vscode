@@ -6,6 +6,7 @@
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -18,7 +19,7 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
-import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestToolSetPart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -66,6 +67,42 @@ suite('ChatRequestParser', () => {
 		const text = 'line 1\nline 2\r\nline 3';
 		const result = parser.parseChatRequest(testSessionUri, text);
 		await assertSnapshot(result);
+	});
+
+	test('inline toolset keeps the prompt range on the toolset only', () => {
+		const source = ToolDataSource.Internal;
+		const toolSet = new ToolSet(
+			'read',
+			'read',
+			Codicon.book,
+			source,
+			undefined,
+			undefined,
+			undefined,
+			false,
+			false,
+			instantiationService.get(IContextKeyService),
+		);
+		testDisposables.add(toolSet.addTool({ id: 'copilot_getNotebookSummary', toolReferenceName: 'getNotebookSummary', canBeReferencedInPrompt: true, displayName: 'getNotebookSummary', modelDescription: '', source }));
+		testDisposables.add(toolSet.addTool({ id: 'copilot_readFile', toolReferenceName: 'readFile', canBeReferencedInPrompt: true, displayName: 'readFile', modelDescription: '', source }));
+		variableService.setSelectedToolAndToolSets(testSessionUri, ToolAndToolSetEnablementMap.fromEntries([[toolSet, true]]));
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, 'use #read for this');
+		const part = result.parts.find((candidate): candidate is ChatRequestToolSetPart => candidate instanceof ChatRequestToolSetPart);
+
+		assert.deepStrictEqual({
+			promptText: part?.promptText,
+			range: part?.range && { start: part.range.start, endExclusive: part.range.endExclusive },
+			tools: part?.tools.map(tool => ({ id: tool.id, range: tool.range })),
+		}, {
+			promptText: '#read',
+			range: { start: 4, endExclusive: 9 },
+			tools: [
+				{ id: 'copilot_getNotebookSummary', range: undefined },
+				{ id: 'copilot_readFile', range: undefined },
+			],
+		});
 	});
 
 	test('inline attachment reference only preserves reference metadata', () => {
