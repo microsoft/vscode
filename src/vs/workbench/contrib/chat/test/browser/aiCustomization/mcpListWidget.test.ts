@@ -9,21 +9,29 @@ import { Button, unthemedButtonStyles } from '../../../../../../base/browser/ui/
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DisposableStore, isDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpService, McpConnectionState, McpServerCacheState } from '../../../../mcp/common/mcpTypes.js';
 import {
 	AgentHostMcpServer,
 	authenticateMcpServer,
-	createBuiltinActiveSessionMcpEntries,
+	createActiveSessionMcpEntries,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
+	getAgentOriginLabel,
 	getLocalMcpServerEnablementActions,
 	getMcpServerOutputHandler,
+	getMcpEntryAriaLabel,
 	getSessionEnablementAction,
+	getEnablementTarget,
+	countSessionOnlyMcpServers,
+	hasKnownMcpTools,
+	areMcpToolsFromCache,
+	McpEnablementScope,
 	registerMcpInlineButtonAction,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 
@@ -82,13 +90,40 @@ function trackActions(store: Pick<DisposableStore, 'add'>, actions: readonly IAc
 suite('mcpListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('classifies active-session-only MCP servers as built-in entries', () => {
+	test('turns active-session-only MCP servers into their own row entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });
+		const [entry] = createActiveSessionMcpEntries([server]);
 
-		assert.deepStrictEqual(createBuiltinActiveSessionMcpEntries([server]), [{
+		assert.deepStrictEqual({ type: entry.type, server: entry.server, enablement: entry.enablement }, {
 			type: 'session-server-item',
 			server,
-		}]);
+			enablement: undefined,
+		});
+	});
+
+	test('carries the durable choice, so a disabled row can say which layer disabled it', () => {
+		// The row used to read `server.enabled` alone, so a server disabled outright from the
+		// context menu still reported itself as disabled only for the session.
+		const writes: [string, ContributionEnablementState][] = [];
+		const server = createAgentHostServer({ name: 'node_repl' });
+		const [entry] = createActiveSessionMcpEntries([server], {
+			read: () => ContributionEnablementState.DisabledProfile,
+			write: (name, state) => { writes.push([name, state]); },
+		});
+		entry.setDurableEnabled?.(true);
+
+		assert.deepStrictEqual({ enablement: entry.enablement, writes }, {
+			enablement: ContributionEnablementState.DisabledProfile,
+			writes: [['node_repl', ContributionEnablementState.EnabledProfile]],
+		});
+	});
+
+	suite('getAgentOriginLabel', () => {
+		test('uses the agent name, and describes the machinery only when there is none', () => {
+			assert.deepStrictEqual(
+				[getAgentOriginLabel('Copilot'), getAgentOriginLabel(undefined)],
+				['Copilot', 'Agent host']);
+		});
 	});
 
 	suite('getSessionEnablementAction', () => {
@@ -263,6 +298,195 @@ suite('mcpListWidget', () => {
 			}, {
 				shownChannels: [],
 				localOutputCount: 1,
+			});
+		});
+	});
+
+	suite('tool cache state', () => {
+		// The two refreshing states are easy to miss because their names read like the states
+		// they refresh *from*, and getting them wrong is invisible until a server is mid-refresh.
+		test('a first refresh is not a known empty result', () => {
+			assert.deepStrictEqual(
+				[McpServerCacheState.Unknown, McpServerCacheState.RefreshingFromUnknown, McpServerCacheState.Cached, McpServerCacheState.Live].map(hasKnownMcpTools),
+				[false, false, true, true]);
+		});
+
+		test('a refresh over cached tools is still showing cached tools', () => {
+			assert.deepStrictEqual(
+				[McpServerCacheState.Cached, McpServerCacheState.Outdated, McpServerCacheState.RefreshingFromCached, McpServerCacheState.Live].map(areMcpToolsFromCache),
+				[true, true, true, false]);
+		});
+	});
+
+	suite('getMcpEntryAriaLabel', () => {
+		// The row always renders a status word; these guard the accessible name against drifting
+		// away from it, which is invisible until someone is relying on a screen reader.
+		function entry(overrides: object) {
+			return { type: 'server-item', server: { label: 'Redis', local: {} }, ...overrides } as unknown as Parameters<typeof getMcpEntryAriaLabel>[0];
+		}
+
+		test('a healthy server is just its name: idle and running are not news', () => {
+			assert.strictEqual(getMcpEntryAriaLabel(entry({})), 'Redis');
+		});
+
+		test('a built-in row is likewise unadorned when nothing needs attention', () => {
+			const builtin = { type: 'builtin-item', label: 'GitHub Copilot' } as unknown as Parameters<typeof getMcpEntryAriaLabel>[0];
+			assert.strictEqual(getMcpEntryAriaLabel(builtin), 'GitHub Copilot');
+		});
+
+		test('a failing server says so', () => {
+			const failed = entry({
+				localServer: {
+					enablement: constObservable(ContributionEnablementState.EnabledProfile),
+					connectionState: constObservable({ state: McpConnectionState.Kind.Error }),
+				},
+			});
+			assert.strictEqual(getMcpEntryAriaLabel(failed), 'Redis, Failed');
+		});
+
+		test('disabled is spoken even though the row leaves it to the switch', () => {
+			// The switch is a separate stop in the reading order, so a row label that omitted
+			// this would leave a screen reader user with no way to know the server is off.
+			const off = entry({ localServer: { enablement: constObservable(ContributionEnablementState.DisabledProfile) } });
+			assert.strictEqual(getMcpEntryAriaLabel(off), 'Redis, Disabled');
+		});
+
+		test('a gallery row has no status, because nothing is installed to have one', () => {
+			assert.strictEqual(getMcpEntryAriaLabel(entry({ server: { label: 'Redis' } })), 'Redis');
+		});
+
+		test('a row held off by the workspace says which layer turned it off', () => {
+			const held = entry({ localServer: { enablement: constObservable(ContributionEnablementState.DisabledWorkspace) } });
+			assert.strictEqual(getMcpEntryAriaLabel(held), 'Redis, Disabled (Workspace)');
+		});
+	});
+
+	suite('countSessionOnlyMcpServers', () => {
+		const local = (id: string, name: string) => ({ id, name, label: name }) as unknown as Parameters<typeof countSessionOnlyMcpServers>[1][number];
+
+		test('a session server the user also installed is not counted twice', () => {
+			const session = createAgentHostServer({ id: 's1', name: 'playwright' });
+			assert.strictEqual(countSessionOnlyMcpServers([session], [local('playwright', 'playwright')], []), 0);
+		});
+
+		test('a server only the session knows about is counted', () => {
+			const session = createAgentHostServer({ id: 's1', name: 'node_repl' });
+			assert.strictEqual(countSessionOnlyMcpServers([session], [local('playwright', 'playwright')], []), 1);
+		});
+
+		test('the count does not depend on what a search would have hidden', () => {
+			// The bug this guards: claiming against a query-filtered list left the session twin
+			// unclaimed, so the badge grew as the query narrowed.
+			const session = createAgentHostServer({ id: 's1', name: 'playwright' });
+			const installed = [local('playwright', 'playwright'), local('redis', 'redis')];
+			assert.strictEqual(countSessionOnlyMcpServers([session], installed, []), 0);
+			assert.strictEqual(countSessionOnlyMcpServers([session], [], []), 1);
+		});
+	});
+
+	suite('getEnablementTarget', () => {
+		function createLocalEntry(overrides: { enabled?: boolean; activeSessionEnabled?: boolean } = {}) {
+			const sessionCalls: boolean[] = [];
+			const entry = {
+				type: 'server-item',
+				localServer: { definition: { id: 'mcp-redis' } },
+				activeSessionServer: overrides.activeSessionEnabled === undefined
+					? undefined
+					: createAgentHostServer({
+						enabled: overrides.activeSessionEnabled,
+						setEnabled: (enabled: boolean) => { sessionCalls.push(enabled); },
+					}),
+			} as unknown as Parameters<typeof getEnablementTarget>[0];
+			return { entry, sessionCalls };
+		}
+
+		test('a gallery row has no switch, because there is nothing to turn on yet', () => {
+			const entry = { type: 'server-item' } as unknown as Parameters<typeof getEnablementTarget>[0];
+			assert.strictEqual(getEnablementTarget(entry, createMcpService(ContributionEnablementState.EnabledProfile).service, undefined), undefined);
+		});
+
+		test('a workspace-scoped choice is answered in full, not perpetuated', () => {
+			// The switch used to rewrite whichever layer held the choice, so two identical
+			// switches could mean "off here" and "off everywhere". It now always means the
+			// whole answer; writing the profile state also clears the workspace entry, so the
+			// narrower choice cannot survive and mask what the user just asked for.
+			const { entry } = createLocalEntry();
+			const { service, calls } = createMcpService(ContributionEnablementState.DisabledWorkspace);
+			const target = getEnablementTarget(entry, service, ContributionEnablementState.DisabledWorkspace);
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual({ scope: target?.scope, isEnabled: target?.isEnabled(), calls }, {
+				scope: McpEnablementScope.Global,
+				isEnabled: false,
+				calls: [['mcp-redis', ContributionEnablementState.EnabledProfile]],
+			});
+		});
+
+		test('turning on a row held off by both layers aligns both, so it cannot stay visibly off', () => {
+			const { entry, sessionCalls } = createLocalEntry({ activeSessionEnabled: false });
+			const { service, calls } = createMcpService(ContributionEnablementState.DisabledProfile);
+			const target = getEnablementTarget(entry, service, ContributionEnablementState.DisabledProfile);
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual({ scope: target?.scope, calls, sessionCalls }, {
+				scope: McpEnablementScope.Global,
+				calls: [['mcp-redis', ContributionEnablementState.EnabledProfile]],
+				sessionCalls: [true],
+			});
+		});
+
+		test('a session-off row reads as off and turning it on settles every layer', () => {
+			const { entry, sessionCalls } = createLocalEntry({ activeSessionEnabled: false });
+			const { service, calls } = createMcpService(ContributionEnablementState.EnabledProfile);
+			const target = getEnablementTarget(entry, service, ContributionEnablementState.EnabledProfile);
+			const wasEnabled = target?.isEnabled();
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual({ scope: target?.scope, wasEnabled, calls, sessionCalls }, {
+				scope: McpEnablementScope.Global,
+				wasEnabled: false,
+				calls: [['mcp-redis', ContributionEnablementState.EnabledProfile]],
+				sessionCalls: [true],
+			});
+		});
+
+		test('an agent-host row settles both of its layers, like every other row', () => {
+			const sessionCalls: boolean[] = [];
+			const durableCalls: boolean[] = [];
+			const entry = {
+				type: 'session-server-item',
+				server: createAgentHostServer({ enabled: true, setEnabled: (enabled: boolean) => { sessionCalls.push(enabled); } }),
+				setDurableEnabled: (enabled: boolean) => { durableCalls.push(enabled); },
+			} as unknown as Parameters<typeof getEnablementTarget>[0];
+			const target = getEnablementTarget(entry, createMcpService(ContributionEnablementState.EnabledProfile).service, undefined);
+			target?.setEnabled(false);
+
+			assert.deepStrictEqual({ scope: target?.scope, sessionCalls, durableCalls }, {
+				scope: McpEnablementScope.Global,
+				sessionCalls: [false],
+				durableCalls: [false],
+			});
+		});
+
+		test('an agent-host row disabled outright reads as off, and the switch can undo it', () => {
+			// Without the durable layer the switch wrote only the session, so a row the context
+			// menu had disabled could not be turned back on from the row it sat in.
+			const sessionCalls: boolean[] = [];
+			const durableCalls: boolean[] = [];
+			const entry = {
+				type: 'session-server-item',
+				server: createAgentHostServer({ enabled: true, setEnabled: (enabled: boolean) => { sessionCalls.push(enabled); } }),
+				enablement: ContributionEnablementState.DisabledProfile,
+				setDurableEnabled: (enabled: boolean) => { durableCalls.push(enabled); },
+			} as unknown as Parameters<typeof getEnablementTarget>[0];
+			const target = getEnablementTarget(entry, createMcpService(ContributionEnablementState.EnabledProfile).service, undefined);
+			const wasEnabled = target?.isEnabled();
+			target?.setEnabled(true);
+
+			assert.deepStrictEqual({ wasEnabled, sessionCalls, durableCalls }, {
+				wasEnabled: false,
+				sessionCalls: [true],
+				durableCalls: [true],
 			});
 		});
 	});
