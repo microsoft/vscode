@@ -7,6 +7,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -9120,6 +9121,82 @@ suite('CopilotAgentSession', () => {
 			}, {
 				disableCalls: [{ serverName }],
 				enableCalls: [],
+			});
+		});
+
+		test('MCP authentication uses current child enablement and permits unknown servers', async () => {
+			const serverName = 'slack';
+			const serverId = 'plugin-1/mcp/slack';
+			let enabled = false;
+			const customizations = (): readonly Customization[] => [{
+				type: CustomizationType.Plugin,
+				id: 'plugin-1',
+				uri: 'file:///plugin',
+				name: 'Slack Plugin',
+				children: [{
+					type: CustomizationType.McpServer,
+					id: serverId,
+					uri: 'file:///plugin/package.json',
+					name: serverName,
+					state: { kind: McpServerStatus.Starting },
+				}],
+			}];
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: {
+					tools: [],
+					plugins: [{
+						format: PluginFormat.Copilot,
+						hooks: [],
+						mcpServers: [],
+						disabledMcpServers: [serverName],
+						agents: [],
+						skills: [],
+						instructions: [],
+					}],
+					mcpServers: {},
+				},
+				sessionCustomizations: customizations,
+				resolveCustomizationEnablement: target => ({
+					kind: 'resolved',
+					enablement: target.id === serverId && !enabled
+						? [{ kind: CustomizationEnablementKind.Session, enabled: false }]
+						: [],
+					enabled,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+			});
+
+			const request = {
+				requestId: 'auth-enable-transition',
+				serverName,
+				serverUrl: 'https://mcp.example.com',
+				reason: 'upscope' as const,
+			};
+			const disabledResult = await runtime.handleMcpAuthRequest(request, { sessionId: 'test-session-1' });
+
+			enabled = true;
+			const authPromise = runtime.handleMcpAuthRequest({ ...request, requestId: 'auth-enabled' }, { sessionId: 'test-session-1' });
+			await waitForSignal(signal => isAction(signal, ActionType.SessionMcpServerStateChanged));
+			await session.resolveMcpAuthentication({ resource: 'https://mcp.example.com', scopes: [], token: 'enabled-token' });
+
+			const { session: unknownSession, runtime: unknownRuntime, waitForSignal: waitForUnknownSignal } = await createAgentSession(disposables);
+			const unknownAuthPromise = unknownRuntime.handleMcpAuthRequest({
+				requestId: 'auth-unknown',
+				serverName: 'unknown',
+				serverUrl: 'https://unknown.example.com',
+				reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+			await waitForUnknownSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			await unknownSession.resolveMcpAuthentication({ resource: 'https://unknown.example.com', scopes: [], token: 'unknown-token' });
+
+			assert.deepStrictEqual({
+				disabledResult,
+				enabledResult: await authPromise,
+				unknownResult: await unknownAuthPromise,
+			}, {
+				disabledResult: null,
+				enabledResult: { kind: 'token', accessToken: 'enabled-token' },
+				unknownResult: { kind: 'token', accessToken: 'unknown-token' },
 			});
 		});
 

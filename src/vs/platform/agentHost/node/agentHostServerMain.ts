@@ -278,11 +278,6 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostStorageService, agentService.storageService);
 	diServices.set(IAgentHostCustomizationEnablementService, agentService.customizationEnablementService);
 	diServices.set(IAgentHostGitHubEndpointService, agentService.gitHubEndpointService);
-	const copilotApiService = instantiationService.createInstance(CopilotApiService, fetchFn);
-	diServices.set(ICopilotApiService, copilotApiService);
-	const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
-	diServices.set(IAgentHostWorktreeIsolation, worktreeIsolation);
-	agentService.setWorktreeIsolation(worktreeIsolation);
 
 	// Register agents
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -302,6 +297,16 @@ async function main(): Promise<void> {
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		diServices.set(IAgentHostCheckpointService, agentService.checkpointService);
 		diServices.set(IAgentHostGitService, gitService);
+		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —
+		// the proxy service constructor requires it.
+		const copilotApiService = instantiationService.createInstance(CopilotApiService, fetchFn);
+		diServices.set(ICopilotApiService, copilotApiService);
+		// Host-owned worktree isolation controller: a single instance drives folder
+		// / worktree isolation for every agent, so providers stay unaware of it. It
+		// owns its branch-name generator, created from ICopilotApiService.
+		const worktreeIsolation = disposables.add(instantiationService.createInstance(WorktreeIsolation, undefined));
+		diServices.set(IAgentHostWorktreeIsolation, worktreeIsolation);
+		agentService.setWorktreeIsolation(worktreeIsolation);
 		// CLI flags become env vars BEFORE the downloader is constructed so
 		// `isAvailable()` and `loadSdkRoot()` see them as dev overrides.
 		if (options.claudeSdkRoot) {

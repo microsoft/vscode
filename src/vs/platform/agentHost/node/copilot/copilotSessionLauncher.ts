@@ -61,8 +61,11 @@ export const ContextTierConfigKey = 'contextTier';
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[]): Partial<SessionConfig> {
-	const disabledMcpServers = [...new Set(plugins.flatMap(plugin => plugin.disabledMcpServers ?? []))];
+function disabledMcpServersSessionOption(plugins: readonly ICopilotPluginInfo[], disabledRootMcpServers: readonly string[] | undefined): Partial<SessionConfig> {
+	const disabledMcpServers = [...new Set([
+		...plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
+		...(disabledRootMcpServers ?? []),
+	])];
 	return disabledMcpServers.length > 0 ? { disabledMcpServers } : {};
 }
 
@@ -154,6 +157,8 @@ interface ICopilotSessionLaunchBase {
 	readonly additionalDirectories?: readonly URI[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
+	/** Root-configured MCP servers disabled by the owning session's resolved customization state. */
+	readonly disabledRootMcpServers?: readonly string[];
 	/**
 	 * Live, long-lived registry of every active client's tool contributions.
 	 * Read at tool-call stamp time so a window reload (new `clientId`,
@@ -636,7 +641,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		return {
 			...byok,
-			...disabledMcpServersSessionOption(plugins),
+			...disabledMcpServersSessionOption(plugins, plan.disabledRootMcpServers),
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			enableMcpApps: true,
 			githubMcpToolConfig: { disableFormDeferral: true },

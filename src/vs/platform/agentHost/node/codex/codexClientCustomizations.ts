@@ -12,7 +12,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { parseRuleFile, type IMcpServerDefinition, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
-import { CustomizationType, type ChildCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 
@@ -39,8 +39,8 @@ import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcp
 export interface ICodexClientPlugin {
 	readonly synced: ISyncedCustomization;
 	readonly parsed: IParsedPlugin | undefined;
+	readonly input?: ClientPluginCustomization;
 	readonly customization?: PluginCustomization;
-	readonly pendingEnablement?: boolean;
 }
 
 export interface ICodexAgentRoleSource {
@@ -117,9 +117,18 @@ export class CodexClientCustomizationStore {
 		return this._enablement.get(plugin.synced.customization.id) ?? isCustomizationEnabled(plugin.customization ?? plugin.synced.customization);
 	}
 
+	/** Every client plugin, deduplicated by customization id. */
+	plugins(): readonly ICodexClientPlugin[] {
+		return this._merged();
+	}
+
+	isEnabled(plugin: ICodexClientPlugin): boolean {
+		return this._isEnabled(plugin);
+	}
+
 	/** The merged plugins that are currently enabled and successfully parsed. */
 	enabledPlugins(): readonly ICodexClientPlugin[] {
-		return this._merged().filter(p => p.parsed !== undefined && !p.pendingEnablement && this._isEnabled(p));
+		return this._merged().filter(p => p.parsed !== undefined && this._isEnabled(p));
 	}
 
 	/**

@@ -1479,7 +1479,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
 		readonly signature: string;
 	}> {
-		const plugins = session.clientCustomizations.enabledPlugins();
+		const plugins = this._enabledClientPlugins(session);
 		const customization = await codexCustomizationConfigFromPlugins(plugins, session.agent, this._fileService);
 		const config: Record<string, JsonValue> = {};
 		if (customization.agentRoles.length > 0) {
@@ -1513,6 +1513,44 @@ export class CodexAgent extends Disposable implements IAgent {
 			selectedCapabilityRoots,
 			signature,
 		};
+	}
+
+	private _enabledClientPlugins(session: ICodexSession): readonly ICodexClientPlugin[] {
+		const plugins = session.clientCustomizations.plugins();
+		const candidates = plugins.map(plugin => ({
+			...plugin.synced.customization,
+			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
+		}));
+		const clientPlugins = new Map<string, ClientPluginCustomization>();
+		const childEnablement = new Map<string, NonNullable<ClientPluginCustomization['childEnablement']>>();
+		for (const plugin of plugins) {
+			if (plugin.input !== undefined) {
+				clientPlugins.set(plugin.input.uri, plugin.input);
+				if (plugin.input.childEnablement !== undefined) {
+					childEnablement.set(plugin.input.uri, plugin.input.childEnablement);
+				}
+			}
+		}
+		const resolution = resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			session.sessionUri,
+			candidates,
+			childEnablement,
+			clientPlugins,
+		);
+		const enabled: ICodexClientPlugin[] = [];
+		for (const [index, plugin] of plugins.entries()) {
+			const customization = resolution.customizations[index];
+			if (plugin.parsed !== undefined
+				&& customization.type === CustomizationType.Plugin
+				&& isCustomizationSdkEligible(resolution, candidates[index])) {
+				const resolved = { ...plugin, customization };
+				if (session.clientCustomizations.isEnabled(resolved)) {
+					enabled.push(resolved);
+				}
+			}
+		}
+		return enabled;
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -1913,7 +1951,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
 				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
 		);
-		const clientPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
+		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session));
 		return injectCodexMcpAuthTokens({ ...root, ...clientPlugins }, this._mcpAuthTokens);
 	}
 
@@ -1931,7 +1969,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _httpMcpServerUrls(session: ICodexSession): Map<string, string> {
 		const root = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
-		const clientPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
+		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session));
 		const urls = new Map<string, string>();
 		for (const [name, server] of Object.entries({ ...root, ...clientPlugins })) {
 			const normalized = server.url !== undefined ? normalizeCodexMcpResourceUrl(server.url) : undefined;
@@ -1949,7 +1987,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return root[name].url;
 		}
 		for (const session of this._sessions.values()) {
-			const fromPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
+			const fromPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session));
 			if (fromPlugins[name]?.url !== undefined) {
 				return fromPlugins[name].url;
 			}
@@ -5275,7 +5313,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	/** Parse one synced plugin directory into its components (best-effort). */
 	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization, input: ClientPluginCustomization | undefined): Promise<ICodexClientPlugin> {
 		if (!synced.pluginDir) {
-			return { synced, parsed: undefined };
+			return { synced, parsed: undefined, input };
 		}
 		try {
 			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
@@ -5286,12 +5324,12 @@ export class CodexAgent extends Disposable implements IAgent {
 			return {
 				synced,
 				parsed,
+				input,
 				customization: resolved.type === CustomizationType.Plugin ? resolved : candidate,
-				pendingEnablement: !isCustomizationSdkEligible(resolution, candidate),
 			};
 		} catch (err) {
 			this._logService.warn(`[Codex] failed to parse client plugin ${synced.customization.uri}: ${err instanceof Error ? err.message : String(err)}`);
-			return { synced, parsed: undefined };
+			return { synced, parsed: undefined, input };
 		}
 	}
 
@@ -5317,7 +5355,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const plugins: ICodexClientPlugin[] = [];
 		for (const session of this._sessions.values()) {
 			if (!session.disposed) {
-				plugins.push(...session.clientCustomizations.enabledPlugins());
+				plugins.push(...this._enabledClientPlugins(session));
 			}
 		}
 		const roots = codexSkillRootsFromPlugins(plugins);

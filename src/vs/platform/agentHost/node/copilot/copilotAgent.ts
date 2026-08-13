@@ -65,9 +65,10 @@ import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsSer
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { applyMcpServerEnablement, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
+import { applyMcpServerEnablement, buildMcpTopLevelCustomizationId, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
@@ -717,6 +718,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 		@IAgentHostReviewService private readonly _reviewService: IAgentHostReviewService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IByokLmBridgeRegistry private readonly _byokBridgeRegistry: IByokLmBridgeRegistry,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -2651,6 +2653,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
+				disabledRootMcpServers: this._disabledRootMcpServers(sessionUri, sdkSessionId, snapshot),
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubToken: this._githubToken,
@@ -3148,6 +3151,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3176,6 +3180,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(session, sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3190,6 +3195,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					resolvedAgentName: undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(session, chatSdkId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3564,6 +3570,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					additionalDirectories: workingDirectories?.slice(1),
 					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 					snapshot,
+					disabledRootMcpServers: this._disabledRootMcpServers(configurationResource, info.sdkSessionId, snapshot),
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
@@ -3869,6 +3876,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return agentSession;
 	}
 
+	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
+	private _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): readonly string[] {
+		const rootServers: McpServerCustomization[] = Object.keys(snapshot.mcpServers).map(name => {
+			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
+			return {
+				type: CustomizationType.McpServer,
+				id,
+				uri: id,
+				name,
+				state: { kind: McpServerStatus.Stopped },
+			};
+		});
+		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			session,
+			rootServers,
+		));
+		return rootServers.filter(server => enablement.get(server.id) !== true).map(server => server.name);
+	}
+
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
 		return new CopilotChatEntry(session, activeClient, this._onMcpNotification);
 	}
@@ -3996,6 +4023,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,
 			snapshot,
+			disabledRootMcpServers: this._disabledRootMcpServers(sessionUri, sessionId, snapshot),
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubToken: this._githubToken,

@@ -52,7 +52,7 @@ import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
-import type { ChildCustomization, CustomizationEnablement, McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputRequestPurpose, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -7927,7 +7927,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeSyncedRef(uri: string, dir: string): ISyncedCustomization {
+	function makeSyncedRef(uri: string, dir: string, children?: ChildCustomization[]): ISyncedCustomization {
 		return {
 			customization: {
 				type: CustomizationType.Plugin,
@@ -7935,6 +7935,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				uri,
 				name: uri,
 				load: { kind: CustomizationLoadStatus.Loaded },
+				...(children === undefined ? undefined : { children }),
 			},
 			pluginDir: URI.file(dir),
 		};
@@ -8008,7 +8009,14 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				initializeSession: async () => { },
 				getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
 				resolve: resolveReducerEnablement,
-				applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+				applyClientGlobalEnablement: (session, target, clientEnablement) => {
+					const existing = resolveReducerEnablement(session, target);
+					const global = clientEnablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
+					const enablement = global === undefined
+						? existing.enablement
+						: [...existing.enablement.filter(entry => entry.kind !== CustomizationEnablementKind.Global), global];
+					return { ...existing, enablement, enabled: isCustomizationEnabled({ enablement }) };
+				},
 				replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 				setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 				whenIdle: async () => { },
@@ -8412,6 +8420,95 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		const customizations = await agent.getChatCustomizations!(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), hostCustomizations(stateManager, created.session));
 		const customization = customizations.find(c => c.uri === 'https://a');
 		assert.strictEqual(customization?.type === CustomizationType.Plugin ? isCustomizationEnabled(customization) : undefined, false);
+	});
+
+	test('replacing client customizations removes stale plugin and bundled MCP enablement', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const pluginUri = 'https://bundle';
+		const serverName = 'bundled';
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'bundled-server',
+			uri: `${pluginUri}/.mcp.json`,
+			name: serverName,
+			state: { kind: McpCustomizationServerStatus.Starting },
+		};
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri,
+			name: 'Bundle',
+			children: [child],
+		};
+		const clientCustomization: ClientPluginCustomization = {
+			...makeClientCustomization(pluginUri, 'Bundle'),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			childEnablement: { [serverName]: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+		};
+		pm.syncResult = [makeSyncedRef(pluginUri, '/p/bundle', [child])];
+		await syncClientCustomizations(agent, stateManager, created.session, 'client-1', [clientCustomization]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const session = agent.getSessionForTesting(created.session)!;
+		session.setHostCustomizations([plugin]);
+		const getDesiredMcpEnablement = () => (session as unknown as { _getDesiredMcpServerEnablement(): Map<string, boolean> })._getDesiredMcpServerEnablement();
+
+		const before = [...getDesiredMcpEnablement()];
+		pm.syncResult = [];
+		await syncClientCustomizations(agent, stateManager, created.session, 'client-1', []);
+		const after = [...getDesiredMcpEnablement()];
+
+		assert.deepStrictEqual({ before, after }, {
+			before: [[serverName, false]],
+			after: [[serverName, true]],
+		});
+	});
+
+	test('removing a client removes its plugin and bundled MCP enablement', async () => {
+		const pm = new FakeAgentPluginManager();
+		const { agent, sdk, stateManager } = buildCtxWith(pm);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const pluginUri = 'https://bundle';
+		const serverName = 'bundled';
+		const child: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'bundled-server',
+			uri: `${pluginUri}/.mcp.json`,
+			name: serverName,
+			state: { kind: McpCustomizationServerStatus.Starting },
+		};
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri,
+			name: 'Bundle',
+			children: [child],
+		};
+		pm.syncResult = [makeSyncedRef(pluginUri, '/p/bundle', [child])];
+		await syncClientCustomizations(agent, stateManager, created.session, 'client-1', [{
+			...makeClientCustomization(pluginUri, 'Bundle'),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			childEnablement: { [serverName]: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
+		}]);
+		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
+		await agent.chats.sendMessage(defaultChatUri(created.session), 'first', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
+		const session = agent.getSessionForTesting(created.session)!;
+		session.setHostCustomizations([plugin]);
+		const getDesiredMcpEnablement = () => (session as unknown as { _getDesiredMcpServerEnablement(): Map<string, boolean> })._getDesiredMcpServerEnablement();
+
+		const before = [...getDesiredMcpEnablement()];
+		agent.removeActiveClient(defaultChatUri(created.session), chatContext(defaultChatUri(created.session)), 'client-1');
+		await tick();
+		const after = [...getDesiredMcpEnablement()];
+
+		assert.deepStrictEqual({ before, after }, {
+			before: [[serverName, false]],
+			after: [[serverName, true]],
+		});
 	});
 
 	test('send pre-flight: dirty customizations triggers a rebind (SDK plugin URI set is captured at startup, so any change must restart the Query)', async () => {

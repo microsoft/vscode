@@ -1172,6 +1172,9 @@ export class ClaudeAgentSession extends Disposable {
 	/** Remove a client's customization contribution from this session. */
 	removeClientCustomizations(clientId: string): void {
 		this.clientCustomizationsDiff.model.removeClient(clientId);
+		if (this._clientCustomizationEnablement.delete(clientId)) {
+			this._rebuildClientCustomizationEnablement();
+		}
 	}
 
 	/**
@@ -1229,12 +1232,19 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	adoptClientCustomizations(clientId: string, synced: readonly ISyncedCustomization[], customizations: readonly ClientPluginCustomization[]): void {
 		this.clientCustomizationsDiff.model.setSyncedCustomizations(clientId, synced);
+		const pluginEnablement = new Map<string, ClientPluginCustomization>();
+		const childEnablement = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
 		for (const customization of customizations) {
-			this._clientPluginEnablement.set(customization.uri.toString(), customization);
+			pluginEnablement.set(customization.uri.toString(), customization);
 			if (customization.childEnablement !== undefined) {
-				this._clientChildEnablement.set(customization.uri.toString(), customization.childEnablement);
+				childEnablement.set(customization.uri.toString(), customization.childEnablement);
 			}
 		}
+		// Re-inserting moves the latest client snapshot to the end, preserving
+		// the previous last-write-wins merge precedence across clients.
+		this._clientCustomizationEnablement.delete(clientId);
+		this._clientCustomizationEnablement.set(clientId, { pluginEnablement, childEnablement });
+		this._rebuildClientCustomizationEnablement();
 	}
 
 	/**
@@ -1250,6 +1260,23 @@ export class ClaudeAgentSession extends Disposable {
 	private _lastCustomizations: readonly Customization[] = [];
 	private readonly _clientChildEnablement = new Map<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>();
 	private readonly _clientPluginEnablement = new Map<string, ClientPluginCustomization>();
+	private readonly _clientCustomizationEnablement = new Map<string, {
+		readonly pluginEnablement: ReadonlyMap<string, ClientPluginCustomization>;
+		readonly childEnablement: ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>;
+	}>();
+
+	private _rebuildClientCustomizationEnablement(): void {
+		this._clientChildEnablement.clear();
+		this._clientPluginEnablement.clear();
+		for (const enablement of this._clientCustomizationEnablement.values()) {
+			for (const [uri, plugin] of enablement.pluginEnablement) {
+				this._clientPluginEnablement.set(uri, plugin);
+			}
+			for (const [uri, children] of enablement.childEnablement) {
+				this._clientChildEnablement.set(uri, children);
+			}
+		}
+	}
 
 	/**
 	 * Project the union of (a) **client-pushed** customizations and
