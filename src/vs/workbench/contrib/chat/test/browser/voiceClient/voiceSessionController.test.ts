@@ -37,7 +37,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -380,6 +380,29 @@ class TestChatService extends mock<IChatService>() {
 
 	/** A session that never loads: the controller eagerly loads models for waiting sessions. */
 	override async acquireOrLoadSession(): Promise<undefined> { return undefined; }
+}
+
+/**
+ * Chat service that records session creation and sends, so the `new_session`
+ * flag on `send_to_chat` can be checked end to end.
+ */
+class NewSessionChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	readonly created: URI[] = [];
+	readonly sent: { resource: string; message: string }[] = [];
+	override getSession(): undefined { return undefined; }
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${this.created.length + 1}`);
+		this.created.push(resource);
+		return { object: { sessionResource: resource }, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async acquireOrLoadSession(): Promise<IChatModelReference> {
+		return { object: {}, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async sendRequest(resource: URI, message: string): Promise<ChatSendResult> {
+		this.sent.push({ resource: resource.toString(), message });
+		return { kind: 'rejected', reason: 'test' };
+	}
 }
 
 /**
@@ -6284,6 +6307,87 @@ suite('VoiceSessionController', () => {
 		}, {
 			omniInputs: ['run the focused omni request'],
 			panelInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session routes the text to the freshly created session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+		}, {
+			created: 1,
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			acceptedInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session and no text creates and targets a session without sending', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-empty',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			target: target?.toString(),
+		}, {
+			created: 1,
+			sent: [],
+			acceptedInputs: [],
+			target: 'chat-session://new/1',
+		});
+	});
+
+	test('send_to_chat without new_session keeps the request in the current session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'same-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: ['refactor the upload service'],
 		});
 	});
 
