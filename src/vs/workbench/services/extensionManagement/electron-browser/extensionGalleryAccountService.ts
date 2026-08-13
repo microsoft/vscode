@@ -7,17 +7,20 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryMicrosoftSignInCommandId, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAccess, isSafeTokenTarget, MarketplaceAuthRequiredError, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
 import { ExtensionGalleryServiceIndexService } from './extensionGalleryServiceIndex.js';
 
@@ -118,6 +121,14 @@ export interface IExtensionGalleryAccountService {
 
 	/** Drops the memoized service index so the next validation generation re-fetches it. */
 	invalidateServiceIndexCache(): void;
+
+	/**
+	 * Remembers `accountId` as the account the user settled on for the Private Marketplace, so
+	 * session selection is grounded to it across restarts (see {@link getAccount}) when the Microsoft
+	 * provider has several signed-in accounts. Scoped to the effective auth provider; call after an
+	 * explicit account choice during sign-in.
+	 */
+	setPreferredAccount(accountId: string): void;
 
 	/** Drops the durable access verdict. */
 	clearCache(): void;
@@ -545,6 +556,59 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	clearCache(): void {
 		this.storageService.remove(CACHED_ACCESS_KEY, StorageScope.APPLICATION);
 	}
+
+	setPreferredAccount(accountId: string): void {
+		this.storePreferredAccountId(accountId);
+	}
 }
 
 registerSingleton(IExtensionGalleryAccountService, ExtensionGalleryAccountService, InstantiationType.Delayed);
+
+/**
+ * Interactive Microsoft (Entra ID) sign-in for the Private Marketplace. When several Microsoft
+ * accounts are already signed in, it prompts the user to choose which one to use (with an explicit
+ * "different account" escape hatch), then remembers the choice via
+ * {@link IExtensionGalleryAccountService.setPreferredAccount} so session selection stays grounded to
+ * it across restarts. Invoked by id from the browser-layer sign-in action, which cannot reach this
+ * Electron layer directly.
+ */
+CommandsRegistry.registerCommand(ExtensionGalleryMicrosoftSignInCommandId, async accessor => {
+	const authenticationService = accessor.get(IAuthenticationService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const accountService = accessor.get(IExtensionGalleryAccountService);
+
+	// Establish a session for the marketplace scopes and remember the resulting account. Passing a
+	// known account both binds to it without a fresh interactive login and lets the eventual
+	// re-validation (driven by the new session) resolve to the intended account; a missing account
+	// falls back to interactive sign-in, which is also how the user adds a different account.
+	const chooseAccount = async (account: AuthenticationSessionAccount | undefined): Promise<void> => {
+		// Persist a known choice before establishing the session so any re-validation the new session
+		// triggers already sees the grounded account.
+		if (account) {
+			accountService.setPreferredAccount(account.id);
+		}
+		const session = await authenticationService.createSession('microsoft', PRIVATE_MARKETPLACE_SCOPES, account ? { account } : undefined);
+		accountService.setPreferredAccount(session.account.id);
+	};
+
+	const accounts = await authenticationService.getAccounts('microsoft');
+	if (accounts.length <= 1) {
+		// Zero accounts means first-time sign-in; one means there is nothing to disambiguate.
+		await chooseAccount(accounts.at(0));
+		return;
+	}
+
+	interface IAccountPickItem extends IQuickPickItem {
+		readonly account?: AuthenticationSessionAccount;
+	}
+	const picks: IAccountPickItem[] = accounts.map(account => ({ label: account.label, account }));
+	picks.push({ label: localize('marketplace.signInDifferentAccount', "Sign in with a Different Account…") });
+
+	const pick = await quickInputService.pick(picks, {
+		placeHolder: localize('marketplace.pickAccount', "Select the account to use for the Extensions Marketplace")
+	});
+	if (!pick) {
+		return; // cancelled
+	}
+	await chooseAccount(pick.account);
+});

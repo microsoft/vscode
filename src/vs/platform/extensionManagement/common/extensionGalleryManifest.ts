@@ -133,3 +133,11 @@ export const ExtensionGalleryAuthProviderConfigKey = 'extensions.gallery.authPro
  * Microsoft session that identifies the user.
  */
 export const PRIVATE_MARKETPLACE_SCOPES: string[] = ['openid', 'profile', 'email', 'offline_access'];
+
+/**
+ * Command that drives interactive Microsoft (Entra ID) sign-in for the Private Marketplace and
+ * remembers the account the user settles on. It is registered in the Electron account-service layer
+ * (which owns account selection and persistence); the browser-layer sign-in action invokes it by id
+ * so it does not have to reach across the layer boundary.
+ */
+export const ExtensionGalleryMicrosoftSignInCommandId = 'workbench.extensions.marketplace.signInWithMicrosoft';

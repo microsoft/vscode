@@ -520,7 +520,7 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 			createMicrosoftSession('token-1', 'ms-account-1', 'ms-session-1'),
 			createMicrosoftSession('token-2', 'ms-account-2', 'ms-session-2'),
 		];
-		let seenAuthHeader: string | undefined;
+		let seenAuthHeader: string | string[] | undefined;
 		requestHandler = (options) => {
 			if (options.url?.includes('eligibility')) {
 				return mockResponse(200, { eligible: true, reason: 'EntraID' });
