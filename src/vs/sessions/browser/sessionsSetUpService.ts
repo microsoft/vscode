@@ -122,9 +122,6 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private _onSessionTypesChanged(): void {
-		if (this._initialSetupFlow) {
-			return;
-		}
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
 		if (conditionalAuthState(this._accountResolved, signedIn) === ConditionalAuthState.SignedOut) {
 			this._reevaluateSignedOut();
@@ -139,9 +136,6 @@ class SessionsSetUpWidget extends Disposable {
 	 * sign-in.
 	 */
 	private _onAllowSignedOutWhenUsableChanged(): void {
-		if (this._initialSetupFlow) {
-			return;
-		}
 		// Only act once the account has resolved AND the user is signed out; while
 		// unresolved or signed in, the sign-in watch owns the decision.
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
@@ -292,6 +286,9 @@ class SessionsSetUpWidget extends Disposable {
 	 * while a dialog is up — that dialog owns the next transition.
 	 */
 	private _reevaluateSignedOut(): void {
+		if (this._initialSetupFlow) {
+			return;
+		}
 		if (this._proceedingSignedOut && this._allowSignedOutWhenUsable.get()) {
 			return;
 		}
