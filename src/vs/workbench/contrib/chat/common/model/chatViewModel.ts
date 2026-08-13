@@ -217,6 +217,7 @@ export interface IChatTurnPillsPart {
 	readonly kind: 'turnPills';
 	readonly requestId: string;
 	readonly sessionResource: URI;
+	readonly isLastTurn: boolean;
 }
 
 /**

@@ -13,6 +13,7 @@ import '@vscode/markdown-editor/commentInput.css';
 import '@vscode/markdown-editor/vscodeCommentWidgetV2.css';
 import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
+import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -64,6 +65,9 @@ class Editor extends Disposable {
 	readonly #messageSecret: string;
 	readonly #vscode = acquireVsCodeApi();
 	readonly #syntaxHighlighter = new WebviewSyntaxHighlighter((message) => this.#vscode.postMessage(message));
+	readonly #linkPresentationProvider = this._register(new WebviewLinkPresentationProvider(
+		(message) => this.#vscode.postMessage(message),
+	));
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
@@ -83,6 +87,9 @@ class Editor extends Disposable {
 				return;
 			}
 			if (this.#syntaxHighlighter.handleMessage(message)) {
+				return;
+			}
+			if (this.#linkPresentationProvider.handleMessage(message)) {
 				return;
 			}
 			switch (message.type) {
@@ -181,6 +188,7 @@ class Editor extends Disposable {
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
 			syntaxHighlighter: this.#syntaxHighlighter,
+			linkPresentationProvider: this.#linkPresentationProvider,
 			embeddedCodeEditorFactory,
 			onEmbeddedCodeEditorEdit: (block: CodeBlockAstNode, contentEdit: StringEdit) => {
 				const doc = model.document.get();
@@ -194,13 +202,8 @@ class Editor extends Disposable {
 					)),
 				));
 			},
-			onOpenLink: (url) => {
-				const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1].toLowerCase();
-				if (scheme && scheme !== 'file') {
-					return false;
-				}
+			onOpenLink: url => {
 				this.#vscode.postMessage({ type: 'openLink', href: url });
-				return undefined;
 			},
 			onToggleCheckbox: (item, newChecked) => {
 				model.setTaskCheckboxChecked(item, newChecked);

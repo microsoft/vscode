@@ -90,6 +90,7 @@ export class ChatPromoNotificationContribution extends Disposable implements IWo
 				}],
 				dismissible: true,
 				autoDismissOnMessage: false,
+				deferForNewUsers: true,
 				sessionTypes: [harness],
 			});
 		}

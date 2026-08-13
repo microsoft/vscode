@@ -104,6 +104,11 @@ export interface IAgentChatMetadata {
 	readonly _meta?: SessionMeta;
 }
 
+/** A provider chat ready to be registered as an Agent Host session. */
+export interface IAgentDiscoveredChat extends IAgentChatMetadata {
+	readonly external: boolean;
+}
+
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
 }
@@ -547,7 +552,7 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
-/** A legacy concrete chat enumerated by {@link IAgent.listLegacyChats} for one-time migration. */
+/** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
 	readonly uri: URI;
@@ -1049,10 +1054,15 @@ export interface IAgent {
 	/** Return the effective customization projection for an exact chat. */
 	getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
 
-	// ---- Legacy migration and metadata -------------------------------------
+	/** Returns host-internal plugin owners for MCP servers temporarily published top-level. */
+	getMcpServerOwners?(session: URI): ReadonlyMap<string, string> | undefined;
 
-	/** Optional migration signal for providers that can observe out-of-band native chat creation. */
-	readonly onDidChangeChatList?: Event<void>;
+	// ---- External chat discovery -------------------------------------------
+
+	/** Provides chats that are ready to be registered as Agent Host sessions. */
+	readonly onDidDiscoverChats: Event<readonly IAgentDiscoveredChat[]>;
+
+	// ---- Legacy migration ---------------------------------------------------
 
 	/** Optional adoption hook for providers with a predecessor-owned on-disk format. */
 	ensureChatAdopted?(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult>;
@@ -1063,17 +1073,15 @@ export interface IAgent {
 	/**
 	 * Enumerate provider-native chats for one-time registry migration.
 	 *
-	 * Returns `undefined` when the provider cannot enumerate yet (for example
-	 * its SDK/binary/runtime or client is not yet available/started) so callers
-	 * must not treat this as an authoritative "no legacy chats" result and should
-	 * retry later. Returns an empty array only when the provider has authoritatively
-	 * determined there are no legacy chats to migrate (e.g. legacy support is
-	 * disabled or the provider has no legacy data format).
+	 * Returns `undefined` when the provider cannot enumerate yet; `[]` is an
+	 * authoritative result indicating there are no legacy chats to migrate.
 	 */
-	listLegacyChats(): Promise<readonly IAgentChatMetadata[] | undefined>;
+	listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
 	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
+
+	// ---- Metadata -----------------------------------------------------------
 
 	/** Retrieve metadata for an exact registered chat. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined>;

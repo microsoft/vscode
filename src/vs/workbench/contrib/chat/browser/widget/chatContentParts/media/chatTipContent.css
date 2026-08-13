@@ -51,7 +51,6 @@
 }
 
 .chat-getting-started-tip-container {
-	margin-bottom: -4px; /* Counter the flex gap */
 	width: 100%;
 }
 
