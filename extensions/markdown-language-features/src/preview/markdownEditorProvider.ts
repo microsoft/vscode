@@ -17,6 +17,8 @@ import type {
 	MarkdownContributionProvider,
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
+import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
+import { ImmutableLinkPresentationCache, LinkPresentationCache } from './linkPresentationResolver';
 
 interface CodeBlockEditorProviderDefinition {
 	readonly id: string;
@@ -103,6 +105,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
 	readonly #resolvedCodeBlockEditors = new Map<string, Promise<ResolvedCodeBlockEditor | undefined>>();
 	readonly #resolvedCodeBlockEditorResources = new Set<string>();
+	readonly #gitLinkCache = new ImmutableLinkPresentationCache();
+	readonly #githubLinkCache = new LinkPresentationCache();
 
 	constructor(
 		extensionUri: vscode.Uri,
@@ -118,6 +122,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#contributions = contributions;
 		this.#logger = logger;
 		this.#mediaRoot = vscode.Uri.joinPath(this.#extensionUri, 'markdown-editor-out');
+		this._register(vscode.authentication.onDidChangeSessions(event => {
+			if (event.provider.id === 'github') {
+				this.#githubLinkCache.clear();
+			}
+		}));
 		this._register(new vscode.Disposable(() => {
 			void vscode.commands.executeCommand('setContext', 'markdownEditorFocus', false);
 		}));
@@ -192,6 +201,14 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
+		const richLinks = new MarkdownEditorRichLinkController(
+			document,
+			this.#linkOpener,
+			this.#logger,
+			this.#gitLinkCache,
+			this.#githubLinkCache,
+			message => editorWebview.postMessage(message),
+		);
 		const postCodeBlockEditorProviders = async (): Promise<void> => {
 			if (webviewReady && codeBlockEditorProviders) {
 				await editorWebview.postMessage({ type: 'codeBlockEditorProviders', codeBlockEditorProviders });
@@ -247,6 +264,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					break;
 				}
 
+				case 'richLinkTargets': {
+					if (Array.isArray(message.hrefs)) {
+						richLinks.updateTargets(message.hrefs.filter((href: unknown): href is string => typeof href === 'string'));
+					}
+					break;
+				}
+
 				case 'editorFocusChanged': {
 					if (message.focused) {
 						this.#focusedWebviewPanels.add(webviewPanel);
@@ -279,7 +303,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					break;
 				}
 				case 'openLink': {
-					await this.#linkOpener.openDocumentLink(message.href as string, document.uri);
+					if (typeof message.href === 'string' && !await richLinks.openLink(message.href)) {
+						await this.#linkOpener.openDocumentLink(message.href, document.uri);
+					}
 					break;
 				}
 				case 'edit': {
@@ -378,6 +404,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidDeleteFiles.dispose();
 			onDidRenameFiles.dispose();
 			onDidChangeViewState.dispose();
+			richLinks.dispose();
 		});
 	}
 
