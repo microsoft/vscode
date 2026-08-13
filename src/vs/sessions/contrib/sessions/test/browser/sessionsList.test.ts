@@ -645,10 +645,13 @@ suite('Sessions - SessionsList', () => {
 				memberships: new Map([[inProgress.sessionId, group.id], [needsInput.sessionId, group.id]]),
 			});
 
-			assert.deepStrictEqual(rowSnapshot(container).map(row => ({ title: row.title, badge: row.badge, ariaHasWorkspace: row.ariaLabel?.includes(' in ') ?? false })), [
-				{ title: 'Working', badge: undefined, ariaHasWorkspace: false },
-				{ title: 'Needs Input', badge: undefined, ariaHasWorkspace: false },
-			]);
+			assert.deepStrictEqual(Object.fromEntries(rowSnapshot(container).map(row => [row.title, {
+				badge: row.badge,
+				ariaHasWorkspace: row.ariaLabel?.includes(' in ') ?? false,
+			}])), {
+				Working: { badge: undefined, ariaHasWorkspace: false },
+				'Needs Input': { badge: undefined, ariaHasWorkspace: false },
+			});
 		});
 
 		test('accessible names include workspace exactly when the badge is visible', () => {
