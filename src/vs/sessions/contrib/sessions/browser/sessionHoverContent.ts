@@ -71,7 +71,7 @@ export function buildSessionHoverContent(
 
 	if (folder && workspace) {
 		const kind = getSessionWorkspaceKind(workspace, worktreePending);
-		const folderIcon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree;
+		const folderIcon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
 		md.appendMarkdown(`$(${folderIcon.id}) `);
 		md.appendText(worktreePending
 			? localize('agentSessions.worktreePending', "Creating worktree…")
