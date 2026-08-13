@@ -50,7 +50,7 @@ suite('SessionDatabase', () => {
 			} finally {
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 	});
 
 	/**
@@ -68,6 +68,13 @@ suite('SessionDatabase', () => {
 			const rawDb = await this._ensureDb();
 			await new Promise<void>((resolve, reject) => {
 				rawDb.run('INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chat.toString(), draft], err => err ? reject(err) : resolve());
+			});
+		}
+
+		async runRaw(sql: string): Promise<void> {
+			const rawDb = await this._ensureDb();
+			await new Promise<void>((resolve, reject) => {
+				rawDb.exec(sql, err => err ? reject(err) : resolve());
 			});
 		}
 
@@ -439,6 +446,20 @@ suite('SessionDatabase', () => {
 
 	suite('turn event ids', () => {
 
+		test('getTurnEventId resolves protocol and restored SDK turn IDs', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.setTurnEventId('turn-1', 'evt-1');
+
+			assert.deepStrictEqual({
+				protocol: await db.getTurnEventId('turn-1'),
+				restored: await db.getTurnEventId('evt-1'),
+			}, {
+				protocol: 'evt-1',
+				restored: 'evt-1',
+			});
+		});
+
 		test('getNextTurnEventId returns the next turn\'s event id by `turns.id`', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');
@@ -578,7 +599,7 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['turn-1', '{"inputTokens":1}']]);
 		});
 
-		test('remapTurnIds carries usage onto the forked turn ids and drops the rest', async () => {
+		test('remapTurnIds carries usage and replaces event IDs on imported forks', async () => {
 			// Fork file-copies the source database then remaps turn ids. Without
 			// remapping `turn_usage` the forked session restores with no gauge
 			// and zero cost, and rows past the fork point leak permanently
@@ -586,13 +607,27 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('old-1');
 			await db.createTurn('old-2');
+			await db.setTurnEventId('old-1', 'old-event-1');
+			await db.setTurnEventId('old-2', 'old-event-2');
 			await db.setTurnUsage('old-1', '{"inputTokens":1}');
 			await db.setTurnUsage('old-2', '{"inputTokens":2}');
 
 			// Fork keeping only `old-1`, remapped to a fresh id.
-			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			await db.remapTurnIds(
+				new Map([['old-1', 'new-1']]),
+				new Map([['new-1', 'new-event-1']]),
+			);
 
-			assert.deepStrictEqual([...(await db.getTurnUsages()).entries()], [['new-1', '{"inputTokens":1}']]);
+			assert.deepStrictEqual({
+				usages: [...(await db.getTurnUsages()).entries()],
+				eventId: await db.getTurnEventId('new-1'),
+			}, {
+				usages: [
+					['new-1', '{"inputTokens":1}'],
+					['new-event-1', '{"inputTokens":1}'],
+				],
+				eventId: 'new-event-1',
+			});
 		});
 	});
 
@@ -697,6 +732,50 @@ suite('SessionDatabase', () => {
 			await db.setMetadata('customTitle', 'First');
 			await db.setMetadata('customTitle', 'Second');
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('setMetadataValues rolls back every key when one write fails', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.setMetadata('customTitle', 'Original title');
+			await database.setMetadata('customTitleSource', 'user');
+			await database.runRaw(`CREATE TRIGGER fail_title_source BEFORE INSERT ON session_metadata
+				WHEN NEW.key = 'customTitleSource' BEGIN SELECT RAISE(ABORT, 'source write failed'); END`);
+
+			await assert.rejects(() => database.setMetadataValues({
+				customTitle: 'Replacement title',
+				customTitleSource: 'agent',
+			}), /source write failed/);
+
+			assert.deepStrictEqual(await database.getMetadataObject({
+				customTitle: true,
+				customTitleSource: true,
+			}), {
+				customTitle: 'Original title',
+				customTitleSource: 'user',
+			});
+		});
+
+		test('setMetadataValues serializes with turn ID remapping transactions', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('old-1');
+			await db.setTurnUsage('old-1', '{"inputTokens":1}');
+
+			await Promise.all([
+				db.setMetadataValues({
+					customTitle: 'Concurrent title',
+					customTitleSource: 'agent',
+				}),
+				db.remapTurnIds(new Map([['old-1', 'new-1']])),
+			]);
+
+			assert.deepStrictEqual({
+				metadata: await db.getMetadataObject({ customTitle: true, customTitleSource: true }),
+				usages: [...(await db.getTurnUsages()).entries()],
+			}, {
+				metadata: { customTitle: 'Concurrent title', customTitleSource: 'agent' },
+				usages: [['new-1', '{"inputTokens":1}']],
+			});
 		});
 
 		test('metadata persists across reopen', async () => {

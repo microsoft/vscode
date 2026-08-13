@@ -14,18 +14,24 @@
  */
 
 import { Color, HSLA } from '../../../../../base/common/color.js';
+import { inputBackground } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
 import { chatVoiceGlowBaseColor, chatVoiceListeningGlow, chatVoiceSpeakingGlow } from '../../common/widget/chatColors.js';
 
 export type VoiceGlowState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
 /**
- * Glow states that render the audio-reactive rim. Only the two talking states do:
- * connected-idle and thinking deliberately render nothing, so the glow means
- * "someone is talking" rather than "voice is on".
+ * Glow states that render the audio-reactive rim.
  */
 export function isGlowingVoiceState(voiceState: VoiceGlowState): boolean {
 	return voiceState === 'listening' || voiceState === 'speaking';
+}
+
+/**
+ * Whether the input glow should be rendered for the current voice state.
+ */
+export function shouldRenderVoiceInputGlow(connected: boolean, active: boolean, ownsVoice: boolean, voiceState: VoiceGlowState): boolean {
+	return connected && active && ownsVoice && isGlowingVoiceState(voiceState);
 }
 
 /**
@@ -54,6 +60,7 @@ export function readVoiceGlowIntensity(analyser: AnalyserNode | null, dataArray:
 export interface IVoiceGlowColors {
 	readonly listening: Color;
 	readonly speaking: Color;
+	readonly background: Color;
 }
 
 /**
@@ -83,6 +90,7 @@ function shiftHue(base: Color, degrees: number, saturationMul: number = 1, light
 export const DEFAULT_VOICE_GLOW_COLORS: IVoiceGlowColors = {
 	listening: VOICE_GLOW_FALLBACK,
 	speaking: shiftHue(VOICE_GLOW_FALLBACK, VOICE_GLOW_SPEAKING_HUE_SHIFT),
+	background: Color.fromHex('#3C3C3C'),
 };
 
 /**
@@ -96,6 +104,7 @@ export function resolveVoiceGlowColors(theme: Pick<IColorTheme, 'getColor'>): IV
 	return {
 		listening: theme.getColor(chatVoiceListeningGlow) ?? base,
 		speaking: theme.getColor(chatVoiceSpeakingGlow) ?? shiftHue(base, VOICE_GLOW_SPEAKING_HUE_SHIFT),
+		background: theme.getColor(inputBackground) ?? DEFAULT_VOICE_GLOW_COLORS.background,
 	};
 }
 
@@ -115,7 +124,7 @@ export type VoiceRimMood = 'cool' | 'warm';
 /** Whether the surrounding surface is light or dark. */
 export type GlowThemeKind = 'light' | 'dark';
 
-/** Saturation (%) bounds for an active (listening / speaking) rim. */
+/** Saturation (%) bounds for an active rim. */
 const RIM_SAT_MIN = 70;
 const RIM_SAT_MAX = 96;
 
@@ -145,12 +154,19 @@ const RIM_HUE_SHIFT = { cool: -10, warm: 7 } as const;
  * Shared with the dictation microphone glow, so an open microphone is the same
  * color whichever feature opened it.
  */
-export function resolveVoiceRimAccent(accent: Color, mood: VoiceRimMood, theme: GlowThemeKind): IVoiceRimAccent {
+export function resolveVoiceRimAccent(accent: Color, mood: VoiceRimMood, theme: GlowThemeKind, background?: Color): IVoiceRimAccent {
 	const { h, s } = accent.hsla;
+	const tuned = new Color(new HSLA(
+		(h + RIM_HUE_SHIFT[mood] + 360) % 360,
+		Math.min(RIM_SAT_MAX, Math.max(RIM_SAT_MIN, s * 100)) / 100,
+		RIM_LIGHTNESS[theme][mood] / 100,
+		1,
+	));
+	const contrasted = (background ?? (theme === 'light' ? Color.white : DEFAULT_VOICE_GLOW_COLORS.background)).ensureConstrast(tuned, 3);
 	return {
-		hue: (h + RIM_HUE_SHIFT[mood] + 360) % 360,
-		saturation: Math.round(Math.min(RIM_SAT_MAX, Math.max(RIM_SAT_MIN, s * 100))),
-		lightness: RIM_LIGHTNESS[theme][mood],
+		hue: contrasted.hsla.h,
+		saturation: Math.round(contrasted.hsla.s * 100),
+		lightness: Math.round(contrasted.hsla.l * 100),
 	};
 }
 
@@ -171,4 +187,3 @@ export function computeVoiceMicGlowBoxShadow(voiceState: VoiceGlowState, intensi
 	const shadowAlpha = 0.2 + intensity * 0.45;
 	return `0 0 ${shadowSpread}px rgba(${r},${g},${b},${shadowAlpha})`;
 }
-

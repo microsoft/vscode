@@ -20,6 +20,8 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { IChatInputNoticeFocusTarget } from './chatInputNoticeHost.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from './chatInputNoticeWidget.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationAction, IChatInputNotificationCommandAction, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from './chatInputNotificationService.js';
 import './media/chatInputNotificationWidget.css';
 
@@ -68,7 +70,16 @@ export interface IChatInputNotificationDelegate {
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
-	readonly onDidChangeVisibility?: (visible: boolean) => void;
+	/**
+	 * Reports whether a notification is rendered. `focusTarget` is the widget
+	 * itself, so a host can route notice-focus commands into it while it shows.
+	 */
+	readonly onDidChangeVisibility?: (visible: boolean, focusTarget: IChatInputNoticeFocusTarget) => void;
+	/**
+	 * Hands focus back to the input. Called when a notification that had keyboard
+	 * focus goes away, so focus is not stranded on `<body>`.
+	 */
+	readonly focusInput?: () => void;
 }
 
 /**
@@ -76,9 +87,13 @@ export interface IChatInputNotificationDelegate {
  * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
  * active notification with severity-colored borders, action buttons, and a dismiss button.
  */
-export class ChatInputNotificationWidget extends Disposable {
+export class ChatInputNotificationWidget extends Disposable implements IChatInputNoticeFocusTarget {
 
-	readonly domNode: HTMLElement;
+	private readonly _notice: ChatInputNoticeWidget;
+
+	get domNode(): HTMLElement {
+		return this._notice.domNode;
+	}
 
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
@@ -97,7 +112,14 @@ export class ChatInputNotificationWidget extends Disposable {
 	) {
 		super();
 
-		this.domNode = $('.chat-input-notification-widget');
+		// Built detached: the input part parents this widget itself, into the lane
+		// it lays out above the input.
+		this._notice = this._register(new ChatInputNoticeWidget({
+			variant: ChatInputNoticeVariant.Notification,
+			className: 'chat-input-notification-widget',
+			ariaRoleDescription: localize('chatInputNotificationRoleDescription', "notification"),
+		}));
+		this._notice.setVisible(false);
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._register(autorun(reader => {
@@ -108,8 +130,13 @@ export class ChatInputNotificationWidget extends Disposable {
 	}
 
 	private _render(): void {
+		// Tearing the content down would strand keyboard focus on <body>, which also
+		// drops the context keys the chat keybindings depend on. Hand it back to the
+		// input instead, the same way an onboarding card does when it stands down.
+		const hadFocus = this.hasFocus();
 		this._contentDisposables.clear();
 		dom.clearNode(this.domNode);
+		this.domNode.classList.remove(...Object.values(severityToClass));
 
 		const notification = this._notificationService.getActiveNotification(n => this._matchesSession(n));
 		this._setVisible(!!notification);
@@ -119,12 +146,19 @@ export class ChatInputNotificationWidget extends Disposable {
 		if (!notification) {
 			this.domNode.parentElement?.classList.remove('has-notification');
 			this._lastShownTelemetryData = undefined;
+			if (hadFocus) {
+				this._delegate?.focusInput?.();
+			}
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
+		if (hadFocus) {
+			// The region is rebuilt on every render; keep focus inside it.
+			this.focus();
+		}
 	}
 
 	private _setVisible(visible: boolean): void {
@@ -133,7 +167,16 @@ export class ChatInputNotificationWidget extends Disposable {
 		}
 
 		this._visible = visible;
-		this._delegate?.onDidChangeVisibility?.(visible);
+		this._notice.setVisible(visible);
+		this._delegate?.onDidChangeVisibility?.(visible, this);
+	}
+
+	hasFocus(): boolean {
+		return this._notice.hasFocus();
+	}
+
+	focus(): void {
+		this._notice.focus();
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
@@ -141,9 +184,7 @@ export class ChatInputNotificationWidget extends Disposable {
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {
-		const container = dom.append(this.domNode, $('.chat-input-notification'));
-
-		// Apply severity class
+		const container = this.domNode;
 		container.classList.add(severityToClass[notification.severity]);
 
 		// Header row: icon + title + mute + dismiss
@@ -163,59 +204,49 @@ export class ChatInputNotificationWidget extends Disposable {
 			titleElement.textContent = notification.message;
 		}
 		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
+		// Names the focusable region: `aria-roledescription` alone would have focus
+		// land on something announced only as "notification".
+		this._notice.setAriaLabel(ariaTitle);
 
 		if (notification.mute) {
 			const mute = notification.mute;
-			const muteButton = dom.append(headerRow, $('.chat-input-notification-mute'));
-			muteButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.bellSlash)));
-			muteButton.tabIndex = 0;
-			muteButton.role = 'button';
-			muteButton.ariaLabel = mute.tooltip;
-			this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), muteButton, mute.tooltip));
 
 			// Defer to a microtask for the same reason as the dismiss button:
 			// the command synchronously tears down the notification, and the
 			// resulting re-render must happen after the click has propagated.
-			const doMute = () => queueMicrotask(() => {
-				this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-					id: mute.commandId,
-					from: 'chatInputNotification',
-				});
-				this._commandService.executeCommand(mute.commandId, ...(mute.commandArgs ?? []));
+			const muteButton = this._notice.addAction({
+				ariaLabel: mute.tooltip,
+				icon: Codicon.bellSlash,
+				parent: headerRow,
+				store: this._contentDisposables,
+				onActivate: () => queueMicrotask(() => {
+					this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+						id: mute.commandId,
+						from: 'chatInputNotification',
+					});
+					this._commandService.executeCommand(mute.commandId, ...(mute.commandArgs ?? []));
+				}),
 			});
-			this._contentDisposables.add(dom.addDisposableListener(muteButton, dom.EventType.CLICK, doMute));
-			this._contentDisposables.add(dom.addDisposableListener(muteButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					doMute();
-				}
-			}));
+			this._contentDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), muteButton, mute.tooltip));
 		}
 
 		// Dismiss button (in header row, pushed to the right)
 		if (notification.dismissible) {
-			const dismissButton = dom.append(headerRow, $('.chat-input-notification-dismiss'));
-			dismissButton.appendChild(dom.$(ThemeIcon.asCSSSelector(Codicon.close)));
-			dismissButton.tabIndex = 0;
-			dismissButton.role = 'button';
-			dismissButton.ariaLabel = localize('dismissNotification', "Dismiss notification");
-
 			// Defer the dismiss to a microtask so the synchronous re-render
 			// (which clears all children of the widget) happens after the
 			// browser has finished propagating the click event. Otherwise
 			// blur handlers fired by removing the button from focus can
 			// move/remove nodes that `clearNode` then trips over.
-			const dismiss = () => queueMicrotask(() => {
-				this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationDismissed', this._getTelemetryData(notification));
-				this._notificationService.dismissNotification(notification.id);
+			this._notice.addDismissAction({
+				className: 'chat-input-notification-dismiss',
+				ariaLabel: localize('dismissNotification', "Dismiss notification"),
+				parent: headerRow,
+				store: this._contentDisposables,
+				onActivate: () => queueMicrotask(() => {
+					this._telemetryService.publicLog2<ChatInputNotificationTelemetryEvent, ChatInputNotificationTelemetryClassification>('chatInputNotificationDismissed', this._getTelemetryData(notification));
+					this._notificationService.dismissNotification(notification.id);
+				}),
 			});
-			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.CLICK, dismiss));
-			this._contentDisposables.add(dom.addDisposableListener(dismissButton, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					dismiss();
-				}
-			}));
 		}
 
 		// Body row: description + actions on the same line
@@ -299,7 +330,9 @@ export class ChatInputNotificationWidget extends Disposable {
 				this._switchToModel(action.modelIdentifier);
 				break;
 		}
-		this._notificationService.dismissNotification(notification.id);
+		if (!action.keepOpen) {
+			this._notificationService.dismissNotification(notification.id);
+		}
 	}
 
 	private _switchToModel(modelIdentifier: string): void {

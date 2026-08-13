@@ -35,13 +35,14 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { IMicCaptureService } from '../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../voiceClient/ttsPlaybackService.js';
-import { ChatSpeechToTextState, IChatSpeechToTextService } from '../speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService, isDictationActiveOnSurface } from '../speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
-import { DictationDownloadRing, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
+import { DictationDownloadRing, getDictationDownloadHoverContent, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
+import { AGENTS_VOICE_ENABLED } from '../../../agentsVoice/common/agentsVoice.js';
 
 /** Built-in on-device dictation toggle (start/stop). */
 const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
@@ -53,7 +54,7 @@ const DICTATION_TOGGLE_COMMAND_ID = 'workbench.action.chat.toggleSpeechToText';
  */
 const VOICE_START_COMMAND_ID = 'agentsVoice.startVoiceInChat';
 
-async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController): Promise<boolean> {
+async function retargetVoiceToCurrentSession(commandService: ICommandService, controller: IVoiceSessionController, window: Window & typeof globalThis): Promise<boolean> {
 	const currentSession = await commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 	if (!currentSession) {
 		return false;
@@ -61,10 +62,9 @@ async function retargetVoiceToCurrentSession(commandService: ICommandService, co
 	try {
 		const resource = URI.parse(currentSession);
 		if (resource.scheme === 'sessions-voice') {
-			controller.setDraftTarget();
+			controller.takeDraftInputOwnership(window);
 		} else {
-			controller.setTargetSession(resource);
-			controller.activateSession(resource);
+			controller.takeSessionInputOwnership(resource, window);
 		}
 		return true;
 	} catch {
@@ -136,12 +136,12 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 			// mouse click produces no key-up (leaving the turn pending) and a keyboard
 			// invocation creates an immediate empty turn. Keep it keybinding-only.
 			f1: false,
-			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+			precondition: AGENTS_VOICE_ENABLED,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.agents.voice.enabled', true),
+					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
 				),
 			},
@@ -174,7 +174,9 @@ export class ChatVoiceInputModeToggleListenAction extends Action2 {
 
 		this._holdActive = true;
 		try {
-			await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller);
+			if (!controller.retainOmniInputOwnershipForBargeIn(win)) {
+				await retargetVoiceToCurrentSession(accessor.get(ICommandService), controller, win);
+			}
 			// Auto-connect on the first hold so users can start talking with one shortcut.
 			if (!controller.isConnected.get() && !controller.isConnecting.get()) {
 				await controller.connect(win);
@@ -309,6 +311,8 @@ export interface IVoiceInputModePillOptions {
 	readonly isActive?: IObservable<boolean>;
 	/** Whether the shared Voice Mode transport belongs to this input. */
 	readonly isVoiceActive?: IObservable<boolean>;
+	/** Claim Voice Mode for this host instead of targeting the last focused chat session. */
+	readonly activateVoiceMode?: () => void | Promise<void>;
 }
 
 /**
@@ -350,9 +354,11 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell?.setAttribute('aria-label', this._dictationCell.classList.contains('preparing')
 			? localize('voiceInputMode.dictationPreparing', "Preparing Speech to Text Model…")
 			: this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID));
-		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('on')
-			? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
-			: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
+		this._voiceCell?.setAttribute('aria-label', this._voiceCell.classList.contains('connecting')
+			? localize('voiceInputMode.connecting', "Connecting to Voice Mode…")
+			: this._voiceCell.classList.contains('on')
+				? localize('voiceInputMode.disconnect', "Turn Off Voice Mode")
+				: this._getLabelWithKeybinding(localize('voiceInputMode.voice', "Voice Mode"), VOICE_START_COMMAND_ID));
 		this._listenCell?.setAttribute('aria-label', this._listenCell.classList.contains('active')
 			? this._getLabelWithKeybinding(localize('voiceInputMode.stopListening', "Stop Listening"), ChatVoiceInputModeToggleListenAction.ID)
 			: this._getLabelWithKeybinding(localize('voiceInputMode.startListening', "Start Listening"), ChatVoiceInputModeToggleListenAction.ID));
@@ -408,7 +414,9 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._dictationCell.setAttribute('role', 'button');
 		this._dictationIcon = dom.append(this._dictationCell, dom.$('span.chat-voice-input-mode-icon'));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._dictationCell,
-			() => getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
+			() => this.chatSpeechToTextService.isPreparingModel
+				? getDictationDownloadHoverContent(this.chatSpeechToTextService)
+				: getDictationHoverContent(this._getLabelWithKeybinding(localize('voiceInputMode.dictation', "Dictation"), DICTATION_TOGGLE_COMMAND_ID), this.configurationService)));
 		this._register(dom.addDisposableListener(this._dictationCell, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e, true);
 			this._onClickDictation();
@@ -426,6 +434,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		this._voiceCell.setAttribute('type', 'button');
 		this._voiceCell.setAttribute('role', 'button');
 		this._voiceBars = dom.append(this._voiceCell, dom.$('span.chat-voice-input-mode-bars'));
+		// Connect/reconnect spinner. Swapped in for the bars while a socket is being
+		// established, so a retry loop reads as "working on it" rather than as a live
+		// session. CSS hides whichever of the two the `connecting` class deselects.
+		dom.append(this._voiceCell, dom.$(`span.chat-voice-input-mode-icon.chat-voice-input-mode-spinner${ThemeIcon.asCSSSelector(Codicon.loadingCompact)}`));
 		for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
 			this._voiceBarEls.push(dom.append(this._voiceBars, dom.$('span.chat-voice-input-mode-bar')));
 		}
@@ -495,18 +507,17 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}));
 		this._registerActivationKeys(this._listenCell, () => this._onClickListen());
 
-		// Dictation activity: driven directly by the built-in on-device speech-to-text
-		// service so the mic reliably fills while a dictation session is recording or
-		// transcribing (global, not scope-dependent).
+		// Dictation activity: scoped to chat so editor and terminal dictation do not
+		// animate this control.
 		const dictationActive = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangeState,
-			() => this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
+			() => isDictationActiveOnSurface(this.chatSpeechToTextService, 'chat') && this.chatSpeechToTextService.state !== ChatSpeechToTextState.Idle);
 
 		// Model preparation: on first use the on-device model downloads/loads. Swap the
 		// mic for a download affordance while preparing, mirroring the standalone button.
 		const dictationPreparing = observableFromEvent(this,
 			this.chatSpeechToTextService.onDidChangePreparingModel,
-			() => this.chatSpeechToTextService.isPreparingModel);
+			() => this.chatSpeechToTextService.currentSurface === 'chat' && this.chatSpeechToTextService.isPreparingModel);
 		// Sub-state of preparing: `true` only during a confirmed on-disk download
 		// (cache miss), `false` while loading an already-cached model. Drives the
 		// download-vs-spinner glyph below.
@@ -538,7 +549,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			} else {
 				isDictating = isActive && dictationActive.read(reader);
 				connected = isVoiceActive && this.voiceSessionController.isConnected.read(reader);
-				connecting = isVoiceActive && this.voiceSessionController.isConnecting.read(reader);
+				// A reconnect is a connect in progress as far as this pill is concerned:
+				// without it the pill renders its idle state while the socket is retrying.
+				connecting = isVoiceActive && (this.voiceSessionController.isConnecting.read(reader)
+					|| this.voiceSessionController.isReconnecting.read(reader));
 				const voiceState = this.voiceSessionController.voiceState.read(reader);
 				listening = connected && voiceState === 'listening';
 				speaking = connected && voiceState === 'speaking';
@@ -551,8 +565,10 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 
 			// The dedicated listen (start/stop speaking) toggle shows in manual
 			// (non-hands-free) connected voice mode. In hands-free mode the auto-listen
-			// loop drives listening, so there is no listen cell.
-			const showListen = voiceOn && !handsFree;
+			// loop drives listening, so there is no listen cell. It keys off `connected`
+			// rather than `voiceOn` so a connect/reconnect renders as a single-cell
+			// spinner instead of a spinner beside an inert listen button.
+			const showListen = connected && !handsFree;
 
 			// Presence of each cell. The housing is a constant size; the absent cell
 			// collapses its width to 0 (mask recenters) so icons slide into place.
@@ -607,6 +623,7 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 			//   hover-while-connected → short even "silent" bars (previews disconnect; CSS)
 			this._voiceCell!.classList.toggle('collapsed', !voicePresent);
 			this._voiceCell!.classList.toggle('on', voiceOn);
+			this._voiceCell!.classList.toggle('connecting', connecting && !connected);
 			this._voiceCell!.classList.toggle('idle-on', voiceOn && !voiceLive);
 			this._voiceCell!.classList.toggle('listening', listening);
 			this._voiceCell!.classList.toggle('speaking', speaking);
@@ -766,15 +783,23 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 
 		const controller = this.voiceSessionController;
+		const targetWindow = getWindow(this._voiceCell);
 		if (controller.isConnected.get() || controller.isConnecting.get()) {
 			if (this._options?.isVoiceActive?.get() === false) {
-				await retargetVoiceToCurrentSession(this.commandService, controller);
+				if (this._options.activateVoiceMode) {
+					await this._options.activateVoiceMode();
+				} else {
+					await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
+				}
 				return;
 			}
 			controller.disconnect();
 		} else {
-			await retargetVoiceToCurrentSession(this.commandService, controller);
-			const targetWindow = getWindow(this._voiceCell);
+			if (this._options?.activateVoiceMode) {
+				await this._options.activateVoiceMode();
+			} else {
+				await retargetVoiceToCurrentSession(this.commandService, controller, targetWindow);
+			}
 			controller.connect(targetWindow).catch(() => { /* connect failures are surfaced/logged by the controller */ });
 		}
 	}

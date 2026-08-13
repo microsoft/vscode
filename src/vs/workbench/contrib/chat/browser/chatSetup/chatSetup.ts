@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -76,13 +78,16 @@ export class ChatSetupError extends Error {
 export interface IChatSetupRunOptions {
 	readonly disableChatViewReveal?: boolean;
 	readonly forceSignInDialog?: boolean;
+	readonly cancellationToken?: CancellationToken;
 	readonly additionalScopes?: readonly string[];
 	readonly forceAnonymous?: ChatSetupAnonymous;
 	readonly dialogIcon?: ThemeIcon;
 	readonly dialogTitle?: string;
 	readonly setupStrategy?: ChatSetupStrategy;
 	readonly disableCloseButton?: boolean;
-	readonly onSignInStarted?: () => void;
+	readonly dialogExtraClasses?: readonly string[];
+	readonly renderDialogFooter?: (container: HTMLElement) => IDisposable | undefined;
+	readonly onSignInStarted?: (cancel: () => void) => void;
 }
 
 export interface IChatSetupCommandOptions extends IChatSetupRunOptions {
