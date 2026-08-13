@@ -64,7 +64,6 @@ class ViewAllChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, session?: IActiveSession): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
-		const changesViewService = accessor.get(IChangesViewService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		// The clicked session is forwarded as the argument by the session header,
@@ -75,20 +74,13 @@ class ViewAllChangesAction extends Action2 {
 			return;
 		}
 
-		// The header pill reflects the session's default changeset, so reset any
-		// Changes-view selection to the default before opening so the diff editor
-		// (a shared per-session resource) shows the same changes as the pill.
-		changesViewService.setChangesetId(undefined);
-
 		// Opening the Changes editor from the pill is a deliberate user action, so
 		// reveal the (possibly hidden) editor area explicitly — the automatic
 		// single-pane hide rules must not undo it.
 		layoutService.revealEditorPartExplicitly();
 
-		// Open the session Changes editor in the editor part. The resource list is
-		// resolved reactively via the `ChangesMultiDiffSourceResolver` registered as
-		// a workbench contribution.
-		await sessionChangesService.openChangesEditor(sessionResource);
+		// The header pill reflects the default changeset.
+		await sessionChangesService.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: undefined } });
 	}
 }
 registerAction2(ViewAllChangesAction);

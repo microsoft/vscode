@@ -11,7 +11,6 @@ import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -222,7 +221,7 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.render(this.element);
 		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
-		this._setupGettingReadyStatus(chatModel);
+		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget));
@@ -258,8 +257,7 @@ export class ChatView extends AbstractChatView {
 		}));
 	}
 
-	private _setupGettingReadyStatus(chatModel: IObservable<IChatModel | undefined>): void {
-		const message = localize('chatView.gettingReady', "Getting ready...");
+	private _setupTranscriptPreparationProgress(chatModel: IObservable<IChatModel | undefined>): void {
 		this._register(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
@@ -268,11 +266,11 @@ export class ChatView extends AbstractChatView {
 				: undefined;
 			const activity = typeof statusMessage === 'string' ? statusMessage : statusMessage ? renderAsPlaintext(statusMessage) : undefined;
 			const model = chatModel.read(reader);
-			let showGettingReady: boolean;
+			let showProgress: boolean;
 			if (!resource) {
-				showGettingReady = false;
+				showProgress = false;
 			} else if (!model) {
-				showGettingReady = true;
+				showProgress = true;
 			} else {
 				const requests = model.getRequests();
 				const lastRequest = model.lastRequestObs.read(reader);
@@ -280,9 +278,10 @@ export class ChatView extends AbstractChatView {
 				const hiddenRequestIncomplete = lastRequest?.isHiddenFromTranscript
 					? lastRequest.response?.isIncomplete.read(reader)
 					: undefined;
-				showGettingReady = shouldShowGettingReady(requests.length, visibleRequestCount, hiddenRequestIncomplete);
+				showProgress = shouldShowTranscriptPreparationProgress(requests.length, visibleRequestCount, hiddenRequestIncomplete);
 			}
-			this._widget.setTranscriptProgress(getGettingReadyMessage(showGettingReady, activity, message), showGettingReady ? message : undefined);
+			const progress = getTranscriptProgress(showProgress, activity);
+			this._widget.setTranscriptProgress(progress, progress);
 		}));
 	}
 
@@ -521,15 +520,15 @@ export class ChatView extends AbstractChatView {
 	}
 }
 
-export function shouldShowGettingReady(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
+export function shouldShowTranscriptPreparationProgress(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
 	return requestCount === 0 || (visibleRequestCount === 0 && hiddenRequestIncomplete !== false);
 }
 
-export function getGettingReadyMessage(showGettingReady: boolean, activity: string | undefined, fallback: string): string | undefined {
-	if (!showGettingReady) {
+export function getTranscriptProgress(showProgress: boolean, activity: string | undefined): string | undefined {
+	if (!showProgress) {
 		return undefined;
 	}
-	return activity?.trim() || fallback;
+	return activity?.trim() || undefined;
 }
 
 export function findTranscriptContextEntry(requests: readonly { readonly variableData: { readonly variables: readonly IChatRequestVariableEntry[] }; readonly attachedContext?: readonly IChatRequestVariableEntry[] }[]): IChatRequestTranscriptContextVariableEntry | undefined {

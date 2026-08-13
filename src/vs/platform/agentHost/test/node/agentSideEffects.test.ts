@@ -31,7 +31,7 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswe
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -1136,6 +1136,65 @@ suite('AgentSideEffects', () => {
 			const state = stateManager.getSessionState(sessionUri.toString());
 			assert.strictEqual(state?.title, 'Test');
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+		});
+
+		test('peer /rename synchronously suppresses the automatic rename reminder', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			const peerChat = buildChatUri(sessionUri.toString(), 'peer-rename');
+			stateManager.addChat(sessionUri.toString(), peerChat, { title: 'Automatic peer title' });
+			renameSideEffects.markTitleAuto(sessionUri.toString(), peerChat, 'Automatic peer title');
+			const renameAction: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-rename',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '/rename User Peer Title', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChat, renameAction, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(peerChat, renameAction);
+			await waitForState(stateManager, () => (
+				stateManager.getChatState(peerChat)?.title === 'User Peer Title'
+				&& stateManager.getActiveTurnId(peerChat) === undefined
+			) || undefined);
+
+			const followUpAction: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-follow-up',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChat, followUpAction, { clientId: 'test', clientSeq: 2 });
+			renameSideEffects.handleAction(peerChat, followUpAction);
+			await waitForSendMessageCalls(1);
+
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Continue');
+		});
+
+		test('automatic rename guidance is transient context and never changes the user prompt', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-guidance',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Keep GitHub casing', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
+			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_session`'));
 		});
 
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {

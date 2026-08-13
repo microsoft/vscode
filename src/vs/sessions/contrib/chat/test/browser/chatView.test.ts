@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
-import { findTranscriptContextEntry, getGettingReadyMessage, NewChatView, shouldShowGettingReady } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -78,12 +78,12 @@ suite('Sessions - Chat View', () => {
 	});
 
 
-	test('shows getting ready until a hidden bootstrap completes or visible content appears', () => {
+	test('allows transcript progress until a hidden bootstrap completes or visible content appears', () => {
 		assert.deepStrictEqual({
-			empty: shouldShowGettingReady(0, 0, undefined),
-			hiddenPending: shouldShowGettingReady(1, 0, true),
-			hiddenComplete: shouldShowGettingReady(1, 0, false),
-			visiblePending: shouldShowGettingReady(2, 1, true),
+			empty: shouldShowTranscriptPreparationProgress(0, 0, undefined),
+			hiddenPending: shouldShowTranscriptPreparationProgress(1, 0, true),
+			hiddenComplete: shouldShowTranscriptPreparationProgress(1, 0, false),
+			visiblePending: shouldShowTranscriptPreparationProgress(2, 1, true),
 		}, {
 			empty: true,
 			hiddenPending: true,
@@ -92,14 +92,16 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
-	test('shows current worktree activity while getting ready', () => {
+	test('shows the session-list status message in the pre-request progress surface', () => {
 		assert.deepStrictEqual({
-			activity: getGettingReadyMessage(true, 'Creating isolated worktree (42%)', 'Getting ready...'),
-			fallback: getGettingReadyMessage(true, undefined, 'Getting ready...'),
-			visibleRequest: getGettingReadyMessage(false, 'Creating isolated worktree (42%)', 'Getting ready...'),
+			fallback: getTranscriptProgress(true, 'Working...'),
+			activity: getTranscriptProgress(true, 'Creating isolated worktree (42%)'),
+			noActivity: getTranscriptProgress(true, undefined),
+			visibleRequest: getTranscriptProgress(false, 'Creating isolated worktree (42%)'),
 		}, {
+			fallback: 'Working...',
 			activity: 'Creating isolated worktree (42%)',
-			fallback: 'Getting ready...',
+			noActivity: undefined,
 			visibleRequest: undefined,
 		});
 	});
