@@ -27,8 +27,8 @@ function decodeHtmlAttribute(value: string): string {
 }
 
 /**
- * Extracts the source of the redirect anchor tag. Deliberately does not rely on any attribute
- * added by the fix, so that these tests detect a regression rather than just a missing marker.
+ * Extracts the source of the redirect anchor tag. Deliberately keys off page text rather than
+ * any attribute added by this change, so a regression fails on its own merits.
  */
 function getRedirectAnchor(html: string): string {
 	const end = html.indexOf('>click here</a>');
@@ -39,9 +39,9 @@ function getRedirectAnchor(html: string): string {
 }
 
 /**
- * Returns the anchor source with quoted attribute values removed, leaving only the region a
- * browser tokenizes as attribute names. Text inside a quoted value is inert, so this is what
- * distinguishes an injected handler from an escaped one that merely looks like markup.
+ * Strips quoted attribute values, leaving only the region a browser tokenizes as attribute
+ * names. Markup inside a quoted value is inert, so this separates a real handler from an
+ * escaped one that merely looks like markup.
  */
 function getAnchorAttributeRegion(html: string): string {
 	return getRedirectAnchor(html).replace(/"[^"]*"/g, '');
@@ -83,8 +83,6 @@ suite('LoopbackAuthServer - getHtml', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('does not interpolate the app URI into the inline script', () => {
-		// The redirect reads the URI back off the anchor rather than embedding it in the
-		// script, so quote characters cannot terminate a JavaScript string literal.
 		const appUri = appUriForAuthority('x\';alert(1)//@evil.example');
 
 		assert.deepStrictEqual(
@@ -110,10 +108,8 @@ suite('LoopbackAuthServer - getHtml', () => {
 	});
 
 	test('href round-trips to the exact app URI', () => {
-		// Guards the redirect target: the anchor must decode back to the byte-exact URI that
-		// was handed to `$waitForUriHandler`, which compares scheme, authority and path.
-		// Note the production code reads `getAttribute('href')`, not the `.href` property,
-		// because the latter returns a browser-normalized (percent-encoded) URL.
+		// `$waitForUriHandler` compares scheme, authority and path, so the value must survive
+		// byte-exact. Production reads `getAttribute`, not `.href`, which normalizes the URL.
 		const uris = [
 			appUriForAuthority('login.microsoftonline.com'),
 			appUriForAuthority('x\';alert(1)//@evil.example'),

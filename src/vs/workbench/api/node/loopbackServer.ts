@@ -187,9 +187,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 	}
 
 	getHtml(): string {
-		// Values interpolated below need context-appropriate encoding: the app URI is encoded for
-		// the HTML attribute context and is not emitted into the inline script, which reads it
-		// back off the anchor instead.
+		// Neither value is static; encode each for its context and keep the URI out of the script.
 		const appUri = htmlAttributeEncodeValue(this._appUri.toString(true));
 		const appName = escape(this._appName);
 		// TODO: Bring this in via mixin. Skipping exploration for now.
