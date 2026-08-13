@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -18,7 +18,7 @@ import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessi
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../../../browser/sessionRouter/chatSessionRoutingController.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatModeKind } from '../../../common/constants.js';
-import { IChatSessionRoutingProvider, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceBrowseAction } from '../../../common/sessionRouter.js';
+import { IChatSessionRoutingProvider, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceBrowseAction, IRoutableSession } from '../../../common/sessionRouter.js';
 
 suite('ChatSessionRoutingController', () => {
 
@@ -982,6 +982,113 @@ suite('ChatSessionRoutingController', () => {
 			providerOpenCount: 1,
 			badgeConnected: true,
 		});
+
+		controller.dispose();
+		container.remove();
+	});
+
+	test('updates a provider delivery with its title and completed response', async () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const resource = URI.parse('session:/provider-delivery');
+		const sessionsChanged = new Emitter<void>();
+		let snapshot: IRoutableSession = {
+			sessionId: 'provider:session',
+			label: 'New session',
+			status: 'working',
+			lastActivity: 1,
+		};
+		const provider = {
+			onDidChangeSessions: sessionsChanged.event,
+			getSessionSnapshot: async () => snapshot,
+		} as unknown as IChatSessionRoutingProvider;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+				getRoutingProvider: () => provider,
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; reveal: () => Promise<void> },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'New session', {
+			status: 'sent',
+			resource,
+			reveal: async () => { },
+		});
+		await Promise.resolve();
+		snapshot = {
+			sessionId: 'provider:session',
+			label: 'Update routing badge',
+			status: 'idle',
+			lastActivity: 2,
+			lastResponse: 'Implemented the requested change.',
+		};
+		sessionsChanged.fire();
+		await Promise.resolve();
+
+		assert.strictEqual(
+			container.querySelector('.chat-routing-badge-label')?.textContent,
+			'Update routing badge: Implemented the requested change.'
+		);
+
+		controller.dispose();
+		sessionsChanged.dispose();
+		container.remove();
+	});
+
+	test('keeps prior delivery rows when another request starts', async () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			{ model: { getSession: () => undefined, onDidChangeSessions: Event.None } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'First session', { status: 'sent', resource: URI.parse('test:/first') });
+		showDeliveryConfirmation.call(controller, 'Second session', { status: 'sent', resource: URI.parse('test:/second') });
+
+		assert.deepStrictEqual(
+			[...container.querySelectorAll('.chat-routing-badge-label')].map(element => element.textContent),
+			['Sent to First session', 'Sent to Second session']
+		);
 
 		controller.dispose();
 		container.remove();

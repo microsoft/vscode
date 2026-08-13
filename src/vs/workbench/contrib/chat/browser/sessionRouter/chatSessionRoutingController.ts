@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -166,8 +166,11 @@ export interface IChatSessionRoutingHost extends IChatSessionRoutingFolderPicker
  */
 export class ChatSessionRoutingController extends Disposable {
 
-	/** Active pending-send badge + auto-send timers; replaced/cleared per submission. */
+	/** Transient routing/review badge + auto-send timers; replaced/cleared per submission. */
 	private readonly _pendingSend = this._register(new MutableDisposable<IDisposable>());
+	/** Independently dismissible delivery rows that remain live across later submissions. */
+	private readonly _deliveryConfirmations = this._register(new DisposableMap<number>());
+	private _deliveryConfirmationId = 0;
 	/** Cancellation for the in-flight submission; canceled when the host tears down. */
 	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _submitDraftListeners = this._register(new MutableDisposable<IDisposable>());
@@ -1165,6 +1168,7 @@ export class ChatSessionRoutingController extends Disposable {
 			this._showDispatchFailure(label);
 			return;
 		}
+		this._pendingSend.clear();
 		const badge = dom.$('.chat-routing-badge');
 		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
 		mark.appendChild(renderIcon(result.status === 'queued' ? Codicon.clock : Codicon.pass));
@@ -1177,15 +1181,16 @@ export class ChatSessionRoutingController extends Disposable {
 			return;
 		}
 
+		const deliveryId = ++this._deliveryConfirmationId;
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
 		const reveal = result.reveal ?? (() => this.chatWidgetService.openSession(resource));
 		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void reveal());
 		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => {
 			this.host.onDidDismissRoute?.(resource, result.requestId);
-			this._pendingSend.clear();
+			this._deliveryConfirmations.deleteAndDispose(deliveryId);
 		});
-		this._pendingSend.value = store;
+		this._deliveryConfirmations.set(deliveryId, store);
 		const announcement = result.status === 'queued'
 			? localize('chatSessionRouting.queuedFor', "Queued for {0}", label)
 			: localize('chatSessionRouting.sentTo', "Sent to {0}", label);
@@ -1194,25 +1199,24 @@ export class ChatSessionRoutingController extends Disposable {
 		const trackActivity = () => {
 			if (!trackingActivity) {
 				trackingActivity = true;
-				this._trackDeliveryActivity(store, resource, label, mark, labelEl, result.status === 'queued');
+				this._trackDeliveryActivity(store, resource, label, mark, labelEl, result.status === 'queued', result.activityBaseline);
 			}
 		};
-		if (!result.reveal) {
+		const routingProvider = this._routingProvider ?? this.host.getRoutingProvider?.();
+		if (!result.reveal || routingProvider?.getSessionSnapshot) {
 			trackActivity();
 		}
 
 		if (result.completion) {
 			void result.completion.then(completion => {
-				if (this._pendingSend.value !== store) {
+				if (this._deliveryConfirmations.get(deliveryId) !== store) {
 					return;
 				}
 				if (completion.status === 'sent') {
 					mark.replaceChildren(renderIcon(Codicon.pass));
 					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 					ariaAlert(labelEl.textContent);
-					if (!result.reveal) {
-						trackActivity();
-					}
+					trackActivity();
 				} else {
 					mark.replaceChildren(renderIcon(completion.reasonCode === 'providerRemoved' ? Codicon.circleSlash : Codicon.error));
 					labelEl.textContent = completion.reasonCode === 'providerRemoved'
@@ -1226,7 +1230,12 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean): void {
+	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean, activityBaseline?: number): void {
+		const routingProvider = this._routingProvider ?? this.host.getRoutingProvider?.();
+		if (routingProvider?.getSessionSnapshot) {
+			this._trackProviderDeliveryActivity(store, routingProvider, resource, label, mark, labelElement, activityBaseline);
+			return;
+		}
 		const model = this.chatService.getSession(resource);
 		const renderedPreview = store.add(new MutableDisposable<IDisposable>());
 		let lastAnnouncement = labelElement.textContent;
@@ -1288,6 +1297,95 @@ export class ChatSessionRoutingController extends Disposable {
 			update();
 		}
 		store.add(this.agentSessionsService.model.onDidChangeSessions(() => update()));
+	}
+
+	private _trackProviderDeliveryActivity(
+		store: DisposableStore,
+		provider: IChatSessionRoutingProvider,
+		resource: URI,
+		label: string,
+		mark: HTMLElement,
+		labelElement: HTMLElement,
+		activityBaseline: number | undefined,
+	): void {
+		const cts = new CancellationTokenSource();
+		store.add(toDisposable(() => cts.dispose(true)));
+		const renderedPreview = store.add(new MutableDisposable<IDisposable>());
+		let updateSequence = 0;
+		let previous: IRoutableSession | undefined;
+		let observedActivity = false;
+		let lastAnnouncement = labelElement.textContent;
+		const update = async () => {
+			const sequence = ++updateSequence;
+			let session: IRoutableSession | undefined;
+			try {
+				session = await provider.getSessionSnapshot!(resource, cts.token);
+			} catch (error) {
+				if (!cts.token.isCancellationRequested) {
+					this.logService.warn('[chatSessionRouting] tracking provider delivery failed:', error);
+				}
+				return;
+			}
+			if (cts.token.isCancellationRequested || sequence !== updateSequence || !session) {
+				return;
+			}
+			const changedSincePrevious = previous !== undefined && (
+				session.label !== previous.label
+				|| session.status !== previous.status
+				|| session.lastActivity !== previous.lastActivity
+				|| session.lastResponse !== previous.lastResponse
+			);
+			observedActivity = observedActivity
+				|| changedSincePrevious
+				|| session.label !== label
+				|| (activityBaseline !== undefined && session.lastActivity !== activityBaseline)
+				|| session.status === 'working'
+				|| session.status === 'needsInput'
+				|| session.status === 'failed';
+			previous = session;
+
+			let icon = Codicon.pass;
+			let statusLabel = localize('chatSessionRouting.sentTo', "Sent to {0}", session.label);
+			let isCompleted = false;
+			if (session.status === 'needsInput') {
+				icon = Codicon.question;
+				statusLabel = localize('chatSessionRouting.needsInputIn', "{0} needs your input", session.label);
+			} else if (session.status === 'working') {
+				icon = Codicon.loading;
+				statusLabel = localize('chatSessionRouting.runningIn', "Running in {0}", session.label);
+			} else if (session.status === 'failed') {
+				icon = Codicon.error;
+				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", session.label);
+			} else if (observedActivity && session.status === 'idle') {
+				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", session.label);
+				isCompleted = true;
+			}
+
+			if (isCompleted && session.lastResponse) {
+				const markdown = new MarkdownString(localize(
+					'chatSessionRouting.completedInWithResponse',
+					"{0}: {1}",
+					escapeMarkdownSyntaxTokens(session.label),
+					session.lastResponse
+				));
+				const rendered = renderMarkdown(markdown);
+				rendered.element.classList.add('chat-routing-badge-response');
+				labelElement.replaceChildren(rendered.element);
+				renderedPreview.value = rendered;
+			} else {
+				renderedPreview.clear();
+				labelElement.textContent = statusLabel;
+			}
+			mark.replaceChildren(renderIcon(icon));
+			if (statusLabel !== lastAnnouncement) {
+				lastAnnouncement = statusLabel;
+				ariaAlert(lastAnnouncement);
+			}
+		};
+		void update();
+		if (provider.onDidChangeSessions) {
+			store.add(provider.onDidChangeSessions(() => void update()));
+		}
 	}
 
 	private _showFanoutOutcomes(targets: readonly PendingTarget[], results: readonly IChatSessionRoutingDispatchResult[]): void {

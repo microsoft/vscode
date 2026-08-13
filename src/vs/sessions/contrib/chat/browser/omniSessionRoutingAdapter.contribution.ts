@@ -20,7 +20,8 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionRoutingDispatchResult, IChatSessionRoutingNewSessionTarget, IChatSessionRoutingProvider, IChatSessionRoutingProviderService, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceCatalog, IRoutableSession } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
+import { IChatSessionHistoryItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionRoutingDispatchResult, IChatSessionRoutingNewSessionTarget, IChatSessionRoutingProvider, IChatSessionRoutingProviderService, IChatSessionRoutingWorkspace, IChatSessionRoutingWorkspaceCatalog, IRoutableSession, ROUTER_FIELD_CLIP_LENGTH } from '../../../../workbench/contrib/chat/common/sessionRouter.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -38,6 +39,8 @@ interface ISessionRoutingTarget {
 export class OmniSessionRoutingAdapter extends Disposable implements IChatSessionRoutingProvider {
 
 	private readonly sessions = new Map<string, ISession>();
+	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
+	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 	private readonly _onDidChangeNewSessionWorkspaceCatalog = this._register(new Emitter<void>());
 	readonly onDidChangeNewSessionWorkspaceCatalog = this._onDidChangeNewSessionWorkspaceCatalog.event;
 	private readonly sessionWorkspaceFallback: SessionWorkspaceFallback;
@@ -52,6 +55,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 	constructor(
 		private readonly sessionsManagementService: ISessionsManagementService,
 		private readonly sessionsService: ISessionsService,
+		private readonly chatSessionsService: IChatSessionsService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
 		private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		private readonly configurationService: IConfigurationService,
@@ -69,9 +73,13 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		}, this.sessionsProvidersService, fileService, uriIdentityService));
 		this._register(this.sessionWorkspaceFallback.onDidChange(() => this._onDidChangeNewSessionWorkspaceCatalog.fire()));
 		this._refreshSessions();
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => this._refreshSessions()));
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+			this._refreshSessions();
+			this._onDidChangeSessions.fire();
+		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			this._refreshSessions();
+			this._onDidChangeSessions.fire();
 			this._onDidChangeNewSessionWorkspaceCatalog.fire();
 		}));
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
@@ -92,6 +100,26 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		}
 		this._refreshSessions();
 		return [...this.sessions.values()].map(session => this._toCandidate(session));
+	}
+
+	async getSessionSnapshot(resource: URI, token: CancellationToken): Promise<IRoutableSession | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const target = this._resolveTarget(resource.toString());
+		if (!target) {
+			return undefined;
+		}
+		const candidate = this._toCandidate(target.session);
+		try {
+			const history = await this.chatSessionsService.getChatSessionHistory(target.chat.resource, token);
+			return token.isCancellationRequested ? undefined : this._withHistory(candidate, history);
+		} catch (error) {
+			if (!isCancellationError(error) && !token.isCancellationRequested) {
+				this.logService.trace('[omniSessionRouting] Failed to read session response preview', error);
+			}
+			return token.isCancellationRequested ? undefined : candidate;
+		}
 	}
 
 	async getNewSessionWorkspaceCatalog(): Promise<IChatSessionRoutingWorkspaceCatalog> {
@@ -189,12 +217,13 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		}
 
 		try {
+			const activityBaseline = target.session.lastTurnEnd.get()?.getTime() ?? target.session.updatedAt.get().getTime();
 			await this.sessionsManagementService.sendRequest(target.session, target.chat, {
 				query: message,
 				attachedContext: options.attachedContext?.length ? [...options.attachedContext] : undefined,
 				background: true,
 			});
-			return { status: 'sent', resource: target.session.resource };
+			return { status: 'sent', resource: target.session.resource, activityBaseline };
 		} catch (error) {
 			return this._toRejectedResult(error, target.session.resource);
 		}
@@ -237,7 +266,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 					reason: localize('omniSessionRouting.sessionNotCreated', "The Sessions provider could not create the new session."),
 				};
 			}
-			return { status: 'sent', resource: session.resource };
+			return { status: 'sent', resource: session.resource, activityBaseline: session.createdAt.getTime() };
 		} catch (error) {
 			return this._toRejectedResult(error);
 		}
@@ -401,6 +430,28 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		};
 	}
 
+	private _withHistory(candidate: IRoutableSession, history: readonly IChatSessionHistoryItem[]): IRoutableSession {
+		let lastResponse: string | undefined;
+		for (const item of history) {
+			if (item.type !== 'response') {
+				continue;
+			}
+			let text = '';
+			for (const part of item.parts) {
+				if (part.kind === 'markdownContent') {
+					text += part.content.value;
+					if (text.length >= ROUTER_FIELD_CLIP_LENGTH * 2) {
+						break;
+					}
+				}
+			}
+			if (text.trim()) {
+				lastResponse = text.trim();
+			}
+		}
+		return lastResponse ? { ...candidate, lastResponse } : candidate;
+	}
+
 	private _statusToString(status: SessionStatus): string {
 		switch (status) {
 			case SessionStatus.InProgress: return 'working';
@@ -485,6 +536,7 @@ class OmniSessionRoutingContribution extends Disposable implements IWorkbenchCon
 		@IChatSessionRoutingProviderService routingProviderService: IChatSessionRoutingProviderService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsService sessionsService: ISessionsService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -498,6 +550,7 @@ class OmniSessionRoutingContribution extends Disposable implements IWorkbenchCon
 		const adapter = this._register(new OmniSessionRoutingAdapter(
 			sessionsManagementService,
 			sessionsService,
+			chatSessionsService,
 			sessionsProvidersService,
 			recentWorkspacesService,
 			configurationService,

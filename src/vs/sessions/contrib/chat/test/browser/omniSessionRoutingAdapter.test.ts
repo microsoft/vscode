@@ -19,6 +19,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatSessionHistoryItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { TestFileService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -37,6 +38,7 @@ suite('OmniSessionRoutingAdapter', () => {
 	let opened: URI[];
 	let adapter: OmniSessionRoutingAdapter;
 	let selectedLocalFolder: URI[] | undefined;
+	let history: readonly IChatSessionHistoryItem[];
 
 	setup(() => {
 		managementService = store.add(new TestSessionsManagementService());
@@ -45,11 +47,15 @@ suite('OmniSessionRoutingAdapter', () => {
 		providersService.setProviders([createProvider('provider', { supportsLocalWorkspaces: true })]);
 		opened = [];
 		selectedLocalFolder = undefined;
+		history = [];
 		const fileService = store.add(new TestFileService());
 		adapter = store.add(new OmniSessionRoutingAdapter(
 			managementService,
 			upcastPartial<ISessionsService>({
 				openSession: async resource => { opened.push(resource); },
+			}),
+			upcastPartial<IChatSessionsService>({
+				getChatSessionHistory: async () => history,
 			}),
 			providersService,
 			recentWorkspacesService,
@@ -120,6 +126,37 @@ suite('OmniSessionRoutingAdapter', () => {
 				status: 'rejected',
 				reasonCode: 'providerRemoved',
 				reason: 'The selected session is no longer available.',
+			},
+		});
+	});
+
+	test('publishes live title, status, and response snapshots', async () => {
+		const original = createSession('provider:session', { title: 'New session', status: SessionStatus.InProgress });
+		managementService.sessions = [original];
+		history = [{
+			type: 'response',
+			parts: [{ kind: 'markdownContent', content: { value: 'Implemented the requested change.' } }],
+			participant: 'assistant',
+		}];
+		let changeCount = 0;
+		store.add(adapter.onDidChangeSessions(() => changeCount++));
+
+		const completed = createSession('provider:session', { title: 'Update routing badge', status: SessionStatus.Completed });
+		managementService.sessions = [completed];
+		managementService.fireSessionsChanged({ added: [], removed: [], changed: [completed] });
+		const snapshot = await adapter.getSessionSnapshot(completed.resource, CancellationToken.None);
+
+		assert.deepStrictEqual({ changeCount, snapshot }, {
+			changeCount: 1,
+			snapshot: {
+				sessionId: 'provider:session',
+				label: 'Update routing badge',
+				repo: 'microsoft/repo',
+				cwd: '/work/repo',
+				status: 'idle',
+				lastActivity: Date.parse('2026-08-13T12:00:00Z'),
+				description: undefined,
+				lastResponse: 'Implemented the requested change.',
 			},
 		});
 	});
@@ -259,7 +296,11 @@ suite('OmniSessionRoutingAdapter', () => {
 			result,
 			send: managementService.existingSend,
 		}, {
-			result: { status: 'sent', resource: session.resource },
+			result: {
+				status: 'sent',
+				resource: session.resource,
+				activityBaseline: session.lastTurnEnd.get()!.getTime(),
+			},
 			send: {
 				session,
 				chat: session.mainChat.get(),
@@ -291,7 +332,11 @@ suite('OmniSessionRoutingAdapter', () => {
 			result,
 			folderSend: managementService.folderSend,
 		}, {
-			result: { status: 'sent', resource: created.resource },
+			result: {
+				status: 'sent',
+				resource: created.resource,
+				activityBaseline: created.createdAt.getTime(),
+			},
 			folderSend: {
 				folder,
 				options: { query: 'Build it', attachedContext: [attachment], background: true },
@@ -310,7 +355,11 @@ suite('OmniSessionRoutingAdapter', () => {
 			result,
 			quickSend: managementService.quickSend,
 		}, {
-			result: { status: 'sent', resource: created.resource },
+			result: {
+				status: 'sent',
+				resource: created.resource,
+				activityBaseline: created.createdAt.getTime(),
+			},
 			quickSend: {
 				options: { query: 'Explain this', attachedContext: undefined, background: true },
 				createOptions: undefined,

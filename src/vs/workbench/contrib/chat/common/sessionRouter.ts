@@ -199,6 +199,8 @@ export interface IChatSessionRoutingDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
 	readonly resource?: URI;
 	readonly requestId?: string;
+	/** Last activity timestamp before dispatch, used to identify completion of this request. */
+	readonly activityBaseline?: number;
 	readonly reason?: string;
 	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
 	/** Reveals the routed session in its owning presentation service. */
@@ -250,8 +252,10 @@ export interface IChatSessionRoutingNewSessionTarget {
  * a broader session model than the workbench's renderer-local chat catalog.
  */
 export interface IChatSessionRoutingProvider {
+	readonly onDidChangeSessions?: Event<void>;
 	readonly onDidChangeNewSessionWorkspaceCatalog?: Event<void>;
 	getCandidateSessions(token: CancellationToken): readonly IRoutableSession[] | Promise<readonly IRoutableSession[]>;
+	getSessionSnapshot?(resource: URI, token: CancellationToken): IRoutableSession | undefined | Promise<IRoutableSession | undefined>;
 	getNewSessionWorkspaceCatalog?(): IChatSessionRoutingWorkspaceCatalog | Promise<IChatSessionRoutingWorkspaceCatalog>;
 	selectNewSessionWorkspace?(workspace: IChatSessionRoutingWorkspace): void | Promise<void>;
 	browseNewSessionWorkspace?(actionId: string, token: CancellationToken): Promise<IChatSessionRoutingWorkspace | undefined>;
