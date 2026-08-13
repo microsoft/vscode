@@ -915,6 +915,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._requestClientRestart(`startup config changed: ${changed}`);
 	}
 
+	/**
+	 * Requests a CLI client restart, running it immediately when every chat is
+	 * idle and otherwise parking it until the last in-flight turn ends.
+	 *
+	 * Restarting tears the SDK sessions down, and a torn-down session stops
+	 * producing the events that finalize its protocol turn — the client would be
+	 * left with a turn that never completes, cancels, or errors, i.e. a session
+	 * that spins forever. Startup-only values (session sync, the SDK log level,
+	 * the enterprise host, the system proxy) can also change without any user
+	 * action, from an experiment or policy refresh, so this must never be paid
+	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
+	 * start, so applying the restart late is always correct.
+	 */
 	private async _requestClientRestart(reason: string): Promise<void> {
 		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
 			return;
@@ -1669,6 +1682,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const env = createCopilotCliEnvironment();
+			// Family aliases are host-side (prompt and tool-profile routing) and
+			// deliberately never reach the runtime; an ambient value here would
+			// re-introduce a process-wide alias for every session behind its back.
+			delete env['COPILOT_MODEL_FAMILY'];
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -3696,13 +3713,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
 			const freeLongContext = this._isFreeLongContext(model.id);
-			// Match create-time reasoning-effort resolution without resolving it before a provisional session is used.
+			// A `family` alias routes the host's prompt and tool profile only. The
+			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
 			if (provisional) {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
+				// Keep the session-scope metadata in step for resumes that fall back
+				// to it; chat leaves persist through their backing instead.
+				if (current.resource.toString() === current.configurationResource.toString()) {
+					await this._storeSessionMetadata(current.resource, model, undefined, undefined, undefined, undefined);
+				}
 			}
 			const backing = this._chatBackings.get(current.chatKey);
 			if (backing) {
