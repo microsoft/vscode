@@ -112,9 +112,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 				this.renderLabel(this.element);
 			}
 		}));
-		// A started session's folder is read from its working directories, which
-		// hydrate asynchronously; re-render when the customization state changes
-		// so the chip reflects the session's real folder once it is known.
+		// Re-render when asynchronous session state reveals the session's working directory.
 		this._register(this._customizationService.onDidChangeCustomizations(() => {
 			if (this.element) {
 				this.renderLabel(this.element);
