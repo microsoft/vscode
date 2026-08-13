@@ -182,6 +182,10 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * `{ eligible: true, manifest }` (granted). Throws {@link MarketplaceMisconfiguredError} for a
 	 * misconfigured deployment, and rethrows transient/network errors so the host can preserve an
 	 * already-available marketplace instead of downgrading it.
+	 *
+	 * Contrast with {@link resolveCurrentAccount}: this is the heavier public verdict (may perform an
+	 * eligibility network round-trip), whereas `resolveCurrentAccount` only answers *who* the current
+	 * account is (identity + token) for cache validation and never checks eligibility.
 	 */
 	getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
 		return this.authProvider === 'microsoft'
@@ -420,6 +424,10 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * Silently resolves the current account for the effective provider, returning its identity (and
 	 * bearer token, on the Microsoft path) for cache validation. Never prompts for sign-in. Returns
 	 * `{ kind: 'error' }` on a transient failure so callers can distinguish it from "no account".
+	 *
+	 * Deliberately narrower than {@link getAccount}: it resolves identity only and performs no
+	 * eligibility check or index fetch, so {@link getCachedAccess} can confirm the cached verdict
+	 * still belongs to the current account without a full (potentially networked) re-validation.
 	 */
 	private async resolveCurrentAccount(): Promise<AccountResolution> {
 		try {
