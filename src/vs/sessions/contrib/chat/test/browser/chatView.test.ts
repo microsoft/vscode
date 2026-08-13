@@ -5,16 +5,21 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { OpenExternalOptions, OpenInternalOptions, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getSessionChatResourceOpenOptions, getTranscriptProgress, NewChatView, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,6 +108,80 @@ suite('Sessions - Chat View', () => {
 			activity: 'Creating isolated worktree (42%)',
 			noActivity: undefined,
 			visibleRequest: undefined,
+		});
+	});
+
+	test('opens external session HTML in the integrated browser', () => {
+		const workspace: ISessionWorkspace = {
+			uri: URI.file('/repo/workspace.code-workspace'),
+			label: 'workspace',
+			icon: Codicon.rootFolder,
+			folders: [{
+				root: URI.file('/repo/root'),
+				workingDirectory: URI.file('/repo/working'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: {
+					uri: URI.file('/repo/root'),
+					workTreeUri: URI.file('/repo/worktree'),
+					baseBranchName: undefined,
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const createSession = (sessionWorkspace: ISessionWorkspace | undefined, isQuickChat: boolean): Pick<ISession, 'workspace' | 'isQuickChat'> => ({
+			workspace: constObservable(sessionWorkspace),
+			isQuickChat: constObservable(isQuickChat),
+		});
+		const session = createSession(workspace, false);
+		const quickChat = createSession(undefined, true);
+		const unresolvedSession = createSession(undefined, false);
+		const openOptions = { fromUserGesture: true } satisfies OpenInternalOptions;
+		const explicitOptions = { editorOptions: { override: 'custom.editor' } } satisfies OpenInternalOptions;
+		const externalOptions = { openExternal: true } satisfies OpenExternalOptions;
+		const summarize = (
+			resource: URI | string,
+			targetSession: Pick<ISession, 'workspace' | 'isQuickChat'> | undefined,
+			options: OpenOptions = openOptions,
+		) => {
+			const result = getSessionChatResourceOpenOptions(resource, options, targetSession);
+			return { changed: result !== options, override: result?.editorOptions?.override };
+		};
+
+		assert.deepStrictEqual({
+			externalHtml: summarize(URI.file('/home/user/.copilot/session-state/report.html'), session),
+			externalHtm: summarize(URI.file('/home/user/.copilot/session-state/report.htm'), session),
+			uppercaseHtml: summarize(URI.file('/home/user/.copilot/session-state/report.HTML'), session),
+			stringHtml: summarize(URI.file('/home/user/.copilot/session-state/report.html').toString(), session),
+			workspaceRoot: summarize(URI.file('/repo/root/report.html'), session),
+			workspaceFragment: summarize(URI.file('/repo/root/report.html').with({ fragment: 'L10' }), session),
+			workingDirectory: summarize(URI.file('/repo/working/report.html'), session),
+			gitWorktree: summarize(URI.file('/repo/worktree/report.html'), session),
+			nonHtml: summarize(URI.file('/home/user/.copilot/session-state/report.md'), session),
+			remoteHtml: summarize(URI.parse('vscode-remote://host/home/user/report.html'), session),
+			explicitOverride: summarize(URI.file('/home/user/report.html'), session, explicitOptions),
+			externalOpen: summarize(URI.file('/home/user/report.html'), session, externalOptions),
+			quickChat: summarize(URI.file('/home/user/.copilot/session-state/report.html'), quickChat),
+			unresolvedSession: summarize(URI.file('/home/user/report.html'), unresolvedSession),
+			noSession: summarize(URI.file('/home/user/report.html'), undefined),
+		}, {
+			externalHtml: { changed: true, override: BrowserEditorInput.EDITOR_ID },
+			externalHtm: { changed: true, override: BrowserEditorInput.EDITOR_ID },
+			uppercaseHtml: { changed: true, override: BrowserEditorInput.EDITOR_ID },
+			stringHtml: { changed: true, override: BrowserEditorInput.EDITOR_ID },
+			workspaceRoot: { changed: false, override: undefined },
+			workspaceFragment: { changed: false, override: undefined },
+			workingDirectory: { changed: false, override: undefined },
+			gitWorktree: { changed: false, override: undefined },
+			nonHtml: { changed: false, override: undefined },
+			remoteHtml: { changed: false, override: undefined },
+			explicitOverride: { changed: false, override: 'custom.editor' },
+			externalOpen: { changed: false, override: undefined },
+			quickChat: { changed: true, override: BrowserEditorInput.EDITOR_ID },
+			unresolvedSession: { changed: false, override: undefined },
+			noSession: { changed: false, override: undefined },
 		});
 	});
 
