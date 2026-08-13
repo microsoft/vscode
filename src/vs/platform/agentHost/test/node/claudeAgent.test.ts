@@ -5659,10 +5659,7 @@ suite('ClaudeAgent', () => {
 		await agent.chats.sendMessage(defaultChatUri(created.session), 'go', undefined, undefined, 'turn-1', undefined, undefined, chatContext(defaultChatUri(created.session)));
 		const session = agent.getSessionForTesting(created.session)!;
 
-		// The workbench starts a client tool from the streamed tool call and can
-		// finish it before the SDK invokes that tool, so the result arrives with
-		// nothing parked. Dropping it strands the turn: the handler registers a
-		// moment later and waits for a result that no longer exists.
+		// The result can arrive before the SDK registers the handler awaiting it.
 		const settled = session.completeClientToolCall('tu_early', { success: true, pastTenseMessage: 'ok', content: [{ type: ToolResultContentType.Text, text: 'hello' }] });
 		const delivered = await session.pendingClientToolCalls.register('tu_early');
 

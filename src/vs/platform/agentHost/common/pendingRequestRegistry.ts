@@ -30,6 +30,9 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 */
 	private readonly _earlyResults = new Map<string, TResult>();
 
+	/** Upper bound on {@link _earlyResults}, so completions that never register cannot accumulate. */
+	private static readonly _maxBufferedResults = 16;
+
 	/** Atomically park a deferred and optional metadata, then invoke `fire` to prevent synchronous responses racing registration. */
 	registerAndFire(key: string, fire: () => void, ...metadata: MetadataArgument<TMeta>): Promise<TResult> {
 		if (this._earlyResults.has(key)) {
@@ -118,9 +121,18 @@ export class PendingRequestRegistry<TResult, TMeta = void> {
 	 * completion race).
 	 */
 	respondOrBuffer(key: string, value: TResult): void {
-		if (!this.respond(key, value)) {
-			this._earlyResults.set(key, value);
+		if (this.respond(key, value)) {
+			return;
 		}
+		// Callers forward completions for keys that never register, so evict the
+		// oldest rather than retaining every one until the registry is cleared.
+		if (this._earlyResults.size >= PendingRequestRegistry._maxBufferedResults) {
+			const oldest = this._earlyResults.keys().next().value;
+			if (oldest !== undefined) {
+				this._earlyResults.delete(oldest);
+			}
+		}
+		this._earlyResults.set(key, value);
 	}
 
 	/** Whether a result arrived before a request registered under `key`. */
