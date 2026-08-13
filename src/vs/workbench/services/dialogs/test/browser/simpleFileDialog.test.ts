@@ -180,6 +180,8 @@ suite('SimpleFileDialog', () => {
 	});
 
 	test('updates items when navigating from root into a child folder', async () => {
+		const root = URI.from({ scheme: Schemas.inMemory, path: '/' });
+		const folder = URI.from({ scheme: Schemas.inMemory, path: '/folder/' });
 		const filePickBox = {
 			value: '/folder/',
 			validationMessage: undefined
@@ -188,12 +190,12 @@ suite('SimpleFileDialog', () => {
 
 		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
 			filePickBox,
-			currentFolder: URI.file('/'),
+			currentFolder: root,
 			userEnteredPathSegment: '',
 			autoCompletePathSegment: 'folder',
 			separator: '/',
 			isWindows: false,
-			scheme: Schemas.file,
+			scheme: Schemas.inMemory,
 			tryUpdateItems: async (value: string, folder: URI) => {
 				update = { value, folder };
 				return 0;
@@ -207,7 +209,7 @@ suite('SimpleFileDialog', () => {
 
 		assert.deepStrictEqual(update && { value: update.value, folder: update.folder.toString() }, {
 			value: '/folder/',
-			folder: URI.file('/folder/').toString()
+			folder: folder.toString()
 		});
 	});
 
