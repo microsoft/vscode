@@ -39,7 +39,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
@@ -542,7 +542,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Fires when the native chat catalog may have changed. The {@link AgentService}
 	 * responds with an additive discovery pass.
 	 */
-	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>());
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
+		onDidAddFirstListener: () => { void this._emitExtHostChats(); },
+	}));
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	/**
 	 * Per-session MCP notifications, fanned in from every active
@@ -774,20 +776,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			);
 		}));
 
-		// The migrate-legacy setting still controls adopt-on-open behavior.
-		this._register(this._configurationService.onDidRootConfigChange(() => {
-			const enabled = this._isMigrateLegacyCopilotCliEnabled();
-			if (enabled !== this._lastMigrateLegacyEnabled) {
-				this._lastMigrateLegacyEnabled = enabled;
-				if (enabled) {
-					void this._emitExtHostChats();
-				}
-			}
-		}));
-		if (this._lastMigrateLegacyEnabled) {
-			void this._emitExtHostChats();
-		}
-
 		// Surface renderer BYOK models in the picker: republish them whenever the
 		// set of connected renderer bridges, or any renderer's models, change.
 		// The registry is only populated when `chat.agentHost.byokModels.enabled`
@@ -832,7 +820,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
 	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
 	private _lastManagedSettingsPermissions: IAgentHostManagedSettingsPermissions;
-	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -860,10 +847,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isSystemProxyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSystemProxyEnabledConfigKey) !== false;
-	}
-
-	private _isMigrateLegacyCopilotCliEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
 	/**

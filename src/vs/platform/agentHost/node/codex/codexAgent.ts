@@ -7,7 +7,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Limiter, raceTimeout } from '../../../../base/common/async.js';
+import { Limiter, raceTimeout, retry } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -5270,14 +5270,18 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _startCodexChatDiscovery(): Promise<void> {
 		if (!this._codexChatDiscovery) {
-			this._codexChatDiscovery = this._resolveSdkRoot()
-				.then(() => this._emitCodexChats())
+			this._codexChatDiscovery = retry(async () => {
+				await this._resolveSdkRoot();
+				if (!(await this._emitCodexChats())) {
+					throw new Error('Codex chat catalog is not available');
+				}
+			}, 5000, 3)
 				.catch(err => this._logService.warn(`[Codex] Chat discovery failed: ${err instanceof Error ? err.message : String(err)}`));
 		}
 		return this._codexChatDiscovery;
 	}
 
-	private async _emitCodexChats(): Promise<void> {
+	private async _emitCodexChats(): Promise<boolean> {
 		try {
 			const chats = await this._listCodexChats();
 			if (chats) {
@@ -5287,10 +5291,12 @@ export class CodexAgent extends Disposable implements IAgent {
 				})));
 				const discovered = unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
 				this._onDidDiscoverChats.fire(discovered);
+				return true;
 			}
 		} catch (err) {
 			this._logService.warn(`[Codex] Failed to emit discovered chats: ${err instanceof Error ? err.message : String(err)}`);
 		}
+		return false;
 	}
 
 	private async _isKnownCodexChat(chat: IAgentChatMetadata): Promise<boolean> {

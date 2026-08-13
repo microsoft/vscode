@@ -3754,7 +3754,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (providerData === undefined && materializedDefaultChat?.providerData !== undefined) {
 			await this._persistDefaultChatBacking({ session, chat: materializedDefaultChat });
 		}
-		if (providerData === undefined) {
+		if (providerData === undefined && materializedDefaultChat?.providerData === undefined) {
 			this._logService.warn(`[AgentService] Restoring default chat ${defaultChatUri.toString()} with no persisted or recovered provider backing (agent=${agent.id})`);
 		}
 		let turns: readonly Turn[];

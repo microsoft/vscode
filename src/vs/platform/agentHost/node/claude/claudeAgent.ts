@@ -6,7 +6,7 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import type { ModelInfo, OnElicitation, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { Limiter, retry, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -2054,15 +2054,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private _startClaudeCodeChatDiscovery(): Promise<void> {
 		if (!this._claudeCodeChatDiscovery) {
-			const ensureAvailable = this._sdkService.ensureAvailableForDiscovery?.() ?? Promise.resolve();
-			this._claudeCodeChatDiscovery = ensureAvailable
-				.then(() => this._emitClaudeCodeChats())
+			this._claudeCodeChatDiscovery = retry(async () => {
+				await this._sdkService.ensureAvailableForDiscovery?.();
+				if (!(await this._emitClaudeCodeChats())) {
+					throw new Error('Claude chat catalog is not available');
+				}
+			}, 5000, 3)
 				.catch(err => this._logService.warn('[Claude] Chat discovery failed', err));
 		}
 		return this._claudeCodeChatDiscovery;
 	}
 
-	private async _emitClaudeCodeChats(): Promise<void> {
+	private async _emitClaudeCodeChats(): Promise<boolean> {
 		try {
 			const chats = await this._listClaudeCodeChats();
 			if (chats) {
@@ -2071,10 +2074,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 					return await this._isKnownClaudeCodeChat(chat) ? undefined : { ...chat, external: true };
 				})));
 				this._onDidDiscoverChats.fire(unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined));
+				return true;
 			}
 		} catch (err) {
 			this._logService.warn('[Claude] Failed to emit discovered chats', err);
 		}
+		return false;
 	}
 
 	private async _isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean> {
