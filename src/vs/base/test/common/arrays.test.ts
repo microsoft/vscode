@@ -14,6 +14,17 @@ suite('Arrays', () => {
 	test('removeFastWithoutKeepingOrder', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 		arrays.removeFastWithoutKeepingOrder(array, 1);
+		// CI-only diagnostic: this test has shown intermittent failures in CI. Capture the
+		// post-mutation array state so the next failing run carries enough evidence to
+		// root-cause the flake. Gated on process.env.CI so it never affects local runs.
+		if (typeof process !== 'undefined' && process.env['CI']) {
+			try {
+				assert.deepStrictEqual(array, [1, 69, 5, 7, 55, 59, 60, 61, 64]);
+			} catch (err) {
+				console.error(`[flake-diagnostic] removeFastWithoutKeepingOrder unexpected array state: ${JSON.stringify(array)}`);
+				throw err;
+			}
+		}
 		assert.deepStrictEqual(array, [1, 69, 5, 7, 55, 59, 60, 61, 64]);
 
 		arrays.removeFastWithoutKeepingOrder(array, 0);
