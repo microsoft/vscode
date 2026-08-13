@@ -793,6 +793,21 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 
+	/** Unconditionally re-announces a restored live session that newly became visible. The caller owns notification deduplication. */
+	announceLiveSession(session: string): void {
+		const summary = this.getSessionSummary(session);
+		if (!summary) {
+			this._logService.warn(`[AgentHostStateManager] announceLiveSession: unknown session ${session}`);
+			return;
+		}
+		this._summaryNotifier.announce(session, summary);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
+			summary,
+		});
+	}
+
 	/** Retracts a surfaced session without disturbing a restored live session. */
 	retractSurfacedSession(session: string): void {
 		if (this._sessionStates.has(session)) {

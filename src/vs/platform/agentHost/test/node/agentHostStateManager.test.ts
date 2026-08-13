@@ -283,6 +283,21 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionAdded);
 	});
 
+	test('announceLiveSession re-announces the current live summary', () => {
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		const summary = makeSessionSummary();
+		manager.restoreSession(summary, []);
+
+		manager.announceLiveSession(sessionUri);
+
+		assert.deepStrictEqual(notifications, [{
+			type: NotificationType.SessionAdded,
+			channel: ROOT_STATE_URI,
+			summary,
+		}]);
+	});
+
 	test('retractSurfacedSession emits a protocol URI only for non-live sessions', () => {
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
