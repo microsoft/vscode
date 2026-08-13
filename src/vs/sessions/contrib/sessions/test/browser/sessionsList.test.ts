@@ -8,17 +8,21 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, SessionSectionRenderer, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionSection, limitSessionsForList, SessionSectionRenderer, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -68,9 +72,50 @@ function createSession(id: string, opts: {
 
 suite('Sessions - SessionsList', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('SessionSectionRenderer', () => {
+
+		test('selects the rendered section before the toolbar handles its context menu', () => {
+			const instantiationService = testDisposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = testDisposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			const selectedSections: ISessionSection[] = [];
+			const renderer = new SessionSectionRenderer(
+				true,
+				section => selectedSections.push(section),
+				instantiationService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() { },
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			testDisposables.add(template.disposables);
+			const section: ISessionSection = { id: 'workspace:test', label: 'Test', sessions: [] };
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: section,
+				collapsible: true,
+				collapsed: false,
+			}), 0, template);
+			const action = document.createElement('a');
+			template.toolbarContainer.append(action);
+			action.addEventListener('contextmenu', event => event.stopPropagation());
+
+			action.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 }));
+
+			assert.deepStrictEqual(selectedSections, [section]);
+		});
 
 		test('derives terminal automation status from the supplied session snapshot', () => {
 			const session = createSession('automation', {
@@ -100,6 +145,7 @@ suite('Sessions - SessionsList', () => {
 			};
 			const renderer = new SessionSectionRenderer(
 				true,
+				() => { },
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
@@ -155,6 +201,7 @@ suite('Sessions - SessionsList', () => {
 			};
 			const renderer = new SessionSectionRenderer(
 				true,
+				() => { },
 				new class extends mock<IInstantiationService>() { },
 				new class extends mock<IContextKeyService>() { },
 				automationService,
