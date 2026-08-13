@@ -380,6 +380,11 @@ pub mod singleton {
 	#[derive(Serialize, Deserialize, Clone, Default)]
 	pub struct StatusWithTunnelName {
 		pub name: Option<String>,
+		/// Whether the running singleton serves the editor, as opposed to only
+		/// the agent host. `None` from servers predating this field, in which
+		/// case a client must fall back to describing its own invocation.
+		#[serde(default)]
+		pub has_editor_link: Option<bool>,
 		#[serde(flatten)]
 		pub status: Status,
 	}
@@ -413,5 +418,38 @@ pub mod singleton {
 		#[default]
 		Disconnected,
 		Connected,
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+
+		/// A singleton server predating `has_editor_link` omits the field
+		/// entirely; clients must still be able to read its status and fall
+		/// back to describing their own invocation.
+		#[test]
+		fn status_without_editor_link_field_deserializes_as_unknown() {
+			// Built by removing the field from a real payload rather than
+			// hand-writing the wire shape, so it stays accurate if `Status`
+			// changes.
+			let mut legacy = serde_json::to_value(StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			})
+			.unwrap();
+			legacy
+				.as_object_mut()
+				.unwrap()
+				.remove("has_editor_link")
+				.unwrap();
+
+			let parsed: StatusWithTunnelName = serde_json::from_value(legacy).unwrap();
+
+			assert_eq!(
+				(parsed.name.as_deref(), parsed.has_editor_link),
+				(Some("tunnel-name"), None)
+			);
+		}
 	}
 }
