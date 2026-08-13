@@ -635,6 +635,12 @@ interface ICodexSession {
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
+	/**
+	 * Set when launch-only settings changed on a subscribed live thread. Codex
+	 * ignores `thread/resume` overrides for such a thread, so release the live
+	 * subscription before resuming its persisted history with the new settings.
+	 */
+	unsubscribeBeforeResume: boolean;
 	/** In-flight resume shared by history loading and the first send. */
 	resumePromise: Promise<void> | undefined;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
@@ -1272,7 +1278,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			} else {
 				// A thread with history is resumed (with the current config) on
 				// its next turn rather than restarted, so nothing is lost.
-				session.needsResume = true;
+				this._markSessionForReload(session);
 			}
 		}
 	}
@@ -2653,6 +2659,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
+			unsubscribeBeforeResume: false,
 			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
@@ -3269,7 +3276,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._restartThreadWithCurrentTools(session);
 			this._persistMaterializedSession(session);
 		} else {
-			session.needsResume = true;
+			this._markSessionForReload(session);
 		}
 	}
 
@@ -3525,6 +3532,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
+			unsubscribeBeforeResume: false,
 			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
@@ -3760,6 +3768,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: true,
+			unsubscribeBeforeResume: false,
 			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
@@ -4446,7 +4455,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// Workspace agents have no client-push event to reconcile them. A
 			// send-time signature change must resume the existing thread so Codex
 			// reloads its roles and developer instructions without losing history.
-			session.needsResume = true;
+			this._markSessionForReload(session);
 		}
 		if (session.needsResume) {
 			try {
@@ -4958,6 +4967,12 @@ export class CodexAgent extends Disposable implements IAgent {
 					throw new Error(`Cannot resume Codex session ${session.sessionId}: no backing thread`);
 				}
 				const conn = connection ?? await this._ensureConnection();
+				if (session.unsubscribeBeforeResume) {
+					// `thread/resume` deliberately rejoins a loaded subscribed thread and
+					// ignores conflicting overrides. Unsubscribe first so app-server
+					// reloads the persisted history with the current launch-only config.
+					await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+				}
 				const mcpServers = this._buildSessionMcpServers(session);
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
 				const multiRootActive = this._isMultiRootActive(session);
@@ -4983,11 +4998,17 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.materializedMcpSig = mcpServersSignature(mcpServers);
 				session.materializedCustomizationsSig = customizationLaunch.signature;
 				session.needsResume = false;
+				session.unsubscribeBeforeResume = false;
 			})().finally(() => {
 				session.resumePromise = undefined;
 			});
 		}
 		await session.resumePromise;
+	}
+
+	private _markSessionForReload(session: ICodexSession): void {
+		session.unsubscribeBeforeResume = true;
+		session.needsResume = true;
 	}
 
 	/**
@@ -5398,7 +5419,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._restartThreadWithCurrentTools(session);
 			this._persistMaterializedSession(session);
 		} else {
-			session.needsResume = true;
+			this._markSessionForReload(session);
 		}
 	}
 

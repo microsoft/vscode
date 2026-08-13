@@ -911,6 +911,8 @@ suite('CodexAgent prewarm eviction', () => {
 
 		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
 		const secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
 		const resume = await readNextRequest(peer.outbound);
 		const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
 		const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
@@ -922,6 +924,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual({
 			start: { method: start.method, developerInstructions: start.params.developerInstructions },
 			firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
 			resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
 			secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
 			resumedRoleFile,
@@ -929,6 +932,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}, {
 			start: { method: 'thread/start', developerInstructions: 'Use the original instructions.' },
 			firstTurn: { method: 'turn/start', developerInstructions: 'Use the original instructions.' },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
 			resume: { method: 'thread/resume', developerInstructions: 'Use the updated instructions.' },
 			secondTurn: { method: 'turn/start', developerInstructions: 'Use the updated instructions.' },
 			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
