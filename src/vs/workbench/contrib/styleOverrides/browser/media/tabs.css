@@ -553,7 +553,7 @@
 	background-color: var(--vscode-modernTab-hoverForeground) !important;
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus:not(.clicked) > .active-item-indicator {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible > .active-item-indicator {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
