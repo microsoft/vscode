@@ -88,6 +88,27 @@ suite('claudeClientToolResult / convertToolCallResult', () => {
 		}
 	});
 
+	test('an error-only failure surfaces the message as content instead of an empty result', () => {
+		// The workbench builds this shape whenever a client tool throws: an error
+		// and nothing else. An empty result tells the model nothing went wrong.
+		const errorOnly = convertToolCallResult(makeResult({
+			success: false,
+			error: { message: 'page.goto: net::ERR_EMPTY_RESPONSE at http://localhost:5173/' },
+		}), 'tu_7');
+
+		// A tool that already described the failure keeps its own content.
+		const withContent = convertToolCallResult(makeResult({
+			success: false,
+			content: [{ type: ToolResultContentType.Text, text: 'No browser page found' }],
+			error: { message: 'No browser page found' },
+		}), 'tu_8');
+
+		assert.deepStrictEqual({ errorOnly: errorOnly.content, withContent: withContent.content }, {
+			errorOnly: [{ type: 'text', text: 'page.goto: net::ERR_EMPTY_RESPONSE at http://localhost:5173/' }],
+			withContent: [{ type: 'text', text: 'No browser page found' }],
+		});
+	});
+
 	test('structuredContent passes through unchanged', () => {
 		const out = convertToolCallResult(makeResult({
 			structuredContent: { k: 'v' },

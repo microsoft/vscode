@@ -35,6 +35,14 @@ const CLAUDE_CLIENT_RESOURCE_SCHEME = 'claude-client';
 export function convertToolCallResult(result: ToolCallResult, toolUseId: string): CallToolResult {
 	const blocks = result.content ?? [];
 	const content = blocks.map((block, index) => convertBlock(block, toolUseId, index));
+	// A tool can report a failure as an `error` alone, with no content: the
+	// workbench builds that shape whenever a client tool throws. Passing it
+	// straight through would hand the model an empty result and no hint that
+	// anything went wrong, so surface the message as the content it lacks.
+	// Tools that already describe the failure in `content` keep theirs.
+	if (result.error && content.length === 0) {
+		content.push({ type: 'text', text: result.error.message });
+	}
 	const out: CallToolResult = { content };
 	if (result.structuredContent !== undefined) {
 		out.structuredContent = result.structuredContent;
