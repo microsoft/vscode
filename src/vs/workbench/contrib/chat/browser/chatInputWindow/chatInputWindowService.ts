@@ -573,10 +573,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const getRowHeight = () => {
 			let contentHeight = Math.ceil(widget.contentHeight);
 			if (widget.attachmentModel.size > 0) {
-				const inputRow = row.querySelector<HTMLElement>('.interactive-input-and-side-toolbar');
-				if (inputRow) {
-					contentHeight += Math.max(0, CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT - inputRow.offsetHeight);
-				}
+				contentHeight += Math.max(0, CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT - widget.input.inputRowHeight);
 			}
 			return Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, contentHeight);
 		};
@@ -1225,10 +1222,10 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 		const pendingHide = store.add(new MutableDisposable());
 		const pendingLayout = store.add(new MutableDisposable());
+		let picker: HTMLElement | undefined;
 		const anchorPicker = () => {
 			pendingLayout.value = dom.scheduleAtNextAnimationFrame(actionWidgetWindow.window, () => {
-				const picker = actionWidgetWindow.container.querySelector('.quick-input-widget');
-				if (dom.isHTMLElement(picker)) {
+				if (picker) {
 					if (picker.style.top !== 'auto') {
 						picker.style.top = 'auto';
 					}
@@ -1238,7 +1235,24 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}
 			});
 		};
-		const pickerObserver = new actionWidgetWindow.window.MutationObserver(anchorPicker);
+		const pickerObserver = new actionWidgetWindow.window.MutationObserver(mutations => {
+			for (const mutation of mutations) {
+				if (dom.isHTMLElement(mutation.target) && mutation.target.classList.contains('quick-input-widget')) {
+					picker = mutation.target;
+				}
+				for (const node of mutation.addedNodes) {
+					if (dom.isHTMLElement(node) && node.classList.contains('quick-input-widget')) {
+						picker = node;
+					}
+				}
+				for (const node of mutation.removedNodes) {
+					if (picker && (node === picker || node.contains(picker))) {
+						picker = undefined;
+					}
+				}
+			}
+			anchorPicker();
+		});
 		pickerObserver.observe(actionWidgetWindow.container, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
 		store.add(toDisposable(() => pickerObserver.disconnect()));
 		store.add(quickInputService.onShow(() => {
