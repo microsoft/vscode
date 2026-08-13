@@ -31,8 +31,8 @@ const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
-const SESSION_RENAME_REMINDER = 'This session currently has an auto-generated or placeholder name. During this first request, gather enough context to understand the actual work scope, then call the `rename_session` tool exactly once with a short, descriptive title before your final response. Do not rename prematurely when inspecting referenced issues, pull requests, files, or other context would produce a better title. Do not skip the call even if the current name already seems descriptive. If the user explicitly asks to rename the session, call the tool immediately.';
-const CHAT_RENAME_REMINDER = 'This chat currently has an auto-generated or placeholder name. During this first request, gather enough context to understand the actual work scope, then call the `rename_chat` tool exactly once with a short, descriptive title before your final response. Do not rename prematurely when inspecting referenced issues, pull requests, files, or other context would produce a better title. Do not skip the call even if the current name already seems descriptive. If the user explicitly asks to rename the chat, call the tool immediately.';
+const SESSION_RENAME_REMINDER = 'Reminder: This session currently has an auto-generated or placeholder name. Resolve the user prompt for any needed context, then call the `rename_session` tool to give it a short, descriptive title based on the user\'s intent.';
+const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder name. Resolve the user prompt for any needed context, then call the `rename_chat` tool to give it a short, descriptive title based on the user\'s intent.';
 
 /**
  * Soft upper bound, in characters, for the whole context fed to the utility
