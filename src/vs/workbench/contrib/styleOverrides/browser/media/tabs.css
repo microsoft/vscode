@@ -353,7 +353,7 @@
 	bottom: 0;
 	width: var(--vscode-spacing-size160);
 	border-block: var(--vscode-strokeThickness) solid transparent;
-	background: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
+	background-image: linear-gradient(to right, transparent, var(--modern-ui-editor-tab-action-hover-background));
 	background-clip: padding-box;
 	box-sizing: border-box;
 	pointer-events: none;
