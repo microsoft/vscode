@@ -8,7 +8,7 @@
  */
 
 import assert from 'assert';
-import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
@@ -19,7 +19,7 @@ import { AgentHostCodexEnabledConfigKey } from '../../../common/agentHostSchema.
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, MessageKind, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type IServerHandle, startRealServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 
 const AGENT_MARKER = 'CODEX_CUSTOM_AGENT_INSTRUCTION_MARKER';
@@ -64,6 +64,7 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let userHomeDir: string;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
@@ -72,11 +73,21 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		if (!CODEX_SDK_ROOT) {
 			this.skip();
 		}
-		server = await startRealServer({ mockLlm: true, codexSdkRoot: CODEX_SDK_ROOT });
+		userHomeDir = await mkdtemp(join(tmpdir(), 'codex-customizations-home-'));
+		const codexHomeDir = join(userHomeDir, '.codex');
+		await mkdir(codexHomeDir, { recursive: true });
+		server = await startRealServer({
+			mockLlm: true,
+			codexSdkRoot: CODEX_SDK_ROOT,
+			codexHomeDir,
+			homeDir: userHomeDir,
+			userDataDir: join(userHomeDir, 'user-data'),
+		});
 	});
 
-	suiteTeardown(function () {
-		server?.process.kill();
+	suiteTeardown(async function () {
+		await stopServer(server);
+		await rm(userHomeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 	});
 
 	setup(async function () {
@@ -226,6 +237,10 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			&& (getActionEnvelope(notification).action as { turnId?: string }).turnId === turnId,
 			120_000,
 		);
+		const rolloutRoot = join(userHomeDir, '.codex', 'sessions');
+		const rolloutFiles = (await readdir(rolloutRoot, { recursive: true })).filter(file => file.endsWith('.jsonl'));
+		const rolloutContents = await Promise.all(rolloutFiles.map(file => readFile(join(rolloutRoot, file), 'utf8')));
+		assert.ok(rolloutContents.some(content => content.includes('CODEX_CUSTOMIZATIONS_OK')), 'Codex test rollouts must be written under the isolated test home');
 
 		const requests = (server.mockLlm?.getRequests?.() ?? []) as readonly ICapturedRequest[];
 		const responsesRequest = [...requests].reverse().find(request => request.path.includes('/responses'));
@@ -240,9 +255,19 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 
 	test('standalone host registers Codex after runtime enablement', async function () {
 		this.timeout(120_000);
-		const runtimeServer = await startRealServer({ mockLlm: true, codexSdkRoot: CODEX_SDK_ROOT, codexAgentEnabled: false });
-		const runtimeClient = new TestProtocolClient(runtimeServer.port);
+		const runtimeHomeDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-home-'));
 		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-'));
+		const runtimeCodexHomeDir = join(runtimeHomeDir, '.codex');
+		await mkdir(runtimeCodexHomeDir, { recursive: true });
+		const runtimeServer = await startRealServer({
+			mockLlm: true,
+			codexSdkRoot: CODEX_SDK_ROOT,
+			codexHomeDir: runtimeCodexHomeDir,
+			codexAgentEnabled: false,
+			homeDir: runtimeHomeDir,
+			userDataDir: join(runtimeHomeDir, 'user-data'),
+		});
+		const runtimeClient = new TestProtocolClient(runtimeServer.port);
 		try {
 			await runtimeClient.connect();
 			await runtimeClient.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'codex-runtime-enablement-client' }, 30_000);
@@ -269,9 +294,11 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			}, 30_000);
 		} finally {
 			runtimeClient.close();
-			runtimeServer.process.kill();
-			await runtimeServer.mockLlm?.close();
-			await rm(workspaceDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			await stopServer(runtimeServer);
+			await Promise.all([
+				rm(runtimeHomeDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+				rm(workspaceDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }),
+			]);
 		}
 	});
 });

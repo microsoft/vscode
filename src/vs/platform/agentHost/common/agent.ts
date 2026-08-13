@@ -68,6 +68,8 @@ export interface IAgentChatMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	/** Provider model that should be selected when this chat is restored. */
+	readonly model?: ModelSelection;
 	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */

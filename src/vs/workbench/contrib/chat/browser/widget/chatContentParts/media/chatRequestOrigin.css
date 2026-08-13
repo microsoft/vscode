@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-side-chat-origin {
+.chat-request-origin {
 	align-self: flex-end;
 	box-sizing: border-box;
 	display: flex;
@@ -20,29 +20,35 @@
 	touch-action: manipulation;
 }
 
-.chat-side-chat-origin.hidden {
+.chat-request-origin.hidden {
 	display: none;
 }
 
-.chat-side-chat-origin.has-no-quote {
+.chat-request-origin.has-no-quote {
 	padding-block: var(--vscode-spacing-size40);
 }
 
-.chat-side-chat-origin:hover {
+.chat-request-origin.delegation {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	background-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-request-origin:hover {
 	background-color: var(--vscode-chat-requestBubbleHoverBackground);
 }
 
-.hc-black .chat-side-chat-origin,
-.hc-light .chat-side-chat-origin {
+.hc-black .chat-request-origin,
+.hc-light .chat-request-origin {
 	border: var(--vscode-strokeThickness) dotted var(--vscode-focusBorder);
 }
 
-.chat-side-chat-origin:focus-visible {
+.chat-request-origin:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size20);
 }
 
-.chat-side-chat-origin-header {
+.chat-request-origin-header {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
@@ -51,18 +57,18 @@
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.chat-side-chat-origin-icon {
+.chat-request-origin-icon {
 	flex: 0 0 auto;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.chat-side-chat-origin-title {
+.chat-request-origin-title {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.chat-side-chat-origin-quote {
+.chat-request-origin-quote {
 	display: -webkit-box;
 	overflow: hidden;
 	font-size: var(--vscode-fontSize-label3);
