@@ -60,7 +60,7 @@ export interface IMcpCustomizationControllerOptions {
 	/** Durable plugin source URIs for plugin-provided MCP servers in the launch snapshot. */
 	readonly pluginMcpServerSources?: ReadonlyMap<string, string>;
 	/** Resolves the scoped enablement to publish for a temporarily top-level server. */
-	readonly resolveEnablement?: (server: McpServerCustomization) => readonly CustomizationEnablement[] | undefined;
+	readonly resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
 	/**
 	 * MCP App capabilities to advertise on every ready server. Defaults
 	 * to {@link DEFAULT_MCP_APP_CAPABILITIES}.
@@ -151,6 +151,10 @@ export class McpCustomizationController extends Disposable {
 			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.state, entry.enabled));
 		}
 		return out;
+	}
+
+	get pluginMcpServerSources(): ReadonlyMap<string, string> | undefined {
+		return this._options.pluginMcpServerSources;
 	}
 
 	/**
@@ -403,12 +407,11 @@ export class McpCustomizationController extends Disposable {
 			id,
 			uri: this._mintTopLevelId(serverName),
 			name: serverName,
-			...(owningPluginUri ? { owningPluginUri } : {}),
 			state,
 			channel,
 			mcpApp,
 		};
-		const enablement = this._options.resolveEnablement?.(customization) ?? existing?.enablement;
+		const enablement = this._options.resolveEnablement?.(customization, owningPluginUri) ?? existing?.enablement;
 		return enablement?.length ? { ...customization, enablement: [...enablement] } : customization;
 	}
 }

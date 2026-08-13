@@ -162,10 +162,7 @@ suite('CustomizationEnablementGate', () => {
 			pendingCustomizationIds: ['plugin-id', 'server-id'],
 			published: [{
 				...customization,
-				children: [{
-					...server(),
-					owningPluginUri: 'file:///plugins/example',
-				}],
+				children: [server()],
 			}],
 			sdkEligible: false,
 			childSdkEligible: false,
@@ -221,7 +218,6 @@ suite('CustomizationEnablementGate', () => {
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 			children: [{
 				...server(),
-				owningPluginUri: parsedPlugin.uri,
 				enablement: [
 					{ kind: CustomizationEnablementKind.Session, enabled: false },
 					{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///repo', enabled: true },
@@ -289,11 +285,17 @@ suite('CustomizationEnablementGate', () => {
 			id: 'mcp-top-level:copilot:new-session:azure',
 			uri: 'mcp-top-level:copilot:new-session:azure',
 			name: 'azure',
-			owningPluginUri: pluginUri,
 		};
 
 		const nestedResolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/new-session'), [{ ...nested, uri: pluginUri }]);
-		const topLevelResolved = resolveCustomizationEnablement(service, URI.parse('ahp://copilot/new-session'), [topLevel]);
+		const topLevelResolved = resolveCustomizationEnablement(
+			service,
+			URI.parse('ahp://copilot/new-session'),
+			[topLevel],
+			undefined,
+			undefined,
+			new Map([['azure', pluginUri]]),
+		);
 
 		assert.deepStrictEqual({
 			nested: firstChildEnablement(nestedResolved.customizations),

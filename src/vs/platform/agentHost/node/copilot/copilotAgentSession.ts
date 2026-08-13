@@ -965,8 +965,8 @@ export class CopilotAgentSession extends Disposable {
 				const sourceUri = plugin.sourceUri;
 				return sourceUri === undefined ? [] : plugin.mcpServers.map(server => [server.name, sourceUri.toString()] as const);
 			})),
-			resolveEnablement: server => {
-				const resolution = this._customizationEnablementService.resolve(this._ownerSessionUri.toString(), targetForMcpServer(server));
+			resolveEnablement: (server, owningPluginUri) => {
+				const resolution = this._customizationEnablementService.resolve(this._ownerSessionUri.toString(), targetForMcpServer(server, owningPluginUri));
 				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
 			},
 		}));
@@ -1891,6 +1891,9 @@ export class CopilotAgentSession extends Disposable {
 			this._customizationEnablementService,
 			this._ownerSessionUri,
 			this._hostCustomizations(),
+			undefined,
+			undefined,
+			this._mcpCustomizations.pluginMcpServerSources,
 		));
 		if (customizationId !== undefined && enablement.get(customizationId) === false) {
 			this._logService.info(`[Copilot:${this.sessionId}] Suppressed authentication request from disabled MCP server '${request.serverName}'`);
@@ -2562,6 +2565,9 @@ export class CopilotAgentSession extends Disposable {
 			this._customizationEnablementService,
 			this._ownerSessionUri,
 			desiredCustomizations,
+			undefined,
+			undefined,
+			this._mcpCustomizations.pluginMcpServerSources,
 		));
 		if (desiredEnablement.size === 0) {
 			return;
@@ -4828,6 +4834,10 @@ export class CopilotAgentSession extends Disposable {
 	/** Snapshot of MCP servers that have no plugin-derived child entry. */
 	topLevelMcpCustomizations() {
 		return this._mcpCustomizations.topLevelCustomizations();
+	}
+
+	mcpServerOwners(): ReadonlyMap<string, string> | undefined {
+		return this._mcpCustomizations.pluginMcpServerSources;
 	}
 
 	/**

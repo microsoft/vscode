@@ -1211,7 +1211,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
 		}
 		const fromPlugins = await activeClient.pluginController.getCustomizationsSettled();
-		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(this._findSessionChat(session)?.topLevelMcpCustomizations() ?? []);
+		const sessionChat = this._findSessionChat(session);
+		const topLevelMcp = activeClient.pluginController.resolveTopLevelMcpCustomizations(
+			sessionChat?.topLevelMcpCustomizations() ?? [],
+			sessionChat?.mcpServerOwners?.(),
+		);
 		const customizations = [...fromPlugins, ...topLevelMcp];
 		return applyMcpServerEnablement(customizations, this._retainedHostCustomizations(session));
 	}
@@ -1222,6 +1226,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Method not found: no active session ${AgentSession.id(session)}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
+	}
+
+	getMcpServerOwners(session: URI): ReadonlyMap<string, string> | undefined {
+		return this._findSessionChat(session)?.mcpServerOwners();
 	}
 
 	async startMcpServer(session: URI, id: string): Promise<void> {
@@ -4955,8 +4963,8 @@ class SessionPluginController extends Disposable {
 		return this._resolveCustomizationEnablement().customizations;
 	}
 
-	public resolveTopLevelMcpCustomizations(customizations: readonly Customization[]): readonly Customization[] {
-		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations).customizations;
+	public resolveTopLevelMcpCustomizations(customizations: readonly Customization[], mcpServerOwners?: ReadonlyMap<string, string>): readonly Customization[] {
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, undefined, undefined, mcpServerOwners).customizations;
 	}
 
 	private _resolveCustomizationEnablement() {

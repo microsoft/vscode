@@ -19,7 +19,7 @@ function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	customizations?: readonly Customization[];
 	desiredEnabled?: boolean;
 	pluginMcpServerSources?: ReadonlyMap<string, string>;
-	resolveEnablement?: (server: McpServerCustomization) => readonly CustomizationEnablement[] | undefined;
+	resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
 } = {}) {
 	const actions: SessionAction[] = [];
 	const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -176,9 +176,14 @@ suite('McpCustomizationController', () => {
 		]);
 	});
 
-	test('retains a plugin MCP server source when it is temporarily surfaced top-level', () => {
+	test('passes a plugin MCP server source internally when it is temporarily surfaced top-level', () => {
+		let receivedOwner: string | undefined;
 		const { controller, actions } = harness(store, {
 			pluginMcpServerSources: new Map([['azure', 'file:///plugins/azure-skills']]),
+			resolveEnablement: (_server, owningPluginUri) => {
+				receivedOwner = owningPluginUri;
+				return undefined;
+			},
 		});
 		store.add(controller);
 
@@ -187,8 +192,9 @@ suite('McpCustomizationController', () => {
 		const action = actions[0] as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>;
 		assert.strictEqual(action.customization.type, CustomizationType.McpServer);
 		if (action.customization.type === CustomizationType.McpServer) {
-			assert.deepStrictEqual(action.customization.owningPluginUri, 'file:///plugins/azure-skills');
+			assert.strictEqual(Object.hasOwn(action.customization, 'owningPluginUri'), false);
 		}
+		assert.strictEqual(receivedOwner, 'file:///plugins/azure-skills');
 	});
 
 	test('uses the resolved global and workspace enablement for a plugin server temporarily surfaced top-level', () => {
@@ -211,7 +217,6 @@ suite('McpCustomizationController', () => {
 				id: 'mcp-top-level:copilot:session-1:azure',
 				uri: 'mcp-top-level:copilot:session-1:azure',
 				name: 'azure',
-				owningPluginUri: 'file:///plugins/azure-skills',
 				enablement,
 				state: { kind: McpServerStatus.Stopped },
 				channel: undefined,

@@ -24,19 +24,15 @@ export function targetForPlugin(plugin: PluginCustomization): ICustomizationEnab
 	};
 }
 
-export function targetForMcpServer(server: McpServerCustomization, isClientBundled = server.isClientBundled === true): ICustomizationEnablementTarget {
+export function targetForMcpServer(server: McpServerCustomization, owningPluginUri?: string, isClientBundled = server.isClientBundled === true): ICustomizationEnablementTarget {
 	return {
 		id: server.id,
 		type: CustomizationType.McpServer,
 		name: server.name,
 		source: URI.parse(server.uri),
 		isClientBundled,
-		...(server.owningPluginUri ? { owningPluginSource: URI.parse(server.owningPluginUri) } : {}),
+		...(owningPluginUri ? { owningPluginSource: URI.parse(owningPluginUri) } : {}),
 	};
-}
-
-export function withOwningPluginUri(server: McpServerCustomization, plugin: PluginCustomization): McpServerCustomization {
-	return server.owningPluginUri === plugin.uri ? server : { ...server, owningPluginUri: plugin.uri };
 }
 
 function applyResolution(customization: PluginCustomization, resolution: CustomizationEnablementResolution): { readonly customization: PluginCustomization; readonly pending: boolean };
@@ -83,12 +79,13 @@ export function resolveCustomizationEnablement(
 	customizations: readonly Customization[],
 	clientChildEnablement?: ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>>,
 	clientPlugins?: ReadonlyMap<string, ClientPluginCustomization>,
+	mcpServerOwners?: ReadonlyMap<string, string>,
 ): IResolvedCustomizationEnablement {
 	let pending = false;
 	const pendingCustomizationIds = new Set<string>();
 	const result = customizations.map(customization => {
 		if (customization.type === CustomizationType.McpServer) {
-			const resolved = applyResolution(customization, service.resolve(session.toString(), targetForMcpServer(customization)));
+			const resolved = applyResolution(customization, service.resolve(session.toString(), targetForMcpServer(customization, mcpServerOwners?.get(customization.name))));
 			pending ||= resolved.pending;
 			if (resolved.pending) {
 				pendingCustomizationIds.add(customization.id);
@@ -109,15 +106,14 @@ export function resolveCustomizationEnablement(
 			if (child.type !== CustomizationType.McpServer) {
 				return child;
 			}
-			const childWithOwner = withOwningPluginUri(child, pluginResolution.customization);
 			const isClientBundled = childEnablement !== undefined && Object.hasOwn(childEnablement, child.name);
 			const resolution = applyClientGlobal(
 				service,
 				session,
-				targetForMcpServer(childWithOwner, isClientBundled),
+				targetForMcpServer(child, pluginResolution.customization.uri, isClientBundled),
 				isClientBundled ? childEnablement[child.name] : undefined,
 			);
-			const resolved = applyResolution(childWithOwner, resolution);
+			const resolved = applyResolution(child, resolution);
 			pending ||= resolved.pending;
 			if (resolved.pending) {
 				// A plugin directory can cause the SDK to discover its child, so
@@ -174,7 +170,7 @@ export function recordClientPluginEnablement(
 	for (const child of plugin.children ?? []) {
 		if (child.type === CustomizationType.McpServer) {
 			const isClientBundled = childEnablement !== undefined && Object.hasOwn(childEnablement, child.name);
-			applyClientGlobal(service, session, targetForMcpServer(withOwningPluginUri(child, plugin), isClientBundled), isClientBundled ? childEnablement[child.name] : undefined);
+			applyClientGlobal(service, session, targetForMcpServer(child, plugin.uri, isClientBundled), isClientBundled ? childEnablement[child.name] : undefined);
 		}
 	}
 }

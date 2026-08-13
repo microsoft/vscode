@@ -88,7 +88,7 @@ import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
-import { targetForMcpServer, targetForPlugin, withOwningPluginUri } from './shared/customizationEnablementGate.js';
+import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -157,22 +157,23 @@ interface ISubagentSessionRef {
 
 interface ICustomizationEnablementCandidate {
 	readonly customization: PluginCustomization | McpServerCustomization;
+	readonly owningPluginUri?: string;
 }
 
 const MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES = 3;
 
-function getCustomizationEnablementCandidates(customizations: readonly Customization[] | undefined): readonly ICustomizationEnablementCandidate[] {
+function getCustomizationEnablementCandidates(customizations: readonly Customization[] | undefined, mcpServerOwners?: ReadonlyMap<string, string>): readonly ICustomizationEnablementCandidate[] {
 	const candidates: ICustomizationEnablementCandidate[] = [];
 	for (const customization of customizations ?? []) {
 		if (customization.type === CustomizationType.Plugin) {
 			candidates.push({ customization });
 			for (const child of customization.children ?? []) {
 				if (child.type === CustomizationType.McpServer) {
-					candidates.push({ customization: withOwningPluginUri(child, customization) });
+					candidates.push({ customization: child, owningPluginUri: customization.uri });
 				}
 			}
 		} else if (customization.type === CustomizationType.McpServer) {
-			candidates.push({ customization });
+			candidates.push({ customization, owningPluginUri: mcpServerOwners?.get(customization.name) });
 		} else if (customization.type === CustomizationType.Directory) {
 			for (const child of customization.children ?? []) {
 				if (child.type === CustomizationType.McpServer) {
@@ -332,7 +333,8 @@ export class AgentSideEffects extends Disposable {
 			const action = envelope.action;
 			if (action.type === ActionType.SessionCustomizationToggled) {
 				const sessionState = this._stateManager.getSessionState(envelope.channel);
-				const customization = getCustomizationEnablementCandidates(sessionState?.customizations)
+				const mcpServerOwners = this._options.getAgent(envelope.channel)?.getMcpServerOwners?.(URI.parse(envelope.channel));
+				const customization = getCustomizationEnablementCandidates(sessionState?.customizations, mcpServerOwners)
 					.find(candidate => candidate.customization.id === action.id);
 				if (customization === undefined) {
 					// Toggle actions target entries from the immediately preceding
@@ -1806,7 +1808,7 @@ export class AgentSideEffects extends Disposable {
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
 		const target = candidate.customization.type === CustomizationType.Plugin
 			? targetForPlugin(candidate.customization)
-			: targetForMcpServer(candidate.customization);
+			: targetForMcpServer(candidate.customization, candidate.owningPluginUri);
 		this._customizationEnablementService.replaceEnablement(session, target, enablement);
 	}
 
