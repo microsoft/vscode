@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
@@ -144,6 +144,8 @@ export interface IAgentSdkDownloadProgress {
 	readonly receivedBytes: number;
 	/** Total bytes from `Content-Length`, or `undefined` when unknown (indeterminate). */
 	readonly totalBytes: number | undefined;
+	/** Whether a user-initiated flow explicitly requested that this download be surfaced. */
+	readonly explicitlyRequested: boolean;
 	/** Short, non-localized failure reason; present only when `phase: 'failed'`. */
 	readonly error?: string;
 }
@@ -159,6 +161,13 @@ export interface IAgentSdkDownloader {
 	 * progress to clients regardless of which session triggered the fetch.
 	 */
 	readonly onDidDownloadProgress: Event<IAgentSdkDownloadProgress>;
+
+	/**
+	 * Keep download progress visible for a user-initiated flow that does not
+	 * have a session progress token, such as ChatGPT sign-in. Dispose the
+	 * returned handle when the flow finishes.
+	 */
+	acquireDownloadProgressInterest(pkg: IAgentSdkPackage): IDisposable;
 
 	/**
 	 * Returns the absolute path of the SDK root directory — the directory that
@@ -241,6 +250,8 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 	 * cacheDirs differ.
 	 */
 	private readonly _pendingDownloads = new Map<string, Promise<string>>();
+	/** Refcounted user-initiated progress interest, keyed by package id. */
+	private readonly _explicitProgressInterest = new Map<string, number>();
 
 	/**
 	 * Negative cache: most recent failure per package id, with an expiry.
@@ -271,6 +282,18 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			return true;
 		}
 		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg) !== undefined;
+	}
+
+	acquireDownloadProgressInterest(pkg: IAgentSdkPackage): IDisposable {
+		this._explicitProgressInterest.set(pkg.id, (this._explicitProgressInterest.get(pkg.id) ?? 0) + 1);
+		return toDisposable(() => {
+			const count = this._explicitProgressInterest.get(pkg.id) ?? 0;
+			if (count <= 1) {
+				this._explicitProgressInterest.delete(pkg.id);
+			} else {
+				this._explicitProgressInterest.set(pkg.id, count - 1);
+			}
+		});
 	}
 
 	async isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean> {
@@ -488,6 +511,7 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			phase,
 			receivedBytes,
 			totalBytes,
+			explicitlyRequested: this._explicitProgressInterest.has(pkg.id),
 			...(error !== undefined ? { error } : {}),
 		});
 	}

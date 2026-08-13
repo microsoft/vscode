@@ -62,10 +62,20 @@ suite('CodexAccountService', () => {
 		const accountService = service('unknown');
 		const actions = createCodexAccountMenuActions(accountService);
 		assert.ok(actions[0] instanceof Action);
-		disposables.add(actions[0]);
+		disposables.add(actions[0] as Action);
 		assert.strictEqual(actions[0].label, 'Sign in to ChatGPT');
 		await actions[0].run();
 		assert.strictEqual(accountService.signInCalls, 1);
+	});
+
+	test('shows download status instead of sign-in while the Codex binary is downloading', () => {
+		const accountService = service('downloading');
+		const actions = createCodexAccountMenuActions(accountService);
+		disposables.add(actions[0] as Action);
+
+		assert.deepStrictEqual(actions.map(action => ({ label: action.label, enabled: action.enabled })), [
+			{ label: 'Downloading Codex agent…', enabled: false },
+		]);
 	});
 
 	test('hides signed-in and sign-in actions when the account surface is unavailable', () => {
