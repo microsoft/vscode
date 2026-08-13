@@ -306,7 +306,7 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 			),
 			consequence: localize(
 				'userDataMigrationBannerConsequence',
-				"Customizations in user data roam between your devices with Settings Sync. Once migrated they live on this machine only, so consider committing them to a repository if you need them elsewhere.",
+				"Migrated files won't use Settings Sync. Commit them to a repository to share them.",
 			),
 		};
 	},
