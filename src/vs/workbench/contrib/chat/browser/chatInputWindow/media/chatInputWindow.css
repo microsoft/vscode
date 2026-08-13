@@ -107,7 +107,7 @@
 }
 
 .chat-input-window .interactive-input-part.compact {
-	padding-top: var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-sizeNone);
 }
 
 .chat-input-window .interactive-input-part.compact .chat-input-container {
