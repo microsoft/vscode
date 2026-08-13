@@ -13,7 +13,7 @@ import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from '../../../..
 import { IMultiDiffEditorOptions } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IEditorPane, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
+import { ITextDiffEditorPane, isResourceMultiDiffEditorInput } from '../../../../../workbench/common/editor.js';
 import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -70,12 +70,12 @@ suite('SessionChangesService', () => {
 				getViewModel: async () => viewModel,
 			});
 			const editorService = new class extends mock<IEditorService>() {
-				override async openEditor(...args: unknown[]): Promise<IEditorPane | undefined> {
+				override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
 					const requestedInput = args[0];
 					const input = requestedInput instanceof SessionChangesEditorInput
 						? disposables.add(requestedInput)
 						: plainInput;
-					return new class extends mock<IEditorPane>() {
+					return new class extends mock<ITextDiffEditorPane>() {
 						override readonly input = input;
 						override readonly group = group;
 					}();
