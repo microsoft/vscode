@@ -484,17 +484,12 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 			if (item.type !== 'response') {
 				continue;
 			}
-			let text = '';
-			for (const part of item.parts) {
-				if (part.kind === 'markdownContent') {
-					text += part.content.value;
-					if (text.length >= ROUTER_FIELD_CLIP_LENGTH * 2) {
-						break;
-					}
+			for (let index = item.parts.length - 1; index >= 0; index--) {
+				const part = item.parts[index];
+				if (part.kind === 'markdownContent' && part.content.value.trim()) {
+					lastResponse = part.content.value.trim().slice(0, ROUTER_FIELD_CLIP_LENGTH * 2);
+					break;
 				}
-			}
-			if (text.trim()) {
-				lastResponse = text.trim();
 			}
 		}
 		return lastResponse ? { ...candidate, lastResponse } : candidate;

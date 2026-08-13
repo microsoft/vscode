@@ -141,7 +141,10 @@ suite('OmniSessionRoutingAdapter', () => {
 		managementService.sessions = [original];
 		history = [{
 			type: 'response',
-			parts: [{ kind: 'markdownContent', content: { value: 'Implemented the requested change.' } }],
+			parts: [
+				{ kind: 'markdownContent', content: { value: 'Renaming this session to match your request, then I will make the change.' } },
+				{ kind: 'markdownContent', content: { value: 'Implemented the requested change.' } },
+			],
 			participant: 'assistant',
 		}];
 		let changeCount = 0;
