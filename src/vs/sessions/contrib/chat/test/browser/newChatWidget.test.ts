@@ -16,7 +16,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
-import { NewChatWidget } from '../../browser/newChatWidget.js';
+import { NewChatWidget, shouldShowChatTip } from '../../browser/newChatWidget.js';
 
 interface INewChatWidgetHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
@@ -169,5 +169,12 @@ suite('NewChatWidget', () => {
 		}));
 
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);
+	});
+
+	test('does not show tips while the active session is loading', () => {
+		assert.deepStrictEqual([
+			shouldShowChatTip(false, true, 0, false),
+			shouldShowChatTip(false, true, 0, true),
+		], [true, false]);
 	});
 });
