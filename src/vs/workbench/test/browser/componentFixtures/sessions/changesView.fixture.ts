@@ -32,7 +32,7 @@ import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, ChangesViewSection, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -85,6 +85,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
 	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
@@ -125,6 +126,10 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	}
 
 	setSectionCollapsed(_sessionResource: URI, _section: ChangesViewSection, _collapsed: boolean): void { }
+
+	getDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode): IChangesDetailsViewState | undefined { return undefined; }
+
+	setDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode, _state: IChangesDetailsViewState): void { }
 
 	setChangesetId(_changesetId: string | undefined): void { }
 
