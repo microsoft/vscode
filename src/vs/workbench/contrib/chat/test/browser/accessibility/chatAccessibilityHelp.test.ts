@@ -98,20 +98,15 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
-	test('only describes the floating input window when enabled in panel chat', () => {
+	test('does not describe the Agents-only floating input window in panel chat', () => {
 		const keybindingService = {
 			lookupKeybindings: () => [],
 		} as unknown as IKeybindingService;
-		const describesInputWindow = (enabled: boolean) =>
-			getAccessibilityHelpText('panelChat', keybindingService, true, false, false, enabled).includes('floating chat input window');
 
-		assert.deepStrictEqual({
-			enabled: describesInputWindow(true),
-			disabled: describesInputWindow(false),
-		}, {
-			enabled: true,
-			disabled: false,
-		});
+		assert.strictEqual(
+			getAccessibilityHelpText('panelChat', keybindingService, true).includes('floating chat input window'),
+			false,
+		);
 	});
 
 	test('only describes spoken agent progress in agent mode', () => {
