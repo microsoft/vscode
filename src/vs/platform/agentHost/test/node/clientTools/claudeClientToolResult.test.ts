@@ -89,8 +89,7 @@ suite('claudeClientToolResult / convertToolCallResult', () => {
 	});
 
 	test('an error-only failure surfaces the message as content instead of an empty result', () => {
-		// The workbench builds this shape whenever a client tool throws: an error
-		// and nothing else. An empty result tells the model nothing went wrong.
+		// An error-only result still carries `isError`, but without content the model never learns the reason.
 		const errorOnly = convertToolCallResult(makeResult({
 			success: false,
 			error: { message: 'page.goto: net::ERR_EMPTY_RESPONSE at http://localhost:5173/' },
