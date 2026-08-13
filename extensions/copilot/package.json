@@ -5058,15 +5058,6 @@
               "advanced"
             ]
           },
-          "github.copilot.chat.autoMode.v2.enabled": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%github.copilot.config.chat.autoMode.v2.enabled%",
-            "tags": [
-              "advanced",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.autoMode.tiers.enabled": {
             "type": "boolean",
             "default": false,
