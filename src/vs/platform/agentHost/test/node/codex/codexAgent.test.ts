@@ -93,7 +93,7 @@ suite('CodexAgent', () => {
 			_startCodexChatDiscovery(this: {
 				_codexChatDiscovery: Promise<void> | undefined;
 				_resolveSdkRoot(): Promise<string>;
-				_emitCodexChats(): Promise<void>;
+				_emitCodexChats(): Promise<boolean>;
 				_logService: { warn(message: string): void };
 			}): Promise<void>;
 		})._startCodexChatDiscovery;
@@ -101,12 +101,15 @@ suite('CodexAgent', () => {
 			_logService: { warn: () => { } },
 			_codexChatDiscovery: undefined as Promise<void> | undefined,
 			_resolveSdkRoot: () => sdkReady.p,
-			_emitCodexChats: async () => onDidDiscoverChats.fire([{
-				chat: URI.parse('agenthost-chat://codex/session/default'),
-				startTime: 1,
-				modifiedTime: 1,
-				external: true,
-			}]),
+			_emitCodexChats: async () => {
+				onDidDiscoverChats.fire([{
+					chat: URI.parse('agenthost-chat://codex/session/default'),
+					startTime: 1,
+					modifiedTime: 1,
+					external: true,
+				}]);
+				return true;
+			},
 		};
 
 		const discovery = startDiscovery.call(harness);
