@@ -159,10 +159,12 @@ Rules:
 Existing Sessions share an Editor/Details visibility profile. New Sessions do not own lifecycle visibility state; their one-time entry rule hides redundant Editor content only when Empty Files is the sole input. Submitting preserves the current composition and updates the Existing profile.
 
 ### Quick chats / no workspace
-Quick Chat hides the whole side pane once when it becomes active in single-session mode. If it has a
-saved editor working set, the Editor is revealed after that working set has restored while Details stays
-hidden. It does not listen to later editor-list or active-editor changes; later explicit editor opens use
-normal workbench behavior.
+Quick Chats with saved editors share overall side-pane visibility with Existing Sessions. A visible
+Existing composition maps to Editor-only because Quick Chats have no Details; a hidden composition
+stays hidden. Opening a first editor and visibility changes made in an editor-bearing Quick Chat
+update the shared profile before the chat's first switch.
+A Quick Chat without editors hides the side pane transiently without overwriting that profile, so
+navigating to an Existing Session or another Quick Chat with editors restores the shared visibility.
 
 ### Multiple visible sessions
 Visibility restoration is reveal-only while multiple sessions are visible. Focusing a workspace

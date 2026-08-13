@@ -18,7 +18,7 @@ import { SinglePaneExistingSessionStrategy } from '../../browser/singlePane/sing
 import { ISinglePaneLayoutContext } from '../../browser/singlePane/singlePaneLayoutStrategy.js';
 import { SinglePaneNewSessionStrategy } from '../../browser/singlePane/singlePaneNewSessionStrategy.js';
 import { SinglePaneQuickChatStrategy } from '../../browser/singlePane/singlePaneQuickChatStrategy.js';
-import { SinglePaneVisibilityProfileStore } from '../../browser/singlePane/singlePaneVisibilityProfileStore.js';
+import { SessionVisibilityProfile, SinglePaneVisibilityProfileStore } from '../../browser/singlePane/singlePaneVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 interface ITestContextState {
@@ -94,6 +94,10 @@ suite('SinglePane layout strategies', () => {
 
 	function createDetailPanel(): SinglePaneDetailPanelCoordinator {
 		return store.add(harness.instaService.createInstance(SinglePaneDetailPanelCoordinator));
+	}
+
+	function createVisibilityStore(): SinglePaneVisibilityProfileStore {
+		return harness.instaService.createInstance(SinglePaneVisibilityProfileStore);
 	}
 
 	test('Existing Session toggles only the detail panel', () => {
@@ -285,7 +289,7 @@ suite('SinglePane layout strategies', () => {
 		harness.activeGroupEditors.push(editor);
 		harness.editorGroupsHaveContent = true;
 		harness.activeEditorInput = editor;
-		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel()));
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), createVisibilityStore()));
 		activate(makeSession(URI.parse('session:/workspace')));
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
@@ -325,9 +329,13 @@ suite('SinglePane layout strategies', () => {
 		const { ctx, state } = createStrategyTestContext(store, harness);
 		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
 		state.setHasSavedWorkingSet(quickChat.resource, true);
-		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel()));
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: false, auxiliaryBarVisible: false });
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), visibilityStore));
 
 		activate(makeSession(URI.parse('session:/workspace')));
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		activate(quickChat);
 		const restoredEditor = store.add(new TestStubEditorInput(URI.parse('browser://restored')));
 		harness.activeGroupEditors.push(restoredEditor);
@@ -342,11 +350,9 @@ suite('SinglePane layout strategies', () => {
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 			visibilityChanges: harness.setPartHiddenCalls,
 		}, {
-			editorVisible: true,
+			editorVisible: false,
 			auxiliaryBarVisible: false,
-			visibilityChanges: [
-				{ hidden: false, part: Parts.EDITOR_PART },
-			],
+			visibilityChanges: [],
 		});
 
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
@@ -359,6 +365,95 @@ suite('SinglePane layout strategies', () => {
 		}, {
 			editorVisible: false,
 			visibilityChanges: [],
+		});
+	});
+
+	test('Quick Chat records a newly opened editor before its first switch', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const newQuickChat = makeSession(URI.parse('session:/new-quick'), { isQuickChat: true });
+		const restoredQuickChat = makeSession(URI.parse('session:/restored-quick'), { isQuickChat: true });
+		state.setHasSavedWorkingSet(restoredQuickChat.resource, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: false, auxiliaryBarVisible: false });
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), visibilityStore));
+
+		activate(newQuickChat);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		const openedEditor = store.add(new TestStubEditorInput(URI.parse('browser://new')));
+		harness.activeGroupEditors.push(openedEditor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = openedEditor;
+		harness.onDidEditorsChange.fire();
+
+		activate(restoredQuickChat);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			sharedVisibility: { editorVisible: true, auxiliaryBarVisible: false },
+		});
+	});
+
+	test('Quick Chat shares side-pane visibility without persisting an editorless hide', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const emptyQuickChat = makeSession(URI.parse('session:/empty-quick'), { isQuickChat: true });
+		const editorQuickChat = makeSession(URI.parse('session:/editor-quick'), { isQuickChat: true });
+		state.setHasSavedWorkingSet(editorQuickChat.resource, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: false, auxiliaryBarVisible: true });
+		store.add(harness.instaService.createInstance(SinglePaneQuickChatStrategy, ctx, createDetailPanel(), visibilityStore));
+
+		activate(makeSession(URI.parse('session:/workspace')));
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(emptyQuickChat);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
+		});
+
+		activate(editorQuickChat);
+		const restoredEditor = store.add(new TestStubEditorInput(URI.parse('browser://restored')));
+		harness.activeGroupEditors.push(restoredEditor);
+		harness.editorGroupsHaveContent = true;
+		harness.activeEditorInput = restoredEditor;
+		harness.setPartHiddenCalls.length = 0;
+
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [],
+			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
+		});
+
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+
+		assert.deepStrictEqual(visibilityStore.get(SessionVisibilityProfile.Existing), {
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 		});
 	});
 });
