@@ -52,10 +52,23 @@ suite('ChangesViewService', () => {
 	function createChangeset(operations: readonly ISessionChangesetOperation[]): ISessionChangeset {
 		return upcastPartial<ISessionChangeset>({
 			id: 'branch',
+			label: 'Branch Changes',
 			isDefault: constObservable(true),
 			isEnabled: constObservable(true),
 			isLoadingChanges: constObservable(false),
 			operations: constObservable(operations),
+			changes: constObservable([]),
+		});
+	}
+
+	function createTransientChangeset(): ISessionChangeset {
+		return upcastPartial<ISessionChangeset>({
+			id: 'turn:request',
+			label: 'Turn Changes',
+			isDefault: constObservable(false),
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			operations: constObservable([]),
 			changes: constObservable([]),
 		});
 	}
@@ -249,6 +262,46 @@ suite('ChangesViewService', () => {
 		}, {
 			detailsViewState,
 			draftDetailsViewState: undefined,
+		});
+	});
+
+	test('scopes a transient changeset to its session and clears it on provider selection', () => {
+		const branchChangeset = createChangeset([]);
+		const transientChangeset = createTransientChangeset();
+		const sessionA = createSession('a', { changesets: [branchChangeset] });
+		const sessionB = createSession('b', { changesets: [branchChangeset] });
+		const { activeSession, service } = createHarness(sessionA);
+
+		service.showChangeset(transientChangeset);
+		const transientSelection = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+		service.setChangesetId(branchChangeset.id);
+		const providerSelection = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+		service.showChangeset(transientChangeset);
+		activeSession.set(sessionB, undefined);
+		const afterSessionSwitch = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+
+		assert.deepStrictEqual({ transientSelection, providerSelection, afterSessionSwitch }, {
+			transientSelection: {
+				changesets: ['branch', 'turn:request'],
+				selected: 'turn:request',
+			},
+			providerSelection: {
+				changesets: ['branch'],
+				selected: 'branch',
+			},
+			afterSessionSwitch: {
+				changesets: ['branch'],
+				selected: 'branch',
+			},
 		});
 	});
 

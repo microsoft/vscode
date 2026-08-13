@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { getCustomizationDisabledReason, isCustomizationEnabled, type CustomizationDisabledReason } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { CustomizationLoadStatus, CustomizationType, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
@@ -25,13 +26,14 @@ import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js
 import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { localize } from '../../../../../../nls.js';
+import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
 
 
-type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
+type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; disabledReason: CustomizationDisabledReason | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
 
 
 export class AgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
@@ -100,7 +102,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		};
 	}
 
-	private toItem(customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
+	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
 		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization.uri);
@@ -113,14 +115,18 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source,
 			status: toStatusString(customization.load),
 			statusMessage: toStatusMessage(customization.load),
-			enabled: customization.enabled,
+			enabled: isCustomizationEnabled(customization),
+			disabledReason: getCustomizationDisabledReason(customization),
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
-			actions: this._getItemActions?.(customization, clientId),
+			actions: [
+				...(clientId === undefined ? getAgentHostPluginEnablementActions(this._customAgentsService, undefined, sessionResource, customization, this._customAgentsService.getWorkingDirectories(sessionResource).length > 0) : []),
+				...(this._getItemActions?.(customization, clientId) ?? []),
+			],
 		};
 	}
 
@@ -276,7 +282,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				// expanded below so individual user files appear in per-type tabs.
 				let item: ICustomizationItem;
 				if (!isBundleItem) {
-					item = this.toItem(sessionCustomization, AICustomizationSources.plugin);
+					item = this.toItem(sessionResource, sessionCustomization, AICustomizationSources.plugin);
 					items.set(customizationItemKey(sessionCustomization, sessionCustomization.clientId), item);
 				} else {
 					// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
@@ -287,7 +293,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					nonce: (sessionCustomization as ClientPluginCustomization).nonce,
 					status: toStatusString(sessionCustomization.load),
 					statusMessage: toStatusMessage(sessionCustomization.load),
-					enabled: sessionCustomization.enabled,
+					enabled: isCustomizationEnabled(sessionCustomization),
+					disabledReason: getCustomizationDisabledReason(sessionCustomization),
 					childGroupKey,
 					isBundleItem,
 					pluginLabel: isBundleItem ? undefined : item.name,
@@ -317,6 +324,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 					status: p.status,
 					statusMessage: p.statusMessage,
 					enabled: p.enabled,
+					disabledReason: p.disabledReason,
 				});
 			}
 		}

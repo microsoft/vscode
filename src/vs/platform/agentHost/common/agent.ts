@@ -1049,6 +1049,9 @@ export interface IAgent {
 	/** Return the effective customization projection for an exact chat. */
 	getChatCustomizations(chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]>;
 
+	/** Returns host-internal plugin owners for MCP servers temporarily published top-level. */
+	getMcpServerOwners?(session: URI): ReadonlyMap<string, string> | undefined;
+
 	// ---- Legacy migration and metadata -------------------------------------
 
 	/** Optional migration signal for providers that can observe out-of-band native chat creation. */
