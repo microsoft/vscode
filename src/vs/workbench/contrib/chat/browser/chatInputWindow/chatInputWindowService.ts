@@ -1240,22 +1240,20 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _positionedBounds(width: number, height: number): IRectangle {
 		const invoking = this._invokingWindowBounds;
-		const stored = this.storageService.getObject<{ readonly offsetX: number; readonly offsetY: number }>(
+		const stored = this.storageService.getObject<{ readonly x: number; readonly y: number }>(
 			ChatInputWindowStorageKeys.WindowPosition,
 			StorageScope.WORKSPACE,
 		);
 		const centeredX = invoking.x + (invoking.width - width) / 2;
 		const centeredY = invoking.y + (invoking.height - height) / 2;
-		const maxX = invoking.x + Math.max(0, invoking.width - width);
-		const maxY = invoking.y + Math.max(0, invoking.height - height);
 		const hasStoredPosition = stored
-			&& Number.isFinite(stored.offsetX)
-			&& Number.isFinite(stored.offsetY);
-		const desiredX = hasStoredPosition ? invoking.x + stored.offsetX : centeredX;
-		const desiredY = hasStoredPosition ? invoking.y + stored.offsetY : centeredY;
+			&& Number.isFinite(stored.x)
+			&& Number.isFinite(stored.y);
+		const desiredX = hasStoredPosition ? stored.x : centeredX;
+		const desiredY = hasStoredPosition ? stored.y : centeredY;
 		return {
-			x: Math.round(Math.min(Math.max(desiredX, invoking.x), maxX)),
-			y: Math.round(Math.min(Math.max(desiredY, invoking.y), maxY)),
+			x: Math.round(desiredX),
+			y: Math.round(desiredY),
 			width,
 			height,
 		};
@@ -1269,8 +1267,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this.storageService.store(
 			ChatInputWindowStorageKeys.WindowPosition,
 			JSON.stringify({
-				offsetX: bounds.x - this._invokingWindowBounds.x,
-				offsetY: bounds.y - this._invokingWindowBounds.y,
+				x: bounds.x,
+				y: bounds.y,
 			}),
 			StorageScope.WORKSPACE,
 			StorageTarget.MACHINE,
