@@ -15,10 +15,6 @@
 	overflow: hidden;
 }
 
-.chat-input-window:focus-within {
-	border-color: var(--vscode-focusBorder) !important;
-}
-
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;

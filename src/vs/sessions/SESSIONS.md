@@ -346,6 +346,34 @@ Use the narrowest mechanism that represents the change:
 Do not add an event that mirrors an observable value. Do not use storage keys or
 provider internals as a side channel between components.
 
+## Agents Window telemetry
+
+On the first Agents-window handoff, `SelectAgentsFolderContribution` immediately
+emits `agents/windowSessionStart` once with the entry `source` and
+`hasPreviouslyStartedSession`, a non-PII boolean measurement derived from
+whether the application-scoped `TOTAL_SESSIONS_KEY` counter is nonzero. Together
+with the standard numeric `common.isAgentsWindow` property, this is the general
+Agents-window opened/session-start signal for device-day retention and provides
+a clean initial cohort (`hasPreviouslyStartedSession: false`); it is independent
+of selecting or creating an agent session.
+
+The contribution starts `SessionsWindowOpenTelemetry` only for that initial
+cohort. The delayed `agents/firstTimeWindowOpen` event captures initial setup
+and workspace state, and its categorical `emissionReason` identifies whether it
+was sent by the timer, a close, quit, reload, or another shutdown. A close or
+quit within three minutes includes `windowCloseDurationMs`; other emission paths
+leave that field undefined.
+
+When an onboarding presentation renders its first visible element, the shared
+onboarding engine emits `onboarding.scenarioShown`. For the V2 new-session-view
+experiment this is the dedicated rendered-tour impression:
+`scenarioId` is `sessions.onboarding.newSessionViewV2`, and
+`experimentAssignmentContextId` contains the existing bounded `onb-new-btn-*`
+treatment/control assignment identifier only when its valid experiment is
+active. The event is emitted after the spotlight is mounted, never on assignment
+or trigger eligibility; in the Agents window it carries the standard
+`common.isAgentsWindow` property.
+
 ## Adding or changing a provider
 
 1. Implement `ISessionsProvider` under

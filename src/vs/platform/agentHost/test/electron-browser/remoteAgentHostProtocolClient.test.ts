@@ -184,6 +184,24 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 	}
 }
 
+class ManagedPermissionsConfigurationService extends TestConfigurationService {
+	private globalAutoApprovePolicyValue: boolean | undefined = false;
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		if (key === GLOBAL_AUTO_APPROVE_SETTING_ID) {
+			return {
+				...super.inspect<T>(key),
+				policyValue: this.globalAutoApprovePolicyValue as T | undefined,
+			};
+		}
+		return super.inspect<T>(key);
+	}
+
+	clearGlobalAutoApprovePolicy(): void {
+		this.globalAutoApprovePolicyValue = undefined;
+	}
+}
+
 suite('RemoteAgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -982,9 +1000,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 	});
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {
-		const configurationService = new TestConfigurationService({
+		const configurationService = new ManagedPermissionsConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
-			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
 		const { client, transport } = createClientForIdentity(
@@ -1010,6 +1027,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		transport.sentMessages.length = 0;
+		configurationService.clearGlobalAutoApprovePolicy();
 		await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, true);
 		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
@@ -1383,8 +1401,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
-						{ type: CustomizationType.Plugin, id: customizationId('file:///other/bar'), uri: 'file:///other/bar', name: 'Bar', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///other/bar'), uri: 'file:///other/bar', name: 'Bar', },
 					]
 				},
 			});
@@ -1470,8 +1488,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/bar'), uri: 'file:///plugins/bar', name: 'Bar', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/bar'), uri: 'file:///plugins/bar', name: 'Bar', },
 					]
 				},
 			});
@@ -1493,7 +1511,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
 					]
 				},
 			};
@@ -1554,7 +1572,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
 					],
 				},
 			});
