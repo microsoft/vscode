@@ -183,30 +183,53 @@ export class PromptFilesLocator {
 
 		const configuredLocations = this.getPromptSourceFolders(type);
 		const localRoot = storage === PromptsStorage.local ? root : undefined;
-		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(loc => loc.storage === storage), undefined, localRoot);
+		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(location => location.storage === storage), undefined, localRoot);
 
-		if (storage === PromptsStorage.user && (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt)) {
+		if (storage === PromptsStorage.user && this.isUserDataPromptType(type)) {
+			const localLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(location => location.storage === PromptsStorage.local));
+			absoluteLocations.push(...localLocations.filter(location => this.sourceFolderOverlapsUserData(type, location.searchRoot)));
 			absoluteLocations.push(this.userDataFolder);
 		}
 
 		const paths = new ResourceSet();
 		const result: { uri: URI; source: PromptFileSource }[] = [];
 
-		for (const { searchRoot, filePattern, source } of absoluteLocations) {
+		for (const { searchRoot, filePattern, source, storage: sourceStorage } of absoluteLocations) {
 			const files = (filePattern === undefined)
 				? await this.resolveFilesAtLocation(searchRoot, type, token, 0, localRoot) // if the location does not contain a glob pattern, resolve the location directly
 				: await this.searchFilesInLocation(searchRoot, filePattern, token);
 			for (const file of files) {
-				if (getPromptFileType(file) === type && !paths.has(file)) {
-					paths.add(file);
-					result.push({ uri: file, source });
+				if (getPromptFileType(file) !== type || paths.has(file)) {
+					continue;
 				}
+
+				const isUserDataFile = this.isUserDataPromptFile(type, file);
+				if ((isUserDataFile && storage !== PromptsStorage.user)
+					|| (!isUserDataFile && sourceStorage !== storage)) {
+					continue;
+				}
+
+				paths.add(file);
+				result.push({ uri: file, source: isUserDataFile ? PromptFileSource.UserData : source });
 			}
 			if (token.isCancellationRequested) {
 				return [];
 			}
 		}
 		return result;
+	}
+
+	private isUserDataPromptType(type: PromptsType): boolean {
+		return type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt;
+	}
+
+	private isUserDataPromptFile(type: PromptsType, resource: URI): boolean {
+		return this.isUserDataPromptType(type) && isEqualOrParent(resource, this.userDataFolder.uri);
+	}
+
+	private sourceFolderOverlapsUserData(type: PromptsType, searchRoot: URI): boolean {
+		return this.isUserDataPromptType(type)
+			&& (isEqualOrParent(searchRoot, this.userDataFolder.uri) || isEqualOrParent(this.userDataFolder.uri, searchRoot));
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
