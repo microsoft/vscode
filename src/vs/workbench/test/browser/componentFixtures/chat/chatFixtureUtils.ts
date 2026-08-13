@@ -45,6 +45,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/c
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -184,9 +185,11 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly enabled = observableValue('chatPetEnabled', false);
 		override readonly variant = observableValue('chatPetVariant', 'stable' as const);
 		override readonly onTheRun = observableValue('chatPetOnTheRun', false);
+		override readonly scale = observableValue('chatPetScale', 1);
 		override toggle() { return false; }
 		override setVariant() { }
 		override setOnTheRun() { }
+		override setScale(scale: number) { this.scale.set(scale, undefined); }
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;
@@ -205,6 +208,12 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override disposeRequest() { }
 		override acceptResponse() { }
 		override acceptElicitation() { }
+	}());
+	reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+		override registerProvider() { return Disposable.None; }
+		override getChangesForRequest() { return undefined; }
+		override getFileEditsForRequest() { return undefined; }
+		override openChangesForRequest() { }
 	}());
 	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
 		override readonly isVisible = false;

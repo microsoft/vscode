@@ -319,6 +319,7 @@ export async function mapSessionEvents(
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
+	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
 
 	// The SDK tags events that originate from a sub-agent with an
 	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
@@ -333,6 +334,11 @@ export async function mapSessionEvents(
 
 	for (const e of events) {
 		if (e.type === 'subagent.started') {
+			subagentInfoByToolCallId.set(e.data.toolCallId, {
+				agentName: e.data.agentName,
+				agentDisplayName: e.data.agentDisplayName,
+				agentDescription: e.data.agentDescription,
+			});
 			if (e.agentId) {
 				parentToolCallIdByAgentId.set(e.agentId, e.data.toolCallId);
 			}
@@ -388,8 +394,6 @@ export async function mapSessionEvents(
 	const subagentTurnStates = new Map<string, TurnState>();
 	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
-	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
-
 	let parentBuilder: ITurnBuilder | undefined;
 	let parentTurnState = TurnState.Cancelled;
 	let parentTurnTerminated = false;
@@ -614,12 +618,6 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'subagent.started': {
-				const d = e.data;
-				subagentInfoByToolCallId.set(d.toolCallId, {
-					agentName: d.agentName,
-					agentDisplayName: d.agentDisplayName,
-					agentDescription: d.agentDescription,
-				});
 				break;
 			}
 			case 'tool.execution_start': {
