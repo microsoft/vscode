@@ -138,7 +138,12 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 					// describing this invocation.
 					let serves_editor = s.has_editor_link.unwrap_or(has_editor_link);
 					print_listening(&c.log, &name, serves_editor);
-					machine_status::emit_connected(&name, true, serves_editor);
+					machine_status::emit_connected(
+						&name,
+						s.tunnel_id.as_deref(),
+						true,
+						serves_editor,
+					);
 				}
 			}
 

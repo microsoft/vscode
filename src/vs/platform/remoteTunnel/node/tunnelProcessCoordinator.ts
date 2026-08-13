@@ -53,6 +53,7 @@ export interface ITunnelProcessMachineStatus {
 export interface ITunnelProcessStatus {
 	readonly mode: TunnelProcessMode;
 	readonly tunnelName: string | undefined;
+	readonly tunnelId?: string;
 	readonly connectionState: TunnelProcessConnectionState;
 	readonly serviceInstallFailed: boolean;
 }
@@ -114,7 +115,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	 * idea an uninstall was owed. Cleared only once an uninstall succeeds.
 	 */
 	private _uninstallServicePending = false;
-	private _status: ITunnelProcessStatus = { mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
+	private _status: ITunnelProcessStatus = { mode: 'none', tunnelName: undefined, tunnelId: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
 
 	constructor(
 		tunnelCliFactory: TunnelCliFactory | undefined,
@@ -219,12 +220,12 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (target.mode === 'none') {
 			await this._runTransient('kill', ['tunnel', 'kill'], 'none', generation);
 			if (generation === this._generation) {
-				this._setStatus({ mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false });
+				this._setStatus({ mode: 'none', tunnelName: undefined, tunnelId: undefined, connectionState: 'disconnected', serviceInstallFailed: false });
 			}
 			return;
 		}
 
-		this._setStatus({ mode: target.mode, tunnelName, connectionState: 'connecting', serviceInstallFailed: false });
+		this._setStatus({ mode: target.mode, tunnelName, tunnelId: undefined, connectionState: 'connecting', serviceInstallFailed: false });
 		const isServiceInstalled = target.mode === 'service' || target.mode === 'remoteAccess'
 			? await this._isServiceInstalled(generation)
 			: false;
@@ -376,7 +377,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 			const status = parseTunnelMachineStatus(message);
 			if (status) {
 				if (status.type === 'connected' && this._status.mode === mode) {
-					this._setStatus({ ...this._status, connectionState: 'connected' });
+					this._setStatus({ ...this._status, tunnelId: status.tunnelId, connectionState: 'connected' });
 				}
 				this._onDidMachineStatus.fire({ mode, status, cancel });
 			}
@@ -386,6 +387,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	private _setStatus(status: ITunnelProcessStatus): void {
 		if (this._status.mode === status.mode
 			&& this._status.tunnelName === status.tunnelName
+			&& this._status.tunnelId === status.tunnelId
 			&& this._status.connectionState === status.connectionState
 			&& this._status.serviceInstallFailed === status.serviceInstallFailed) {
 			return;

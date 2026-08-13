@@ -380,6 +380,10 @@ pub mod singleton {
 	#[derive(Serialize, Deserialize, Clone, Default)]
 	pub struct StatusWithTunnelName {
 		pub name: Option<String>,
+		/// The stable dev tunnel identity. `None` from servers predating this
+		/// field, so clients must not treat a missing value as an identity.
+		#[serde(default)]
+		pub tunnel_id: Option<String>,
 		/// Whether the running singleton serves the editor, as opposed to only
 		/// the agent host. `None` from servers predating this field, in which
 		/// case a client must fall back to describing its own invocation.
@@ -434,6 +438,7 @@ pub mod singleton {
 			// changes.
 			let mut legacy = serde_json::to_value(StatusWithTunnelName {
 				name: Some("tunnel-name".to_string()),
+				tunnel_id: None,
 				has_editor_link: Some(true),
 				status: Status::default(),
 			})
@@ -450,6 +455,42 @@ pub mod singleton {
 				(parsed.name.as_deref(), parsed.has_editor_link),
 				(Some("tunnel-name"), None)
 			);
+		}
+
+		#[test]
+		fn status_with_tunnel_id_round_trips() {
+			let expected = StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: Some("tunnel-id".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			};
+
+			let parsed: StatusWithTunnelName =
+				serde_json::from_value(serde_json::to_value(&expected).unwrap()).unwrap();
+
+			assert_eq!(
+				(parsed.name.as_deref(), parsed.tunnel_id.as_deref()),
+				(Some("tunnel-name"), Some("tunnel-id"))
+			);
+		}
+
+		/// A singleton server predating `tunnel_id` omits the field entirely,
+		/// so clients can continue to attach without treating its absence as an ID.
+		#[test]
+		fn status_without_tunnel_id_field_deserializes_as_unknown() {
+			let mut legacy = serde_json::to_value(StatusWithTunnelName {
+				name: Some("tunnel-name".to_string()),
+				tunnel_id: Some("tunnel-id".to_string()),
+				has_editor_link: Some(true),
+				status: Status::default(),
+			})
+			.unwrap();
+			legacy.as_object_mut().unwrap().remove("tunnel_id").unwrap();
+
+			let parsed: StatusWithTunnelName = serde_json::from_value(legacy).unwrap();
+
+			assert_eq!(parsed.tunnel_id, None);
 		}
 	}
 }

@@ -129,11 +129,15 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		if (!this._request || status.connectionState !== 'connected' || !status.tunnelName) {
 			return { active: false };
 		}
+		const info = {
+			tunnelName: status.tunnelName,
+			...(status.tunnelId === undefined ? {} : { tunnelId: status.tunnelId }),
+		};
 		if (status.mode === 'remoteAccess' || status.mode === 'service') {
-			return { active: true, info: { tunnelName: status.tunnelName, viaRemoteTunnelAccess: true } };
+			return { active: true, info: { ...info, viaRemoteTunnelAccess: true } };
 		}
 		if (status.mode === 'agentHost') {
-			return { active: true, info: { tunnelName: status.tunnelName } };
+			return { active: true, info };
 		}
 		return { active: false };
 	}
@@ -145,6 +149,7 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		}
 		if (status.active && this._lastStatus.active
 			&& status.info.tunnelName === this._lastStatus.info.tunnelName
+			&& status.info.tunnelId === this._lastStatus.info.tunnelId
 			&& status.info.viaRemoteTunnelAccess === this._lastStatus.info.viaRemoteTunnelAccess) {
 			return;
 		}
