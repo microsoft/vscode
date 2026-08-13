@@ -35,6 +35,18 @@ export interface IChangesViewSectionCollapseState {
 
 export type ChangesViewSection = keyof IChangesViewSectionCollapseState;
 
+export interface IChangesDetailsViewState {
+	readonly focus: readonly string[];
+	readonly selection: readonly string[];
+	readonly expanded: Readonly<Record<string, 0 | 1>>;
+	readonly scrollTop: number;
+}
+
+export interface IChangesDetailsViewStateTransfer {
+	readonly from: URI;
+	readonly to: URI;
+}
+
 export interface IChangesViewService {
 	readonly _serviceBrand: undefined;
 
@@ -59,6 +71,9 @@ export interface IChangesViewService {
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;
 	setSectionCollapsed(sessionResource: URI, section: ChangesViewSection, collapsed: boolean): void;
+	readonly detailsViewStateTransferObs: IObservable<IChangesDetailsViewStateTransfer | undefined>;
+	getDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode): IChangesDetailsViewState | undefined;
+	setDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode, state: IChangesDetailsViewState): void;
 
 	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void;
 }
