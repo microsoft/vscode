@@ -206,6 +206,11 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	private readonly _codeDecorations = new Map<CodeBlockPart, IEditorDecorationsCollection>();
 
 	private _lastFocusedElement: HTMLElement | undefined;
+	private _lastNavigationWasPrevious = false;
+	private _unlocatableSkips = 0;
+
+	/** Bounds the skip walk so a query whose matches are all unlocatable cannot spin. */
+	private static readonly MAX_UNLOCATABLE_SKIPS = 50;
 
 	constructor(
 		private readonly host: IChatFindHost,
@@ -285,6 +290,12 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 	}
 
 	find(previous: boolean): void {
+		this._lastNavigationWasPrevious = previous;
+		this._unlocatableSkips = 0;
+		this._advanceActiveMatch(previous);
+	}
+
+	private _advanceActiveMatch(previous: boolean): void {
 		if (previous) {
 			this._model.previous();
 		} else {
@@ -292,6 +303,19 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		}
 		this._navigateToActive();
 		void this.updateResultCount();
+	}
+
+	/**
+	 * Moves past a match the DOM cannot produce, so navigation never appears to do nothing. The
+	 * index predicts where the renderer will put content, and a part nested in a lazily-built
+	 * container has no DOM node to land on; rather than stall, continue in the same direction.
+	 */
+	private _skipUnlocatableMatch(): void {
+		if (this._unlocatableSkips >= ChatFindWidget.MAX_UNLOCATABLE_SKIPS) {
+			return;
+		}
+		this._unlocatableSkips++;
+		this._advanceActiveMatch(this._lastNavigationWasPrevious);
 	}
 
 	findFirst(): void {
@@ -378,7 +402,12 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 
 	private _revealActiveMatch(match: IChatFindMatch): void {
 		const locatedMatch = this._locateMatch(match);
-		if (locatedMatch && isCodeMatch(locatedMatch)) {
+		if (!locatedMatch) {
+			this._repaintVisibleHighlights();
+			this._skipUnlocatableMatch();
+			return;
+		}
+		if (isCodeMatch(locatedMatch)) {
 			const revealCodeMatch = () => {
 				locatedMatch.codeBlock.editor.revealRangeInCenter(locatedMatch.range);
 				this._repaintVisibleHighlights();
@@ -392,7 +421,7 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		}
 
 		const range = locatedMatch;
-		const opened = range ? this._openAncestorDisclosures(range) : false;
+		const opened = this._openAncestorDisclosures(range);
 		this._repaintVisibleHighlights();
 		if (opened) {
 			this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, () => this._scrollRangeIntoView(range));
@@ -516,8 +545,20 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 		// Counts code-block matches too: they are painted as editor decorations rather than DOM
 		// ranges, so bounding only the ranges would let an all-code result set rescan every match.
 		let locatedCount = 0;
+		// Most matches usually belong to rows the virtualized list has not rendered. Skipping them
+		// on the row lookup alone keeps a transcript-wide result set from scanning parts per repaint.
+		const renderedRows = new Map<string, boolean>();
 		for (let index = 0; index < this._model.matches.length && locatedCount < MAX_VISIBLE_HIGHLIGHTS; index++) {
-			const locatedMatch = this._locateMatch(this._model.matches[index], regex);
+			const match = this._model.matches[index];
+			let isRendered = renderedRows.get(match.itemId);
+			if (isRendered === undefined) {
+				isRendered = !!this.host.getTemplateDataForRequestId(match.itemId);
+				renderedRows.set(match.itemId, isRendered);
+			}
+			if (!isRendered) {
+				continue;
+			}
+			const locatedMatch = this._locateMatch(match, regex);
 			if (!locatedMatch) {
 				continue;
 			}

@@ -1443,9 +1443,8 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					workingDirectories: s.workingDirectories?.map(d => d.toString()),
 					changes: s.changes,
-					// `_meta` carries the workspace-less marker, which seeds or
-					// promotes the client's session kind and cannot be
-					// re-derived from the (scratch) working directory.
+					// `_meta` carries durable host provenance, including session kind
+					// and provider-native discovery provenance.
 					...(s._meta !== undefined ? { _meta: s._meta } : {}),
 				} satisfies ListSessionsResult['items'][number];
 			});

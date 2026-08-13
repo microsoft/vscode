@@ -131,8 +131,19 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 			// connected though, it will be soon, and that'll be in the log replays.
 			if let Ok(Ok(s)) = res.await {
 				if let Some(name) = s.name {
-					print_listening(&c.log, &name, has_editor_link);
-					machine_status::emit_connected(&name, true, has_editor_link);
+					// The running singleton decides what is actually served; a
+					// full-access invocation attaching to an agent-host-only
+					// singleton must not advertise an editor link it cannot
+					// honour. Older servers omit this, so fall back to
+					// describing this invocation.
+					let serves_editor = s.has_editor_link.unwrap_or(has_editor_link);
+					print_listening(&c.log, &name, serves_editor);
+					machine_status::emit_connected(
+						&name,
+						s.tunnel_id.as_deref(),
+						true,
+						serves_editor,
+					);
 				}
 			}
 

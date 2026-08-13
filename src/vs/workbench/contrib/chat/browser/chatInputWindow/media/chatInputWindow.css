@@ -15,10 +15,6 @@
 	overflow: hidden;
 }
 
-.chat-input-window:focus-within {
-	border-color: var(--vscode-focusBorder) !important;
-}
-
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;
@@ -56,6 +52,12 @@
 	align-items: center;
 	flex: 0 0 auto;
 	padding-left: 0;
+}
+
+.chat-input-window .chat-input-window-row.has-attachments .chat-input-window-lead,
+.chat-input-window .chat-input-window-row.has-attachments .chat-input-window-trail {
+	align-self: flex-end;
+	height: 44px;
 }
 
 .chat-input-window .chat-input-window-close {
@@ -113,12 +115,20 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
-.chat-input-window .chat-input-toolbars {
-	margin-top: 0;
+.chat-input-window .chat-input-window-row.has-attachments .interactive-input-and-edit-session {
+	display: flex;
+	flex-direction: column;
 }
 
-.chat-input-window .chat-input-toolbars .action-item > .codicon-add {
-	display: none;
+.chat-input-window .chat-input-window-row.has-attachments .chat-attachments-container {
+	order: -1;
+	margin-top: 0;
+	margin-bottom: var(--vscode-spacing-size80);
+	padding-inline: var(--vscode-spacing-size60);
+}
+
+.chat-input-window .chat-input-toolbars {
+	margin-top: 0;
 }
 
 .chat-input-window .chat-session-target-picker-item {

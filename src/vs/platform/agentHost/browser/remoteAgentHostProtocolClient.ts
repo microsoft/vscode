@@ -1194,8 +1194,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
 			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
 			changes: s.changes,
-			// Carry `_meta` so a session first materialized from a listing (window
-			// reload, list refresh) resolves its kind correctly.
+			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),
 		}));
 	}

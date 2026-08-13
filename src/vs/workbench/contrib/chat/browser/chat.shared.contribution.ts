@@ -13,14 +13,15 @@ import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
+import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { ChatSessionArchiveActionWordingSettingId } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
@@ -57,6 +58,7 @@ import { ChatModeService, IChatMode, IChatModeService, IChatModes } from '../com
 import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatSideChatService, IChatSideChatService } from '../common/chatSideChatService.js';
+import { ChatRequestOriginService, IChatRequestOriginService } from '../common/chatRequestOrigin.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
@@ -75,7 +77,6 @@ import { ILanguageModelToolsConfirmationService } from '../common/tools/language
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
 import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
-import { ChatResponseFileChangesService, IChatResponseFileChangesService } from './chatResponseFileChangesService.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from './chatSubmitRequestHandlerService.js';
 import { AgentPluginDiscoveryPriority, agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
@@ -428,7 +429,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.includeActiveEditor': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as Copilot)."),
 			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false },
@@ -646,7 +647,7 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot CLI). You can still change the mode and approval behavior per session, and each session remembers what was used."),
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot). You can still change the mode and approval behavior per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',
@@ -662,6 +663,7 @@ configurationRegistry.registerConfiguration({
 				value: managedModelValue(),
 				managedSettings: {
 					[COPILOT_MODEL_KEY]: { type: 'string' },
+					[COPILOT_TOP_LEVEL_MODEL_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
@@ -1554,25 +1556,40 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			tags: ['experimental', 'advanced'],
 		},
-		[AgentHostReasoningEffortOverrideSettingId]: {
-			type: 'string',
-			markdownDescription: nls.localize('chat.agentHost.reasoningEffortOverride', "Overrides the reasoning effort for Copilot SDK agent sessions regardless of the per-model picker value. Set it to a level the selected model supports (for example `low`, `medium`, `high`, or `xhigh`) — choosing a level the model does not support may be rejected by the model. A value that isn't a recognized effort level is ignored and the session falls back to the picker value. Applied when a session is created and when its model changes. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
-			default: '',
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostModelCapabilityOverridesSettingId]: {
+		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
-			markdownDescription: nls.localize('chat.agentHost.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id, intended for evaluating preview models against an existing model's profile. For each model id, declare an aliased `family` (for example `claude-opus-4-8`) to route the model to that family's tuned system prompt without a code change; the model id sent to the runtime is unaffected. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to route the model to that family's tuned system prompt and tool profile without changing the model id sent to the runtime — so a preview model can be evaluated against a known prompt while still running on its own endpoint — a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. All overrides apply when a session launches or resumes. On a mid-session model change, only the new model's `reasoningEffort` is applied; the session keeps its launch-time family, tool filters, and model capabilities. Only affects Copilot agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
 			additionalProperties: {
 				type: 'object',
 				properties: {
 					family: {
 						type: 'string',
-						description: nls.localize('chat.agentHost.modelCapabilityOverrides.family', "Alias the model's family for prompt/capability routing (e.g. `claude-opus-4-8`)."),
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.family', "Route the model to another family's tuned system prompt and tool profile (e.g. `claude-opus-4.8`). The model id sent to the runtime is unaffected, so the session still runs on the selected model."),
+					},
+					reasoningEffort: {
+						type: 'string',
+						enum: [...reasoningEffortLevels],
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.reasoningEffort', "Reasoning effort for sessions on this model, overriding the model picker's thinking level. Use the `*` entry to set it for every model. Unrecognized values are ignored."),
+					},
+					availableTools: {
+						type: 'array',
+						items: { type: 'string' },
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.availableTools', "When set, only matching tools are available to sessions on this model. Patterns: bare tool names, `builtin:*` or `builtin:<name>` (Copilot runtime tools), `mcp:*` or `mcp:<name>` (MCP server tools), and `custom:*` or `custom:<name>` (every tool VS Code registers with the SDK, including the agent host's own terminal tools); a bare `*` expands to all three sources."),
+					},
+					excludedTools: {
+						type: 'array',
+						items: { type: 'string' },
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.excludedTools', "Tools disabled for sessions on this model; same pattern syntax as `availableTools` and takes precedence over it. Note that `custom:*` and a bare `*` also disable the agent host's own terminal tools registered with the SDK."),
+					},
+					modelCapabilities: {
+						type: 'object',
+						additionalProperties: true,
+						description: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides.modelCapabilities', "Per-property model capability overrides passed through to the Copilot SDK's `modelCapabilities` session field (e.g. `{ \"supports\": { \"vision\": false }, \"limits\": { \"max_context_window_tokens\": 64000 } }`), deep-merged over the runtime's resolved defaults for this model. Applied when the session launches or resumes."),
 					},
 				},
 			},
 			default: {},
+			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostAllowSignedOutWhenUsableSettingId]: {
@@ -2977,6 +2994,7 @@ registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);
 registerSingleton(IChatSideChatService, ChatSideChatService, InstantiationType.Delayed);
+registerSingleton(IChatRequestOriginService, ChatRequestOriginService, InstantiationType.Delayed);
 registerSingleton(IChatPetService, ChatPetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
@@ -3000,7 +3018,6 @@ registerSingleton(IToolResultCompressor, ToolResultCompressorService, Instantiat
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
 registerSingleton(IChatToolRiskAssessmentService, ChatToolRiskAssessmentService, InstantiationType.Delayed);
 registerSingleton(IChatGoalSummaryService, ChatGoalSummaryService, InstantiationType.Delayed);
-registerSingleton(IChatResponseFileChangesService, ChatResponseFileChangesService, InstantiationType.Delayed);
 registerSingleton(IChatSubmitRequestHandlerService, ChatSubmitRequestHandlerService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);

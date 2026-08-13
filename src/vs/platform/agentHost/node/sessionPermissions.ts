@@ -22,6 +22,7 @@ import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
+import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -32,7 +33,7 @@ import {
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
 
@@ -207,6 +208,7 @@ export class SessionPermissionManager extends Disposable {
 		options: { realpath?: (fsPath: string) => Promise<string> },
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -246,7 +248,7 @@ export class SessionPermissionManager extends Disposable {
 		// contained by *any* root. Today the set has exactly one entry (the
 		// create-time length guard), so this is behaviour-identical to the
 		// previous single-directory logic.
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 
 		// 0. Sandbox bypass: a shell command that opted out of the
@@ -273,6 +275,11 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
+			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
+			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
+				return ToolCallConfirmationReason.NotNeeded;
+			}
 			if (await this._isReadAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
@@ -326,7 +333,7 @@ export class SessionPermissionManager extends Disposable {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 			return false;
 		}
-		const workDirs = this._configService.getEffectiveWorkingDirectories(sessionKey);
+		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
 		const workingDirectories = workDirs?.map(d => URI.parse(d));
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
