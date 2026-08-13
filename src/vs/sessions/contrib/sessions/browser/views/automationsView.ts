@@ -684,6 +684,10 @@ class AutomationHistorySection extends Disposable {
 	}
 
 	private async confirmDeleteRunSession(run: IAutomationRun, session: ISession, automationName: string): Promise<void> {
+		// Capture whether the history section has DOM focus before the dialog
+		// steals it. Only keyboard-initiated deletes should restore focus to
+		// the next item — mouse-initiated ones should not.
+		const hadFocus = this.container.contains(DOM.getActiveElement());
 		const confirmed = await this.dialogService.confirm({
 			message: localize('confirmDeleteAutomationRunSession', "Delete the session for \"{0}\"?", automationName),
 			detail: localize('confirmDeleteAutomationRunSessionDetail', "This will permanently delete the session and remove this item from run history. This action cannot be undone."),
@@ -692,7 +696,9 @@ class AutomationHistorySection extends Disposable {
 		if (!confirmed.confirmed) {
 			return;
 		}
-		this.prepareFocusAfterDeletion(run.id);
+		if (hadFocus) {
+			this.prepareFocusAfterDeletion(run.id);
+		}
 		try {
 			await this.sessionsManagementService.deleteSession(session);
 		} catch (error) {
@@ -704,7 +710,9 @@ class AutomationHistorySection extends Disposable {
 			);
 			return;
 		}
-		this.prepareFocusAfterDeletion(run.id);
+		if (hadFocus) {
+			this.prepareFocusAfterDeletion(run.id);
+		}
 		try {
 			await this.automationService.deleteRun(run.id);
 			this.restoreFocusAfterRender();
