@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, ISettableObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,7 +20,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
-import { ActiveSessionState, ChangesViewSection, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
@@ -30,6 +30,14 @@ const DEFAULT_SECTION_COLLAPSE_STATE: IChangesViewSectionCollapseState = Object.
 	otherFiles: false,
 	checks: true,
 });
+
+interface IStoredChangesViewState {
+	readonly sessionResource: string;
+	readonly detailsViewState?: Partial<Record<ChangesViewMode, IChangesDetailsViewState>>;
+}
+
+const SESSION_VIEW_STATE_STORAGE_KEY = 'changesView.sessionViewState';
+const SESSION_VIEW_STATE_LIMIT = 100;
 
 export class ChangesViewService extends Disposable implements IChangesViewService {
 
@@ -53,6 +61,8 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 	private readonly _sectionCollapseStateBySession = new ResourceMap<IChangesViewSectionCollapseState>();
 	private readonly _sectionCollapseStateChanged = observableSignal('changesView.sectionCollapseStateChanged');
+	private readonly _detailsViewStateBySession = new LRUCache<string, Partial<Record<ChangesViewMode, IChangesDetailsViewState>>>(SESSION_VIEW_STATE_LIMIT);
+	readonly detailsViewStateTransferObs = observableValue<IChangesDetailsViewStateTransfer | undefined>(this, undefined);
 
 	private readonly _selectedChangesetId = observableValue<string | undefined>(this, undefined);
 	setChangesetId(changesetId: string | undefined): void {
@@ -78,6 +88,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
+		this._loadViewState();
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
@@ -208,19 +219,26 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			this.setChangesetId(undefined);
 		}));
 		this._register(sessionsManagementService.onDidReplaceSession(({ from, to }) => {
-			const state = this._sectionCollapseStateBySession.get(from.resource);
-			if (!state) {
-				return;
+			const sectionCollapseState = this._sectionCollapseStateBySession.get(from.resource);
+			if (sectionCollapseState) {
+				this._sectionCollapseStateBySession.delete(from.resource);
+				this._sectionCollapseStateBySession.set(to.resource, sectionCollapseState);
+				this._sectionCollapseStateChanged.trigger(undefined);
 			}
-			this._sectionCollapseStateBySession.delete(from.resource);
-			this._sectionCollapseStateBySession.set(to.resource, state);
-			this._sectionCollapseStateChanged.trigger(undefined);
+
+			const detailsViewState = this._detailsViewStateBySession.get(from.resource.toString());
+			if (detailsViewState) {
+				this._detailsViewStateBySession.delete(from.resource.toString());
+				this._detailsViewStateBySession.set(to.resource.toString(), detailsViewState);
+				this._saveViewState();
+			}
+			this.detailsViewStateTransferObs.set({ from: from.resource, to: to.resource }, undefined);
 		}));
 		this._register(sessionsManagementService.onDidDeleteSession(session => {
-			this._deleteSectionCollapseState(session.resource);
+			this._deleteSessionViewState(session.resource);
 		}));
-		this._register(sessionsManagementService.onDidDiscardNewSession(session => this._deleteSectionCollapseState(session.resource)));
-		this._register(sessionsManagementService.onDidReplaceNewDraftSession(({ from }) => this._deleteSectionCollapseState(from.resource)));
+		this._register(sessionsManagementService.onDidDiscardNewSession(session => this._deleteSessionViewState(session.resource)));
+		this._register(sessionsManagementService.onDidReplaceNewDraftSession(({ from }) => this._deleteSessionViewState(from.resource)));
 
 		// Global context keys
 		this._bindContextKeys();
@@ -241,10 +259,62 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this._sectionCollapseStateChanged.trigger(undefined);
 	}
 
-	private _deleteSectionCollapseState(sessionResource: URI): void {
+	getDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode): IChangesDetailsViewState | undefined {
+		return this._detailsViewStateBySession.get(sessionResource.toString())?.[viewMode];
+	}
+
+	setDetailsViewState(sessionResource: URI, viewMode: ChangesViewMode, state: IChangesDetailsViewState): void {
+		const key = sessionResource.toString();
+		const current = this._detailsViewStateBySession.get(key);
+		if (structuralEquals(current?.[viewMode], state)) {
+			return;
+		}
+		this._detailsViewStateBySession.set(key, { ...current, [viewMode]: state });
+		this._saveViewState();
+	}
+
+	private _deleteSessionViewState(sessionResource: URI): void {
 		if (this._sectionCollapseStateBySession.delete(sessionResource)) {
 			this._sectionCollapseStateChanged.trigger(undefined);
 		}
+		if (this._detailsViewStateBySession.delete(sessionResource.toString())) {
+			this._saveViewState();
+		}
+	}
+
+	private _loadViewState(): void {
+		const entries = this.storageService.getObject<IStoredChangesViewState[]>(SESSION_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE, []);
+		if (!Array.isArray(entries)) {
+			this.storageService.remove(SESSION_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			return;
+		}
+
+		for (const entry of entries) {
+			if (typeof entry.sessionResource !== 'string') {
+				continue;
+			}
+
+			const resource = URI.parse(entry.sessionResource);
+			if (entry.detailsViewState) {
+				this._detailsViewStateBySession.set(resource.toString(), entry.detailsViewState);
+			}
+		}
+	}
+
+	private _saveViewState(): void {
+		if (this._detailsViewStateBySession.size === 0) {
+			this.storageService.remove(SESSION_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			return;
+		}
+
+		const entries: IStoredChangesViewState[] = [];
+		this._detailsViewStateBySession.forEach((detailsViewState, sessionResource) => {
+			entries.push({
+				sessionResource,
+				detailsViewState,
+			});
+		});
+		this.storageService.store(SESSION_VIEW_STATE_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	setChangesetFilesReviewState(resources: readonly URI[], reviewed: boolean): void {
