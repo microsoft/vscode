@@ -52,10 +52,14 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
+			headers: requestService.requests[0].headers,
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
+			// The request carries authorization only: client-identity headers are dropped by
+			// GitHub's edge, so we do not send any.
+			headers: { 'Authorization': 'Bearer token' },
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
