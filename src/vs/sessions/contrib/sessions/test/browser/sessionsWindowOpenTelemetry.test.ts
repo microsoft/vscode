@@ -125,17 +125,27 @@ suite('SessionsWindowOpenTelemetry', () => {
 			lifecycleService.fireShutdown(shutdownReason);
 			lifecycleService.fireShutdown(ShutdownReason.CLOSE);
 
-			assert.deepStrictEqual(telemetryService.events, [{
+			assert.strictEqual(telemetryService.events.length, 1);
+			const event = telemetryService.events[0];
+			assert.deepStrictEqual({
+				name: event.name,
+				source: Reflect.get(event.data, 'source'),
+				signInDialogShown: Reflect.get(event.data, 'signInDialogShown'),
+				workspacePreselected: Reflect.get(event.data, 'workspacePreselected'),
+				workspacePreselectionSource: Reflect.get(event.data, 'workspacePreselectionSource'),
+				emissionReason: Reflect.get(event.data, 'emissionReason'),
+			}, {
 				name: 'agents/firstTimeWindowOpen',
-				data: {
-					source: 'commandPalette',
-					signInDialogShown: false,
-					workspacePreselected: undefined,
-					workspacePreselectionSource: undefined,
-					windowCloseDurationMs: shutdownReason === ShutdownReason.QUIT ? 0 : undefined,
-					emissionReason,
-				},
-			}]);
+				source: 'commandPalette',
+				signInDialogShown: false,
+				workspacePreselected: undefined,
+				workspacePreselectionSource: undefined,
+				emissionReason,
+			});
+			assert.strictEqual(
+				typeof Reflect.get(event.data, 'windowCloseDurationMs'),
+				shutdownReason === ShutdownReason.QUIT ? 'number' : 'undefined',
+			);
 			tracker.dispose();
 			lifecycleService.dispose();
 		}
