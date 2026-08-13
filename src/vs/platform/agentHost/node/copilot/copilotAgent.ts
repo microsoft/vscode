@@ -35,11 +35,11 @@ import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
@@ -603,9 +603,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
-	/** Model IDs whose long-context tier costs the same as the default tier. */
-	private readonly _freeLongContextModels = new Set<string>();
-
 	/**
 	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
 	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
@@ -888,10 +885,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getEnterpriseHost(): string | undefined {
 		return this._gitHubEndpointService.getEnterpriseHost();
-	}
-
-	private _isPreferLongContextEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostPreferLongContextEnabledConfigKey) === true;
 	}
 
 	private _isSystemProxyEnabled(): boolean {
@@ -1901,21 +1894,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// When both tiers cost the same and the user prefers long context, show only the long-context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing)) {
-			return {
-				type: 'number',
-				title: localize('copilot.modelContextSize.title', "Context Size"),
-				description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-				default: longContextMax,
-				enum: [longContextMax],
-				enumLabels: [formatTokenCount(longContextMax)],
-				enumDescriptions: [
-					localize('copilot.modelContextSize.longerSessions', "Longer sessions"),
-				],
-			};
-		}
-
 		return {
 			type: 'number',
 			title: localize('copilot.modelContextSize.title', "Context Size"),
@@ -1944,15 +1922,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
 		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
-	}
-
-	/**
-	 * Whether the model has a long-context window available at no additional cost.
-	 * When true the model should always run in `long_context` tier without showing
-	 * a context-size picker.
-	 */
-	private _isFreeLongContext(modelId: string | undefined): boolean {
-		return !!modelId && this._freeLongContextModels.has(modelId);
 	}
 
 	/**
@@ -2188,19 +2157,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
-		this._freeLongContextModels.clear();
-		const preferLongContext = this._isPreferLongContextEnabled();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
-			// A model has free long context (larger window, no surcharge), but only treat it as free when the user prefers long context.
-			const tokenPrices = billing?.tokenPrices;
-			const hasLargerLongContext = !!tokenPrices?.contextMax
-				&& !!tokenPrices.longContext?.contextMax
-				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
-			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(billing)) {
-				this._freeLongContextModels.add(m.id);
-			}
 			return {
 				provider: this.id,
 				id: m.id,
@@ -2821,7 +2780,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				githubToken: this._githubToken,
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
-				freeLongContext: this._isFreeLongContext(provisional.model?.id),
 				workspaceless: provisional.workspaceless,
 			};
 			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? sessionUri;
@@ -3309,7 +3267,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id) },
 				};
 			} else if (options.sideChat) {
 				const sideChatSource = await this._ensureResolvedChatSession(this._resolveChatContext(options.sideChat.source, { configurationResource: this._resolveChatScope(options.sideChat.source), resource: this._resolveChatStorageScope(options.sideChat.source) }));
@@ -3338,7 +3296,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id) },
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -3355,7 +3313,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 					githubToken: this._githubToken,
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
-					freeLongContext: this._isFreeLongContext(model?.id),
 				};
 			}
 
@@ -3733,7 +3690,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
+					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				await agentSession.initializeSession();
@@ -3808,7 +3765,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
-			const freeLongContext = this._isFreeLongContext(model.id);
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
@@ -3816,7 +3772,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
-				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
+				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow));
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
 				if (current.resource.toString() === current.configurationResource.toString()) {
@@ -4189,7 +4145,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			fallback: {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
-				freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
 			},
 		};
 

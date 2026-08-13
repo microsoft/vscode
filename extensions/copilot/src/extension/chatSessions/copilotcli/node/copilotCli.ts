@@ -227,7 +227,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
 		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-		const preferLongContext = this.configurationService.getConfig(ConfigKey.PreferLongContext);
 		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
 			const modelInfo: vscode.LanguageModelChatInformation = {
@@ -249,7 +248,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				...buildConfigurationSchema(model, isReasoningEffortEnabled, preferLongContext),
+				...buildConfigurationSchema(model, isReasoningEffortEnabled),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
@@ -292,7 +291,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean, preferLongContext: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
@@ -319,35 +318,18 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	const defaultContextMax = modelInfo.defaultContextMax;
 	const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
 	if (defaultContextMax && defaultContextMax < fullMax) {
-		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
-			|| modelInfo.longContextOutputCost !== undefined;
-		if (hasLongContextSurcharge || !preferLongContext) {
-			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-				type: 'number',
-				title: l10n.t('Context Size'),
-				enum: [defaultContextMax, fullMax],
-				enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
-				enumDescriptions: [
-					l10n.t('Default'),
-					l10n.t('Longer sessions'),
-				],
-				default: defaultContextMax,
-				group: 'tokens',
-			};
-		} else {
-			// No surcharge and the user prefers long context — show only the long context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-			properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
-				type: 'number',
-				title: l10n.t('Context Size'),
-				enum: [fullMax],
-				enumItemLabels: [formatTokenCount(fullMax)],
-				enumDescriptions: [
-					l10n.t('Longer sessions'),
-				],
-				default: fullMax,
-				group: 'tokens',
-			};
-		}
+		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
+			type: 'number',
+			title: l10n.t('Context Size'),
+			enum: [defaultContextMax, fullMax],
+			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+			enumDescriptions: [
+				l10n.t('Default'),
+				l10n.t('Longer sessions'),
+			],
+			default: defaultContextMax,
+			group: 'tokens',
+		};
 	}
 
 	if (Object.keys(properties).length === 0) {
