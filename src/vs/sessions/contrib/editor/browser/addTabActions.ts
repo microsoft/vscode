@@ -17,7 +17,7 @@ import { openNewSearchEditor } from '../../../../workbench/contrib/searchEditor/
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
+import { SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../common/contextkeys.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -40,6 +40,11 @@ const addTabLayoutWhen = ContextKeyExpr.and(
 	IsTopRightEditorGroupContext);
 
 const singleEditorTitleWhen = EditorTabsVisibleContext.negate();
+
+const changesTabActionWhen = ContextKeyExpr.and(
+	addTabActionWhen,
+	SessionIsCreatedContext,
+	SinglePaneChangesTabAvailableContext);
 
 export class NewFileTabAction extends Action2 {
 
@@ -153,10 +158,10 @@ export class NewChangesTabAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			icon: Codicon.gitCompare,
 			f1: false,
-			precondition: addTabActionWhen,
+			precondition: changesTabActionWhen,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
-				when: addTabActionWhen,
+				when: changesTabActionWhen,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 			},
@@ -178,10 +183,10 @@ export class NewChangesTabAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionChangesService = accessor.get(ISessionChangesService);
 
-		const sessionResource = sessionsService.activeSession.get()?.resource;
-		if (sessionResource) {
+		const session = sessionsService.activeSession.get();
+		if (session?.isCreated.get()) {
 			const group = editorGroupsService.mainPart.activeGroup;
-			await sessionChangesService.openChangesEditor(sessionResource, { index: group.count }, group);
+			await sessionChangesService.openChangesEditor(session.resource, { index: group.count }, group);
 		}
 	}
 }

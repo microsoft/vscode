@@ -31,7 +31,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
-import { SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -121,6 +121,7 @@ suite('Sessions - Editor Contribution', () => {
 			[IsSessionsWindowContext.key]: true,
 			[IsAuxiliaryWindowContext.key]: false,
 			[IsTopRightEditorGroupContext.key]: true,
+			[SessionIsCreatedContext.key]: true,
 		};
 		const scenarios = (availableKey: string, missingKey: string) => {
 			const when = availableKey === SinglePaneFilesTabAvailableContext.key
@@ -143,6 +144,25 @@ suite('Sessions - Editor Contribution', () => {
 			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
 			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
 			searchInDockOnly: true,
+		});
+	});
+
+	test('new changes tab action requires a created session with Changes available', () => {
+		const action = new NewChangesTabAction();
+		const precondition = action.desc.precondition?.serialize() ?? '';
+		const keybinding = Array.isArray(action.desc.keybinding) ? action.desc.keybinding[0] : action.desc.keybinding;
+		const when = keybinding?.when?.serialize() ?? '';
+
+		assert.deepStrictEqual({
+			preconditionHasCreated: precondition.includes(SessionIsCreatedContext.key),
+			preconditionHasAvailability: precondition.includes(SinglePaneChangesTabAvailableContext.key),
+			keybindingHasCreated: when.includes(SessionIsCreatedContext.key),
+			keybindingHasAvailability: when.includes(SinglePaneChangesTabAvailableContext.key),
+		}, {
+			preconditionHasCreated: true,
+			preconditionHasAvailability: true,
+			keybindingHasCreated: true,
+			keybindingHasAvailability: true,
 		});
 	});
 
@@ -261,7 +281,7 @@ suite('Sessions - Editor Contribution', () => {
 		const resource = URI.parse('session:1');
 		stubEditorGroupCount(instantiationService, 5);
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable({ resource } as IActiveSession);
+			override readonly activeSession = constObservable({ resource, isCreated: constObservable(true) } as IActiveSession);
 		});
 		const opened: { resource: URI; index: number | undefined }[] = [];
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
@@ -274,6 +294,25 @@ suite('Sessions - Editor Contribution', () => {
 		await new NewChangesTabAction().run(instantiationService);
 
 		assert.deepStrictEqual(opened, [{ resource, index: 5 }]);
+	});
+
+	test('new changes tab action is a no-op for an uncreated session', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		stubEditorGroupCount(instantiationService, 0);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable({ resource: URI.parse('session:new'), isCreated: constObservable(false) } as IActiveSession);
+		});
+		let opened = false;
+		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+			override async openChangesEditor(): Promise<undefined> {
+				opened = true;
+				return undefined;
+			}
+		});
+
+		await new NewChangesTabAction().run(instantiationService);
+
+		assert.strictEqual(opened, false);
 	});
 
 	test('new changes tab action is a no-op when there is no active session', async () => {

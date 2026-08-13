@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -57,7 +58,7 @@ export class SinglePaneDetailPanelCoordinator extends Disposable {
 		this._hasDockedDetailsContext.set(target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced
 			|| target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced);
 		const generation = ++this._generation;
-		void this._sequencer.queue(() => this._syncTarget(target, generation));
+		void this._sequencer.queue(() => this._syncTarget(target, generation)).catch(onUnexpectedError);
 	}
 
 	private async _syncTarget(target: DetailPanelTarget, generation: number): Promise<void> {
