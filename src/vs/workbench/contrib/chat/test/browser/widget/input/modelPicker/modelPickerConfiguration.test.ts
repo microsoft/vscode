@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../.
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
-import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
+import { ModelPickerConfiguration, findModelPickerConfigProperty, resolveModelPickerConfigGroup } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 
@@ -289,5 +289,65 @@ suite('ModelPickerConfiguration', () => {
 				{ className: 'chat-model-picker-config-option', label: 'Max', checked: true, ariaDescription: 'Most capable models' },
 			],
 		});
+	});
+
+	// Local harness models (and some extension schemas) advertise `contextSize`
+	// without `group: 'tokens'`. The control must still show on new sessions —
+	// not only after compact restores conversation state. See #330481.
+	test('shows the context size control when contextSize has no group (Local harness / new sessions)', () => {
+		const ungrouped = createModel();
+		const properties = ungrouped.metadata.configurationSchema!.properties!;
+		properties.contextSize = { ...properties.context };
+		delete properties.contextSize.group;
+		delete properties.context;
+
+		assert.deepStrictEqual(render(ungrouped, { effort: 'low', contextSize: 32768 }), {
+			label: 'Low 32K',
+			ariaLabel: 'Thinking Effort: Low, Context Size: 32K',
+			listOptions: {
+				reserveSubmenuSpace: false,
+			},
+			sections: [
+				{ kind: ActionListItemKind.Header, label: 'Thinking Effort' },
+				{ className: 'chat-model-picker-config-option', label: 'Low', checked: true, ariaDescription: 'Default, Faster' },
+				{ className: 'chat-model-picker-config-option', label: 'Medium', checked: false, ariaDescription: 'Balanced' },
+				{ kind: ActionListItemKind.Separator, label: undefined },
+				{ kind: ActionListItemKind.Header, label: 'Context Size' },
+				{ className: 'chat-model-picker-config-option', label: '32K', checked: true, ariaDescription: 'Default' },
+				{ className: 'chat-model-picker-config-option', label: '64K', checked: false, ariaDescription: undefined },
+			],
+		});
+	});
+});
+
+suite('findModelPickerConfigProperty', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const schema = {
+		properties: {
+			contextSize: {
+				type: 'number',
+				enum: [272_000, 1_000_000],
+				default: 272_000,
+			},
+			reasoningEffort: {
+				type: 'string',
+				enum: ['low', 'high'],
+				default: 'low',
+			},
+		},
+	};
+
+	test('treats ungrouped contextSize as visible for the tokens group', () => {
+		assert.strictEqual(resolveModelPickerConfigGroup('contextSize', undefined), 'tokens');
+		assert.deepStrictEqual(
+			findModelPickerConfigProperty(schema, {}, 'tokens'),
+			{ key: 'contextSize', value: 272_000, schema: schema.properties.contextSize },
+		);
+	});
+
+	test('hides tokens when the model does not advertise a contextSize enum', () => {
+		assert.strictEqual(findModelPickerConfigProperty({ properties: { reasoningEffort: schema.properties.reasoningEffort } }, {}, 'tokens'), undefined);
 	});
 });

@@ -300,8 +300,8 @@ export interface IRawTokenPrices {
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
-	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number };
+	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number; max_prompt_tokens?: number };
+	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number; max_prompt_tokens?: number };
 }
 
 export interface INormalizedPriceTier {
@@ -315,6 +315,16 @@ export interface INormalizedPriceTier {
 export interface INormalizedTokenPricing {
 	readonly default: INormalizedPriceTier;
 	readonly longContext?: INormalizedPriceTier;
+	/**
+	 * Long-context window in tokens when it is larger than the default tier,
+	 * including when {@link longContext} pricing is omitted because rates match.
+	 */
+	readonly longContextMax?: number;
+}
+
+function readTierContextMax(tier: { context_max?: number; max_prompt_tokens?: number } | undefined): number | undefined {
+	const value = tier?.context_max ?? tier?.max_prompt_tokens;
+	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 /**
@@ -322,7 +332,9 @@ export interface INormalizedTokenPricing {
  * Handles both tiered (AIU) and legacy flat (nano-AIU) formats.
  *
  * When a `long_context` tier is present but its prices match the `default` tier,
- * it is omitted from the result.
+ * the priced `longContext` object is omitted (hover/cost UI). The larger window
+ * is still recorded on {@link INormalizedTokenPricing.longContextMax} so the
+ * Local harness context-size picker can surface it. See microsoft/vscode#330481.
  */
 export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): INormalizedTokenPricing | undefined {
 	if (!tokenPrices) {
@@ -339,27 +351,32 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			outputPrice: defaultTier.output_price * scale,
 			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
 			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
-			contextMax: defaultTier.context_max,
+			contextMax: readTierContextMax(defaultTier),
 		};
 		let longContext: INormalizedPriceTier | undefined;
+		let longContextMax: number | undefined;
 		const lc = tokenPrices.long_context;
 		if (lc && lc.input_price !== undefined && lc.output_price !== undefined) {
+			const lcContextMax = readTierContextMax(lc);
 			const lcNormalized: INormalizedPriceTier = {
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
 				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
 				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
-				contextMax: lc.context_max,
+				contextMax: lcContextMax,
 			};
-			// Only include long-context tier when prices differ from default
+			// Only include long-context pricing when rates differ from default
 			if (lcNormalized.inputPrice !== normalized.inputPrice
 				|| lcNormalized.outputPrice !== normalized.outputPrice
 				|| lcNormalized.cachePrice !== normalized.cachePrice
 				|| lcNormalized.cacheWritePrice !== normalized.cacheWritePrice) {
 				longContext = lcNormalized;
 			}
+			if (lcContextMax !== undefined && lcContextMax !== normalized.contextMax) {
+				longContextMax = lcContextMax;
+			}
 		}
-		return { default: normalized, longContext };
+		return { default: normalized, longContext, longContextMax };
 	}
 
 	// Legacy flat format (pre-2026-06-01): values are in nano-AIUs
@@ -374,4 +391,52 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			cacheWritePrice: undefined,
 		},
 	};
+}
+
+export type IContextSizeOption = { value: number; description: string; isDefault: boolean };
+
+/**
+ * Visibility of the Local harness "Context Size" picker. Mirrors Copilot
+ * harness `_createContextSizeConfigSchemaProperty`: compare the billed default
+ * window to the long-context window, not to `modelMaxPromptTokens` (a request
+ * budget that can equal the default tier and hide the control).
+ *
+ * @internal Exported for unit tests.
+ */
+export function getContextSizeOptions(
+	endpoint: Pick<IChatEndpoint, 'modelMaxPromptTokens' | 'tokenPricing'>,
+	preferLongContext: boolean,
+): IContextSizeOption[] | undefined {
+	const pricing = endpoint.tokenPricing;
+	const billedDefault = pricing?.default.contextMax;
+	const longContextMax = pricing?.longContext?.contextMax ?? pricing?.longContextMax;
+	// If CAPI omits billed default.contextMax (common on a fresh Local session
+	// before compact hydrates pricing), still show the picker when the long
+	// window is larger than the request budget. See microsoft/vscode#330481.
+	const defaultMax = billedDefault
+		?? ((longContextMax !== undefined && endpoint.modelMaxPromptTokens < longContextMax)
+			? endpoint.modelMaxPromptTokens
+			: undefined);
+	const fullMax = (longContextMax !== undefined && (!defaultMax || longContextMax > defaultMax))
+		? longContextMax
+		: endpoint.modelMaxPromptTokens;
+
+	if (!defaultMax || defaultMax >= fullMax) {
+		return undefined;
+	}
+
+	// `longContext` pricing is omitted when rates match the default tier.
+	const hasLongContextSurcharge = !!pricing?.longContext;
+
+	// When both tiers cost the same and the user prefers long context, show only the full window as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
+	if (preferLongContext && !hasLongContextSurcharge) {
+		return [
+			{ value: fullMax, description: l10n.t('Longer sessions'), isDefault: true },
+		];
+	}
+
+	return [
+		{ value: defaultMax, description: l10n.t('Default recommended context size'), isDefault: true },
+		{ value: fullMax, description: l10n.t('Longer sessions'), isDefault: false },
+	];
 }

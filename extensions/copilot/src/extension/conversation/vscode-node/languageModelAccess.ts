@@ -45,53 +45,13 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getAutoModelDescription, getAutoModelDiscountLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty, buildAutoModeTierSchemaProperty, getContextSizeOptions } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
  * is routing to an experimental or evaluation model.
  */
 const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
-
-/**
- * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
- * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
- */
-function getContextSizeOptions(endpoint: IChatEndpoint, preferLongContext: boolean): { value: number; description: string; isDefault: boolean }[] | undefined {
-	const pricing = endpoint.tokenPricing;
-
-	// Only offer a selector when CAPI provides a default context max,
-	// which indicates a meaningful distinction between default and long context tiers.
-	if (!pricing?.default.contextMax) {
-		return undefined;
-	}
-
-	const defaultMax = pricing.default.contextMax;
-	const fullMax = endpoint.modelMaxPromptTokens;
-
-	// No point showing a selector if the default is already the full context
-	if (defaultMax >= fullMax) {
-		return undefined;
-	}
-
-	const hasLongContextSurcharge = !!pricing.longContext;
-
-	// When both tiers cost the same and the user prefers long context, show only the full window as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
-	if (preferLongContext && !hasLongContextSurcharge) {
-		return [
-			{ value: fullMax, description: vscode.l10n.t('Longer sessions'), isDefault: true },
-		];
-	}
-
-	return [
-		{ value: defaultMax, description: vscode.l10n.t('Default recommended context size'), isDefault: true },
-		{
-			value: fullMax,
-			description: vscode.l10n.t('Longer sessions'),
-			isDefault: false,
-		},
-	];
-}
 
 /**
  * Extracts what auto mode needs from a `vscode.lm` request, which has no

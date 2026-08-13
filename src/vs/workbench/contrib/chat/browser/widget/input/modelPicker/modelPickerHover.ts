@@ -17,6 +17,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { resolveModelPickerConfigGroup } from './modelPickerConfiguration.js';
 import { getPriceCategoryLabel, isAutoModel, isMultiplierPricing } from './modelPickerPresentation.js';
 
 const SUPPORTED_CONFIG_GROUPS: readonly string[] = ['navigation', 'tokens'];
@@ -173,12 +174,13 @@ export function getModelHoverContent(
 	if (model.metadata.configurationSchema?.properties) {
 		const configButtons: { group: string; label: string }[] = [];
 		const seenGroups = new Set<string>();
-		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
-			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
+		for (const [key, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
+			const group = resolveModelPickerConfigGroup(key, propSchema.group);
+			if (propSchema.enum && propSchema.enum.length >= 2 && group && SUPPORTED_CONFIG_GROUPS.includes(group) && !seenGroups.has(group)) {
 				const label = propSchema.title ?? propSchema.description;
 				if (label) {
-					seenGroups.add(propSchema.group);
-					configButtons.push({ group: propSchema.group, label });
+					seenGroups.add(group);
+					configButtons.push({ group, label });
 				}
 			}
 		}

@@ -25,7 +25,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
-import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { buildReasoningEffortSchemaProperty, formatPricingLabel, getContextSizeOptions, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -587,6 +587,95 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(result.default.cachePrice, 50);
 		assert.strictEqual(result.default.cacheWritePrice, undefined);
 		assert.strictEqual(result.longContext, undefined);
+	});
+
+	test('keeps longContextMax when long-context prices match default (free long context)', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, context_max: 272_000 },
+			long_context: { input_price: 3, output_price: 15, context_max: 1_000_000 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.longContext, undefined, 'matching prices omit the priced long-context tier');
+		assert.strictEqual(result.longContextMax, 1_000_000);
+		assert.strictEqual(result.default.contextMax, 272_000);
+	});
+
+	test('falls back to max_prompt_tokens when context_max is absent', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, max_prompt_tokens: 272_000 },
+			long_context: { input_price: 6, output_price: 30, max_prompt_tokens: 1_000_000 },
+		});
+		assert.ok(result);
+		assert.strictEqual(result.default.contextMax, 272_000);
+		assert.strictEqual(result.longContext?.contextMax, 1_000_000);
+		assert.strictEqual(result.longContextMax, 1_000_000);
+	});
+});
+
+suite('getContextSizeOptions', () => {
+	function endpoint(overrides: { modelMaxPromptTokens: number; defaultContextMax?: number; longContextMax?: number; longContextPricing?: boolean }) {
+		return {
+			modelMaxPromptTokens: overrides.modelMaxPromptTokens,
+			tokenPricing: {
+				default: {
+					inputPrice: 3,
+					outputPrice: 15,
+					cacheReadTokenPrice: undefined,
+					cacheWriteTokenPrice: undefined,
+					contextMax: overrides.defaultContextMax,
+				},
+				longContext: overrides.longContextPricing
+					? {
+						inputPrice: 6,
+						outputPrice: 30,
+						cacheReadTokenPrice: undefined,
+						cacheWriteTokenPrice: undefined,
+						contextMax: overrides.longContextMax,
+					}
+					: undefined,
+				longContextMax: overrides.longContextPricing ? undefined : overrides.longContextMax,
+			},
+		};
+	}
+
+	test('shows context size when free long context is larger than the prompt budget (regression for #330481)', () => {
+		// Local harness used modelMaxPromptTokens as the full window. After the
+		// output-token reserve that budget can equal the default tier, which hid
+		// the picker even though billing still advertises a 1M long-context window.
+		const options = getContextSizeOptions(endpoint({
+			modelMaxPromptTokens: 272_000,
+			defaultContextMax: 272_000,
+			longContextMax: 1_000_000,
+		}), false);
+		assert.deepStrictEqual(options?.map(o => o.value), [272_000, 1_000_000]);
+	});
+
+	test('shows context size when billed default contextMax is missing (new Local session)', () => {
+		const options = getContextSizeOptions(endpoint({
+			modelMaxPromptTokens: 272_000,
+			longContextMax: 1_000_000,
+		}), false);
+		assert.deepStrictEqual(options?.map(o => o.value), [272_000, 1_000_000]);
+	});
+
+	test('hides context size when the model has no larger long-context window', () => {
+		assert.strictEqual(getContextSizeOptions(endpoint({
+			modelMaxPromptTokens: 272_000,
+			defaultContextMax: 272_000,
+		}), false), undefined);
+	});
+
+	test('shows only the long-context option when preferLongContext is on and there is no surcharge', () => {
+		const options = getContextSizeOptions(endpoint({
+			modelMaxPromptTokens: 272_000,
+			defaultContextMax: 272_000,
+			longContextMax: 1_000_000,
+		}), true);
+		assert.deepStrictEqual(options, [
+			{ value: 1_000_000, description: 'Longer sessions', isDefault: true },
+		]);
 	});
 });
 

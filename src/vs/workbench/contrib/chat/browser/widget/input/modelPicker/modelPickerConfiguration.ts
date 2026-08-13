@@ -15,7 +15,7 @@ import { IActionWidgetService } from '../../../../../../../platform/actionWidget
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerActionItem.js';
 
@@ -60,6 +60,45 @@ export interface IModelPickerConfigurationHost {
 	readonly getActionWidgetContainer?: () => HTMLElement | undefined;
 	readonly getActionWidgetAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	readonly getAnchorPosition?: () => AnchorPosition | undefined;
+}
+
+/**
+ * Picker group for a configuration property. Extensions and the Local harness
+ * may omit `group` on well-known keys (`contextSize`, thinking effort). Infer
+ * the group so the control stays visible whenever the model advertises it —
+ * including new sessions that have no conversation state. See microsoft/vscode#330481.
+ */
+export function resolveModelPickerConfigGroup(key: string, declaredGroup: string | undefined): string | undefined {
+	if (declaredGroup) {
+		return declaredGroup;
+	}
+	switch (key) {
+		case 'thinkingLevel':
+		case 'reasoningEffort':
+		case 'tier':
+			return 'navigation';
+		case 'contextSize':
+			return 'tokens';
+		default:
+			return undefined;
+	}
+}
+
+export function findModelPickerConfigProperty(
+	schema: ILanguageModelConfigurationSchema | undefined,
+	currentConfig: Record<string, unknown>,
+	group: string,
+): { key: string; value: unknown; schema: NonNullable<ILanguageModelConfigurationSchema['properties']>[string] } | undefined {
+	if (!schema?.properties) {
+		return undefined;
+	}
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (resolveModelPickerConfigGroup(key, propSchema.group) !== group || !propSchema.enum?.length) {
+			continue;
+		}
+		return { key, value: currentConfig[key] ?? propSchema.default, schema: propSchema };
+	}
+	return undefined;
 }
 
 export class ModelPickerConfiguration {
@@ -238,13 +277,7 @@ export class ModelPickerConfiguration {
 		}
 		const configurationAccess = this._host.getConfigurationAccess();
 		const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (propSchema.group !== group || !propSchema.enum?.length) {
-				continue;
-			}
-			return { key, value: currentConfig[key] ?? propSchema.default, schema: propSchema };
-		}
-		return undefined;
+		return findModelPickerConfigProperty(schema, currentConfig, group);
 	}
 
 	private _buildItems(): IActionListItem<IActionWidgetDropdownAction>[] {

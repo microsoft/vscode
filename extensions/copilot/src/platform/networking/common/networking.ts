@@ -319,6 +319,13 @@ export interface IChatEndpointTokenPricing {
 	 * its prices match the default tier.
 	 */
 	readonly longContext?: ITokenPriceTier;
+	/**
+	 * The long-context window in tokens, even when {@link longContext} pricing
+	 * is omitted because rates match the default tier (free long context).
+	 * The Local harness context-size picker uses this so a larger window stays
+	 * selectable when `modelMaxPromptTokens` equals the default tier.
+	 */
+	readonly longContextMax?: number;
 }
 
 export interface IChatEndpoint extends IEndpoint {
