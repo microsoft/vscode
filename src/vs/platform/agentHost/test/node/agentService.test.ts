@@ -9177,7 +9177,9 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(persisted, undefined);
 		});
 
-		test('restoreSession defaults an external folder session to folder isolation', async () => {
+		test('restoreSession defaults an external folder session with persisted config to folder isolation', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
 			const workingDirectory = URI.file('/workspace/repo');
 			const gitService = createNoopGitService();
 			gitService.getRepositoryRoot = async () => workingDirectory;
@@ -9187,16 +9189,17 @@ suite('AgentService (node dispatcher)', () => {
 			const localAgent = new MockAgent('codex');
 			localAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], project: undefined };
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
 			localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
 				{ generateBranchName: async () => 'agents/test' },
 				gitService,
 				new TestCopilotApiService(),
-				nullSessionDataService,
+				sessionDataService,
 				new NullLogService(),
 			)));
 			localService.registerProvider(localAgent);
 
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
 			const { session } = await createAgentSession(localAgent);
 			localAgent.sessionMessages = [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
@@ -9205,7 +9208,14 @@ suite('AgentService (node dispatcher)', () => {
 
 			await localService.restoreSession(session);
 
-			assert.strictEqual(localService.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation], 'folder');
+			const values = localService.stateManager.getSessionState(session.toString())?.config?.values;
+			assert.deepStrictEqual({
+				isolation: values?.[SessionConfigKey.Isolation],
+				autoApprove: values?.autoApprove,
+			}, {
+				isolation: 'folder',
+				autoApprove: 'autoApprove',
+			});
 		});
 
 		test('restoreSession seeds the provider model into the default chat draft', async () => {

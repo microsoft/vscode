@@ -142,6 +142,7 @@ const CLIENT_INFO = {
 
 const CODEX_DESKTOP_ROLLOUT_PREFIX_LENGTH = 16 * 1024;
 const CODEX_DESKTOP_ROLLOUT_PREFIX_CONCURRENCY = 8;
+const CODEX_COLD_SESSION_READ_CONCURRENCY = 8;
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
 
@@ -935,6 +936,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
 	private readonly _desktopThreadIds = new Set<string>();
 	private readonly _desktopRolloutPrefixLimiter = this._register(new Limiter<string | null>(CODEX_DESKTOP_ROLLOUT_PREFIX_CONCURRENCY));
+	private readonly _coldSessionReadLimiter = this._register(new Limiter<ICodexSessionRead | undefined>(CODEX_COLD_SESSION_READ_CONCURRENCY));
 	private _openAIAccountState: ICodexAccountState = { usageSource: 'openai', status: 'unknown' };
 	private _openAIAccountRateLimit: ICodexAccountInfo['rateLimit'];
 	private _providerConfigurationValues: Record<string, unknown> = {};
@@ -5064,7 +5066,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		return metadata;
 	}
 
-	private async _readSession(session: URI): Promise<ICodexSessionRead | undefined> {
+	private _readSession(session: URI): Promise<ICodexSessionRead | undefined> {
+		return this._sessions.has(AgentSession.id(session))
+			? this._doReadSession(session)
+			: this._coldSessionReadLimiter.queue(() => this._doReadSession(session));
+	}
+
+	private async _doReadSession(session: URI): Promise<ICodexSessionRead | undefined> {
 		// Resolve the codex thread id for this session URI. Resolution
 		// order: in-memory session → persisted metadata overlay → URI host.
 		// The final `?? sessionId` is a LEGACY-COMPAT shim, not an active I3
@@ -5095,7 +5103,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return { ...response, persistedWorkingDirectories, persistedModelId, rolloutMetadata };
 		};
 		try {
-			if (!existing && threadId !== sessionId && this._desktopThreadIds.has(sessionId)) {
+			if (!existing && threadId !== sessionId) {
 				try {
 					const original = await readThread(sessionId);
 					if (original.rolloutMetadata?.isDesktop) {

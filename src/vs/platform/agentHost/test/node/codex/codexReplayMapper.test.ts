@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { replayThreadToTurns } from '../../../node/codex/codexReplayMapper.js';
-import { MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection, type Turn } from '../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ModelSelection } from '../../../common/state/sessionState.js';
 
 suite('codexReplayMapper', () => {
 
@@ -46,8 +46,7 @@ suite('codexReplayMapper', () => {
 
 	test('restored turn carries its original model on the request and response usage', () => {
 		const model: ModelSelection = { id: 'codex-model:openai:gpt-5.6-sol' };
-		const replayWithModels = replayThreadToTurns as (thread: Parameters<typeof replayThreadToTurns>[0], modelsByTurnId: ReadonlyMap<string, ModelSelection>) => Turn[];
-		const turns = replayWithModels({
+		const turns = replayThreadToTurns({
 			id: 'thr',
 			turns: [{
 				id: 'turn_a',
@@ -203,17 +202,7 @@ suite('codexReplayMapper', () => {
 
 	test('restores rollout thread operations when thread/read omits their tool items', () => {
 		const targetThreadId = 'target-thread';
-		const replayWithCoordination = replayThreadToTurns as (
-			thread: Parameters<typeof replayThreadToTurns>[0],
-			modelsByTurnId: undefined,
-			threadCoordinationByTurnId: ReadonlyMap<string, readonly [{
-				toolName: SessionServerToolName.CreateSession | SessionServerToolName.SendMessage;
-				targetThreadId: string;
-				openLink: string;
-				toolInput: { prompt: string };
-			}]>,
-		) => Turn[];
-		const turns = replayWithCoordination({
+		const turns = replayThreadToTurns({
 			id: 'thr',
 			turns: [{
 				id: 'turn-create',

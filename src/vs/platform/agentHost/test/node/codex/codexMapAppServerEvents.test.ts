@@ -224,8 +224,7 @@ suite('codexMapAppServerEvents', () => {
 	});
 
 	test('thread/tokenUsage/updated emits ChatUsage for the turn', () => {
-		const mapUsageWithModel = mapTokenUsageUpdated as (params: Parameters<typeof mapTokenUsageUpdated>[0], modelId: string) => ReturnType<typeof mapTokenUsageUpdated>;
-		const actions = mapUsageWithModel({
+		const actions = mapTokenUsageUpdated({
 			threadId: 'thr_1',
 			turnId: 'turn_a',
 			tokenUsage: {

@@ -413,6 +413,32 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	test('bounds concurrent cold session reads', async () => {
+		const agent = await createAgent(disposables);
+		const release = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		let active = 0;
+		let maximum = 0;
+		agent['_doReadSession'] = async () => {
+			active++;
+			maximum = Math.max(maximum, active);
+			if (active === 8) {
+				saturated.complete();
+			}
+			await release.p;
+			active--;
+			return undefined;
+		};
+
+		const reads = Promise.all(Array.from({ length: 32 }, (_, index) =>
+			agent['_readSession'](AgentSession.uri(agent.id, `session-${index}`))));
+		await saturated.p;
+		assert.strictEqual(active, 8);
+		release.complete();
+		await reads;
+		assert.strictEqual(maximum, 8);
+	});
+
 	test('session actions target the owning session after the chat is bound', async () => {
 		const agent = await createAgent(disposables);
 		const signals: AgentSignal[] = [];
@@ -1528,6 +1554,9 @@ suite('CodexAgent prewarm eviction', () => {
 
 			const restoredChat = defaultChatOf(created.session);
 			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat });
+			const originalProbe = await readNextRequest(peerB.outbound);
+			assert.strictEqual(originalProbe.params.threadId, AgentSession.id(created.session));
+			peerB.push({ id: originalProbe.id, error: { code: -32000, message: 'thread not found' } });
 			const read = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: read.id,
@@ -1586,7 +1615,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('restored Desktop thread uses the latest rollout provider without replacing its backing', async () => {
+	test('directly restored Desktop thread heals a stale overlay and uses the latest rollout provider', async () => {
 		const database = new TestSessionDatabase();
 		await Promise.all([
 			database.setMetadata('codex.threadId', 'replacement-thread'),
@@ -1633,26 +1662,6 @@ suite('CodexAgent prewarm eviction', () => {
 			completedAt: 2,
 			durationMs: 1000,
 		};
-
-		const listing = agent.listLegacyChats();
-		const list = await readNextRequest(peer.outbound);
-		peer.push({
-			id: list.id,
-			result: {
-				data: [{
-					id: 'desktop-thread',
-					cwd: workingDirectory.fsPath,
-					modelProvider: 'openai',
-					path: rollout.fsPath,
-					source: 'vscode',
-					createdAt: 1,
-					updatedAt: 2,
-					name: 'Remember capybara',
-				}],
-				nextCursor: null,
-			},
-		});
-		await listing;
 
 		const metadataPromise = agent.getChatMetadata(chat, context);
 		const metadataRead = await readNextRequest(peer.outbound);

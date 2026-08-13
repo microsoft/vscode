@@ -3953,9 +3953,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// sessions that were not created in the current process lifetime.
 		// Overlay any values the user previously selected (persisted via
 		// `SessionConfigChanged`) on top of the provider's resolved defaults.
-		const restoredConfigValues = persistedConfigValues ?? (meta.workingDirectories?.length
-			? { [SessionConfigKey.Isolation]: 'folder' }
-			: undefined);
+		const restoredConfigValues = meta.workingDirectories?.length
+			? { [SessionConfigKey.Isolation]: 'folder', ...persistedConfigValues }
+			: persistedConfigValues;
 		const [restoredConfig, restoredCustomizations] = await Promise.all([
 			this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
