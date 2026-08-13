@@ -551,9 +551,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		// The folder picker's visibility depends on whether the locked Agent Host
-		// provider pins an immutable primary working directory, a capability that
-		// may hydrate after the session is locked. Recompute when root state changes.
+		// Recompute because provider capabilities can hydrate after the session is locked.
 		this._register(this._agentHostService.rootState.onDidChange(() => {
 			this._updateAgentHostWorkingDirectoryContextKeys(this._lockedAgent?.agentHostProviderId);
 		}));
