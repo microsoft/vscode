@@ -54,6 +54,10 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 					ChatContextKeyExprs.isAgentHostSession,
 					WorkspaceFolderCountContext.greater(1),
 					IsSessionsWindowContext.negate(),
+					// Only when the provider pins an immutable primary working
+					// directory: with equal-peer directories every workspace folder
+					// is added automatically, so there is no primary to choose.
+					ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory,
 				),
 			}],
 		});

@@ -90,6 +90,12 @@ export namespace ChatContextKeys {
 	 */
 	export const chatAgentHostProviderId = new RawContextKey<string>('chatAgentHostProviderId', '', { type: 'string', description: localize('chatAgentHostProviderId', "The Agent Host provider ID when the chat widget is locked to an Agent Host session.") });
 	/**
+	 * Widget-scoped: true when the locked Agent Host provider pins an immutable primary working directory
+	 * (`multipleWorkingDirectories.immutablePrimary`). Gates the multi-root folder picker; defaults to
+	 * `false` so the picker stays hidden until the provider's capabilities are known.
+	 */
+	export const chatAgentHostHasImmutablePrimaryWorkingDirectory = new RawContextKey<boolean>('chatAgentHostHasImmutablePrimaryWorkingDirectory', false, { type: 'boolean', description: localize('chatAgentHostHasImmutablePrimaryWorkingDirectory', "True when the locked Agent Host provider pins an immutable primary working directory.") });
+	/**
 	 * True when the chat session has a customAgentTarget defined in its contribution,
 	 * which means the mode picker should be shown with filtered custom agents.
 	 */
