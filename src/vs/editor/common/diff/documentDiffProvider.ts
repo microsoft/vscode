@@ -37,6 +37,18 @@ export interface IDocumentDiffProviderOptions {
 	ignoreTrimWhitespace: boolean;
 
 	/**
+	 * When set to true, the diff should ignore whitespace changes strictly between two
+	 * non-whitespace characters on a line, leaving leading/trailing whitespace unaffected.
+	 */
+	ignoreInteriorSpacing?: boolean;
+
+	/**
+	 * When set to true, the diff should ignore all whitespace changes on a line, both interior
+	 * spacing and leading/trailing whitespace. Takes effect regardless of the other two options.
+	 */
+	ignoreAllSpaces?: boolean;
+
+	/**
 	 * A diff computation should throw if it takes longer than this value.
 	 */
 	maxComputationTimeMs: number;
