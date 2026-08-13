@@ -290,6 +290,21 @@ const TOKENS_PER_MILLION = 1_000_000;
 const NANO_AIU_DIVISOR = 1_000_000_000;
 
 /**
+ * A single pricing tier as returned by CAPI. `cache_read_price` and
+ * `max_prompt_tokens` are the current field names; `cache_price` and
+ * `context_max` are the earlier spellings and are still accepted.
+ */
+interface IRawTokenPriceTier {
+	input_price?: number;
+	cache_read_price?: number;
+	cache_price?: number;
+	cache_write_price?: number;
+	output_price?: number;
+	max_prompt_tokens?: number;
+	context_max?: number;
+}
+
+/**
  * Raw token prices from the CAPI billing response. Supports both the tiered
  * format (API 2026-06-01+, prices in AIUs) and the legacy flat format
  * (pre-2026-06-01, prices in nano-AIUs) which is still used by some endpoints
@@ -300,8 +315,8 @@ export interface IRawTokenPrices {
 	input_price?: number;
 	cache_price?: number;
 	output_price?: number;
-	default?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number; max_prompt_tokens?: number };
-	long_context?: { input_price?: number; cache_price?: number; cache_write_price?: number; output_price?: number; context_max?: number; max_prompt_tokens?: number };
+	default?: IRawTokenPriceTier;
+	long_context?: IRawTokenPriceTier;
 }
 
 export interface INormalizedPriceTier {
@@ -322,8 +337,8 @@ export interface INormalizedTokenPricing {
 	readonly longContextMax?: number;
 }
 
-function readTierContextMax(tier: { context_max?: number; max_prompt_tokens?: number } | undefined): number | undefined {
-	const value = tier?.context_max ?? tier?.max_prompt_tokens;
+function readTierContextMax(tier: IRawTokenPriceTier | undefined): number | undefined {
+	const value = tier?.max_prompt_tokens ?? tier?.context_max;
 	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
@@ -346,10 +361,14 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 
 	if (defaultTier && defaultTier.input_price !== undefined && defaultTier.output_price !== undefined) {
 		// Tiered format (API 2026-06-01+): values are in AIUs
+		const cacheReadPrice = (tier: IRawTokenPriceTier): number | undefined => {
+			const raw = tier.cache_read_price ?? tier.cache_price;
+			return raw !== undefined ? raw * scale : undefined;
+		};
 		const normalized: INormalizedPriceTier = {
 			inputPrice: defaultTier.input_price * scale,
 			outputPrice: defaultTier.output_price * scale,
-			cachePrice: defaultTier.cache_price !== undefined ? defaultTier.cache_price * scale : undefined,
+			cachePrice: cacheReadPrice(defaultTier),
 			cacheWritePrice: defaultTier.cache_write_price !== undefined ? defaultTier.cache_write_price * scale : undefined,
 			contextMax: readTierContextMax(defaultTier),
 		};
@@ -361,7 +380,7 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 			const lcNormalized: INormalizedPriceTier = {
 				inputPrice: lc.input_price * scale,
 				outputPrice: lc.output_price * scale,
-				cachePrice: lc.cache_price !== undefined ? lc.cache_price * scale : undefined,
+				cachePrice: cacheReadPrice(lc),
 				cacheWritePrice: lc.cache_write_price !== undefined ? lc.cache_write_price * scale : undefined,
 				contextMax: lcContextMax,
 			};

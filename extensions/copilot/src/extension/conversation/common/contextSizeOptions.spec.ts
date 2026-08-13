@@ -28,6 +28,16 @@ describe('normalizeTokenPrices long-context window', () => {
 		expect(result?.longContext?.contextMax).toBe(1_000_000);
 		expect(result?.longContextMax).toBe(1_000_000);
 	});
+
+	test('reads cache_read_price as the current CAPI cache field', () => {
+		const result = normalizeTokenPrices({
+			batch_size: 1_000_000,
+			default: { input_price: 3, output_price: 15, cache_read_price: 0.3, max_prompt_tokens: 272_000 },
+			long_context: { input_price: 6, output_price: 30, cache_read_price: 0.6, max_prompt_tokens: 1_000_000 },
+		});
+		expect(result?.default.cachePrice).toBe(0.3);
+		expect(result?.longContext?.cachePrice).toBe(0.6);
+	});
 });
 
 describe('getContextSizeOptions', () => {
