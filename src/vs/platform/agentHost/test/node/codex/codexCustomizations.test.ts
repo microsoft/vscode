@@ -45,14 +45,14 @@ suite('codexCustomizations', () => {
 		const agent = URI.joinPath(agentsDirectory, 'reviewer.agent.md');
 		await fileService.createFolder(agentsDirectory);
 		await Promise.all([
-			fileService.writeFile(agent, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews carefully\nmodel: [gpt-first, gpt-second]\ntools: [read_file, search]\n---\nReview every change.')),
-			fileService.writeFile(URI.joinPath(agentsDirectory, 'README.md'), VSBuffer.fromString('Documentation only.')),
+			fileService.writeFile(agent, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews carefully\nmodel: [gpt-first, gpt-second]\ntools: [read_file, search]\ninfer: true\ndisable-model-invocation: true\n---\nReview every change.')),
+			fileService.writeFile(URI.joinPath(agentsDirectory, 'README.md'), VSBuffer.fromString('---\nname: Reviewer\n---\nDocumentation only.')),
 		]);
 
 		const discovered = await discoverCodexWorkspaceAgents([workspace], fileService);
 
 		assert.deepStrictEqual({
-			agents: discovered.agents.map(item => ({ name: item.name, uri: item.uri.toString() })),
+			agents: discovered.agents.map(item => ({ name: item.name, uri: item.uri.toString(), agentInvocable: item.disableModelInvocation !== true })),
 			containers: discovered.containers.map(container => ({
 				uri: container.uri,
 				contents: container.contents,
@@ -60,7 +60,7 @@ suite('codexCustomizations', () => {
 				children: container.children?.map(child => ({ name: child.name, uri: child.uri, model: child.type === CustomizationType.Agent ? child.model : undefined, tools: child.type === CustomizationType.Agent ? child.tools : undefined })),
 			})),
 		}, {
-			agents: [{ name: 'Reviewer', uri: agent.toString() }],
+			agents: [{ name: 'Reviewer', uri: agent.toString(), agentInvocable: true }],
 			containers: [{
 				uri: agentsDirectory.toString(),
 				contents: CustomizationType.Agent,

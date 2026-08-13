@@ -167,6 +167,8 @@ suite('codexClientCustomizations', () => {
 			'description: Reviews workspace changes',
 			'model: [gpt-first, gpt-second]',
 			'tools: [read_file, search]',
+			'infer: true',
+			'disable-model-invocation: true',
 			'---',
 			'Review the workspace change.',
 		].join('\n')));

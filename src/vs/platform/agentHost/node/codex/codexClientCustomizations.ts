@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { parseRuleFile, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { AgentSelection } from '../../common/state/protocol/state.js';
 import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
@@ -222,7 +222,7 @@ export async function codexCustomizationConfig(
 			const instructions = frontmatter?.body ?? content;
 			const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean) || agent.model;
 			const infer = frontmatter?.getBooleanValue('infer');
-			const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation') ?? (infer === false ? true : agent.disableModelInvocation);
+			const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'), agent.disableModelInvocation);
 			if (!disableModelInvocation && !agentRoles.has(name)) {
 				agentRoles.set(name, {
 					name,

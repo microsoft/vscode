@@ -879,6 +879,64 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	test('resumes an established thread when the selected workspace agent changes', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo-workspace-agent-edit');
+		const agentUri = URI.joinPath(repo, '.github', 'agents', 'reviewer.agent.md');
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the original instructions.'));
+		const { session } = await createSession(agent, {
+			workingDirectories: [repo],
+			model: { id: COPILOT_TEST_MODEL },
+			agent: { uri: agentUri.toString() },
+		});
+		const chat = URI.parse(buildDefaultChatUri(session));
+
+		const firstSend = agent.chats.sendMessage(chat, 'first', [repo], undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
+		const firstTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: firstTurn.id, result: {} });
+		await firstSend;
+
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
+		const secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
+		const resume = await readNextRequest(peer.outbound);
+		const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+		const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
+		peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: repo.fsPath }, cwd: repo.fsPath } });
+		const secondTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: secondTurn.id, result: {} });
+		await secondSend;
+
+		assert.deepStrictEqual({
+			start: { method: start.method, developerInstructions: start.params.developerInstructions },
+			firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+			resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
+			secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
+			resumedRoleFile,
+			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
+		}, {
+			start: { method: 'thread/start', developerInstructions: 'Use the original instructions.' },
+			firstTurn: { method: 'turn/start', developerInstructions: 'Use the original instructions.' },
+			resume: { method: 'thread/resume', developerInstructions: 'Use the updated instructions.' },
+			secondTurn: { method: 'turn/start', developerInstructions: 'Use the updated instructions.' },
+			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
+			needsResume: false,
+		});
+		peer.exit();
+	});
+
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
 		const agent = await createAgent(disposables, { multiRootEnabled: true });
 		const peer = disposables.add(createTestPeer());

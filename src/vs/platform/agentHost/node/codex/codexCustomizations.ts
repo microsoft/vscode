@@ -63,12 +63,24 @@ export async function discoverCodexWorkspaceAgents(
 		}
 		seenDirectories.add(directoryKey);
 
+		let candidateFiles: readonly URI[];
+		try {
+			const stat = await fileService.resolve(directory);
+			candidateFiles = stat.children
+				?.filter(child => {
+					const filename = basename(child.resource);
+					return child.isFile && filename.endsWith('.md') && filename !== 'README.md';
+				})
+				.map(child => child.resource) ?? [];
+		} catch {
+			continue;
+		}
+
 		const children: IParsedAgent[] = [];
-		for (const resource of await readAgentComponents([directory], fileService)) {
-			const filename = basename(resource.uri);
-			// Match the VS Code/Copilot workspace convention: flat, exact-case
-			// markdown files, with README.md reserved for documentation.
-			if (!filename.endsWith('.md') || filename === 'README.md' || seenNames.has(resource.name)) {
+		// Candidate filtering happens before frontmatter parsing and name
+		// de-duplication so README metadata cannot suppress a real agent.
+		for (const resource of await readAgentComponents(candidateFiles, fileService)) {
+			if (seenNames.has(resource.name)) {
 				continue;
 			}
 			seenNames.add(resource.name);

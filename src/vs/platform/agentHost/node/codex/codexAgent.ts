@@ -4442,6 +4442,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 				return;
 			}
+		} else if (session.firstTurnSent && !session.needsResume && customizationsChanged) {
+			// Workspace agents have no client-push event to reconcile them. A
+			// send-time signature change must resume the existing thread so Codex
+			// reloads its roles and developer instructions without losing history.
+			session.needsResume = true;
 		}
 		if (session.needsResume) {
 			try {

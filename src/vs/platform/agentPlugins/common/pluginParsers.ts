@@ -1159,11 +1159,16 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean);
 		const tools = frontmatter?.getStringArrayValue('tools')?.map(value => value.trim()).filter(Boolean);
 		const infer = frontmatter?.getBooleanValue('infer');
-		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation') ?? (infer === false ? true : undefined);
+		const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'));
 		return { name, description, userInvocable, model, tools, disableModelInvocation };
 	} catch {
 		return { name: nameFromFile };
 	}
+}
+
+/** Resolves the deprecated `infer` field before its modern replacement, matching workspace-agent parsing. */
+export function resolveAgentDisableModelInvocation(infer: boolean | undefined, disableModelInvocation: boolean | undefined, fallback?: boolean): boolean | undefined {
+	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
 export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
