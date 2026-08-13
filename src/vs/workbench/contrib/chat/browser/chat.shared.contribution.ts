@@ -429,7 +429,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.includeActiveEditor': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as the Copilot CLI)."),
+			markdownDescription: nls.localize('chat.implicitContext.includeActiveEditor', "When enabled, the active editor is automatically forwarded as context, even when it would otherwise only be suggested. Selections and explicitly attached files are always included regardless of this setting.\n\nNote: this setting currently only applies to Agent Host sessions (such as Copilot)."),
 			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false },
@@ -647,7 +647,7 @@ configurationRegistry.registerConfiguration({
 				},
 			},
 			default: { mode: 'interactive', approvals: ChatDefaultPermissionLevel.Default },
-			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot CLI). You can still change the mode and approval behavior per session, and each session remembers what was used."),
+			markdownDescription: nls.localize('chat.defaultConfiguration.settingDescription', "Controls the default configuration for new agent sessions (such as Copilot). You can still change the mode and approval behavior per session, and each session remembers what was used."),
 		},
 		[ChatConfiguration.DefaultModel]: {
 			type: 'string',
@@ -1558,7 +1558,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotModelCapabilityOverridesSettingId]: {
 			type: 'object',
-			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to route the model to that family's tuned system prompt and tool profile without changing the model id sent to the runtime — so a preview model can be evaluated against a known prompt while still running on its own endpoint — a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. All overrides apply when a session launches or resumes. On a mid-session model change, only the new model's `reasoningEffort` is applied; the session keeps its launch-time family, tool filters, and model capabilities. Only affects Copilot CLI agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.modelCapabilityOverrides', "Per-model capability overrides for Copilot SDK agent sessions, keyed by model id (`*` matches every model; a specific entry wins field-by-field), intended for evaluating models against an existing model's profile. Declare an aliased `family` (for example `claude-opus-4.8`) to route the model to that family's tuned system prompt and tool profile without changing the model id sent to the runtime — so a preview model can be evaluated against a known prompt while still running on its own endpoint — a `reasoningEffort` to pin its effort level, `availableTools`/`excludedTools` to filter its tool set, or `modelCapabilities` to override individual capability limits (e.g. vision support, context window size) passed through to the SDK. All overrides apply when a session launches or resumes. On a mid-session model change, only the new model's `reasoningEffort` is applied; the session keeps its launch-time family, tool filters, and model capabilities. Only affects Copilot agent sessions.\n\n**Note**: This is an advanced setting for experimentation."),
 			additionalProperties: {
 				type: 'object',
 				properties: {
