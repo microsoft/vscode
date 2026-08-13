@@ -61,8 +61,6 @@ export interface IManagedTabsTarget {
 export interface IReconcileTrigger {
 	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
 	readonly openDefaultsIfEmpty?: boolean;
-	/** The active session resource changed, so session defaults may be restored without affecting same-session dismissals. */
-	readonly sessionSwitch?: boolean;
 	/** Ensure the Changes tab, inactive, when a new-session view becomes eligible or finishes restoring. */
 	readonly ensureChanges?: boolean;
 	/** Ensure the Changes tab, opened **active**, even in a non-empty group — new-session submit (so the detail panel maps to Changes rather than the still-present Files placeholder). */
@@ -73,7 +71,6 @@ export interface IReconcileTrigger {
 function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTrigger {
 	return {
 		openDefaultsIfEmpty: a.openDefaultsIfEmpty || b.openDefaultsIfEmpty,
-		sessionSwitch: a.sessionSwitch || b.sessionSwitch,
 		ensureChanges: a.ensureChanges || b.ensureChanges,
 		ensureChangesActive: a.ensureChangesActive || b.ensureChangesActive,
 	};
@@ -146,13 +143,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// Existing, and Quick Chat alike — a quick chat's target wants neither tab, so this
 		// reconciles any stray managed tabs away). The New/Existing-specific "ensure the
 		// Changes tab" nuances are supplied by those strategies via `queueReconcile`.
-		let previousSessionKey: string | undefined;
 		this._register(autorun(reader => {
 			const target = this._readTarget(reader);
-			const sessionKey = this._sessionsService.activeSession.read(reader)?.resource.toString();
-			const sessionSwitch = previousSessionKey !== undefined && previousSessionKey !== sessionKey;
-			previousSessionKey = sessionKey;
-			this.queueReconcile(target, { openDefaultsIfEmpty: true, sessionSwitch });
+			this.queueReconcile(target, { openDefaultsIfEmpty: true });
 		}));
 
 		// [Ambient trigger] The user opened the side pane.
@@ -334,14 +327,13 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
-			const onlyManagedEditors = group.editors.every(editor => editor instanceof DockedEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
 			const activateChanges = !!trigger.ensureChangesActive && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
 			const ensureAllInputs = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 				&& !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 
 			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs || trigger.ensureChanges)));
-			const openFiles = target.wantsFilesTab && !filesPresent && (openIntoEmpty || ensureAllInputs || (trigger.sessionSwitch && onlyManagedEditors));
+			const openFiles = target.wantsFilesTab && !filesPresent && (openIntoEmpty || ensureAllInputs);
 			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
 			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
 
