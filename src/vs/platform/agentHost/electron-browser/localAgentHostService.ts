@@ -10,7 +10,7 @@ import { constObservable, IObservable, ISettableObservable, observableValue } fr
 import { mark } from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { getDelayedChannel, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { getDelayedChannel, IChannelClient, IChannelServer, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort, MessagePortAcquisitionError } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { ipcRenderer } from '../../../base/parts/sandbox/electron-browser/globals.js';
@@ -63,6 +63,64 @@ import type { ComponentToState, RootState, StateComponents } from '../common/sta
 const LOG_PREFIX = '[AgentHost:renderer]';
 
 /**
+ * Keeps management-channel calls on the same MessagePort generation as the
+ * connected AHP transport.
+ */
+export class LocalAgentHostManagementConnection extends Disposable {
+
+	private _generation = this._createGeneration();
+	private _pending: { readonly generation: DeferredPromise<IChannelClient>; readonly client: IChannelClient } | undefined;
+
+	constructor() {
+		super();
+		this._register(toDisposable(() => this.closed('Local agent host service was disposed.')));
+	}
+
+	client(): Promise<IChannelClient> {
+		return this._generation.p;
+	}
+
+	acquire<T extends IChannelClient>(client: Promise<T>): Promise<T> {
+		const generation = this._generation;
+		return client.then(value => {
+			if (this._generation === generation) {
+				this._pending = { generation, client: value };
+			}
+			return value;
+		});
+	}
+
+	connected(): void {
+		const pending = this._pending;
+		this._pending = undefined;
+		if (pending?.generation === this._generation) {
+			void this._generation.complete(pending.client);
+		}
+	}
+
+	reconnecting(): void {
+		this._pending = undefined;
+		const previous = this._generation;
+		this._generation = this._createGeneration();
+		void previous.error(new Error('Local agent host connection is reconnecting.'));
+	}
+
+	closed(message = 'Local agent host connection closed.'): void {
+		this._pending = undefined;
+		if (this._generation.isSettled) {
+			this._generation = this._createGeneration();
+		}
+		void this._generation.error(new Error(message));
+	}
+
+	private _createGeneration(): DeferredPromise<IChannelClient> {
+		const generation = new DeferredPromise<IChannelClient>();
+		generation.p.then(undefined, () => { });
+		return generation;
+	}
+}
+
+/**
  * Renderer-side implementation of {@link IAgentHostService} for the local
  * agent host. State and request traffic use AHP over the Protocol channel;
  * management remains on the narrow Management IPC channel.
@@ -73,8 +131,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly clientId = generateUuid();
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
-	private _managementClient = this._createManagementClient();
-	private _pendingManagementClient: { readonly generation: DeferredPromise<MessagePortClient>; readonly client: MessagePortClient } | undefined;
+	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
 	private _connectStarted = false;
@@ -107,9 +164,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(toDisposable(() => {
-			void this._rejectManagementClient(new Error('Local agent host service was disposed.'));
-		}));
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
@@ -167,13 +221,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _acquireClient(): Promise<MessagePortClient> {
-		const managementClient = this._managementClient;
-		return this._doAcquireClient().then(client => {
-			if (this._managementClient === managementClient) {
-				this._pendingManagementClient = { generation: managementClient, client };
-			}
-			return client;
-		});
+		return this._managementConnection.acquire(this._doAcquireClient());
 	}
 
 	private async _doAcquireClient(): Promise<MessagePortClient> {
@@ -220,11 +268,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return;
 		}
 		if (state === AgentHostClientState.Connected) {
-			const pendingManagementClient = this._pendingManagementClient;
-			this._pendingManagementClient = undefined;
-			if (pendingManagementClient?.generation === this._managementClient) {
-				void this._managementClient.complete(pendingManagementClient.client);
-			}
+			this._managementConnection.connected();
 			if (!this._didConnectInitially) {
 				this._didConnectInitially = true;
 				mark('code/agentHost/didConnect');
@@ -232,14 +276,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${this._requireClient().clientId}`);
 			this._onAgentHostStart.fire();
 		} else if (state === AgentHostClientState.Reconnecting || state === AgentHostClientState.Closed) {
-			this._pendingManagementClient = undefined;
 			this._clientStore.clear();
 			if (state === AgentHostClientState.Reconnecting) {
-				const previousManagementClient = this._managementClient;
-				this._managementClient = this._createManagementClient();
-				void previousManagementClient.error(new Error('Local agent host connection is reconnecting.'));
+				this._managementConnection.reconnecting();
 			} else {
-				void this._rejectManagementClient(new Error('Local agent host connection closed.'));
+				this._managementConnection.closed();
 			}
 			this._onAgentHostExit.fire(0);
 		}
@@ -447,21 +488,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	private _getManagementService(): IAgentHostManagementService {
 		return ProxyChannel.toService<IAgentHostManagementService>(
-			getDelayedChannel(this._managementClient.p.then(client => client.getChannel(AgentHostIpcChannels.Management)))
+			getDelayedChannel(this._managementConnection.client().then(client => client.getChannel(AgentHostIpcChannels.Management)))
 		);
-	}
-
-	private _createManagementClient(): DeferredPromise<MessagePortClient> {
-		const client = new DeferredPromise<MessagePortClient>();
-		client.p.then(undefined, () => { });
-		return client;
-	}
-
-	private _rejectManagementClient(error: Error): Promise<void> {
-		if (this._managementClient.isSettled) {
-			this._managementClient = this._createManagementClient();
-		}
-		return this._managementClient.error(error);
 	}
 }
 

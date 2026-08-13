@@ -21,11 +21,16 @@ export class MessagePortAcquisitionError extends Error {
 	}
 }
 
-export async function acquirePort(requestChannel: string | undefined, responseChannel: string, nonce = generateUuid()): Promise<MessagePort> {
+export async function acquirePort(
+	requestChannel: string | undefined,
+	responseChannel: string,
+	nonce = generateUuid(),
+	acquire = (channel: string, requestNonce: string) => ipcMessagePort.acquire(channel, requestNonce),
+): Promise<MessagePort> {
 
 	// Get ready to acquire the message port from the
 	// provided `responseChannel` via preload helper.
-	ipcMessagePort.acquire(responseChannel, nonce);
+	acquire(responseChannel, nonce);
 
 	// If a `requestChannel` is provided, we are in charge
 	// to trigger acquisition of the message port from main

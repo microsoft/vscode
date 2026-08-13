@@ -7,7 +7,6 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
@@ -143,8 +142,9 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 }
 
 function readWillRestart(data: unknown): boolean | undefined {
-	if (hasKey(data, 'willRestart') && typeof data.willRestart === 'boolean') {
-		return data.willRestart;
+	if (typeof data === 'object' && data !== null) {
+		const willRestart = Reflect.get(data, 'willRestart');
+		return typeof willRestart === 'boolean' ? willRestart : undefined;
 	}
 	return undefined;
 }
