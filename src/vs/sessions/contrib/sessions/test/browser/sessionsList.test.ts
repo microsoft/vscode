@@ -13,12 +13,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, SessionSectionRenderer, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, limitSessionsForList, SessionSectionRenderer, SessionsList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
+import '../../browser/views/sessionsViewActions.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -68,7 +71,7 @@ function createSession(id: string, opts: {
 
 suite('Sessions - SessionsList', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('SessionSectionRenderer', () => {
 
@@ -531,6 +534,146 @@ suite('Sessions - SessionsList', () => {
 			})), [
 				{ id: 'workspace:Gamma', sessions: ['visible'] },
 			]);
+		});
+	});
+
+	suite('workspace badge on custom-group rows', () => {
+		const group = { id: 'group-1', name: 'My Group', createdAt: 1 };
+
+		function renderList(
+			sessions: ISession[],
+			grouping: SessionsGrouping,
+			options: { memberships?: ReadonlyMap<string, string>; pinnedSessionIds?: ReadonlySet<string>; expandSections?: readonly string[] } = {},
+		): { readonly list: SessionsList; readonly container: HTMLElement } {
+			const harness = createListHarness(disposables, sessions, {
+				groups: [group],
+				memberships: options.memberships,
+				pinnedSessionIds: options.pinnedSessionIds,
+			});
+			if (options.expandSections) {
+				harness.instantiationService.get(IStorageService).store(
+					'sessionsListControl.sectionCollapseState',
+					JSON.stringify(Object.fromEntries(options.expandSections.map(section => [section, false]))),
+					StorageScope.PROFILE,
+					StorageTarget.USER,
+				);
+			}
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			return { list, container };
+		}
+
+		function rowSnapshot(container: HTMLElement): { title: string; badge: string | undefined; ariaLabel: string | null; details: string }[] {
+			return [...container.querySelectorAll<HTMLElement>('.session-item')].map(item => ({
+				title: item.querySelector('.session-title')?.textContent ?? '',
+				badge: item.querySelector('.session-badge')?.textContent ?? undefined,
+				ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label') ?? null,
+				details: item.querySelector('.session-details-row')?.textContent ?? '',
+			}));
+		}
+
+		test('workspace grouping shows a badge only under a custom group', () => {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
+			const { container } = renderList([grouped, ordinary], SessionsGrouping.Workspace, {
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+
+			assert.deepStrictEqual(rowSnapshot(container).map(row => ({ title: row.title, badge: row.badge })), [
+				{ title: 'Grouped', badge: 'vscode' },
+				{ title: 'Ordinary', badge: undefined },
+			]);
+		});
+
+		test('date grouping keeps workspace badges on grouped and ordinary rows', () => {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'monaco' }).session;
+			const { container } = renderList([grouped, ordinary], SessionsGrouping.Date, {
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+
+			assert.deepStrictEqual(rowSnapshot(container).map(row => ({ title: row.title, badge: row.badge })), [
+				{ title: 'Grouped', badge: 'vscode' },
+				{ title: 'Ordinary', badge: 'monaco' },
+			]);
+		});
+
+		test('pin and archive take precedence over group membership and retain their badges', () => {
+			const pinned = createTestSession('Pinned', { workspaceLabel: 'vscode' }).session;
+			const archived = createTestSession('Archived', { workspaceLabel: 'monaco', isArchived: true }).session;
+			const memberships = new Map([[pinned.sessionId, group.id], [archived.sessionId, group.id]]);
+			const { list, container } = renderList([pinned, archived], SessionsGrouping.Workspace, {
+				memberships,
+				pinnedSessionIds: new Set([pinned.sessionId]),
+				expandSections: ['pinned', 'archived'],
+			});
+			list.setExcludeArchived(false);
+			list.layout(300, 400);
+
+			assert.deepStrictEqual({
+				renderedGroups: [list.getRenderedSessionGroup(pinned)?.id, list.getRenderedSessionGroup(archived)?.id],
+				rows: rowSnapshot(container).map(row => ({ title: row.title, badge: row.badge })),
+			}, {
+				renderedGroups: [undefined, undefined],
+				rows: [
+					{ title: 'Pinned', badge: 'vscode' },
+					{ title: 'Archived', badge: 'monaco' },
+				],
+			});
+		});
+
+		test('quick chats never show a workspace badge', () => {
+			const quickChat = createTestSession('Quick Chat', { isQuickChat: true }).session;
+			const { container } = renderList([quickChat], SessionsGrouping.Date, {
+				memberships: new Map([[quickChat.sessionId, group.id]]),
+			});
+
+			assert.deepStrictEqual(rowSnapshot(container).map(row => ({ title: row.title, badge: row.badge, details: row.details })), [
+				{ title: 'Quick Chat', badge: undefined, details: '' },
+			]);
+		});
+
+		test('in-progress and needs-input grouped rows suppress the workspace badge', () => {
+			const inProgress = createTestSession('Working', { workspaceLabel: 'vscode', status: SessionStatus.InProgress }).session;
+			const needsInput = createTestSession('Needs Input', { workspaceLabel: 'monaco', status: SessionStatus.NeedsInput }).session;
+			const { container } = renderList([inProgress, needsInput], SessionsGrouping.Workspace, {
+				memberships: new Map([[inProgress.sessionId, group.id], [needsInput.sessionId, group.id]]),
+			});
+
+			assert.deepStrictEqual(Object.fromEntries(rowSnapshot(container).map(row => [row.title, {
+				badge: row.badge,
+				ariaHasWorkspace: row.ariaLabel?.includes(' in ') ?? false,
+			}])), {
+				Working: { badge: undefined, ariaHasWorkspace: false },
+				'Needs Input': { badge: undefined, ariaHasWorkspace: false },
+			});
+		});
+
+		test('accessible names include workspace exactly when the badge is visible', () => {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'monaco' }).session;
+			const workspaceRows = renderList([grouped, ordinary], SessionsGrouping.Workspace, {
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			}).container;
+			const dateRows = renderList([ordinary], SessionsGrouping.Date).container;
+
+			assert.deepStrictEqual({
+				workspace: rowSnapshot(workspaceRows).map(row => ({ title: row.title, badge: row.badge, ariaLabel: row.ariaLabel })),
+				date: rowSnapshot(dateRows).map(row => ({ title: row.title, badge: row.badge, ariaLabel: row.ariaLabel })),
+			}, {
+				workspace: [
+					{ title: 'Grouped', badge: 'vscode', ariaLabel: 'Grouped, updated now, in vscode' },
+					{ title: 'Ordinary', badge: undefined, ariaLabel: 'Ordinary, updated now' },
+				],
+				date: [
+					{ title: 'Ordinary', badge: 'monaco', ariaLabel: 'Ordinary, updated now, in monaco' },
+				],
+			});
 		});
 	});
 

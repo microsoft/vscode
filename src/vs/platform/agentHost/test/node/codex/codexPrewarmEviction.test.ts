@@ -33,6 +33,7 @@ import { buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePa
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
@@ -49,6 +50,7 @@ import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js
 import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -194,6 +196,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => true });
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
@@ -839,14 +842,14 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'local',
 				uri: URI.file('/plugin/.mcp.json'),
 				configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
-				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
 			}],
 		};
 		const unsafeSession = URI.from({ scheme: 'codex', path: '/../../codex-customization-victim' });
 		const { session } = await createSession(agent, { session: unsafeSession, workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL }, agent: { uri: agentUri.toString() } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		entry.clientCustomizations.setClient('test', [{
-			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', }, pluginDir },
 			parsed,
 		}]);
 
@@ -875,6 +878,68 @@ suite('CodexAgent prewarm eviction', () => {
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
+		});
+		peer.exit();
+	});
+
+	test('resumes an established thread when the selected workspace agent changes', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo-workspace-agent-edit');
+		const agentUri = URI.joinPath(repo, '.github', 'agents', 'reviewer.agent.md');
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the original instructions.'));
+		const { session } = await createSession(agent, {
+			workingDirectories: [repo],
+			model: { id: COPILOT_TEST_MODEL },
+			agent: { uri: agentUri.toString() },
+		});
+		const chat = URI.parse(buildDefaultChatUri(session));
+
+		const firstSend = agent.chats.sendMessage(chat, 'first', [repo], undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
+		const firstTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: firstTurn.id, result: {} });
+		await firstSend;
+
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
+		const secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+		const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
+		peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: repo.fsPath }, cwd: repo.fsPath } });
+		const secondTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: secondTurn.id, result: {} });
+		await secondSend;
+
+		assert.deepStrictEqual({
+			start: { method: start.method, developerInstructions: start.params.developerInstructions },
+			firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+			resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
+			secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
+			resumedRoleFile,
+			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
+		}, {
+			start: { method: 'thread/start', developerInstructions: 'Use the original instructions.' },
+			firstTurn: { method: 'turn/start', developerInstructions: 'Use the original instructions.' },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
+			resume: { method: 'thread/resume', developerInstructions: 'Use the updated instructions.' },
+			secondTurn: { method: 'turn/start', developerInstructions: 'Use the updated instructions.' },
+			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
+			needsResume: false,
 		});
 		peer.exit();
 	});
