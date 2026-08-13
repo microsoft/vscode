@@ -61,3 +61,14 @@ Scope: `src/vs/sessions/**`
   session, stale repository context on recycled rows, and late async results
   publishing into a replacement view.
 - **Disposition:** Candidate for focused UI specifications and lifecycle tests.
+
+## Capture live editor state independently of persistence
+
+- **Scope:** `src/vs/sessions/contrib/layout/**`
+- **Learning:** A newly created Quick Chat can contain live editors before it
+  has a saved working set. Visibility capture should observe the live editor
+  list while excluding transient strategy-owned hides and empty editor groups.
+- **Evidence:** Gating side-pane visibility capture on saved working-set
+  presence lost the state opened before the Quick Chat's first switch.
+- **Disposition:** The durable behavior belongs in layout specifications and
+  focused regression tests.

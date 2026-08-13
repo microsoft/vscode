@@ -30,7 +30,7 @@ npm run mock-policy-server -- --schema ./copilot-agent-runtime/schema/managed-se
 ```
 
 1. Open the printed GUI URL.
-2. Pick an endpoint tab, choose a preset or edit the JSON, and **Save**.
+2. Pick an endpoint tab, choose a preset and click **Apply**, or edit the HTTP status code and JSON response body.
 3. Click **Wire all endpoints** to point `product.overrides.json` at this server.
 4. **Reload** Code OSS (running from sources, so `VSCODE_DEV` is set).
 5. Sign in with your GitHub/Copilot account.
@@ -56,6 +56,22 @@ this order:
 resolved from the cwd. The schema is re-read on every **Refresh**, so you can
 edit it without restarting the server. A missing schema is non-fatal — the GUI
 just shows the resolved path and skips schema validation.
+
+The Managed Settings tab includes presets for 200, 404, and the compatibility
+rejection contract:
+
+```json
+{
+	"error_code": "client_update_required",
+	"client_id": "vscode",
+	"client_version": "1.132.0",
+	"minimum_client_version": "1.133.0"
+}
+```
+
+Select **Client update required (466)** and click **Apply**. The control API also accepts
+`{ "endpoint": "managedSettings", "status": 466, "body": { ... } }` at
+`POST /api/state`.
 
 ## How wiring works
 

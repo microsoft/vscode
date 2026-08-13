@@ -3,28 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * The frame and severity tints come from `.chat-input-notice`. The overlap with the
- * input below is NOT shared - it is per-surface - so it lives here.
- */
+/* The frame and severity tints come from `.chat-input-notice`, and the join with
+	the input - and whether this slot takes up space - from the stack. */
 
-/* Hide the container when no notification is active */
-.chat-input-notification-container:not(.has-notification) {
-	display: none;
-}
-
-/* Counteract the `.interactive-input-part` `gap: 4px` so the notification attaches to the input. Add extra -6px to account for rounded corners. */
-.interactive-session .interactive-input-part > .chat-input-notification-container {
-	margin-bottom: calc(-1 * var(--vscode-spacing-size100));
-}
-
-/* Match the chat input's focus ring so the notification merges with it. */
-.interactive-session .interactive-input-part:has(.chat-input-container.focused) > .chat-input-notification-container .chat-input-notification-widget.severity-info {
+/* Match the chat input's focus ring. The input reports its frame state to the
+	stack - see `chatInputStack.ts` - so this selects that state directly rather
+	than inspecting the stack's subtree for it. */
+.interactive-session .chat-input-stack.chat-input-stack-input-focused > .chat-input-notification-container .chat-input-notification-widget.severity-info {
 	border-color: var(--vscode-focusBorder);
 }
 
 /* Working+focused: the chat input dims its focus border; match it here. */
-.interactive-session .interactive-input-part:has(.chat-input-container.working.focused) > .chat-input-notification-container .chat-input-notification-widget.severity-info {
+.interactive-session .chat-input-stack.chat-input-stack-input-focused.chat-input-stack-input-working > .chat-input-notification-container .chat-input-notification-widget.severity-info {
 	border-color: color-mix(in srgb, var(--vscode-focusBorder) 40%, transparent);
 }
 
@@ -134,9 +124,3 @@
 }
 
 /* Dismiss + mute icon buttons are styled by `.chat-input-notice-action`. */
-
-/* Cascade styling — remove top border-radius from sibling containers when notification is visible */
-.interactive-session .interactive-input-part > .chat-input-notification-container.has-notification + .chat-todo-list-widget-container .chat-todo-list-widget {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
-}
