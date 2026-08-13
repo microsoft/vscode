@@ -868,6 +868,10 @@ suite('AgentService (node dispatcher)', () => {
 
 	test('createSession fails open (shows the picker) when the folder-picker decision rejects', async () => {
 		class RejectingFolderPickerAgent extends MockAgent {
+			override getDescriptor() {
+				const base = super.getDescriptor();
+				return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+			}
 			computeFolderPickerDecision(): Promise<ISessionFolderPickerDecision | undefined> {
 				return Promise.reject(new Error('scan failed'));
 			}
@@ -890,6 +894,10 @@ suite('AgentService (node dispatcher)', () => {
 
 	test('createSession seeds the harness-pinned folder-picker decision into session metadata', async () => {
 		class PinningFolderPickerAgent extends MockAgent {
+			override getDescriptor() {
+				const base = super.getDescriptor();
+				return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+			}
 			computeFolderPickerDecision(workingDirectories: readonly URI[]): Promise<ISessionFolderPickerDecision | undefined> {
 				return Promise.resolve({ hidden: true, primary: workingDirectories[1].toString() });
 			}
