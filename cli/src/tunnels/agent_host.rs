@@ -1176,6 +1176,20 @@ impl AgentHostSidecar {
 		}
 	}
 
+	/// Returns a cloned handle for reporting client activity to
+	/// `--idle-timeout` bookkeeping, or `None` when idle-timeout is
+	/// disabled.
+	///
+	/// Callers serving connections this sidecar did not accept itself (the
+	/// dev-tunnel-hosted port in `run_supervisor`, which is handed sockets
+	/// by the tunnel relay rather than by [`Self::serve`]'s accept loop)
+	/// must report each connection and attach the resulting guard to that
+	/// connection's transport with [`idle_timeout::GuardedStream`], so the
+	/// client counts as activity for as long as it stays connected.
+	pub fn activity_tracker(&self) -> Option<idle_timeout::ActivityTracker> {
+		self.activity.clone()
+	}
+
 	/// Returns the wrapped manager, e.g. so callers can pre-fetch the latest
 	/// release, run an update loop, or directly serve tunnel-relayed
 	/// connections that bypass the public connection token.
@@ -3023,6 +3037,30 @@ mod tests {
 		port
 	}
 
+	/// Like [`spawn_fake_target_endpoint`], but keeps echoing for as long
+	/// as the client stays connected instead of closing after one message.
+	/// Needed when a test must distinguish "the proxied session is still
+	/// live" from "the target hung up".
+	async fn spawn_persistent_fake_target_endpoint() -> u16 {
+		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		tokio::spawn(async move {
+			loop {
+				let (stream, _) = listener.accept().await.unwrap();
+				tokio::spawn(async move {
+					if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
+						while let Some(Ok(msg)) = ws.next().await {
+							if msg.is_text() && ws.send(msg).await.is_err() {
+								break;
+							}
+						}
+					}
+				});
+			}
+		});
+		port
+	}
+
 	/// Drives a full client-side selection session against an in-process
 	/// [`run_gateway_session`] over an in-memory duplex pipe, returning the
 	/// client's WebSocket end after the initial inventory message (parsed
@@ -3502,5 +3540,113 @@ mod tests {
 		let endpoints = inventory["endpoints"].as_array().unwrap();
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
+	}
+
+	/// The dev-tunnel-hosted port in `run_supervisor` is handed sockets by
+	/// the tunnel relay, so they never pass through
+	/// `AgentHostSidecar::serve`'s accept loop and get no guard from it.
+	/// The gateway's inner dial back into our own listener does not cover
+	/// this either: a client still deciding what to select, or one whose
+	/// selection resolves to a *different* endpoint (as here), never
+	/// reaches that accept loop, so the supervisor owning the tunnel would
+	/// see zero clients and could time itself out while actively proxying.
+	///
+	/// Drives the real router (`serve_agent_host_tunnel_connection`) over a
+	/// guarded transport, exactly as `run_supervisor` now wires it up.
+	#[tokio::test]
+	async fn tunnel_hosted_gateway_connection_counts_as_activity_for_its_whole_session() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+
+		// A live endpoint that is *not* this supervisor, so a selection
+		// resolving to it never dials our own listener.
+		let target_port = spawn_persistent_fake_target_endpoint().await;
+		let entry = make_tcp_endpoint("instance-other-host", target_port, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&entry,
+		)
+		.unwrap();
+
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: 0,
+				host: Some("127.0.0.1".to_string()),
+				port: 1,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		let server_io =
+			idle_timeout::GuardedStream::new(server_io, Some(tracker.client_connected()));
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+				false,
+			)
+			.await;
+		});
+
+		let (mut client_ws, _resp) = tokio_tungstenite::client_async(
+			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
+			client_io,
+		)
+		.await
+		.expect("gateway select upgrade should succeed");
+
+		assert_eq!(
+			activity_rx.recv().await,
+			Some(idle_timeout::ActivityEvent::Connected)
+		);
+
+		match client_ws.next().await {
+			Some(Ok(Message::Text(_))) => {}
+			other => panic!("expected inventory message, got {other:?}"),
+		}
+
+		// Select the *other* endpoint and exchange a frame through the
+		// proxy, proving the session is live and served entirely by this
+		// tunnel connection without any inner dial back into our listener.
+		client_ws
+			.send(Message::Text(
+				r#"{"instanceId":"instance-other-host"}"#.into(),
+			))
+			.await
+			.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => {
+				let ack: serde_json::Value = serde_json::from_str(&t).unwrap();
+				assert_eq!(ack["ok"], true);
+			}
+			other => panic!("expected selection ack, got {other:?}"),
+		}
+		client_ws.send(Message::Text("ping".into())).await.unwrap();
+		match client_ws.next().await {
+			Some(Ok(Message::Text(t))) => assert_eq!(t.as_str(), "ping"),
+			other => panic!("expected proxied echo, got {other:?}"),
+		}
+
+		let premature = tokio::time::timeout(Duration::from_millis(500), activity_rx.recv()).await;
+		assert!(
+			premature.is_err(),
+			"a proxied tunnel client must count as activity for its whole session, got {premature:?}"
+		);
+
+		drop(client_ws);
+		let disconnected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
+			.await
+			.expect("did not observe a Disconnected activity event in time");
+		assert_eq!(
+			disconnected,
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
 	}
 }
