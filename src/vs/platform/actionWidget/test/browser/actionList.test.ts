@@ -39,6 +39,7 @@ function separator(label?: string): IActionListItem<ITestActionItem> {
 function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, options: {
 	readonly items?: readonly IActionListItem<ITestActionItem>[];
 	readonly onFilter?: (filter: string, cancellationToken: CancellationToken) => Promise<readonly IActionListItem<ITestActionItem>[]>;
+	readonly onHide?: () => void;
 	readonly listOptions?: Partial<IActionListOptions>;
 }): ActionListWidget<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
@@ -47,12 +48,12 @@ function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposabl
 	instantiationService.set(IOpenerService, NullOpenerService);
 	const delegate = options.onFilter
 		? {
-			onHide: () => { },
+			onHide: options.onHide ?? (() => { }),
 			onSelect: () => { },
 			onFilter: options.onFilter,
 		}
 		: {
-			onHide: () => { },
+			onHide: options.onHide ?? (() => { }),
 			onSelect: () => { },
 		};
 
@@ -162,6 +163,24 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Escape from a submenu hides the action list', () => {
+		let hideCount = 0;
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action('parent'),
+				submenuActions: [toAction({ id: 'child', label: 'Child', run: () => { } })],
+			}],
+			onHide: () => hideCount++,
+		});
+
+		widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+		const submenu = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel > .actionList');
+		assert.ok(submenu);
+		submenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+		assert.strictEqual(hideCount, 1);
+	});
 
 	test('runs dynamic filter updates immediately', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const filters: string[] = [];
@@ -414,4 +433,30 @@ suite('ActionListWidget', () => {
 			{ text: 'Learn more', href: 'https://aka.ms/test' },
 		);
 	});
+
+	test('focuses the configured initial item when opened', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('first'), action('active'), action('last')],
+			listOptions: { initialFocusItemId: 'active' },
+		});
+
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'active');
+	});
+
+	test('consumes initial focus before later filtering and refocusing', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [action('match-first'), action('match-initial'), action('other')],
+			listOptions: { initialFocusItemId: 'match-initial' },
+		});
+
+		widget.focus();
+		widget.focusPrevious();
+		typeFilter(widget, 'match');
+		widget.focus();
+
+		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
+	});
+
 });

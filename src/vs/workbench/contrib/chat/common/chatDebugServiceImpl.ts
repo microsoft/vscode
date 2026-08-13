@@ -163,7 +163,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		localChatSessionType,			// local sessions
 		'copilotcli',				// Copilot CLI background sessions
 		'agent-host-copilotcli',		// local Agent Host Copilot CLI sessions
-		'claude-code',				// Claude Code CLI sessions
 	]);
 
 	private _isDebugEligibleSession(sessionResource: URI): boolean {

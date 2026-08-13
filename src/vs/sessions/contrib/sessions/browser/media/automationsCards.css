@@ -9,11 +9,10 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .automations-cards-content:focus,
 .monaco-workbench .automations-cards-widget:focus {
 	outline: none;
 }
-
-
 
 .automations-cards-widget > .monaco-scrollable-element {
 	width: 100%;
@@ -262,13 +261,6 @@
 	flex: 1;
 }
 
-.automations-cards-empty-icon {
-	font-size: 28px;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
-	opacity: 0.7;
-}
-
 .automations-cards-empty-title {
 	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
@@ -389,7 +381,7 @@
 	opacity: 1;
 }
 
-.automations-run-card-actions .monaco-button.automations-run-card-delete-button {
+.automations-run-card-actions .monaco-button.automations-run-card-action-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -404,11 +396,11 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.automations-run-card-actions .monaco-button.automations-run-card-delete-button:hover:not(.disabled) {
+.automations-run-card-actions .monaco-button.automations-run-card-action-button:hover:not(.disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.automations-run-card-actions .monaco-button.automations-run-card-delete-button:focus-visible {
+.automations-run-card-actions .monaco-button.automations-run-card-action-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -468,6 +460,39 @@
 
 .automations-run-card-icon.codicon-sync {
 	color: var(--vscode-progressBar-background);
+}
+
+.automations-run-card.needs-input .automations-run-card-icon {
+	color: var(--vscode-list-warningForeground);
+}
+
+.automations-run-card-needs-input-label {
+	font-size: 11px;
+}
+
+.automations-run-card.needs-input {
+	animation: automation-needs-input-accent-pulse 3s ease-in-out infinite;
+}
+
+.automations-run-card.needs-input.clickable:hover {
+	animation: none;
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.automations-run-card.needs-input {
+		animation: none;
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+	}
+}
+
+@keyframes automation-needs-input-accent-pulse {
+	0%, 100% {
+		background-color: transparent;
+	}
+	50% {
+		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 12%, transparent);
+	}
 }
 
 .automations-run-card-workspace {

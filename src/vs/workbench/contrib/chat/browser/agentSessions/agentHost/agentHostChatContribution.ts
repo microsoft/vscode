@@ -33,7 +33,7 @@ import { languageModelSourcePresentationRegistry } from '../../../common/languag
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
-import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -115,6 +115,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
+	private readonly _authRecovery = new AgentHostAuthenticationRecovery();
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
@@ -163,10 +164,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._handleRootStateChange(rootState);
 		}));
 
-		// Clear the auth cache whenever the local agent host (re)starts so the
-		// first post-restart authenticate RPC is never skipped as "unchanged".
-		this._register(this._agentHostService.onAgentHostStart(() => {
-			this._authTokenCache.clear();
+		this._register(this._agentHostService.onDidNotification(notification => {
+			if (notification.type !== NotificationType.AuthRequired) {
+				return;
+			}
+			this._authenticateNotificationResource(notification.resource);
 		}));
 
 		// Surface the agent host's lazy, first-use SDK download as a progress
@@ -282,11 +284,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
 		const syncProvider = agentRegistration.syncProvider;
+		// The management UI remains ambient while individual sessions use their working-directory scopes.
+		const ambientScope = store.add(agentRegistration.acquireScope([]));
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
-			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)));
-		itemProvider.setDraftCustomAgents(this._activeClientService.getCustomAgents(sessionType));
-		itemProvider.setDraftCustomizations(this._activeClientService.getCustomizations(sessionType));
+			syncedUri => agentRegistration.getOrigin(syncedUri)));
+		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
@@ -376,6 +380,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				mark('code/agentHost/didAuthenticate');
 			}
 		}
+	}
+
+	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
+		this._agentHostService.setAuthenticationPending(true);
+		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
+			authTokenCache: this._authTokenCache,
+			logPrefix: '[AgentHost]',
+			authenticate: request => this._agentHostService.authenticate(request),
+		}))
+			.catch(err => {
+				this._logService.error(`[AgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
+			})
+			.finally(() => {
+				this._agentHostService.setAuthenticationPending(false);
+			});
 	}
 
 	/**

@@ -9,7 +9,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Part } from '../../part.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, FLOATING_PANEL_INNER_MARGIN, FLOATING_PANEL_MARGIN, isFloatingTopEdgeExposed } from '../../../services/layout/browser/layoutService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../../actions/layoutActions.js';
@@ -69,8 +69,8 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	get minimumWidth(): number { return this.baseWidth + this.floatingGutter; }
-	get maximumWidth(): number { return this.baseWidth + this.floatingGutter; }
+	get minimumWidth(): number { return this.baseWidth + this.floatingHorizontalGutter; }
+	get maximumWidth(): number { return this.baseWidth + this.floatingHorizontalGutter; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
@@ -92,17 +92,13 @@ export class ActivitybarPart extends Part {
 		return this.layoutService.isFloatingPanelsEnabled() ? ActivitybarPart.FLOATING_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
 	}
 
-	/** Extra horizontal space reserved around the part when floating panels are enabled. */
-	private get floatingGutter(): number {
+	private get floatingHorizontalGutter(): number {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
 			return 0;
 		}
 
-		// Parts adjacent to a left activity bar already provide the inner gutter through
-		// their left margin. On the right, the activity bar owns both the inner and outer gutters.
-		return this.layoutService.getSideBarPosition() === Position.RIGHT
-			? ActivitybarPart.FLOATING_MARGIN * 2
-			: ActivitybarPart.FLOATING_MARGIN;
+		return ActivitybarPart.FLOATING_MARGIN * 2
+			+ (this.layoutService.getSideBarPosition() === Position.RIGHT ? FLOATING_PANEL_MARGIN : 0);
 	}
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
@@ -279,7 +275,7 @@ export class ActivitybarPart extends Part {
 		}
 
 		const { top, bottom } = this.getFloatingGutters();
-		const contentWidth = Math.max(0, width - this.floatingGutter);
+		const contentWidth = Math.max(0, width - this.floatingHorizontalGutter);
 		const contentHeight = Math.max(0, height - top - bottom);
 
 		// Layout contents
@@ -290,8 +286,8 @@ export class ActivitybarPart extends Part {
 	}
 
 	/**
-	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`. Each one
-	 * doubles on the window edge the activity bar faces.
+	 * Vertical gutters (in pixels) mirroring the margins in `floatingPanels.css`.
+	 * The top is flush with title/banner chrome and doubles only at an exposed window edge.
 	 */
 	private getFloatingGutters(): { top: number; bottom: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
@@ -299,7 +295,7 @@ export class ActivitybarPart extends Part {
 		}
 
 		return {
-			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : 0,
+			top: isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? FLOATING_PANEL_MARGIN * 2 : FLOATING_PANEL_INNER_MARGIN,
 			bottom: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN * 2
 		};
 	}

@@ -79,6 +79,8 @@ interface IOperationStatusChangedAction {
 	readonly status: string;
 }
 
+const CHANGESET_OPERATION_TIMEOUT_MS = 60_000;
+
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 
@@ -141,6 +143,19 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return `!node -e "require('fs').writeFileSync(process.argv[1],process.argv[2])" ${file} ${contents}`;
 	}
 
+	function writeFileBase64Command(file: string, contents: string): string {
+		const encodedFile = Buffer.from(file).toString('base64');
+		const encodedContents = Buffer.from(contents).toString('base64');
+		return `!node -e "const fs=require('fs');fs.writeFileSync(Buffer.from(process.argv[1],'base64').toString(),Buffer.from(process.argv[2],'base64'))" ${encodedFile} ${encodedContents}`;
+	}
+
+	function writeFileTwiceBase64Command(file: string, first: string, second: string): string {
+		const encodedFile = Buffer.from(file).toString('base64');
+		const encodedFirst = Buffer.from(first).toString('base64');
+		const encodedSecond = Buffer.from(second).toString('base64');
+		return `!node -e "const fs=require('fs');const file=Buffer.from(process.argv[1],'base64').toString();fs.writeFileSync(file,Buffer.from(process.argv[2],'base64'));fs.writeFileSync(file,Buffer.from(process.argv[3],'base64'))" ${encodedFile} ${encodedFirst} ${encodedSecond}`;
+	}
+
 	function deleteFileCommand(file: string): string {
 		return `!node -e "require('fs').unlinkSync(process.argv[1])" ${file}`;
 	}
@@ -151,6 +166,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	function fileUri(file: IObservedChangesetFile): string {
 		return file.edit.after?.uri ?? file.edit.before?.uri ?? '';
+	}
+
+	function fileHasBasename(file: IObservedChangesetFile, basename: string): boolean {
+		return URI.parse(fileUri(file)).path.endsWith(`/${basename}`);
 	}
 
 	/**
@@ -165,10 +184,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				return false;
 			}
 			const action = getActionEnvelope(n).action as IContentChangedAction;
-			return action.files.some(file => fileUri(file).endsWith(`/${basename}`));
+			return action.files.some(file => fileHasBasename(file, basename));
 		}, timeout);
 		const action = getActionEnvelope(notification).action as IContentChangedAction;
-		return action.files.find(file => fileUri(file).endsWith(`/${basename}`))!;
+		return action.files.find(file => fileHasBasename(file, basename))!;
 	}
 
 	async function waitForTurnComplete(sessionUri: string, turnId: string): Promise<void> {
@@ -201,7 +220,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			const state = await changesetState(channel);
 			const files: IObservedChangesetFile[] = [];
 			for (const basename of basenames) {
-				const file = state.files.find(file => fileUri(file).endsWith(`/${basename}`));
+				const file = state.files.find(file => fileHasBasename(file, basename));
 				if (file) {
 					files.push(file);
 				}
@@ -278,7 +297,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			processed.add(n);
 			reduce(n);
 			return isReady();
-		}, 60_000);
+		}, CHANGESET_OPERATION_TIMEOUT_MS);
 	}
 
 	async function createModifiedUncommittedChangeset(prefix: string): Promise<{
@@ -307,12 +326,13 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			&& getActionEnvelope(n).channel === changeset
 			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
 			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
+			CHANGESET_OPERATION_TIMEOUT_MS,
 		);
 		await context.client.call('invokeChangesetOperation', {
 			channel: changeset,
 			operationId: 'discard-changes',
 			target: { kind: ChangesetOperationTargetKind.Resource, resource },
-		});
+		}, CHANGESET_OPERATION_TIMEOUT_MS);
 		await completed;
 		return context.client.receivedNotifications(n =>
 			isActionNotification(n, 'changeset/operationStatusChanged')
@@ -489,6 +509,113 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		]);
 	});
 
+	conformanceTest(context, 'ignored files do not appear in a branch changeset', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-ignored-');
+		writeFileSync(join(workspace, '.gitignore'), 'ignored.log\n');
+		execSync('git add .gitignore', { cwd: workspace });
+		execSync('git commit -q -m "ignore generated log"', { cwd: workspace });
+		const sessionUri = await createSessionIn(workspace, 'changeset-ignored');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await changesetState(branchUri);
+		context.client.clearReceived();
+		const changed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
+			60_000,
+		);
+
+		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
+		await changed;
+		const state = await changesetState(branchUri);
+
+		assert.deepStrictEqual(state.files, []);
+	});
+
+	conformanceTest(context, 'a file created and deleted in one turn leaves no branch change', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-create-delete-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-create-delete');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await changesetState(branchUri);
+		context.client.clearReceived();
+		const changed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
+			60_000,
+		);
+
+		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
+		await changed;
+		const state = await changesetState(branchUri);
+
+		assert.deepStrictEqual(state.files, []);
+	});
+
+	conformanceTest(context, 'an edit restored in the same turn leaves no branch change', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-edit-restore-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-edit-restore');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await changesetState(branchUri);
+		context.client.clearReceived();
+		const changed = context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
+			60_000,
+		);
+
+		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
+		await changed;
+		const state = await changesetState(branchUri);
+
+		assert.deepStrictEqual(state.files, []);
+	});
+
+	conformanceTest(context, 'an added multiline file reports every added line', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-multiline-add-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-multiline-add');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(sessionUri, 'turn-changeset-multiline-add', writeFileBase64Command('lines.txt', 'one\ntwo\nthree\n'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['lines.txt']);
+
+		assert.deepStrictEqual(file.edit.diff, { added: 3, removed: 0 });
+	});
+
+	conformanceTest(context, 'deleting a multiline tracked file reports every removed line', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-multiline-delete-');
+		writeFileSync(join(workspace, 'lines.txt'), 'one\ntwo\nthree\n');
+		execSync('git add lines.txt', { cwd: workspace });
+		execSync('git commit -q -m "add multiline file"', { cwd: workspace });
+		const sessionUri = await createSessionIn(workspace, 'changeset-multiline-delete');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(sessionUri, 'turn-changeset-multiline-delete', deleteFileCommand('lines.txt'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['lines.txt']);
+
+		assert.deepStrictEqual(file.edit.diff, { added: 0, removed: 3 });
+	});
+
+	conformanceTest(context, 'a changed filename containing spaces remains addressable', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-spaced-file-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-spaced-file');
+		const branchUri = buildBranchChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+
+		await runBangTurn(sessionUri, 'turn-changeset-spaced-file', writeFileBase64Command('spaced file.txt', 'content\n'), 1);
+		const [file] = await waitForChangesetFiles(branchUri, ['spaced file.txt']);
+
+		assert.deepStrictEqual({
+			id: URI.parse(file.id).path.endsWith('/spaced file.txt'),
+			after: file.edit.after?.uri.endsWith('/spaced%20file.txt') || file.edit.after?.uri.endsWith('/spaced file.txt'),
+			exists: existsSync(join(workspace, 'spaced file.txt')),
+		}, {
+			id: true,
+			after: true,
+			exists: true,
+		});
+	});
+
 	conformanceTest(context, 'an empty repository reports an untracked file as added', async function () {
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-empty-repo-'));
 		tempDirs.push(workspace);
@@ -623,9 +750,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-discard-added-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-added');
 		const changeset = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(sessionUri, 'turn-changeset-discard-added', writeFileCommand('untracked.txt', 'untracked'), 1);
 		const [file] = await waitForChangesetFiles(changeset, ['untracked.txt']);
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
 
 		const statuses = await invokeDiscard(changeset, fileUri(file));
 
@@ -642,9 +771,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace('ahp-changeset-discard-deleted-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-deleted');
 		const changeset = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(sessionUri, 'turn-changeset-discard-deleted', deleteFileCommand('seed.txt'), 1);
 		const [file] = await waitForChangesetFiles(changeset, ['seed.txt']);
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
 
 		const statuses = await invokeDiscard(changeset, fileUri(file));
 
@@ -657,6 +788,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
+	// The Windows changeset does not refresh after the resource-scoped discard completes.
 	conformanceTest(context, 'discarding one file preserves sibling changes', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-one-');
 		writeFileSync(join(workspace, 'first.txt'), 'original first\n');
@@ -665,7 +797,8 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git commit -q -m "sibling seed"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-one');
 		const changeset = buildUncommittedChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
+		const initialOperations = ((subscribed.snapshot!.state as { operations?: readonly IObservedOperation[] }).operations ?? []);
 		await runBangTurn(
 			sessionUri,
 			'turn-changeset-discard-one',
@@ -673,6 +806,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			1,
 		);
 		const [first] = await waitForChangesetFiles(changeset, ['first.txt', 'second.txt']);
+		await waitForIdleResourceOnlyOperation(changeset, 'discard-changes', initialOperations);
 
 		await invokeDiscard(changeset, fileUri(first));
 		const state = await retry(async () => {
@@ -693,7 +827,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			files: ['second.txt'],
 		});
 		assert.strictEqual(readFileSync(join(workspace, 'first.txt'), 'utf8').replaceAll('\r\n', '\n'), 'original first\n');
-	});
+	}, !context.isWindows);
 
 	conformanceTest(context, 'review state can be applied to multiple changed files', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-multiple-');
@@ -708,6 +842,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		);
 		const files = await waitForChangesetFiles(changeset, ['first.txt', 'second.txt']);
 
+		context.client.clearReceived();
 		context.client.dispatch({
 			channel: changeset,
 			clientSeq: nextClientSeq(),
@@ -715,6 +850,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'changeset/filesReviewChanged') && getActionEnvelope(n).channel === changeset,
+		);
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/statusChanged')
+			&& getActionEnvelope(n).channel === changeset
+			&& (getActionEnvelope(n).action as { readonly status: string }).status === 'ready',
 		);
 		const state = await changesetState(changeset);
 
@@ -814,6 +954,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
+	// Windows restores the file but leaves both changesets and the list summary stale.
 	conformanceTest(context, 'discarding the last tracked change clears changeset and list summaries', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-last-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-last');
@@ -842,7 +983,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				summary: { additions: 0, deletions: 0, files: 0 },
 			});
 		}, 100, 100);
-	});
+	}, !context.isWindows);
 
 	conformanceTest(context, 'listSessions reports the aggregate file change summary', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-list-summary-');

@@ -33,12 +33,13 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
+import { EditorResourceAccessor, isEditorCommandsContext, isEditorInput, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
-import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
+import { AnythingQuickAccessProvider, type IAnythingQuickPickItem } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
@@ -47,6 +48,7 @@ import { IChatRequestVariableEntry, OmittedState } from '../../common/attachment
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
@@ -440,7 +442,7 @@ interface IContextPickItemItem extends IQuickPickItem {
 }
 
 /** These are the types we get from "platform QP" */
-type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickPickItemWithResource;
+type IQuickPickServicePickItem = IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IAnythingQuickPickItem;
 
 function isIContextPickItemItem(obj: unknown): obj is IContextPickItemItem {
 	return (
@@ -462,6 +464,11 @@ function isIQuickPickItemWithResource(obj: unknown): obj is IQuickPickItemWithRe
 	return (
 		isObject(obj)
 		&& URI.isUri((obj as IQuickPickItemWithResource).resource));
+}
+
+function isAnythingQuickPickItemWithBrowserEditor(obj: unknown): obj is IAnythingQuickPickItem & { readonly editor: NonNullable<IAnythingQuickPickItem['editor']> } {
+	const editor = (obj as IAnythingQuickPickItem | undefined)?.editor;
+	return editor instanceof BrowserEditorInput || (!!editor && !isEditorInput(editor) && editor.options?.override === BrowserEditorInput.EDITOR_ID);
 }
 
 
@@ -527,7 +534,7 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
+		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string }) | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -550,11 +557,12 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
+		const quickInputService = await (context?.contextPicker ?? widget.contextPicker)?.prepare();
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder, quickInputService);
 	}
 
-	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string) {
-		const quickInputService = accessor.get(IQuickInputService);
+	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string, quickInputServiceOverride?: IQuickInputService) {
+		const quickInputService = quickInputServiceOverride ?? accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
@@ -581,7 +589,7 @@ export class AttachContextAction extends Action2 {
 
 					if (!isDone) {
 						// restart picker when sub-picker didn't return anything
-						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder);
+						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder, quickInputServiceOverride);
 						return;
 					}
 
@@ -612,7 +620,12 @@ export class AttachContextAction extends Action2 {
 
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		if (isIQuickPickItemWithResource(pick) && pick.resource) {
+		if (isAnythingQuickPickItemWithBrowserEditor(pick)) {
+			const entry = await chatAttachmentResolveService.resolveEditorAttachContext(pick.editor);
+			if (entry) {
+				toAttach.push(entry);
+			}
+		} else if (isIQuickPickItemWithResource(pick) && pick.resource) {
 			if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(pick.resource.path)) {
 				// checks if the file is an image
 				if (URI.isUri(pick.resource)) {

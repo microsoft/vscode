@@ -53,6 +53,7 @@ suite('Sessions - Workbench', () => {
 	const toggleSecondarySideBarSinglePane = SinglePaneWorkbench.prototype.toggleSecondarySideBar as (this: ITestWorkbench) => void;
 	const isSecondarySideBarVisibleSinglePane = SinglePaneWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 	const toggleSidePane = SinglePaneWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
+	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
 	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
 	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
@@ -1203,6 +1204,28 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
+	test('hideSidePane hides Editor before Details and preserves the editor width', () => {
+		const host = createHost({ single: true, dockedWidth: 300, editorWidth: 900, partVisibility: { editor: true, auxiliaryBar: true } });
+
+		hideSidePane.call(host);
+
+		assert.deepStrictEqual({
+			visibility: {
+				editor: host.partVisibility.editor,
+				auxiliaryBar: host.partVisibility.auxiliaryBar,
+			},
+			hideOrder: host.events.filter(event => !event.visible).map(event => event.partId),
+			persistedEditorWidth: host._savedPartSizes.editor,
+		}, {
+			visibility: {
+				editor: false,
+				auxiliaryBar: false,
+			},
+			hideOrder: [Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART],
+			persistedEditorWidth: 600,
+		});
+	});
+
 	test('suppresses docked editor reveal sync while hiding the editor', () => {
 		const host = createHost({ single: true, sessionsWidth: 1000, hasAppliedInitialEditorSplit: true, dockedWidth: 320, editorWidth: 900, partVisibility: { editor: true, auxiliaryBar: true } });
 		// Any grid mutation re-enters reveal-sync; it must be a no-op while suspended.
@@ -1306,6 +1329,30 @@ suite('Sessions - Workbench', () => {
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
 			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
+		});
+	});
+
+	test('single-pane editor part chooses the tab override from the visible composition', () => {
+		const getOverride = Reflect.get(SinglePaneMainEditorPart.prototype, '_getShowTabsOverride') as (
+			configuredShowTabs: 'multiple' | 'single' | 'none',
+			editorVisible: boolean,
+			auxiliaryBarVisible: boolean
+		) => 'multiple' | 'single' | undefined;
+
+		assert.deepStrictEqual({
+			auxiliaryBarOnlyMultiple: getOverride('multiple', false, true),
+			auxiliaryBarOnlySingle: getOverride('single', false, true),
+			auxiliaryBarOnlyNone: getOverride('none', false, true),
+			editorAndAuxiliaryBarSingle: getOverride('single', true, true),
+			editorOnlyNone: getOverride('none', true, false),
+			fullyHiddenMultiple: getOverride('multiple', false, false),
+		}, {
+			auxiliaryBarOnlyMultiple: 'multiple',
+			auxiliaryBarOnlySingle: 'multiple',
+			auxiliaryBarOnlyNone: 'multiple',
+			editorAndAuxiliaryBarSingle: undefined,
+			editorOnlyNone: 'single',
+			fullyHiddenMultiple: undefined,
 		});
 	});
 
@@ -1790,7 +1837,7 @@ suite('Sessions - Workbench', () => {
 
 	// --- Last-editor close ---------------------------------------------------
 
-	test('docked last editor close hides the whole side pane under suppression', () => {
+	test('docked last editor close is delegated to the lifecycle strategy', () => {
 		const editorHiddenCalls: { hidden: boolean; suppression: number }[] = [];
 		const auxHiddenCalls: { hidden: boolean; suppression: number }[] = [];
 		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: true }, editorGroupService: { mainPart: { groups: [{ isEmpty: true }] } } });
@@ -1811,12 +1858,12 @@ suite('Sessions - Workbench', () => {
 			visibility: host.partVisibility,
 			suppression: host._editorPartAutoVisibilitySuppressionCount,
 		}, {
-			editorHiddenCalls: [{ hidden: true, suppression: 1 }],
-			auxHiddenCalls: [{ hidden: true, suppression: 1 }],
+			editorHiddenCalls: [],
+			auxHiddenCalls: [],
 			visibility: {
 				sidebar: true,
-				auxiliaryBar: false,
-				editor: false,
+				auxiliaryBar: true,
+				editor: true,
 				panel: false,
 				sessions: true,
 				customViewGrid: false,
@@ -1825,7 +1872,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('docked last editor close hides lingering detail when editor is already hidden', () => {
+	test('docked last editor close leaves a detail-only composition to the lifecycle strategy', () => {
 		const editorHiddenCalls: boolean[] = [];
 		const auxHiddenCalls: { hidden: boolean; suppression: number }[] = [];
 		const host = createHost({ single: true, partVisibility: { editor: false, auxiliaryBar: true }, editorGroupService: { mainPart: { groups: [{ isEmpty: true }] } } });
@@ -1847,9 +1894,9 @@ suite('Sessions - Workbench', () => {
 			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
 		}, {
 			editorHiddenCalls: [],
-			auxHiddenCalls: [{ hidden: true, suppression: 1 }],
+			auxHiddenCalls: [],
 			editorVisible: false,
-			auxiliaryBarVisible: false,
+			auxiliaryBarVisible: true,
 		});
 	});
 

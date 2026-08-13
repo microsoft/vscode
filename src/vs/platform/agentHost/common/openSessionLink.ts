@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { AgentSession } from './agentService.js';
+import { AgentSession } from './agent.js';
 import { SessionServerToolName } from './serverToolNames.js';
 import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/sessionState.js';
 
@@ -19,6 +19,12 @@ import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/session
  * authority and the id is the path.
  */
 export const AGENT_HOST_SESSION_LINK_SCHEME = 'agent-host-session';
+
+export interface IAgentSessionLinkPresentation {
+	readonly title: string;
+	readonly description?: string;
+	readonly status: 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
+}
 
 /**
  * Whether {@link toolName} (as seen on a tool call) matches {@link bareName}.

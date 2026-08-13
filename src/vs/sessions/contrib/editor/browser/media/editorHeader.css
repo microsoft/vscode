@@ -3,15 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) {
+	flex-wrap: wrap;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs)::after {
+	display: none;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.editor > .content .editor-group-container > .title:not(.tabs) > .editor-group-header {
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-border, var(--vscode-editorGroup-border));
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor .title > .editor-group-header {
 	position: relative;
 	display: flex;
+	flex: 0 0 100%;
 	align-items: center;
 	box-sizing: border-box;
 	width: 100%;
 	min-height: 29px;
 	overflow: hidden;
-	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size80, 8px);
+	padding: var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size40, 4px) var(--vscode-spacing-size20, 2px) var(--vscode-spacing-size80, 8px);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header-actions {
