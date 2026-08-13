@@ -1046,7 +1046,7 @@ suite('ChatSessionRoutingController', () => {
 
 		assert.strictEqual(
 			container.querySelector('.chat-routing-badge-label')?.textContent,
-			'Update routing badge: Implemented the requested change.'
+			'Completed in Update routing badge: Implemented the r...'
 		);
 		const clearCompletedDeliveries = Reflect.get(controller, '_clearCompletedDeliveryConfirmations') as () => void;
 		clearCompletedDeliveries.call(controller);

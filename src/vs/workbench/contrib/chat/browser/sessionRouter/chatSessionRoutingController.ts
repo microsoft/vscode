@@ -53,6 +53,7 @@ const ROUTE_MAX_CHOICES = 6;
  */
 const ROUTE_AUTOSEND_DELAY_MS = 5000;
 const MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS = 10000;
+const DELIVERY_RESPONSE_PREVIEW_LENGTH = 20;
 
 /** How long command review remains available before the command runs. */
 const COMMAND_AUTORUN_DELAY_MS = 5000;
@@ -78,6 +79,16 @@ type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
 
 interface IDeliveryConfirmation extends IDisposable {
 	completed: boolean;
+}
+
+function responsePreview(response: string | undefined): string | undefined {
+	const firstLine = response?.split(/\r?\n/).map(line => line.trim()).find(Boolean);
+	if (!firstLine) {
+		return undefined;
+	}
+	return firstLine.length > DELIVERY_RESPONSE_PREVIEW_LENGTH
+		? `${firstLine.slice(0, DELIVERY_RESPONSE_PREVIEW_LENGTH - 3).trimEnd()}...`
+		: firstLine;
 }
 
 function statusToString(status: AgentSessionStatus): string {
@@ -1283,14 +1294,14 @@ export class ChatSessionRoutingController extends Disposable {
 			setCompleted(isCompleted);
 			const response = model?.lastRequest?.response;
 			const preview = isCompleted && response?.isComplete
-				? response.response.getMarkdown().trim()
+				? responsePreview(response.response.getMarkdown())
 				: undefined;
 			if (preview) {
 				const markdown = new MarkdownString(localize(
 					'chatSessionRouting.completedInWithResponse',
-					"{0}: {1}",
+					"Completed in {0}: {1}",
 					escapeMarkdownSyntaxTokens(sessionLabel),
-					preview
+					escapeMarkdownSyntaxTokens(preview)
 				));
 				const rendered = renderMarkdown(markdown);
 				rendered.element.classList.add('chat-routing-badge-response');
@@ -1381,12 +1392,13 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 			setCompleted(isCompleted);
 
-			if (isCompleted && session.lastResponse) {
+			const preview = isCompleted ? responsePreview(session.lastResponse) : undefined;
+			if (preview) {
 				const markdown = new MarkdownString(localize(
 					'chatSessionRouting.completedInWithResponse',
-					"{0}: {1}",
+					"Completed in {0}: {1}",
 					escapeMarkdownSyntaxTokens(session.label),
-					session.lastResponse
+					escapeMarkdownSyntaxTokens(preview)
 				));
 				const rendered = renderMarkdown(markdown);
 				rendered.element.classList.add('chat-routing-badge-response');
