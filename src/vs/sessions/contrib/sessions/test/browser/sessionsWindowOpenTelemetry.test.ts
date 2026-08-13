@@ -13,11 +13,15 @@ import { TestLifecycleService } from '../../../../../workbench/test/common/workb
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
 
+function isTelemetryData(data: unknown): data is Record<string, unknown> {
+	return typeof data === 'object' && data !== null;
+}
+
 class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
 
 	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
+		if (eventName && isTelemetryData(data)) {
 			this.events.push({ name: eventName, data });
 		}
 	}
