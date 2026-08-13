@@ -5437,7 +5437,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
 		if (!this._isNewSessionResource(sessionResource)) {
 			const own = this._existingSessionWorkingDirectories(sessionResource);
-			if (own) {
+			// An empty set is meaningful (a workspace-less session), so only a
+			// missing (`undefined`) result falls back to the workspace-derived set.
+			if (own !== undefined) {
 				return own;
 			}
 		}
@@ -5446,14 +5448,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/**
 	 * The working directories an already-created session was started with, read
-	 * from its authoritative (hydrated) state. Returns `undefined` when the
-	 * session has no state yet or no working directories, so callers fall back to
-	 * the workspace-derived set.
+	 * from its authoritative (hydrated) state.
+	 *
+	 * Returns `undefined` when the session's working directories are absent — no
+	 * hydrated state yet, or a session that inherits its directories — so callers
+	 * fall back to the workspace-derived set. An explicit empty set is
+	 * authoritative and returned as `[]`: a workspace-less session must not
+	 * inherit the current workspace's roots. This mirrors the host-side
+	 * `undefined` (inherit) vs `[]` (explicitly none) distinction.
 	 */
 	private _existingSessionWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
 		const backendSession = this._resolveSessionUri(sessionResource);
 		const dirs = this._getRawSessionState(backendSession.toString())?.workingDirectories;
-		if (!dirs || dirs.length === 0) {
+		if (dirs === undefined) {
 			return undefined;
 		}
 		return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);

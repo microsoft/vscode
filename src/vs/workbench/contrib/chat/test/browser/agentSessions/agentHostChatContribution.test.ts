@@ -3892,6 +3892,25 @@ suite('AgentHostChatContribution', () => {
 
 			assert.deepStrictEqual(capturedRoots.at(-1), [primary.toString(), secondary.toString()]);
 		});
+
+		test('an existing workspace-less session does not inherit the workspace folders', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary, secondary] });
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } }],
+				activeSessions: 0,
+			});
+			const capturedRoots = captureScopeRoots(instantiationService);
+			// A hydrated session with an explicit empty working-directory set (a
+			// workspace-less session) must resolve to an empty scope rather than
+			// falling back to the current workspace's folders.
+			const sessionResource = seedExistingSession(agentHostService, 'workspace-less', []);
+
+			capturedRoots.length = 0;
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(capturedRoots.at(-1), []);
+		});
 	});
 
 	// ---- Workspace trust gating -----------------------------------------
