@@ -25,13 +25,13 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
-import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
+import { ChangesSummary, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -46,6 +46,9 @@ import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHos
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -92,6 +95,22 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	}
 }
 
+function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
+	return {
+		_serviceBrand: undefined,
+		onDidChange: Event.None,
+		initializeSession: async () => { },
+		getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+		resolve: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		applyClientGlobalEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		replaceEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
+		whenIdle: async () => { },
+	};
+}
+
+let customizationEnablementService = createNoopCustomizationEnablementService();
+
 /**
  * Constructs an {@link AgentSideEffects} with a minimal local instantiation
  * scope that satisfies its {@link IAgentConfigurationService} /
@@ -126,7 +145,7 @@ function createTestSideEffects(
 		...options,
 		localTurns: options.localTurns ?? new AgentHostLocalTurns(options.sessionDataService, logService),
 	};
-	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, resolvedOptions));
+	return disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, resolvedOptions));
 }
 
 /**
@@ -249,6 +268,7 @@ suite('AgentSideEffects', () => {
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
 		telemetryService = new TestTelemetryService();
+		customizationEnablementService = createNoopCustomizationEnablementService();
 		sideEffects = createTestSideEffects(disposables, stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
@@ -280,6 +300,300 @@ suite('AgentSideEffects', () => {
 
 	// ---- handleAction: session/turnStarted ------------------------------
 
+	test('records customization toggles in the enablement service', () => {
+		const calls: { session: string; target: string; enablement: unknown }[] = [];
+		customizationEnablementService.replaceEnablement = (session, target, enablement) => {
+			calls.push({ session, target: target.owningPluginSource ? `${target.owningPluginSource}#mcp=${target.name}` : target.source.toString(), enablement });
+			return { kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } };
+		};
+		setupSession();
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+			children: [{ type: CustomizationType.McpServer, id: 'server', uri: 'file:///plugin/.mcp.json', name: 'server', state: { kind: McpServerStatus.Starting } }],
+		};
+		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [plugin] });
+		stateManager.dispatchServerAction(sessionUri.toString(), {
+			type: ActionType.SessionCustomizationToggled,
+			id: 'server',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		});
+
+		assert.deepStrictEqual(calls, [{
+			session: sessionUri.toString(),
+			target: 'file:///plugin#mcp=server',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+		}]);
+	});
+
+	suite('customization enablement refresh', () => {
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugin',
+			name: 'Plugin',
+		};
+		const target = {
+			id: plugin.id,
+			type: plugin.type,
+			name: plugin.name,
+			source: URI.parse(plugin.uri),
+		};
+
+		function setupAdditionalSession(session: URI, workingDirectory: string): void {
+			stateManager.createSession({
+				resource: session.toString(),
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				project: { uri: workingDirectory, displayName: 'Test Project' },
+				workingDirectories: [workingDirectory],
+			});
+			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString()));
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+		}
+
+		async function createRefreshHarness(sessions: readonly URI[], sessionDataService = createSessionDataService(), initialize = true): Promise<AgentHostCustomizationEnablementService> {
+			const enablementService = disposables.add(new AgentHostCustomizationEnablementService(
+				disposables.add(new AgentHostStorageService(undefined, new NullLogService())),
+				sessionDataService,
+				stateManager,
+				new NullLogService(),
+			));
+			customizationEnablementService = enablementService;
+			createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				onTurnComplete: () => { },
+			});
+			if (initialize) {
+				await Promise.all(sessions.map(session => enablementService.initializeSession(session.toString())));
+			}
+			agent.getSessionCustomizations = async session => {
+				const resolution = enablementService.resolve(session.toString(), target);
+				return [{
+					...plugin,
+					...(resolution.kind === 'resolved' && resolution.enablement.length > 0 ? { enablement: [...resolution.enablement] } : {}),
+				}];
+			};
+			return enablementService;
+		}
+
+		async function publishInitialCustomizations(sessions: readonly URI[]): Promise<void> {
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireCustomizationsChange();
+			await waitForState(stateManager, () => sessions.every(session => stateManager.getSessionState(session.toString())?.customizations !== undefined) ? true : undefined);
+		}
+
+		function customizationEnvelopes(envelopes: readonly ActionEnvelope[]): ActionEnvelope[] {
+			return envelopes.filter(envelope => envelope.action.type === ActionType.SessionCustomizationsChanged);
+		}
+
+		test('republishes customizations after a decision write and dedupes a redundant write', async () => {
+			const otherSession = AgentSession.uri('mock', 'session-2');
+			setupSession('file:///workspace');
+			setupAdditionalSession(otherSession, 'file:///workspace');
+			const enablementService = await createRefreshHarness([sessionUri, otherSession]);
+			await publishInitialCustomizations([sessionUri, otherSession]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Session, false);
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Session, false);
+			await timeout(10);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }],
+			}]);
+		});
+
+		test('republishes every open session for a global decision once', async () => {
+			const otherSession = AgentSession.uri('mock', 'session-2');
+			setupSession('file:///workspace-a');
+			setupAdditionalSession(otherSession, 'file:///workspace-b');
+			const enablementService = await createRefreshHarness([sessionUri, otherSession]);
+			await publishInitialCustomizations([sessionUri, otherSession]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Global, false);
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 2 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => envelope.channel).sort(), [sessionUri.toString(), otherSession.toString()].sort());
+		});
+
+		test('republishes only sessions sharing a workspace decision working directory', async () => {
+			const sameWorkspaceSession = AgentSession.uri('mock', 'session-2');
+			const otherWorkspaceSession = AgentSession.uri('mock', 'session-3');
+			setupSession('file:///workspace');
+			setupAdditionalSession(sameWorkspaceSession, 'file:///workspace');
+			setupAdditionalSession(otherWorkspaceSession, 'file:///other-workspace');
+			const enablementService = await createRefreshHarness([sessionUri, sameWorkspaceSession, otherWorkspaceSession]);
+			await publishInitialCustomizations([sessionUri, sameWorkspaceSession, otherWorkspaceSession]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Workspace, false);
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 2 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => envelope.channel).sort(), [sessionUri.toString(), sameWorkspaceSession.toString()].sort());
+		});
+
+		test('republishes when session enablement finishes loading', async () => {
+			setupSession('file:///workspace');
+			const database = new TestSessionDatabase();
+			let resolveMetadata!: (value: string | undefined) => void;
+			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
+			await publishInitialCustomizations([sessionUri]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			const load = enablementService.initializeSession(sessionUri.toString());
+			resolveMetadata('{"plugin":false}');
+			await load;
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }],
+			}]);
+		});
+
+		test('republishes a settled MCP decision that an earlier pending publication omitted', async () => {
+			setupSession('file:///workspace');
+			const database = new TestSessionDatabase();
+			let resolveMetadata!: (value: string | undefined) => void;
+			database.getMetadata = async () => new Promise(resolve => { resolveMetadata = resolve; });
+			const enablementService = await createRefreshHarness([sessionUri], createSessionDataService(database), false);
+			const server = {
+				type: CustomizationType.McpServer,
+				id: 'azure',
+				uri: 'file:///plugin/mcp.json',
+				name: 'azure',
+				state: { kind: McpServerStatus.Stopped },
+			} as const;
+			const pluginWithServer: PluginCustomization = { ...plugin, children: [server] };
+			const serverTarget = {
+				id: server.id,
+				type: server.type,
+				name: server.name,
+				source: URI.parse(server.uri),
+				owningPluginSource: URI.parse(plugin.uri),
+			};
+			enablementService.setEnablement(sessionUri.toString(), serverTarget, CustomizationEnablementKind.Global, false);
+			agent.getSessionCustomizations = async session => {
+				const resolution = enablementService.resolve(session.toString(), serverTarget);
+				const customizations = [{
+					...pluginWithServer,
+					children: [{
+						...server,
+						...(resolution.kind === 'resolved' && resolution.enablement.length > 0 ? { enablement: [...resolution.enablement] } : {}),
+					}],
+				}];
+				return applyMcpServerEnablement(customizations, stateManager.getSessionState(session.toString())?.customizations ?? []);
+			};
+			await publishInitialCustomizations([sessionUri]);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			const load = enablementService.initializeSession(sessionUri.toString());
+			resolveMetadata(undefined);
+			await load;
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{
+					...plugin,
+					children: [{
+						...server,
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					}],
+				}],
+			}]);
+		});
+
+		test('republishes when a pending working directory becomes known', async () => {
+			setupSession();
+			const enablementService = await createRefreshHarness([sessionUri]);
+			await publishInitialCustomizations([sessionUri]);
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Global, false);
+			await timeout(10);
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///workspace' });
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).length === 1 ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [{
+				session: sessionUri.toString(),
+				customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }],
+			}]);
+		});
+
+		test('retries an enablement refresh superseded by a direct customization update', async () => {
+			setupSession('file:///workspace');
+			const enablementService = await createRefreshHarness([sessionUri]);
+			await publishInitialCustomizations([sessionUri]);
+			let signalFetchStarted!: () => void;
+			const fetchStarted = new Promise<void>(resolve => { signalFetchStarted = resolve; });
+			let releaseFetch!: () => void;
+			let blockFirstFetch = true;
+			agent.getSessionCustomizations = async session => {
+				const resolution = enablementService.resolve(session.toString(), target);
+				if (blockFirstFetch) {
+					blockFirstFetch = false;
+					signalFetchStarted();
+					await new Promise<void>(resolve => { releaseFetch = resolve; });
+				}
+				return [{
+					...plugin,
+					...(resolution.kind === 'resolved' && resolution.enablement.length > 0 ? { enablement: [...resolution.enablement] } : {}),
+				}];
+			};
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => envelopes.push(envelope)));
+
+			enablementService.setEnablement(sessionUri.toString(), target, CustomizationEnablementKind.Global, false);
+			await fetchStarted;
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [plugin] });
+			releaseFetch();
+			await waitForState(stateManager, () => customizationEnvelopes(envelopes).some(envelope => {
+				const customization = envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations[0] : undefined;
+				return customization?.type === CustomizationType.Plugin
+					&& customization.enablement?.some(entry => entry.kind === CustomizationEnablementKind.Global && entry.enabled === false);
+			}) ? true : undefined);
+
+			assert.deepStrictEqual(customizationEnvelopes(envelopes).map(envelope => ({
+				session: envelope.channel,
+				customizations: envelope.action.type === ActionType.SessionCustomizationsChanged ? envelope.action.customizations : undefined,
+			})), [
+				{ session: sessionUri.toString(), customizations: [plugin] },
+				{ session: sessionUri.toString(), customizations: [{ ...plugin, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }] },
+			]);
+		});
+	});
+
 	suite('handleAction — session/turnStarted', () => {
 
 		test('calls sendMessage on the agent', async () => {
@@ -304,7 +618,7 @@ suite('AgentSideEffects', () => {
 				id: customizationId('file:///send-plugin'),
 				uri: 'file:///send-plugin',
 				name: 'Send Plugin',
-				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 				load: { kind: CustomizationLoadStatus.Loaded },
 			};
 			stateManager.setSessionCustomizations(sessionUri.toString(), [hostCustomization]);
@@ -369,7 +683,7 @@ suite('AgentSideEffects', () => {
 				activeClient: {
 					clientId: 'test-client',
 					tools: [{ name: 'testTool', inputSchema: { type: 'object' } }],
-					customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///customizations/SKILL.md'), uri: 'file:///customizations/SKILL.md', name: 'Test Skill', enabled: true }]
+					customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///customizations/SKILL.md'), uri: 'file:///customizations/SKILL.md', name: 'Test Skill', }]
 				},
 			};
 			stateManager.dispatchClientAction(sessionUri.toString(), activeClientAction, { clientId: 'test', clientSeq: 1 });
@@ -1138,6 +1452,65 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 		});
 
+		test('peer /rename synchronously suppresses the automatic rename reminder', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			const peerChat = buildChatUri(sessionUri.toString(), 'peer-rename');
+			stateManager.addChat(sessionUri.toString(), peerChat, { title: 'Automatic peer title' });
+			renameSideEffects.markTitleAuto(sessionUri.toString(), peerChat, 'Automatic peer title');
+			const renameAction: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-rename',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '/rename User Peer Title', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChat, renameAction, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(peerChat, renameAction);
+			await waitForState(stateManager, () => (
+				stateManager.getChatState(peerChat)?.title === 'User Peer Title'
+				&& stateManager.getActiveTurnId(peerChat) === undefined
+			) || undefined);
+
+			const followUpAction: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-follow-up',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChat, followUpAction, { clientId: 'test', clientSeq: 2 });
+			renameSideEffects.handleAction(peerChat, followUpAction);
+			await waitForSendMessageCalls(1);
+
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Continue');
+		});
+
+		test('automatic rename guidance is transient context and never changes the user prompt', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-guidance',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Keep GitHub casing', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
+			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_session`'));
+		});
+
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
 			setupSession();
 			const renameSideEffects = createRenameSideEffects();
@@ -1902,6 +2275,28 @@ suite('AgentSideEffects', () => {
 
 	suite('registerProgressListener', () => {
 
+		test('emits auth-required notifications when observable state becomes required', () => {
+			const notifications: INotification[] = [];
+			disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const requirement = {
+				resource: {
+					resource: 'https://api.github.com',
+					authorization_servers: ['https://github.com/login/oauth'],
+				},
+				reason: AuthRequiredReason.Expired,
+			};
+
+			agent.setAuthenticationRequired(requirement);
+			agent.setAuthenticationRequired(undefined);
+			agent.setAuthenticationRequired(requirement);
+
+			assert.deepStrictEqual(notifications.filter(notification => notification.type === 'auth/required'), [
+				{ type: 'auth/required', channel: ROOT_STATE_URI, ...requirement },
+				{ type: 'auth/required', channel: ROOT_STATE_URI, ...requirement },
+			]);
+		});
+
 		test('maps agent progress events to state actions', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -2130,7 +2525,7 @@ suite('AgentSideEffects', () => {
 			// the dedup is proven to rely on structural equality, not reference
 			// identity.
 			const makeCustomizations = (): Customization[] => [
-				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } },
+				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } },
 			];
 			let fetchCalls = 0;
 			agent.getSessionCustomizations = async () => { fetchCalls++; return makeCustomizations(); };
@@ -2165,7 +2560,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 
 			const makeCustomizations = (): Customization[] => [
-				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } },
+				{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } },
 			];
 			agent.getSessionCustomizations = async () => makeCustomizations();
 
@@ -2824,10 +3219,10 @@ suite('AgentSideEffects', () => {
 
 		test('calls setClientCustomizations and dispatches customizationsChanged once', async () => {
 			setupSession();
-			const pluginA: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
-			const pluginB: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
-			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginA.id, uri: pluginA.uri, name: pluginA.name, enabled: true };
-			const pluginBClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginB.id, uri: pluginB.uri, name: pluginB.name, enabled: true };
+			const pluginA: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } };
+			const pluginB: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', load: { kind: CustomizationLoadStatus.Loaded } };
+			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginA.id, uri: pluginA.uri, name: pluginA.name, };
+			const pluginBClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: pluginB.id, uri: pluginB.uri, name: pluginB.name, };
 			agent.getSessionCustomizations = async () => [pluginA, pluginB];
 
 			const envelopes: ActionEnvelope[] = [];
@@ -2863,7 +3258,7 @@ suite('AgentSideEffects', () => {
 
 		test('dispatches customizationUpdated for sync progress after initial replacement', async () => {
 			setupSession();
-			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true };
+			const pluginAClient: ClientPluginCustomization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', };
 			let currentCustomizations: readonly Customization[] = [];
 			agent.getSessionCustomizations = async () => currentCustomizations;
 			agent.syncClientCustomizations = (session, clientId, customizations) => {
@@ -2932,7 +3327,7 @@ suite('AgentSideEffects', () => {
 				id: customizationId('file:///peer-plugin'),
 				uri: 'file:///peer-plugin',
 				name: 'Peer Plugin',
-				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 				load: { kind: CustomizationLoadStatus.Loaded },
 			};
 			const handleAgentSignal: (agent: IAgent, signal: AgentSignal) => void = Reflect.get(Object.getPrototypeOf(sideEffects), '_handleAgentSignal');
@@ -2999,7 +3394,7 @@ suite('AgentSideEffects', () => {
 				id: customizationId('file:///host-plugin'),
 				uri: 'file:///host-plugin',
 				name: 'Host Plugin',
-				enabled: true,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
 				load: { kind: CustomizationLoadStatus.Loaded },
 			};
 			stateManager.setSessionCustomizations(sessionUri.toString(), [hostCustomization]);
@@ -3075,7 +3470,7 @@ suite('AgentSideEffects', () => {
 
 		test('republishes agent and session customizations for existing sessions', async () => {
 			setupSession('file:///workspace');
-			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
+			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'Plugin A', load: { kind: CustomizationLoadStatus.Loaded } };
 			agent.customizations = [customization];
 			agent.getSessionCustomizations = async () => [customization];
 
@@ -3127,7 +3522,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 			setupSession('file:///workspace');
 
-			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', enabled: true, load: { kind: CustomizationLoadStatus.Loaded } };
+			const customization: Customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin-b'), uri: 'file:///plugin-b', name: 'Plugin B', load: { kind: CustomizationLoadStatus.Loaded } };
 			agent.customizations = [customization];
 			agent.getSessionCustomizations = async () => [customization];
 
@@ -3150,7 +3545,7 @@ suite('AgentSideEffects', () => {
 			const listener = sideEffects.registerProgressListener(agent);
 			setupSession('file:///workspace');
 
-			agent.customizations = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-c'), uri: 'file:///plugin-c', name: 'Plugin C', enabled: true }];
+			agent.customizations = [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-c'), uri: 'file:///plugin-c', name: 'Plugin C', }];
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));

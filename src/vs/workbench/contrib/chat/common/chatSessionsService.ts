@@ -18,6 +18,7 @@ import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/c
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
@@ -308,6 +309,7 @@ export type IChatSessionHistoryItem = {
 	isHidden?: boolean;
 	systemInitiatedLabel?: string;
 	isTerminalRequest?: boolean;
+	origin?: IChatRequestOrigin;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -337,6 +339,7 @@ export interface IChatSessionServerRequest {
 	readonly isHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
 	readonly isTerminalRequest?: boolean;
+	readonly origin?: IChatRequestOrigin;
 }
 
 /**
