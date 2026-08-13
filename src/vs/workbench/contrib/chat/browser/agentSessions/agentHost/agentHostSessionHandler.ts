@@ -1264,12 +1264,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// session closing while we await our subscriptions does not tear down
 		// the shared session subscription (which would strand us forever).
 		const hydrationKey = resolvedSession.toString();
-		// New sessions can create their active-client entry now: their scope roots
-		// derive from the current workspace / picked folder and are correct before
-		// hydration. Existing sessions derive their scope from their own persisted
-		// working directories, which are only known once the subscription has
-		// hydrated, so defer their entry to `_configureActiveClientReconciliation`
-		// below to avoid seeding the scope with workspace-expanded roots.
+		// Existing sessions need hydrated state before their customization scope can be resolved.
 		if (isNewSession) {
 			this._ensureActiveClientEntry(sessionResource);
 		}
