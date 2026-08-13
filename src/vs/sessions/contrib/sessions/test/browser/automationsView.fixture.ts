@@ -16,7 +16,8 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IAutomation, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
@@ -63,10 +64,10 @@ class FixtureActionViewItemService extends Disposable implements IActionViewItem
 
 class FixtureAutomationService extends mock<IAutomationService>() {
 
-	override readonly automations: IObservable<readonly IAutomation[]>;
+	override readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	override readonly runs: IObservable<readonly IAutomationRun[]>;
 
-	constructor(automations: readonly IAutomation[], runs: readonly IAutomationRun[]) {
+	constructor(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[]) {
 		super();
 		this.automations = constObservable(automations);
 		this.runs = constObservable(runs);
@@ -86,8 +87,8 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 			if (!run.sessionResource) {
 				continue;
 			}
-			const resource = URI.parse(run.sessionResource);
-			this.sessions.set(run.sessionResource, upcastPartial<ISession>({
+			const resource = run.sessionResource;
+			this.sessions.set(run.sessionResource.toString(), upcastPartial<ISession>({
 				resource,
 				sessionId: `fixture-session-${index + 1}`,
 				isRead: constObservable(index !== 0),
@@ -104,7 +105,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 }
 
 interface IAutomationsFixtureData {
-	readonly automations: readonly IAutomation[];
+	readonly automations: readonly IAutomationDescriptor[];
 	readonly runs: readonly IAutomationRun[];
 }
 
@@ -136,7 +137,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	});
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();
-	const customViewService = new CustomViewService(new NullLogService());
+	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const automationService = new FixtureAutomationService(data.automations, data.runs);
 	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
 	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
@@ -188,7 +189,7 @@ function createPopulatedData(): IAutomationsFixtureData {
 	yesterday.setDate(today.getDate() - 1);
 	yesterday.setHours(15, 30, 0, 0);
 
-	const automations: readonly IAutomation[] = [
+	const automations: readonly IAutomationDescriptor[] = [
 		createAutomation({
 			id: 'daily-review',
 			name: 'Daily code review',
@@ -220,7 +221,7 @@ function createPopulatedData(): IAutomationsFixtureData {
 	return { automations, runs };
 }
 
-function createAutomation(overrides: Partial<IAutomation>): IAutomation {
+function createAutomation(overrides: Partial<IAutomationDescriptor>): IAutomationDescriptor {
 	const now = new Date().toISOString();
 	return {
 		id: 'automation',
@@ -241,7 +242,7 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		automationId,
 		status,
 		trigger: 'schedule',
-		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`).toString() : undefined,
+		sessionResource: hasSession ? URI.parse(`vscode-chat-session://fixture/${id}`) : undefined,
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,

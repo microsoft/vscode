@@ -51,9 +51,13 @@ suite('Voice Mode onboarding', () => {
 	}
 
 	function register(service: VoiceModeOnboardingService, host: ITestHost) {
-		return service.registerHost(host.container, host.root, () => {
-			host.focused++;
-			host.root.focus();
+		return service.registerHost({
+			container: host.container,
+			focusRoot: host.root,
+			focus: () => {
+				host.focused++;
+				host.root.focus();
+			},
 		});
 	}
 
@@ -313,14 +317,14 @@ suite('Voice Mode onboarding', () => {
 				activeElement: document.activeElement,
 				card,
 				tabIndex: card?.tabIndex,
-				closeIcon: host.container.querySelector('.voice-mode-onboarding-close .codicon')?.className,
+				closeIcon: host.container.querySelector('.voice-mode-onboarding-close')?.className,
 				listeningNotice: host.container.querySelector('.voice-mode-onboarding-listening-notice'),
 			},
 			{
 				activeElement: document.body,
 				card,
 				tabIndex: 0,
-				closeIcon: 'codicon codicon-close-compact',
+				closeIcon: 'action-label codicon codicon-close-compact voice-mode-onboarding-close chat-input-notice-dismiss',
 				listeningNotice: null,
 			});
 	});
@@ -357,7 +361,7 @@ suite('Voice Mode onboarding', () => {
 		assert.strictEqual(host.container.classList.contains('has-voice-mode-onboarding'), true);
 	});
 
-	test('the settings link opens Voice Mode settings', () => {
+	test('the description links open Voice Mode settings and instructions', () => {
 		const executed: string[] = [];
 		const service = createService(disposables, executed);
 		const host = createHost(disposables);
@@ -372,8 +376,8 @@ suite('Voice Mode onboarding', () => {
 		assert.deepStrictEqual(
 			{ labels: links.map(link => link.textContent), executed },
 			{
-				labels: ['settings'],
-				executed: ['agentsVoice.openSettings'],
+				labels: ['settings', 'how it\'s written'],
+				executed: ['agentsVoice.openSettings', 'workbench.action.chat.configureVoiceInstructions'],
 			});
 	});
 

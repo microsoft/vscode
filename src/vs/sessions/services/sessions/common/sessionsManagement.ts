@@ -36,8 +36,14 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	readonly background?: boolean;
 }
 
+export interface IDeferredNewSessionRequestOptions {
+	readonly kind: 'deferred';
+	readonly activity: string;
+	resolve(): Promise<ISendRequestOptions>;
+}
+
 /** Request options, optionally prepared alongside provisional session configuration. */
-export type NewSessionRequestOptions = ISendRequestOptions | (() => Promise<ISendRequestOptions>);
+export type NewSessionRequestOptions = ISendRequestOptions | IDeferredNewSessionRequestOptions;
 
 /**
  * A (provider, session-type) pair returned by

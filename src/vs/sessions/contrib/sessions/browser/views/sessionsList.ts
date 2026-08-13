@@ -370,6 +370,7 @@ export interface ISessionCIFixModel {
 class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-inset-row';
 
 	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
@@ -583,7 +584,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
-			const completedStateIcon = gitHubInfo?.pullRequest?.icon;
+			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
@@ -642,7 +643,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// chats show their chat icon on the status icon instead (see above).
 			if (sessionStatus !== SessionStatus.InProgress) {
 				const kind = getSessionWorkspaceKind(workspace, element.worktreePending?.read(reader));
-				const icon = kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact;
+				const icon = workspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -899,15 +900,28 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
+		const automationSessions = this.automationSessions.read(reader);
+
+		// NeedsInput takes priority: any running automation whose session is waiting for input.
+		const hasNeedsInput = runs.some(run => {
+			if (run.status !== 'running' || !run.sessionResource) {
+				return false;
+			}
+			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, run.sessionResource));
+			return !!session && session.status.read(reader) === SessionStatus.NeedsInput;
+		});
+		if (hasNeedsInput) {
+			return SessionStatus.NeedsInput;
+		}
+
 		if (runs.some(run => run.status === 'pending' || run.status === 'running')) {
 			return SessionStatus.InProgress;
 		}
-		const automationSessions = this.automationSessions.read(reader);
 		const hasUnreadRun = runs.some(run => {
 			if ((run.status !== 'completed' && run.status !== 'failed') || !run.sessionResource) {
 				return false;
 			}
-			const sessionResource = URI.parse(run.sessionResource);
+			const sessionResource = run.sessionResource;
 			const session = automationSessions.find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, sessionResource));
 			return !!session && !session.isRead.read(reader);
 		});
@@ -983,7 +997,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.statusIndicator));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
-				if (automationStatus === SessionStatus.InProgress) {
+				if (automationStatus === SessionStatus.NeedsInput) {
+					template.statusIndicator.style.display = '';
+					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
+				} else if (automationStatus === SessionStatus.InProgress) {
 					template.statusIndicator.style.display = '';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
@@ -1235,6 +1252,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, HTMLElement> {
 	static readonly TEMPLATE_ID = 'session-show-more';
 	readonly templateId = SessionShowMoreRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'session-list-inset-row';
 
 	renderTemplate(container: HTMLElement): HTMLElement {
 		container.classList.add('session-show-more');
@@ -1321,6 +1339,8 @@ class SessionsAccessibilityProvider {
 				return this.automationStatus
 					? derived(this, reader => {
 						switch (this.automationStatus?.read(reader)) {
+							case SessionStatus.NeedsInput:
+								return localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
 							case SessionStatus.InProgress:
 								return localize('automationsActiveAria', "{0}, run in progress", element.label);
 							case SessionStatus.Completed:
@@ -2265,7 +2285,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const activeSession = this._sessionsService.activeSession.get();
 
 		// Filter by session type and status
-		let filtered = this.sessions;
+		let filtered = this.sessions.filter(session => !isAutomationSession(session));
 		const hostFilter = this._agentHostFilterService.selectedProviderId;
 		if (hostFilter !== undefined) {
 			filtered = filtered.filter(s => s.providerId === hostFilter);
@@ -2283,10 +2303,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !s.isRead.get());
 		}
 
-		// Always include the active session even if it was filtered out,
-		// so it remains visible while selected
+		// Keep the active user-facing session visible even when another filter excludes it.
 		if (activeSession && !filtered.some(s => s.sessionId === activeSession.sessionId)) {
-			const match = this.sessions.find(s => s.sessionId === activeSession.sessionId);
+			const match = this.sessions.find(s => s.sessionId === activeSession.sessionId && !isAutomationSession(s));
 			if (match) {
 				filtered = [...filtered, match];
 			}
@@ -2931,7 +2950,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionHasPullRequestContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest],
 		];
 
-		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
+		const disposables = new DisposableStore();
+		const menu = disposables.add(this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay)));
 
 		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession[].
 		const marshalledArg = {
@@ -2943,23 +2963,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!(action instanceof MenuItemAction) || !action.item.source) {
 				return action;
 			}
-			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			const wrapped = disposables.add(new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg)));
 			wrapped.tooltip = action.tooltip;
 			wrapped.checked = action.checked;
 			return wrapped;
 		};
 
+		const baseActions = Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions)));
+		const groupActions = this.getGroupSessionActions(selectedSessions, disposables);
+		const actions = groupActions.length > 0 ? [...baseActions, new Separator(), ...groupActions] : baseActions;
+		if (actions.length === 0) {
+			disposables.dispose();
+			return;
+		}
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => {
-				const base = Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions)));
-				const groupActions = this.getGroupSessionActions(selectedSessions);
-				return groupActions.length > 0 ? [...base, new Separator(), ...groupActions] : base;
-			},
+			getActions: () => actions,
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
+			onHide: () => disposables.dispose(),
 		});
-
-		menu.dispose();
 	}
 
 	/**
@@ -2967,38 +2990,38 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * "Create Group", an "Add to Group"/"Move to Group" submenu listing the
 	 * groups in display order, and "Remove from Group" when applicable.
 	 */
-	private getGroupSessionActions(selected: ISession[]): IAction[] {
+	private getGroupSessionActions(selected: ISession[], disposables: DisposableStore): IAction[] {
 		const actions: IAction[] = [];
 		if (selected.some(session => session.isArchived.get())) {
 			return actions;
 		}
 
-		actions.push(this.getCreateGroupAction(selected));
+		actions.push(disposables.add(this.getCreateGroupAction(selected)));
 
 		const currentGroupIds = new Set(selected.map(s => this._sessionGroupsService.getGroupOfSession(s.sessionId)));
 		const currentGroupId = currentGroupIds.size === 1 ? [...currentGroupIds][0] : undefined;
 
 		const targetGroups = this.getGroupsInDisplayOrder().filter(g => g.id !== currentGroupId);
 		if (targetGroups.length > 0) {
-			const subActions = targetGroups.map(g => new Action(`sessions.addToGroup.${g.id}`, g.name, undefined, true, async () => {
+			const subActions = targetGroups.map(g => disposables.add(new Action(`sessions.addToGroup.${g.id}`, g.name, undefined, true, async () => {
 				this.addSessionsToGroup(selected, g.id);
-			}));
+			})));
 			const label = currentGroupId !== undefined ? localize('moveToGroupAction', "Move to Group") : localize('addToGroupAction', "Add to Group");
 			actions.push(new SubmenuAction('sessions.addToGroupSubmenu', label, subActions));
 		}
 
 		if (currentGroupId !== undefined) {
-			actions.push(new Action('sessions.removeFromGroup', localize('removeFromGroupAction', "Remove from Group"), undefined, true, async () => {
+			actions.push(disposables.add(new Action('sessions.removeFromGroup', localize('removeFromGroupAction', "Remove from Group"), undefined, true, async () => {
 				for (const session of selected) {
 					this._sessionGroupsService.removeFromGroup(session.sessionId);
 				}
-			}));
+			})));
 		}
 
 		return actions;
 	}
 
-	private getCreateGroupAction(sessions?: ISession[]): IAction {
+	private getCreateGroupAction(sessions?: ISession[]): Action {
 		return new Action('sessions.createGroup', localize('createGroupAction', "Create Group"), undefined, true, async () => {
 			if (sessions) {
 				this.createGroupFromSessions(sessions);
@@ -3009,26 +3032,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private showCreateGroupContextMenu(anchor: ITreeContextMenuEvent<SessionListItem | null>['anchor']): void {
+		const disposables = new DisposableStore();
 		this.contextMenuService.showContextMenu({
-			getActions: () => [this.getCreateGroupAction()],
+			getActions: () => [disposables.add(this.getCreateGroupAction())],
 			getAnchor: () => anchor,
+			onHide: () => disposables.dispose(),
 		});
 	}
 
 	private showGroupContextMenu(groupItem: ISessionGroupItem, anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		const disposables = new DisposableStore();
 		const actions: IAction[] = [
-			this.getCreateGroupAction(),
+			disposables.add(this.getCreateGroupAction()),
 			new Separator(),
-			new Action('sessions.renameGroupAction', localize('renameGroupAction', "Rename..."), undefined, true, async () => {
+			disposables.add(new Action('sessions.renameGroupAction', localize('renameGroupAction', "Rename..."), undefined, true, async () => {
 				this.beginRenameGroup(groupItem.group.id);
-			}),
-			new Action('sessions.deleteGroupAction', localize('deleteGroupAction', "Delete Group"), undefined, true, async () => {
+			})),
+			disposables.add(new Action('sessions.deleteGroupAction', localize('deleteGroupAction', "Delete Group"), undefined, true, async () => {
 				this._sessionGroupsService.deleteGroup(groupItem.group.id);
-			}),
+			})),
 		];
 		this.contextMenuService.showContextMenu({
 			getActions: () => actions,
 			getAnchor: () => anchor,
+			onHide: () => disposables.dispose(),
 		});
 	}
 
@@ -3435,6 +3462,11 @@ export function isQuickChatSession(session: ISession): boolean {
 	return session.isQuickChat?.get() ?? false;
 }
 
+/** Whether a session is associated with an automation run. */
+export function isAutomationSession(session: ISession): boolean {
+	return session.isAutomation?.get() ?? false;
+}
+
 export function groupSessionsForList(
 	sessions: ISession[],
 	grouping: SessionsGrouping,
@@ -3443,7 +3475,7 @@ export function groupSessionsForList(
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
 ): ISessionSection[] {
-	const sorted = sortSessions(sessions, sorting, getSortKey);
+	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
 
 	// Archived wins over pinned (done sessions stay grouped); pinned wins over the
 	// quick-chats bucket so a pinned quick chat still surfaces in Pinned.
