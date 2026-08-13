@@ -70,6 +70,9 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 /** Configuration key controlling automatic OS system proxy discovery for agent-host Copilot sessions. */
 export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.enabled';
 
+/** Configuration key gating active-agent session and chat title generation. */
+export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
  * agent-host provider. When `true`, the Copilot provider advertises the
@@ -117,8 +120,8 @@ export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgen
 export const AgentHostAllowSignedOutWhenUsableSettingId = 'chat.agentHost.allowSignedOutWhenUsable';
 
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
-// `reasoningEffortOverride`, `modelCapabilityOverrides`) live with their
-// root-config keys in `copilotCliConfig.ts`.
+// `modelCapabilityOverrides`) live with their root-config keys in
+// `copilotCliConfig.ts`.
 
 /**
  * Configuration key controlling whether the Claude provider is registered in
@@ -218,20 +221,31 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 /**
  * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
  * shell tool (the path taken when `AgentHostCustomTerminalToolEnabledSettingId`
- * is `false`). Values mirror {@link AgentSandboxEnabledValue}:
+ * is `false`). Supported values are:
  *
  *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
  *    path \u2014 commands run unsandboxed.
  *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
  *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
- *    Outbound network is enforced via the user's allow/deny host lists.
- *  - `'allowNetwork'`: same as `'on'` but with unrestricted outbound network.
+ *    Outbound network is blocked.
+ *
+ * Unrestricted outbound network is controlled separately by
+ * `chat.agent.sandbox.allowNetwork`.
  *
  * Has no effect when `AgentHostCustomTerminalToolEnabledSettingId` is
  * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
  * commands and reads `chat.agent.sandbox.enabled` directly.
  */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
+
+/**
+ * Configuration key that controls the sandbox mode for the Copilot SDK's
+ * built-in shell tool on Windows. This is independent of
+ * {@link AgentHostSdkSandboxEnabledSettingId} so Windows support can be rolled
+ * out separately. Supported values are `'off'` and `'on'`; the default is
+ * `'off'`.
+ */
+export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
 
 /**
  * Selects whether the regular workbench surfaces Codex from the agent host

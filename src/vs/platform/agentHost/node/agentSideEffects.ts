@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import type { SessionMode } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
@@ -81,7 +81,7 @@ import { SessionPermissionManager } from './sessionPermissions.js';
 import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
-import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -235,6 +235,15 @@ export class AgentSideEffects extends Disposable {
 		this._toolCallTracker = this._register(new AgentHostToolCallTracker(this._telemetryReporter));
 		this._inputRequestTracker = new AgentHostInputRequestTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
+		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
+			sessionDataService: this._options.sessionDataService,
+			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			getGitHubToken: this._options.getGitHubToken,
+			getGitHubHost: this._options.getGitHubHost,
+			octoKitService: this._options.octoKitService,
+			copilotApiService: this._options.copilotApiService,
+			isActiveAgentTitleGenerationEnabled: () => this._agentConfigService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
+		}));
 		this._localCommands = this._register(instantiationService.createInstance(
 			AgentHostLocalCommands,
 			this._stateManager,
@@ -243,15 +252,8 @@ export class AgentSideEffects extends Disposable {
 			// which is this class's responsibility, so the dispatcher hands the
 			// turn back here once it has completed a host-handled command.
 			(turnChannel: ProtocolURI) => this._tryConsumeNextQueuedMessage(turnChannel),
+			(session: ProtocolURI, chat?: ProtocolURI) => this._titleController.markTitleRenamed(session, chat),
 		));
-		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
-			sessionDataService: this._options.sessionDataService,
-			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
-			getGitHubToken: this._options.getGitHubToken,
-			getGitHubHost: this._options.getGitHubHost,
-			octoKitService: this._options.octoKitService,
-			copilotApiService: this._options.copilotApiService,
-		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
 			const currentMode = getConfiguredSessionMode(e.current);
@@ -686,8 +688,13 @@ export class AgentSideEffects extends Disposable {
 				this._publishSessionCustomizationsForAgent(agent);
 			}));
 		}
-		if (agent.onDidRequireAuth) {
-			disposables.add(agent.onDidRequireAuth(e => this._stateManager.emitAuthRequired(e)));
+		if (agent.authenticationRequired) {
+			disposables.add(autorun(reader => {
+				const requirement = agent.authenticationRequired?.read(reader);
+				if (requirement) {
+					this._stateManager.emitAuthRequired(requirement);
+				}
+			}));
 		}
 		return disposables;
 	}
@@ -1466,7 +1473,7 @@ export class AgentSideEffects extends Disposable {
 					return;
 				}
 				const attachments = action.message.attachments;
-				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, state, 'direct', attachments);
+				this._telemetryReporter.userMessageSent(agent.id, clientId, clientContext, channel, action.turnId, state, 'direct', attachments);
 				const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, state, action.message.model?.id);
 				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
 				void this._sendTurnMessage({
@@ -1552,10 +1559,14 @@ export class AgentSideEffects extends Disposable {
 					// not the whole session. Route it to a per-chat title update so
 					// the session title stays independent.
 					this._stateManager.updateChatTitle(sessionChannel, chatChannel, action.title);
-					this._persistSessionFlag(sessionChannel, `customChatTitle:${chatChannel}`, action.title);
+					this._persistSessionFlag(sessionChannel, customChatTitleMetadataKey(chatChannel), action.title);
+					this._persistSessionFlag(sessionChannel, customChatTitleSourceMetadataKey(chatChannel), AGENT_HOST_TITLE_SOURCE_USER);
+					this._titleController.markTitleRenamed(sessionChannel, chatChannel);
 					break;
 				}
-				this._persistSessionFlag(channel, 'customTitle', action.title);
+				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, action.title);
+				this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_USER);
+				this._titleController.markTitleRenamed(channel);
 				break;
 			}
 			case ActionType.ChatPendingMessageSet: {
@@ -1710,6 +1721,10 @@ export class AgentSideEffects extends Disposable {
 		this._titleController.cancelTitleGeneration(session);
 	}
 
+	clearSessionTitleState(session: ProtocolURI, chats: readonly ProtocolURI[]): void {
+		this._titleController.clearSession(session, chats);
+	}
+
 	clearQueuedMessageSenders(chat: ProtocolURI): void {
 		this._queuedMessageSenders.deleteAll(chat);
 	}
@@ -1721,6 +1736,14 @@ export class AgentSideEffects extends Disposable {
 	 */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
 		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle);
+	}
+
+	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {
+		this._titleController.markTitleAuto(channel, chatChannel, title);
+	}
+
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
+		this._titleController.markTitleRenamed(channel, chatChannel);
 	}
 
 	/**
@@ -1897,7 +1920,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		const attachments = msg.message.attachments;
 		const queuedState = this._stateManager.getSessionState(session);
-		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, queuedState, 'queued', attachments);
+		this._telemetryReporter.userMessageSent(agent.id, sender.clientId, sender.clientContext, session, turnId, queuedState, 'queued', attachments);
 		const { model, modelTelemetryKind, permissionLevel, interactionMode } = this._getTurnTelemetryContext(agent, queuedState, msg.message.model?.id);
 		this._turnTracker.turnStarted(agent.id, session, turnId, model, modelTelemetryKind, permissionLevel, interactionMode);
 		// Selection travels on the queued message; it is applied before sending.
@@ -2012,13 +2035,15 @@ export class AgentSideEffects extends Disposable {
 
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
+			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
+			const sendContext = renameInstruction ? { ...chatContext, hostInstructions: [renameInstruction] } : chatContext;
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId);
 				return;
 			}
-			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, chatContext);
+			await agent.chats.sendMessage(chatUri, message.text, resolvedWorkingDirectories, resolvedAttachments, turnId, senderClientId, clientType, sendContext);
 		} catch (err) {
 			const failure = buildTurnFailure(failureStage, err);
 			const error = failure.error;
