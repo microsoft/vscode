@@ -157,12 +157,13 @@
 	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size60) !important;
 }
 
-.modern-ui-tabs .part.editor .tabs-container > .tab.dirty:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off.dirty-border-top),
+/* Reserve the overlay column so close/pin/dirty never covers the filename (https://github.com/microsoft/vscode/issues/329605) */
+.modern-ui-tabs .part.editor .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky:not(.sticky-compact):not(.pinned-action-off):not(.tab-actions-left) {
 	padding-right: var(--vscode-spacing-size280) !important;
 }
 
-.modern-ui-tabs .part.editor .tabs-container > .tab.dirty.tab-actions-left:not(.sticky-compact),
+.modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
 	padding-left: var(--vscode-spacing-size240) !important;
 	padding-right: var(--vscode-spacing-size80) !important;
@@ -304,11 +305,7 @@
 	display: none;
 }
 
-/*
- * Overlay tab actions on the label instead of reserving a trailing/leading
- * column. The action surface inherits the tab background while revealed so
- * label text and icons beneath it do not compete with the action glyph.
- */
+/* Overlay tab actions in the reserved trailing/leading column */
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions {
 	position: absolute;
 	z-index: 7;
