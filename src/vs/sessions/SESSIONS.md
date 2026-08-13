@@ -570,6 +570,10 @@ The editor feedback toolbar's visual widget is shared with workbench plan review
 through `AgentEditorCommentsOverlayWidget`. Each host keeps its own menu actions
 and state adapter, while the toolbar layout, count presentation, action rendering,
 keyboard labels, and styling have one workbench-owned implementation.
+In the Agents window, **Ctrl/Cmd+Enter** submits feedback only while editor text
+has focus and the focused editor group's active file or diff contains accepted
+feedback. Multi-diff panes may qualify through any of their resources, while the
+submission itself remains session-scoped.
 Plan review binds the plan resource to its owning session while that review is
 active. Only accepted comments created after the active review registration are
 included in plan submission, so pre-existing or already-submitted session feedback
