@@ -22,7 +22,7 @@ import { ARTIFACT_TOOLS_INSTRUCTION } from './shared/artifactServerTools.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type IAgentModelCallCompletedSignal } from '../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentClientToolInvokedSignal, type IAgentModelCallCompletedSignal, IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { createTerminalChatInstruction } from '../common/meta/agentChatSurfaceMeta.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 
@@ -31,7 +31,7 @@ import { ISessionDatabase, ISessionDataService } from '../common/sessionDataServ
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
+import { type AgentInfo, type Customization, type SessionActiveClient, type SessionInputRequest, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -954,6 +954,43 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
+	 * The runtime invoked a client tool whose call never streamed — an SDK
+	 * resume replaying a transcript-dangling `tool_use` emits no assistant
+	 * events, so no client execution was ever requested and the runtime would
+	 * wait forever. Synthesize the start/ready pair the stream would have
+	 * produced; a call that did stream already has protocol state and is left
+	 * alone.
+	 */
+	private _handleClientToolInvoked(signal: IAgentClientToolInvokedSignal, sessionKey: ProtocolURI, turnId: string): void {
+		if (this._findToolCall(sessionKey, turnId, signal.toolCallId)) {
+			return;
+		}
+		const sessionUri = parseRequiredSessionUriFromChatUri(sessionKey);
+		const owner = this._stateManager.getSessionState(sessionUri)?.activeClients.find(client => client.tools.some(tool => tool.name === signal.toolName));
+		if (!owner) {
+			this._logService.warn(`[AgentSideEffects] No active client provides replayed tool ${signal.toolName}; cannot execute ${signal.toolCallId}`);
+			return;
+		}
+		this._logService.info(`[AgentSideEffects] Requesting client execution for replayed tool call ${signal.toolCallId} (${signal.toolName})`);
+		this._stateManager.dispatchServerAction(sessionKey, {
+			type: ActionType.ChatToolCallStart,
+			turnId,
+			toolCallId: signal.toolCallId,
+			toolName: signal.toolName,
+			displayName: signal.toolName,
+			contributor: { kind: ToolCallContributorKind.Client, clientId: owner.clientId },
+		});
+		this._stateManager.dispatchServerAction(sessionKey, {
+			type: ActionType.ChatToolCallReady,
+			turnId,
+			toolCallId: signal.toolCallId,
+			invocationMessage: signal.toolName,
+			toolInput: signal.toolInput,
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+	}
+
+	/**
 	 * Dispatches a signal to a resolved chat, preserving top-level turn identity or remapping cross-channel subagent actions.
 	 */
 	private _dispatchActionForSession(signal: AgentSignal, sessionKey: ProtocolURI, turnId: string, turnIdRouting: AgentSignalTurnIdRouting, agent?: IAgent): void {
@@ -963,6 +1000,10 @@ export class AgentSideEffects extends Disposable {
 					this._logService.error('[AgentSideEffects] _handleToolReady failed', err);
 				});
 			}
+			return;
+		}
+		if (signal.kind === 'client_tool_invoked') {
+			this._handleClientToolInvoked(signal, sessionKey, turnId);
 			return;
 		}
 		if (signal.kind !== 'action') {
