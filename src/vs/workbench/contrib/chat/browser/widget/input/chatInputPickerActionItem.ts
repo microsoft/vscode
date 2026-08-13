@@ -52,7 +52,7 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		const listOptionsProvider = actionWidgetOptions.listOptionsProvider;
+		const listOptionsProvider = actionWidgetOptions.listOptions === undefined ? actionWidgetOptions.listOptionsProvider : undefined;
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
