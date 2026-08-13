@@ -186,6 +186,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly onDidPerformUserAction = Event.None;
 				override readonly onDidSubmitRequest = Event.None;
 				override readonly requestInProgressObs = observableValue('requestInProgress', false);
+				override hasSessions() { return false; }
 			}());
 			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
 				override readonly onDidChangeAgents = Event.None;

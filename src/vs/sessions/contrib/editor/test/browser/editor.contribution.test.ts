@@ -31,7 +31,7 @@ import { ISessionChangesService } from '../../../changes/browser/sessionChangesS
 import { NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
-import { SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, SessionIsCreatedContext, SinglePaneChangesTabAvailableContext, SinglePaneChangesTabMissingContext, SinglePaneFilesTabAvailableContext, SinglePaneFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import '../../browser/editor.contribution.js';
@@ -140,10 +140,12 @@ suite('Sessions - Editor Contribution', () => {
 			files: scenarios(SinglePaneFilesTabAvailableContext.key, SinglePaneFilesTabMissingContext.key),
 			changes: scenarios(SinglePaneChangesTabAvailableContext.key, SinglePaneChangesTabMissingContext.key),
 			searchInDockOnly: evaluate(getWhen(new NewSearchTabAction()), baseContext),
+			searchInQuickChat: evaluate(getWhen(new NewSearchTabAction()), { ...baseContext, [IsQuickChatSessionContext.key]: true }),
 		}, {
 			files: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
 			changes: { singleTabAlreadyOpen: true, multipleTabsAlreadyOpen: false, multipleTabsMissing: true, dockOnlyMissing: true, unsupported: false },
 			searchInDockOnly: true,
+			searchInQuickChat: false,
 		});
 	});
 
@@ -163,6 +165,33 @@ suite('Sessions - Editor Contribution', () => {
 			preconditionHasAvailability: true,
 			keybindingHasCreated: true,
 			keybindingHasAvailability: true,
+		});
+	});
+
+	test('new search tab action is unavailable for Quick Chats', () => {
+		const action = new NewSearchTabAction();
+		const keybinding = Array.isArray(action.desc.keybinding) ? action.desc.keybinding[0] : action.desc.keybinding;
+		const evaluate = (expression: ContextKeyExpression | null | undefined, isQuickChat: boolean): boolean => {
+			const values: Record<string, ContextKeyValue> = {
+				[IsSessionsWindowContext.key]: true,
+				[IsAuxiliaryWindowContext.key]: false,
+				[IsQuickChatSessionContext.key]: isQuickChat,
+			};
+			return expression?.evaluate({
+				getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined
+			} satisfies IContext) ?? false;
+		};
+
+		assert.deepStrictEqual({
+			preconditionInQuickChat: evaluate(action.desc.precondition, true),
+			keybindingInQuickChat: evaluate(keybinding?.when, true),
+			preconditionInWorkspaceSession: evaluate(action.desc.precondition, false),
+			keybindingInWorkspaceSession: evaluate(keybinding?.when, false),
+		}, {
+			preconditionInQuickChat: false,
+			keybindingInQuickChat: false,
+			preconditionInWorkspaceSession: true,
+			keybindingInWorkspaceSession: true,
 		});
 	});
 

@@ -67,6 +67,7 @@ export interface IChangesViewService {
 	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
 
 	setChangesetId(changesetId: string | undefined): void;
+	showChangeset(changeset: ISessionChangeset): void;
 
 	readonly viewModeObs: IObservable<ChangesViewMode>;
 	setViewMode(mode: ChangesViewMode): void;

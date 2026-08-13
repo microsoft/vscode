@@ -132,6 +132,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	setDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode, _state: IChangesDetailsViewState): void { }
 
 	setChangesetId(_changesetId: string | undefined): void { }
+	showChangeset(_changeset: ISessionChangeset): void { }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
 

@@ -506,6 +506,13 @@ interface ICodexSession {
 	 */
 	startTime: number;
 	modifiedTime: number;
+	/**
+	 * Last summary read from the backing Codex thread. A cold metadata lookup
+	 * hydrates a live runtime, and every later lookup must preserve that title
+	 * while answering from memory; dropping it makes Agent Host replace an
+	 * existing session title with its generic "Session" fallback.
+	 */
+	summary: string | undefined;
 	/** Concrete host chat URI once bound; undefined only for direct create/fork before AH binds it. */
 	chatChannel: URI | undefined;
 	/**
@@ -2622,6 +2629,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionUri: parent.sessionUri,
 			startTime: parent.startTime,
 			modifiedTime: parent.modifiedTime,
+			summary: parent.summary,
 			chatChannel: parent.chatChannel,
 			workingDirectory: parent.workingDirectory,
 			workingDirectories: parent.workingDirectories,
@@ -3494,6 +3502,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionUri: AgentSession.uri(this.id, sessionId),
 			startTime: now,
 			modifiedTime: now,
+			summary: undefined,
 			chatChannel: target.resource,
 			workingDirectory: options?.workingDirectories?.[0],
 			workingDirectories,
@@ -3729,6 +3738,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			sessionUri: AgentSession.uri(this.id, sessionId),
 			startTime: now,
 			modifiedTime: now,
+			summary: undefined,
 			chatChannel: target?.resource,
 			workingDirectory: effectiveWorkingDirectories?.[0] ?? workingDirectory,
 			workingDirectories: effectiveWorkingDirectories,
@@ -5009,6 +5019,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				chat,
 				startTime: live.startTime,
 				modifiedTime: live.modifiedTime,
+				summary: live.summary,
 				workingDirectories: live.workingDirectories ?? (live.workingDirectory ? [live.workingDirectory] : undefined),
 			};
 		}
@@ -5040,6 +5051,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// keeps the construction time rather than falling back to 1970.
 			restored.startTime = metadata.startTime || restored.startTime;
 			restored.modifiedTime = metadata.modifiedTime || restored.modifiedTime;
+			restored.summary = metadata.summary;
 			// Require our own recorded explicit path to positively corroborate
 			// the app-server's ground-truth cwd before adopting it as managed:
 			// `read.thread.cwd` is authoritative for "what is this thread's
