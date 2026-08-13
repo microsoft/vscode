@@ -15,7 +15,7 @@ import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../../../common/serverToolNames.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
-import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type StateAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
 	buildDefaultChatUri,
 	ROOT_STATE_URI,
@@ -677,7 +677,6 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			.find(agent => agent.provider === config.provider)
 			?.models.find(model => model.id === 'claude-opus-4.6');
 		assert.ok(model);
-		const before = new Set((await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI })).items.map(item => item.resource));
 		context.client.clearReceived();
 		const { turn } = await driveServerTool(
 			session,
@@ -685,9 +684,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			`Call create_session exactly once with workspace "${session.workspace}", prompt "${childPrompt}", and model "${model.id}", then reply exactly "created".`,
 			SessionServerToolName.CreateSession,
 		);
-		const after = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		const child = after.items.find(item => !before.has(item.resource));
-		assert.ok(child);
+		const childAdded = await context.client.waitForNotification(notification => {
+			if (notification.method !== NotificationType.SessionAdded) {
+				return false;
+			}
+			const summary = (notification.params as SessionAddedParams).summary;
+			return summary.resource !== session.sessionUri && summary.provider === model.provider;
+		}, 30_000);
+		const child = (childAdded.params as SessionAddedParams).summary;
 		createdSessions.push(child.resource);
 		const childRequest = await retry(async () => {
 			const requests = context.observedModelRequestBodies

@@ -1338,6 +1338,26 @@ suite('CodexAgent chat backing durability', () => {
 		}
 	}
 
+	test('materializeChat rejects missing peer and corrupt default providerData', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'invalid-backing');
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+
+		const missingPeer = await agent.materializeChat(peer, { configurationResource: session, resource: peer }, undefined);
+		const corruptDefault = await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, '{');
+
+		assert.deepStrictEqual({
+			missingPeer,
+			corruptDefault,
+			sessions: [...agent['_sessions'].keys()],
+		}, {
+			missingPeer: undefined,
+			corruptDefault: undefined,
+			sessions: [],
+		});
+	});
+
 	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {
 		const sessionStore = createTestSessionStore();
 		const session = AgentSession.uri('codex', 'host-session');

@@ -288,7 +288,7 @@ pub async fn serve(
 		});
 	}
 
-	machine_status::emit_connected(&tunnel.name, false, !agent_host_only);
+	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, !agent_host_only);
 
 	loop {
 		tokio::select! {

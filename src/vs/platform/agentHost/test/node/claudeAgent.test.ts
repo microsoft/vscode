@@ -46,7 +46,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -136,6 +136,10 @@ function defaultChatUri(session: URI): URI {
 /** Recovers the owning session id from a {@link IAgentChatMetadata.chat} default-chat URI. */
 function sessionIdOfChat(chat: URI): string {
 	return AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat)));
+}
+
+function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata[] | undefined> {
+	return (agent as unknown as { _listClaudeCodeChats(): Promise<IAgentChatMetadata[] | undefined> })._listClaudeCodeChats();
 }
 
 /**
@@ -497,12 +501,17 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return this.canLoadWithoutDownloadResult;
 	}
 
+	ensureAvailableForDiscoveryCalls = 0;
+	async ensureAvailableForDiscovery(): Promise<void> {
+		this.ensureAvailableForDiscoveryCalls++;
+	}
+
 	/**
 	 * Programmable result for {@link canLoadWithoutDownload}. Defaults to
 	 * `true` (SDK already local). Set to `false` to simulate the cold-start
 	 * case where the SDK isn't downloaded yet — restore-reachable reads
-	 * ({@link listSessions}, {@link getSessionInfo} via `getChatMetadata`,
-	 * {@link getSessionMessages}) MUST defer rather than trigger a download.
+	 * ({@link getSessionInfo} via `getChatMetadata`, {@link getSessionMessages})
+	 * MUST defer rather than trigger a download.
 	 */
 	canLoadWithoutDownloadResult = true;
 
@@ -4760,7 +4769,7 @@ suite('ClaudeAgent', () => {
 		}];
 
 		await disposeSession(agent, created.session);
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
 		assert.ok(result);
 
 		assert.deepStrictEqual({
@@ -4788,20 +4797,33 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual({ a, b, distinct: a !== b }, { a: [], b: [], distinct: true });
 	});
 
-	test('legacy discovery returns SDK entries decorated with the per-session DB overlay', async () => {
+	test('native catalog returns every SDK entry while migration returns known sessions', async () => {
 		// Plan section 3.3.2: the SDK is the source of truth; the per-session DB
 		// is a pure overlay/cache. We seed two SDK entries and a single
 		// DB carrying `claude.customizationDirectory` for entry 'a'. The
 		// result must include both entries; the overlay value must
 		// surface only on the entry that has a DB.
 		const dbA = new TestSessionDatabase();
+		const dbB = new TestSessionDatabase();
+		const dbC = new TestSessionDatabase();
 		await dbA.setMetadata('claude.customizationDirectory', URI.file('/foo').toString());
+		await dbA.setMetadata('agentHost.workspaceless', 'false');
 
 		const sessionData: ISessionDataService = {
 			...createNullSessionDataService(),
+			openDatabase: session => ({
+				object: AgentSession.id(session) === 'a' ? dbA : AgentSession.id(session) === 'b' ? dbB : dbC,
+				dispose: () => { /* no-op */ },
+			}),
 			tryOpenDatabase: async session => {
 				if (AgentSession.id(session) === 'a') {
 					return { object: dbA, dispose: () => { /* no-op */ } };
+				}
+				if (AgentSession.id(session) === 'b') {
+					return { object: dbB, dispose: () => { /* no-op */ } };
+				}
+				if (AgentSession.id(session) === 'c') {
+					return { object: dbC, dispose: () => { /* no-op */ } };
 				}
 				return undefined;
 			},
@@ -4810,6 +4832,7 @@ suite('ClaudeAgent', () => {
 		sdk.sessionList = [
 			{ sessionId: 'a', summary: 'Session A', lastModified: 1000, createdAt: 900 },
 			{ sessionId: 'b', summary: 'Session B', lastModified: 2000, createdAt: 1900 },
+			{ sessionId: 'c', summary: 'Session C', lastModified: 3000, createdAt: 2900 },
 		];
 
 		const services = new ServiceCollection(
@@ -4825,9 +4848,12 @@ suite('ClaudeAgent', () => {
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+		await agent.materializeChat(defaultChatUri(AgentSession.uri('claude', 'b')), chatContext(defaultChatUri(AgentSession.uri('claude', 'b'))), undefined);
 
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
+		const chatsToMigrate = await agent.listChatsToMigrate();
 		assert.ok(result);
+		assert.ok(chatsToMigrate);
 		const a = result.find(r => sessionIdOfChat(r.chat) === 'a');
 		const b = result.find(r => sessionIdOfChat(r.chat) === 'b');
 		assert.deepStrictEqual({
@@ -4838,18 +4864,49 @@ suite('ClaudeAgent', () => {
 			modifiedA: a?.modifiedTime,
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
+			migrationChats: chatsToMigrate.map(r => sessionIdOfChat(r.chat)),
 		}, {
-			count: 2,
-			ids: ['a', 'b'],
+			count: 3,
+			ids: ['a', 'b', 'c'],
 			summaryA: 'Session A',
 			summaryB: 'Session B',
 			modifiedA: 1000,
 			modifiedB: 2000,
-			sdkCalls: 1,
+			sdkCalls: 2,
+			migrationChats: ['a'],
 		});
 	});
 
-	test('legacy discovery tolerates a corrupt DB without poisoning the rest of the listing', async () => {
+	test('native discovery emits only unknown Claude Code chats as external', async () => {
+		const knownInternal = AgentSession.uri('claude', 'known-internal');
+		const knownExternal = AgentSession.uri('claude', 'known-external');
+		const unknownExternal = AgentSession.uri('claude', 'unknown-external');
+		const chats = [
+			{ chat: defaultChatUri(knownInternal), startTime: 1, modifiedTime: 2 },
+			{ chat: defaultChatUri(knownExternal), startTime: 3, modifiedTime: 4 },
+			{ chat: defaultChatUri(unknownExternal), startTime: 5, modifiedTime: 6 },
+		];
+		const emitted: unknown[] = [];
+		const emitClaudeCodeChats = (ClaudeAgent.prototype as unknown as {
+			_emitClaudeCodeChats(this: {
+				_listClaudeCodeChats(): Promise<typeof chats>;
+				_isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean>;
+				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
+				_logService: { warn(message: string): void };
+			}): Promise<void>;
+		})._emitClaudeCodeChats;
+
+		await emitClaudeCodeChats.call({
+			_listClaudeCodeChats: async () => chats,
+			_isKnownClaudeCodeChat: async chat => sessionIdOfChat(chat.chat) !== 'unknown-external',
+			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
+			_logService: { warn: () => { } },
+		});
+
+		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
+	});
+
+	test('external chat discovery tolerates a corrupt DB without poisoning the rest of the listing', async () => {
 		// Plan section 3.3.2 risk: a single corrupt per-session DB MUST NOT
 		// drop the other entries from the listing. CopilotAgent's
 		// `Promise.all`-with-throwing-mapper pattern at copilotAgent.ts:519
@@ -4896,7 +4953,7 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
 		assert.ok(result);
 		const find = (id: string) => result.find(r => sessionIdOfChat(r.chat) === id);
 		assert.deepStrictEqual({
@@ -4910,7 +4967,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('legacy discovery returns undefined (cannot enumerate yet) when the SDK fails to load', async () => {
+	test('external chat discovery returns undefined (cannot enumerate yet) when the SDK fails to load', async () => {
 		// Copilot-reviewer comment: `AgentService.listSessions` fans out
 		// across providers via `Promise.all` (agentService.ts:202-204).
 		// If our SDK dynamic import rejects (corrupt install, missing
@@ -4918,8 +4975,8 @@ suite('ClaudeAgent', () => {
 		// session list disappears too \u2014 the sibling Copilot provider
 		// goes blank. Catching here keeps Claude's row from poisoning the
 		// fan-out; `undefined` (not `[]`) signals "can't enumerate yet"
-		// rather than falsely claiming there are no legacy chats, so the
-		// caller retries on the next legacy discovery pass instead of
+		// rather than falsely claiming there are no external chats, so the
+		// caller retries on the next external discovery pass instead of
 		// permanently dropping this provider's chats from migration.
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.listSessionsRejection = new Error('simulated SDK load failure');
@@ -4938,7 +4995,7 @@ suite('ClaudeAgent', () => {
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 
-		const result = await agent.listLegacyChats();
+		const result = await discoverClaudeCodeChats(agent);
 		assert.deepStrictEqual(result, undefined);
 	});
 
@@ -5054,7 +5111,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('restore-reachable SDK reads defer (no download) when the SDK is not yet local (preselection premature-download fix)', async () => {
+	test('restore reads defer while cold discovery requests SDK availability', async () => {
 		// Regression: when a materialized Claude session is restored on
 		// startup (the renderer subscribes to the last-active session), the
 		// host's restore path calls `getChatMetadata` -> `getSessionInfo`
@@ -5062,8 +5119,8 @@ suite('ClaudeAgent', () => {
 		// Before the fix that eagerly triggered a cold SDK download (with no
 		// progress interest registered, so no notification) purely from
 		// preselecting/restoring Claude — the download must only start on the
-		// first user message. Legacy discovery was already guarded; this locks
-		// in the matching guard on the two other restore-reachable reads.
+		// first user message. Discovery is different: it requests background SDK
+		// availability so native chats are retried without a new session.
 		const sdk = new FakeClaudeAgentSdkService();
 		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
@@ -5083,31 +5140,32 @@ suite('ClaudeAgent', () => {
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+		const discoveredChats: number[] = [];
+		disposables.add(agent.onDidDiscoverChats(chats => discoveredChats.push(chats.length)));
 
 		const sessionUri = AgentSession.uri('claude', 'materialized');
 		const chat = defaultChatUri(sessionUri);
 		const metadata = await agent.getChatMetadata(chat, chatContext(chat));
 		await bindDefaultChat(agent, sessionUri);
 		const messages = await agent.chats.getMessages(defaultChatUri(sessionUri), chatContext(defaultChatUri(sessionUri)));
-		const sessions = await agent.listLegacyChats();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			metadata,
 			messages,
-			sessions,
-			// The SDK must never be touched — no `getSessionInfo` /
-			// `getSessionMessages` calls => no dynamic import => no download.
+			// Restore must never touch the SDK. Discovery alone asks the SDK
+			// service to begin availability work.
 			getSessionInfoCalls: sdk.getSessionInfoCalls,
 			getSessionMessagesCalls: sdk.getSessionMessagesCalls,
+			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
+			discoveredChats,
 		}, {
 			metadata: undefined,
 			messages: [],
-			// `undefined`, not `[]`: the SDK isn't local yet so legacy
-			// discovery can't enumerate, and must not falsely claim there
-			// are no legacy chats to migrate.
-			sessions: undefined,
 			getSessionInfoCalls: [],
 			getSessionMessagesCalls: [],
+			availabilityRequests: 1,
+			discoveredChats: [1],
 		});
 	});
 
@@ -10246,6 +10304,22 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 			liveChats: [chatUri.toString()],
 			resume: sessionId,
 			startupCount: 1,
+		});
+	});
+
+	test('materializeChat does not assign the default backing to a peer without providerData', async () => {
+		const { agent } = createTestContext(disposables);
+		const session = AgentSession.uri('claude', 'peer-without-backing');
+		const chat = URI.parse(buildChatUri(session, 'peer'));
+
+		const result = await agent.materializeChat!(chat, { configurationResource: session, resource: chat }, undefined);
+
+		assert.deepStrictEqual({
+			result,
+			backing: (agent as unknown as { _chatBackings: Map<string, unknown> })._chatBackings.get(chat.toString()),
+		}, {
+			result: undefined,
+			backing: undefined,
 		});
 	});
 });
