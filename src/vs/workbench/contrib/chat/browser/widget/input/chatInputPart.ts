@@ -159,7 +159,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.
 import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputState, setChatInputStackSlot } from './chatInputStack.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { ModelPickerActionItem, IModelPickerDelegate, IModelPickerPresentationOptions } from './modelPicker/modelPickerActionItem.js';
@@ -3289,12 +3289,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.inputEditorHasFocus.set(true);
 			this._onDidFocus.fire();
 			inputContainer.classList.toggle('focused', true);
-			setChatInputStackInputState(inputContainer, { focused: true });
+			setChatInputStackInputFocused(inputContainer, true);
 		}));
 		this._register(this._inputEditor.onDidBlurEditorText(() => {
 			this.inputEditorHasFocus.set(false);
 			inputContainer.classList.toggle('focused', false);
-			setChatInputStackInputState(inputContainer, { focused: false });
+			setChatInputStackInputFocused(inputContainer, false);
 
 			this._onDidBlur.fire();
 		}));

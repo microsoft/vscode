@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { chatInputStackClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputState, setChatInputStackSlot } from '../../../../browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, ChatInputStackSlot, refreshChatInputStack, setChatInputStackInputFocused, setChatInputStackInputWorking, setChatInputStackSlot } from '../../../../browser/widget/input/chatInputStack.js';
 
 suite('chat input stack', () => {
 
@@ -147,9 +147,9 @@ suite('chat input stack', () => {
 			{ afterBareRemoval: true, afterStandDown: false });
 	});
 
-	test('the input reports its frame state to the stack, one piece at a time', () => {
-		// Focus and progress are tracked in different places, so reporting one
-		// must not clear the other.
+	test('the input reports focus and progress to the stack independently', () => {
+		// Two bits on one element, written from two different places, so setting
+		// one must not clear the other.
 		const s = stack(Docked);
 		const input = dom.append(s.root, dom.$('.interactive-input-and-side-toolbar', undefined, dom.$('.chat-input-container')));
 		const inner = input.firstElementChild as HTMLElement;
@@ -158,11 +158,11 @@ suite('chat input stack', () => {
 			working: s.root.classList.contains('chat-input-stack-input-working'),
 		});
 
-		setChatInputStackInputState(inner, { focused: true });
+		setChatInputStackInputFocused(inner, true);
 		const focused = state();
-		setChatInputStackInputState(inner, { working: true });
+		setChatInputStackInputWorking(inner, true);
 		const alsoWorking = state();
-		setChatInputStackInputState(inner, { focused: false });
+		setChatInputStackInputFocused(inner, false);
 		const blurred = state();
 
 		assert.deepStrictEqual({ focused, alsoWorking, blurred }, {
@@ -175,6 +175,6 @@ suite('chat input stack', () => {
 	test('an input outside a stack reports nothing', () => {
 		const orphan = dom.$('.chat-input-container');
 
-		assert.doesNotThrow(() => setChatInputStackInputState(orphan, { focused: true }));
+		assert.doesNotThrow(() => setChatInputStackInputFocused(orphan, true));
 	});
 });

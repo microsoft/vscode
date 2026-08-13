@@ -67,28 +67,21 @@ export function isChatInputStackSlotShowing(slot: HTMLElement): boolean {
 }
 
 /**
- * Report what the input's frame is doing, so a surface joined to it can match -
- * a docked notice carries the focus ring across the join.
+ * Report the input's focus to the stack, so a surface docked to it carries the
+ * focus ring across the join.
  *
  * Reported up rather than read back down with `:has()`. The stack contains
  * every surface above the input, and that is where notices, todos and artifacts
  * render, so a selector that inspects the subtree is re-evaluated far more
  * often than this state actually changes.
- *
- * Only the state passed is applied: focus and progress are tracked in different
- * places, and neither knows the other's value.
  */
-export function setChatInputStackInputState(input: HTMLElement, state: { readonly focused?: boolean; readonly working?: boolean }): void {
-	const stack = input.closest(`.${chatInputStackClass}`);
-	if (!stack) {
-		return;
-	}
-	if (state.focused !== undefined) {
-		stack.classList.toggle(inputFocusedClass, state.focused);
-	}
-	if (state.working !== undefined) {
-		stack.classList.toggle(inputWorkingClass, state.working);
-	}
+export function setChatInputStackInputFocused(input: HTMLElement, focused: boolean): void {
+	setChatInputStackInputState(input, inputFocusedClass, focused);
+}
+
+/** Report the input's progress border, which dims the focus ring it shares. */
+export function setChatInputStackInputWorking(input: HTMLElement, working: boolean): void {
+	setChatInputStackInputState(input, inputWorkingClass, working);
 }
 
 /**
@@ -130,4 +123,8 @@ function updateChatInputStack(stack: HTMLElement): void {
 			updateChatInputStack(slot);
 		}
 	}
+}
+
+function setChatInputStackInputState(input: HTMLElement, stateClass: string, enabled: boolean): void {
+	input.closest(`.${chatInputStackClass}`)?.classList.toggle(stateClass, enabled);
 }
