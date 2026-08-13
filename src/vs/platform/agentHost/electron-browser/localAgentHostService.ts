@@ -212,7 +212,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
 	}
 
-	private async _getManagementService(): Promise<IAgentHostManagementService> {
+	/**
+	 * Waits until the local agent host is connected, or throws if it never will
+	 * be. Deliberately resolves `void` rather than the management service: the
+	 * service is a `ProxyChannel` proxy that answers *every* property with a
+	 * function, including `then`. Resolving a promise with it would make the
+	 * runtime treat it as a thenable and invoke `then` as a remote call, which
+	 * never settles and hangs the caller forever.
+	 */
+	private async _whenManagementConnected(): Promise<void> {
 		const protocolClient = this._requireClient();
 		const connectionState = protocolClient.connectionState;
 		if (connectionState === AgentHostClientState.Closed || connectionState === AgentHostClientState.Incompatible) {
@@ -227,8 +235,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				throw new Error('Local agent host is not connected.');
 			}
 		}
-
-		return this._getAvailableManagementService();
 	}
 
 	private _getAvailableManagementService(): IAgentHostManagementService {
@@ -239,7 +245,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private async _callManagement<T>(callback: (management: IAgentHostManagementService) => Promise<T>): Promise<T> {
-		return callback(await this._getManagementService());
+		await this._whenManagementConnected();
+		return callback(this._getAvailableManagementService());
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {
