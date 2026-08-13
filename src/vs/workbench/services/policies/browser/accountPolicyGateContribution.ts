@@ -52,6 +52,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
 	private compatibilityDialogVisible = false;
+	private refreshDialogVisible = false;
 	private dismissedKey: string | undefined;
 
 	private initialised = false;
@@ -85,6 +86,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
 		this._register(this.defaultAccountService.onDidChangeManagedSettingsCompatibilityError(error => this.updateManagedSettingsCompatibilityState(error)));
+		this._register(this.defaultAccountService.onDidChangeManagedSettingsRefreshState(state => this.updateManagedSettingsRefreshState(state)));
 
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
@@ -213,9 +215,40 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	}
 
 	private updatePolicyGateState(): void {
-		const blocked = this.isGateRestricted(this.lastInfo) || this.defaultAccountService.managedSettingsCompatibilityError !== null;
+		const blocked = this.isGateRestricted(this.lastInfo)
+			|| this.defaultAccountService.managedSettingsCompatibilityError !== null
+			|| this.defaultAccountService.managedSettingsRefreshState === 'pending'
+			|| this.defaultAccountService.managedSettingsRefreshState === 'blocked';
 		this.contextKey.set(blocked);
 		this.chatEntitlementService.setForceHidden(blocked);
+	}
+
+	private updateManagedSettingsRefreshState(state: 'inactive' | 'pending' | 'satisfied' | 'blocked'): void {
+		this.updatePolicyGateState();
+		if (state !== 'blocked' || this.refreshDialogVisible || this.defaultAccountService.managedSettingsCompatibilityError) {
+			return;
+		}
+
+		this.refreshDialogVisible = true;
+		void this.showManagedSettingsRefreshDialog().finally(() => this.refreshDialogVisible = false);
+	}
+
+	private async showManagedSettingsRefreshDialog(): Promise<void> {
+		await this.dialogService.prompt({
+			type: Severity.Warning,
+			title: localize('managedSettingsRefresh.dialog.title', "Managed Settings Unavailable"),
+			message: localize(
+				'managedSettingsRefresh.dialog.message',
+				"Copilot Chat is disabled because {0} could not refresh your organization's managed settings. Check your connection or sign in again, then retry.",
+				this.productService.nameShort
+			),
+			custom: true,
+			buttons: [{
+				label: localize('managedSettingsRefresh.dialog.retry', "Retry"),
+				run: () => this.defaultAccountService.refresh({ forceRefresh: true }),
+			}],
+			cancelButton: localize('managedSettingsRefresh.dialog.close', "Close"),
+		});
 	}
 
 	private updateManagedSettingsCompatibilityState(error: IManagedSettingsCompatibilityError | null): void {

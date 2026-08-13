@@ -35,6 +35,8 @@ export interface IManagedSettingsCompatibilityError {
 	readonly minimumClientVersion?: string;
 }
 
+export type ManagedSettingsRefreshState = 'inactive' | 'pending' | 'satisfied' | 'blocked';
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
@@ -49,6 +51,8 @@ export interface IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	readonly managedSettingsRefreshState: ManagedSettingsRefreshState;
+	readonly onDidChangeManagedSettingsRefreshState: Event<ManagedSettingsRefreshState>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
@@ -82,6 +86,8 @@ export interface IDefaultAccountService {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	readonly managedSettingsRefreshState: ManagedSettingsRefreshState;
+	readonly onDidChangeManagedSettingsRefreshState: Event<ManagedSettingsRefreshState>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;

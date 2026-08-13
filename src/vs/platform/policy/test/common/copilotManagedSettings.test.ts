@@ -80,12 +80,16 @@ suite('Copilot managed settings projection', () => {
 			nativeTrue: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }),
 			nativeFalse: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
 			malformedNative: shouldForceRemoteSettingsRefresh({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: 'true' }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
+			fileTrue: shouldForceRemoteSettingsRefresh(undefined, undefined, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
+			serverFalseOverridesFile: shouldForceRemoteSettingsRefresh(undefined, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: false }, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }),
 			unset: shouldForceRemoteSettingsRefresh(undefined, undefined),
 		}, {
 			serverTrue: true,
 			nativeTrue: true,
 			nativeFalse: false,
 			malformedNative: true,
+			fileTrue: true,
+			serverFalseOverridesFile: false,
 			unset: false,
 		});
 	});

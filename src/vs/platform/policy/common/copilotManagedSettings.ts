@@ -139,12 +139,16 @@ export function managedSettingValue(key: string): (policyData: IPolicyData) => M
  * Resolves the startup refresh control with native MDM taking precedence over the cached server
  * response. A malformed native value is treated as absent, matching the managed-settings schema.
  */
-export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined): boolean {
+export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file?: ManagedSettingsData): boolean {
 	const nativeValue = nativeMdm?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
 	if (typeof nativeValue === 'boolean') {
 		return nativeValue;
 	}
-	return server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
+	const serverValue = server?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY];
+	if (typeof serverValue === 'boolean') {
+		return serverValue;
+	}
+	return file?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY] === true;
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;

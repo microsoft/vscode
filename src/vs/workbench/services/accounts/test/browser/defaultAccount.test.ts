@@ -15,7 +15,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -54,12 +54,14 @@ suite('DefaultAccountProvider managed settings', () => {
 			requestCount: requestService.requestCount,
 			editorVersion: requestService.requests[0].headers?.['Editor-Version'],
 			runtimeVersion: requestService.requests[0].headers?.['Copilot-Runtime-Version'],
+			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
 			editorVersion: 'vscode/1.132.0',
 			runtimeVersion: 'copilot-runtime/0.0.344',
+			cacheControl: 'no-cache',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
@@ -130,6 +132,27 @@ suite('DefaultAccountProvider managed settings', () => {
 	test('failed startup fetch retains cached managed settings when no rejection is known', async () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
+		});
+
+		test('failed forced refresh blocks without falling back to cached managed settings', async () => {
+			const requestService = new TestRequestService(async () => {
+				throw new Error('managed settings unavailable');
+			});
+			const provider = await createProvider(requestService);
+
+			const result = await provider['getManagedSettings'](sessions, createCachedPolicy(true));
+
+			assert.deepStrictEqual({
+				status: provider.managedSettingsFetchStatus,
+				refreshState: provider.managedSettingsRefreshState,
+				cacheControl: requestService.requests[0].headers?.['Cache-Control'],
+				data: result.data,
+			}, {
+				status: 'no-response',
+				refreshState: 'blocked',
+				cacheControl: 'no-cache',
+				data: { managedSettings: undefined },
+			});
 		});
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
@@ -240,6 +263,11 @@ suite('DefaultAccountProvider managed settings', () => {
 			onDidChangeFocus: Event.None,
 		});
 		instantiationService.stub(ICommandService, {});
+		instantiationService.stub(INativeManagedSettingsService, {
+			managedSettings: {},
+			initialize: async () => ({}),
+		});
+		instantiationService.stub(IFileManagedSettingsService, { managedSettings: {} });
 
 		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
 			preferredExtensions: [],

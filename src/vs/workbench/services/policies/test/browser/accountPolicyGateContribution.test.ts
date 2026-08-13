@@ -9,7 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError, ManagedSettingsRefreshState } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -47,14 +47,24 @@ class TestDefaultAccountService extends mock<IDefaultAccountService>() {
 
 	private readonly _onDidChangeManagedSettingsCompatibilityError = new Emitter<IManagedSettingsCompatibilityError | null>();
 	override readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+	private _managedSettingsRefreshState: ManagedSettingsRefreshState = 'inactive';
+	override get managedSettingsRefreshState(): ManagedSettingsRefreshState { return this._managedSettingsRefreshState; }
+	private readonly _onDidChangeManagedSettingsRefreshState = new Emitter<ManagedSettingsRefreshState>();
+	override readonly onDidChangeManagedSettingsRefreshState = this._onDidChangeManagedSettingsRefreshState.event;
 
 	setManagedSettingsCompatibilityError(error: IManagedSettingsCompatibilityError | null): void {
 		this._managedSettingsCompatibilityError = error;
 		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
 	}
 
+	setManagedSettingsRefreshState(state: ManagedSettingsRefreshState): void {
+		this._managedSettingsRefreshState = state;
+		this._onDidChangeManagedSettingsRefreshState.fire(state);
+	}
+
 	dispose(): void {
 		this._onDidChangeManagedSettingsCompatibilityError.dispose();
+		this._onDidChangeManagedSettingsRefreshState.dispose();
 	}
 }
 
@@ -130,9 +140,18 @@ suite('AccountPolicyGateContribution', () => {
 		captureState();
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
+		defaultAccountService.setManagedSettingsRefreshState('pending');
+		captureState();
+		defaultAccountService.setManagedSettingsRefreshState('blocked');
+		await Promise.resolve();
+		await Promise.resolve();
+		captureState();
+		defaultAccountService.setManagedSettingsRefreshState('satisfied');
+		captureState();
 
 		const compatibilityDialog = promptStub.firstCall.args[0];
 		const fallbackCompatibilityDialog = promptStub.secondCall.args[0];
+		const refreshDialog = promptStub.thirdCall.args[0];
 		assert.deepStrictEqual({
 			states,
 			forceHiddenValues: chatEntitlementService.forceHiddenValues,
@@ -144,6 +163,12 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: compatibilityDialog.cancelButton,
 			},
 			fallbackCompatibilityMessage: fallbackCompatibilityDialog.message,
+			refreshDialog: {
+				title: refreshDialog.title,
+				message: refreshDialog.message,
+				buttons: refreshDialog.buttons?.map(button => button.label),
+				cancelButton: refreshDialog.cancelButton,
+			},
 		}, {
 			states: [
 				{ context: false, hidden: false },
@@ -153,8 +178,11 @@ suite('AccountPolicyGateContribution', () => {
 				{ context: true, hidden: true },
 				{ context: true, hidden: true },
 				{ context: false, hidden: false },
+				{ context: true, hidden: true },
+				{ context: true, hidden: true },
+				{ context: false, hidden: false },
 			],
-			forceHiddenValues: [false, true, false, true, false],
+			forceHiddenValues: [false, true, false, true, false, true, false],
 			compatibilityDialog: {
 				title: 'Update Required',
 				message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
@@ -163,6 +191,12 @@ suite('AccountPolicyGateContribution', () => {
 				cancelButton: 'Close',
 			},
 			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
+			refreshDialog: {
+				title: 'Managed Settings Unavailable',
+				message: 'Copilot Chat is disabled because Code could not refresh your organization\'s managed settings. Check your connection or sign in again, then retry.',
+				buttons: ['Retry'],
+				cancelButton: 'Close',
+			},
 		});
 	});
 });

@@ -47,6 +47,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown = null;
 	readonly managedSettingsCompatibilityError = null;
 	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsRefreshState = 'inactive' as const;
+	readonly onDidChangeManagedSettingsRefreshState = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,

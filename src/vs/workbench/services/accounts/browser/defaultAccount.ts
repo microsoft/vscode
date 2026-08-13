@@ -20,10 +20,11 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, IManagedSettingsCompatibilityError, MANAGED_SETTINGS_UPDATE_REQUIRED_ERROR_CODE, ManagedSettingsFetchStatus, ManagedSettingsRefreshState } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IFileManagedSettingsService, INativeManagedSettingsService, shouldForceRemoteSettingsRefresh } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { asJson, asText, IRequestService, isClientError, isSuccess, readHeader, retryAfterFromHeaders } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -126,6 +127,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	get managedSettingsFetchedAt(): number | null { return this.defaultAccountProvider?.managedSettingsFetchedAt ?? null; }
 	get managedSettingsRawResponse(): unknown { return this.defaultAccountProvider?.managedSettingsRawResponse ?? null; }
 	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this.defaultAccountProvider?.managedSettingsCompatibilityError ?? null; }
+	get managedSettingsRefreshState(): ManagedSettingsRefreshState { return this.defaultAccountProvider?.managedSettingsRefreshState ?? 'inactive'; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -140,6 +142,8 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	private readonly _onDidChangeManagedSettingsCompatibilityError = this._register(new Emitter<IManagedSettingsCompatibilityError | null>());
 	readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+	private readonly _onDidChangeManagedSettingsRefreshState = this._register(new Emitter<ManagedSettingsRefreshState>());
+	readonly onDidChangeManagedSettingsRefreshState = this._onDidChangeManagedSettingsRefreshState.event;
 
 	private readonly defaultAccountConfig: IDefaultAccountConfig;
 	private defaultAccountProvider: IDefaultAccountProvider | null = null;
@@ -173,6 +177,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 		this.defaultAccountProvider = provider;
 		this._register(provider.onDidChangeManagedSettingsCompatibilityError(error => this._onDidChangeManagedSettingsCompatibilityError.fire(error)));
+		this._register(provider.onDidChangeManagedSettingsRefreshState(state => this._onDidChangeManagedSettingsRefreshState.fire(state)));
 		if (this.defaultAccountProvider.policyData) {
 			this._onDidChangePolicyData.fire(this.defaultAccountProvider.policyData);
 		}
@@ -296,6 +301,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private _managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null = null;
 	get managedSettingsCompatibilityError(): IManagedSettingsCompatibilityError | null { return this._managedSettingsCompatibilityError; }
+	private _managedSettingsRefreshState: ManagedSettingsRefreshState = 'inactive';
+	get managedSettingsRefreshState(): ManagedSettingsRefreshState { return this._managedSettingsRefreshState; }
 
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
@@ -308,6 +315,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 	private readonly _onDidChangeManagedSettingsCompatibilityError = this._register(new Emitter<IManagedSettingsCompatibilityError | null>());
 	readonly onDidChangeManagedSettingsCompatibilityError = this._onDidChangeManagedSettingsCompatibilityError.event;
+	private readonly _onDidChangeManagedSettingsRefreshState = this._register(new Emitter<ManagedSettingsRefreshState>());
+	readonly onDidChangeManagedSettingsRefreshState = this._onDidChangeManagedSettingsRefreshState.event;
 
 	private readonly accountStatusContext: IContextKey<string>;
 	private initialized = false;
@@ -331,6 +340,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
 		@ICommandService private readonly commandService: ICommandService,
+		@INativeManagedSettingsService private readonly nativeManagedSettingsService: INativeManagedSettingsService,
+		@IFileManagedSettingsService private readonly fileManagedSettingsService: IFileManagedSettingsService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -338,6 +349,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		this._policyData = cachedAccountData?.accountPolicyData ?? null;
 		this._copilotTokenInfo = cachedAccountData?.copilotTokenInfo ?? null;
 		this._managedSettingsCompatibilityError = cachedAccountData?.accountPolicyData.managedSettingsCompatibilityError ?? null;
+		if (shouldForceRemoteSettingsRefresh(
+			this.nativeManagedSettingsService.managedSettings,
+			cachedAccountData?.accountPolicyData.policyData.managedSettings,
+			this.fileManagedSettingsService.managedSettings
+		)) {
+			this._managedSettingsRefreshState = 'pending';
+		}
 		this.initPromise = this.init()
 			.finally(() => {
 				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
@@ -588,6 +606,14 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private setManagedSettingsCompatibilityError(error: IManagedSettingsCompatibilityError | null): void {
 		if (equals(this._managedSettingsCompatibilityError, error)) {
 			return;
+		}
+
+		private setManagedSettingsRefreshState(state: ManagedSettingsRefreshState): void {
+			if (this._managedSettingsRefreshState === state) {
+				return;
+			}
+			this._managedSettingsRefreshState = state;
+			this._onDidChangeManagedSettingsRefreshState.fire(state);
 		}
 		this._managedSettingsCompatibilityError = error;
 		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
@@ -931,26 +957,42 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return { ...cachedManagedSettings, compatibilityError: this._managedSettingsCompatibilityError };
 		}
 
+		let nativeManagedSettings = this.nativeManagedSettingsService.managedSettings;
+		try {
+			nativeManagedSettings = await this.nativeManagedSettingsService.initialize();
+		} catch (error) {
+			this.logService.warn('[DefaultAccount] Failed to initialize native managed settings before resolving forceRemoteSettingsRefresh; using available values', getErrorMessage(error));
+		}
+		const forceRemoteSettingsRefresh = shouldForceRemoteSettingsRefresh(
+			nativeManagedSettings,
+			accountPolicyData?.policyData.managedSettings,
+			this.fileManagedSettingsService.managedSettings
+		);
+		this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'pending' : 'inactive');
 		this.managedSettingsFetchAttemptedAccounts.add(accountId);
-		const result = await this.requestManagedSettings(sessions);
+		const result = await this.requestManagedSettings(sessions, forceRemoteSettingsRefresh);
 		const fetchedAt = Date.now();
 		switch (result.kind) {
 			case 'success':
+				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'satisfied' : 'inactive');
 				return { data: result.data, fetchedAt, compatibilityError: null };
 			case 'noSettings':
+				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'satisfied' : 'inactive');
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: null };
 			case 'updateRequired':
+				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'blocked' : 'inactive');
 				return { data: { managedSettings: undefined }, fetchedAt, compatibilityError: result.error };
 			case 'unavailable':
+				this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'blocked' : 'inactive');
 				return {
-					data: this._managedSettingsCompatibilityError ? { managedSettings: undefined } : cachedManagedSettings?.data,
+					data: forceRemoteSettingsRefresh || this._managedSettingsCompatibilityError ? { managedSettings: undefined } : cachedManagedSettings?.data,
 					fetchedAt,
 					compatibilityError: this._managedSettingsCompatibilityError,
 				};
 		}
 	}
 
-	private async requestManagedSettings(sessions: AuthenticationSession[]): Promise<ManagedSettingsRequestResult> {
+	private async requestManagedSettings(sessions: AuthenticationSession[], forceRefresh: boolean): Promise<ManagedSettingsRequestResult> {
 		const managedSettingsUrl = this.getManagedSettingsUrl();
 		if (!managedSettingsUrl) {
 			this.logService.debug('[DefaultAccount] No managed settings URL configured; skipping enterprise policy fetch');
@@ -960,7 +1002,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 
 		this.logService.debug('[DefaultAccount] Fetching managed settings from:', managedSettingsUrl);
 		const rateLimitBackoffActive = Date.now() < this._rateLimitBackoffUntil;
-		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, getManagedSettingsClientHeaders(this.productService));
+		const response = await this.request(managedSettingsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.managedSettings', MANAGED_SETTINGS_REQUEST_TIMEOUT_MS, getManagedSettingsClientHeaders(this.productService, forceRefresh));
 		if (!response) {
 			this.logService.debug('[DefaultAccount] Managed settings fetch returned no response (network error, all sessions rejected, or active rate-limit backoff); falling back to local-only policy');
 			this.reportManagedSettingsOutcome('no-response', rateLimitBackoffActive);

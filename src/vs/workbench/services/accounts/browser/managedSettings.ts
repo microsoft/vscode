@@ -62,10 +62,13 @@ export interface IManagedSettingsResponse {
 	readonly [key: string]: unknown;
 }
 
-export function getManagedSettingsClientHeaders(product: Pick<IProductConfiguration, 'version' | 'copilotVersions'>): IHeaders {
+export function getManagedSettingsClientHeaders(product: Pick<IProductConfiguration, 'version' | 'copilotVersions'>, forceRefresh = false): IHeaders {
 	const headers: IHeaders = {
 		'Editor-Version': `vscode/${product.version}`,
 	};
+	if (forceRefresh) {
+		headers['Cache-Control'] = 'no-cache';
+	}
 	const runtimeVersion = product.copilotVersions?.runtime;
 	if (runtimeVersion) {
 		headers['Copilot-Runtime-Version'] = `copilot-runtime/${runtimeVersion}`;
