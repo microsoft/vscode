@@ -46,7 +46,6 @@ import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitat
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import type { AuthRequiredParams } from '../../common/state/protocol/common/notifications.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -897,9 +896,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * never fires this membership channel itself.
 	 */
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = Event.None;
-
-	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
-	readonly onDidRequireAuth = this._onDidRequireAuth.event;
 
 	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
 	readonly onMcpNotification = this._onMcpNotification.event;
