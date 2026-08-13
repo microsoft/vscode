@@ -8,7 +8,7 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-list-row:has(.session-item) {
+	.monaco-list-row.session-list-inset-row {
 		border-radius: var(--vscode-cornerRadius-medium);
 		margin: 0 10px;
 		width: calc(100% - 20px);
@@ -736,7 +736,7 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
-	.monaco-list-row:has(.session-item) {
+	.monaco-list-row.session-list-inset-row {
 		/* Horizontal-only margin: virtual list rows are absolutely
 		 * positioned with JS-set `top`/`height`, so vertical margins
 		 * here would not produce reliable inter-row spacing. Any gap
