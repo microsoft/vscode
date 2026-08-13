@@ -291,7 +291,6 @@ steps:
       - template: ../../common/product-test-artifacts.yml@self
         parameters:
           artifactPrefix: product-tests-windows-$(VSCODE_ARCH)
-          archiveExt: zip
           prepareTestSteps:
             - powershell: |
                 . build/azure-pipelines/win32/exec.ps1
@@ -320,27 +319,28 @@ steps:
             - powershell: |
                 . build/azure-pipelines/win32/exec.ps1
                 $ErrorActionPreference = "Stop"
-                exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" "-xr!node_modules" "-xr!node_modules_cache" }
+                New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)\product-tests" | Out-Null
+                exec { 7z.exe a -tzip "$(Build.ArtifactStagingDirectory)\product-tests\repo.zip" "$(Build.SourcesDirectory)\*" "-xr!.git" "-xr!node_modules" "-xr!node_modules_cache" }
               displayName: Archive built workspace for tests
           archiveAppSteps:
             - powershell: |
                 . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
                 $ErrorActionPreference = "Stop"
-                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\app.zip VSCode-win32-$(VSCODE_ARCH) }
+                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\product-tests\app.zip VSCode-win32-$(VSCODE_ARCH) }
               workingDirectory: $(Agent.BuildDirectory)
               displayName: Archive packaged app for tests
           archiveServerSteps:
             - powershell: |
                 . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
                 $ErrorActionPreference = "Stop"
-                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\server.zip vscode-server-win32-$(VSCODE_ARCH) }
+                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\product-tests\server.zip vscode-server-win32-$(VSCODE_ARCH) }
               workingDirectory: $(Agent.BuildDirectory)
               displayName: Archive packaged server for tests
           archiveWebSteps:
             - powershell: |
                 . $(Build.SourcesDirectory)/build/azure-pipelines/win32/exec.ps1
                 $ErrorActionPreference = "Stop"
-                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\web.zip vscode-server-win32-$(VSCODE_ARCH)-web }
+                exec { 7z.exe a -tzip $(Build.ArtifactStagingDirectory)\product-tests\web.zip vscode-server-win32-$(VSCODE_ARCH)-web }
               workingDirectory: $(Agent.BuildDirectory)
               displayName: Archive packaged web server for tests
 

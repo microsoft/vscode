@@ -19,6 +19,9 @@ parameters:
     type: string
   - name: artifacts
     type: object
+  - name: downloadPatterns
+    type: string
+    default: "**"
   - name: keyVaultDisplayName
     type: string
     default: "Azure Key Vault: Get Secrets"
@@ -126,7 +129,7 @@ jobs:
         - task: DownloadPipelineArtifact@2
           inputs:
             artifact: ${{ parameters.artifactPrefix }}-${{ artifact.name }}
-            patterns: "**"
+            patterns: ${{ parameters.downloadPatterns }}
             path: $(Pipeline.Workspace)/${{ parameters.artifactPrefix }}-${{ artifact.name }}
           displayName: ${{ artifact.displayName }}
 

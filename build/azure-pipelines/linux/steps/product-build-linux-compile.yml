@@ -326,7 +326,6 @@ steps:
       - template: ../../common/product-test-artifacts.yml@self
         parameters:
           artifactPrefix: product-tests-linux-$(VSCODE_ARCH)
-          archiveExt: tar.gz
           prepareTestSteps:
             - script: |
                 set -e
@@ -352,17 +351,17 @@ steps:
           archiveWorkspaceSteps:
             - script: |
                 set -e
-                mkdir -p $(Build.ArtifactStagingDirectory)
-                tar -czf $(Build.ArtifactStagingDirectory)/repo.tar.gz --exclude=.git --exclude='node_modules' --exclude='*/node_modules' --exclude='.build/node_modules_cache' -C $(Build.SourcesDirectory) .
+                mkdir -p $(Build.ArtifactStagingDirectory)/product-tests
+                tar -czf $(Build.ArtifactStagingDirectory)/product-tests/repo.tar.gz --exclude=.git --exclude='node_modules' --exclude='*/node_modules' --exclude='.build/node_modules_cache' -C $(Build.SourcesDirectory) .
               displayName: Archive built workspace for tests
           archiveAppSteps:
-            - script: tar -czf $(Build.ArtifactStagingDirectory)/app.tar.gz -C $(Agent.BuildDirectory) VSCode-linux-$(VSCODE_ARCH)
+            - script: tar -czf $(Build.ArtifactStagingDirectory)/product-tests/app.tar.gz -C $(Agent.BuildDirectory) VSCode-linux-$(VSCODE_ARCH)
               displayName: Archive packaged app for tests
           archiveServerSteps:
-            - script: tar -czf $(Build.ArtifactStagingDirectory)/server.tar.gz -C $(Agent.BuildDirectory) vscode-server-linux-$(VSCODE_ARCH)
+            - script: tar -czf $(Build.ArtifactStagingDirectory)/product-tests/server.tar.gz -C $(Agent.BuildDirectory) vscode-server-linux-$(VSCODE_ARCH)
               displayName: Archive packaged server for tests
           archiveWebSteps:
-            - script: tar -czf $(Build.ArtifactStagingDirectory)/web.tar.gz -C $(Agent.BuildDirectory) vscode-server-linux-$(VSCODE_ARCH)-web
+            - script: tar -czf $(Build.ArtifactStagingDirectory)/product-tests/web.tar.gz -C $(Agent.BuildDirectory) vscode-server-linux-$(VSCODE_ARCH)-web
               displayName: Archive packaged web server for tests
 
   - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:

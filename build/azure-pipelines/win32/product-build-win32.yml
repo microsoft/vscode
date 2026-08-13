@@ -89,18 +89,19 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: unit
         artifactPrefix: product-tests-windows-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo'
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload'
         timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
+        downloadPatterns: "**/repo.zip"
         artifacts:
-          - name: repo
-            displayName: Download built workspace
+          - name: payload
+            displayName: Download product test payload
         extractArtifactSteps:
           - powershell: |
               $ErrorActionPreference = "Stop"
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\repo.zip -o"$(Build.SourcesDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace
         setupSteps:
@@ -122,30 +123,24 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: integration
         artifactPrefix: product-tests-windows-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-app=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-server=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-web=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo product-tests-windows-${{ parameters.VSCODE_ARCH }}-app product-tests-windows-${{ parameters.VSCODE_ARCH }}-server product-tests-windows-${{ parameters.VSCODE_ARCH }}-web'
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload'
         timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
         artifacts:
-          - name: repo
-            displayName: Download built workspace
-          - name: app
-            displayName: Download packaged app
-          - name: server
-            displayName: Download packaged server
-          - name: web
-            displayName: Download packaged web server
+          - name: payload
+            displayName: Download product test payload
         extractArtifactSteps:
           - powershell: |
               $ErrorActionPreference = "Stop"
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\repo.zip -o"$(Build.SourcesDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-app\app.zip -o"$(Agent.BuildDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\app.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-server\server.zip -o"$(Agent.BuildDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\server.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-web\web.zip -o"$(Agent.BuildDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\web.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of web.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace and products
         setupSteps:
@@ -167,30 +162,24 @@ jobs:
         arch: ${{ parameters.VSCODE_ARCH }}
         testName: smoke
         artifactPrefix: product-tests-windows-${{ parameters.VSCODE_ARCH }}
-        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-app=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-server=Windows_${{ parameters.VSCODE_ARCH }}" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-web=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo product-tests-windows-${{ parameters.VSCODE_ARCH }}-app product-tests-windows-${{ parameters.VSCODE_ARCH }}-server product-tests-windows-${{ parameters.VSCODE_ARCH }}-web'
+        waitForArtifactsArgs: '"--timeout-minutes=120" "--producer=product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload=Windows_${{ parameters.VSCODE_ARCH }}" product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload'
         timeoutInMinutes: 180
         publishNodeModulesOnFailure: true
         publishCrashReportsOnFailureOnly: true
         downloadElectronAndPlaywright: false
         artifacts:
-          - name: repo
-            displayName: Download built workspace
-          - name: app
-            displayName: Download packaged app
-          - name: server
-            displayName: Download packaged server
-          - name: web
-            displayName: Download packaged web server
+          - name: payload
+            displayName: Download product test payload
         extractArtifactSteps:
           - powershell: |
               $ErrorActionPreference = "Stop"
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-repo\repo.zip -o"$(Build.SourcesDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\repo.zip -o"$(Build.SourcesDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of repo.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-app\app.zip -o"$(Agent.BuildDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\app.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of app.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-server\server.zip -o"$(Agent.BuildDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\server.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of server.zip failed with exit code $LASTEXITCODE" }
-              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-web\web.zip -o"$(Agent.BuildDirectory)" -y
+              7z.exe x $(Pipeline.Workspace)\product-tests-windows-${{ parameters.VSCODE_ARCH }}-payload\web.zip -o"$(Agent.BuildDirectory)" -y
               if ($LASTEXITCODE -ne 0) { throw "7z extract of web.zip failed with exit code $LASTEXITCODE" }
             displayName: Extract built workspace and products
         setupSteps:

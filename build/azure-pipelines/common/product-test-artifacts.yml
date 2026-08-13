@@ -1,8 +1,6 @@
 parameters:
   - name: artifactPrefix
     type: string
-  - name: archiveExt
-    type: string
   - name: archiveWorkspaceSteps
     type: stepList
   - name: archiveAppSteps
@@ -29,28 +27,7 @@ steps:
 
   - template: ./publish-artifact.yml@self
     parameters:
-      targetPath: $(Build.ArtifactStagingDirectory)/repo.${{ parameters.archiveExt }}
-      artifactName: ${{ parameters.artifactPrefix }}-repo
-      displayName: Publish built workspace for tests
-      sbomEnabled: false
-
-  - template: ./publish-artifact.yml@self
-    parameters:
-      targetPath: $(Build.ArtifactStagingDirectory)/app.${{ parameters.archiveExt }}
-      artifactName: ${{ parameters.artifactPrefix }}-app
-      displayName: Publish packaged app for tests
-      sbomEnabled: false
-
-  - template: ./publish-artifact.yml@self
-    parameters:
-      targetPath: $(Build.ArtifactStagingDirectory)/server.${{ parameters.archiveExt }}
-      artifactName: ${{ parameters.artifactPrefix }}-server
-      displayName: Publish packaged server for tests
-      sbomEnabled: false
-
-  - template: ./publish-artifact.yml@self
-    parameters:
-      targetPath: $(Build.ArtifactStagingDirectory)/web.${{ parameters.archiveExt }}
-      artifactName: ${{ parameters.artifactPrefix }}-web
-      displayName: Publish packaged web server for tests
+      targetPath: $(Build.ArtifactStagingDirectory)/product-tests
+      artifactName: ${{ parameters.artifactPrefix }}-payload
+      displayName: Publish product test payload
       sbomEnabled: false
