@@ -496,7 +496,7 @@ suite('AgentService (node dispatcher)', () => {
 				managedKeys: ['permissions'],
 			});
 			service.registerProvider(provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
 				provider: 'copilot',
@@ -4897,6 +4897,112 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				removeWorktreeCalls: 0,
 				resolvedWorktree: URI.joinPath(getWorktreesRoot(workingDirectory), 'test').toString(),
+			});
+		});
+
+		test('waits for every provider shutdown when one fails', async () => {
+			const failingAgent = new MockAgent('claude');
+			const slowAgent = new MockAgent('mock');
+			const slowShutdown = new DeferredPromise<void>();
+			let slowShutdownCompleted = false;
+			failingAgent.shutdown = async () => { throw new Error('provider shutdown failed'); };
+			slowAgent.shutdown = async () => {
+				await slowShutdown.p;
+				slowShutdownCompleted = true;
+			};
+			disposables.add(toDisposable(() => failingAgent.dispose()));
+			disposables.add(toDisposable(() => slowAgent.dispose()));
+			service.registerProvider(failingAgent);
+			service.registerProvider(slowAgent);
+
+			const shutdown = service.shutdown();
+			await Promise.resolve();
+			slowShutdown.complete();
+
+			await assert.rejects(shutdown, /provider shutdown failed/);
+			assert.strictEqual(slowShutdownCompleted, true);
+		});
+
+		test('coalesces management shutdown and flushes session data after provider timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			let providerShutdownCount = 0;
+			let flushCount = 0;
+			service.shutdown = () => {
+				providerShutdownCount++;
+				return new Promise<void>(() => { });
+			};
+			nullSessionDataService.whenIdle = async () => { flushCount++; };
+			let ingressShutdownCount = 0;
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService());
+
+			const first = managementService.shutdown();
+			const second = managementService.shutdown();
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				samePromise: first === second,
+				ingressShutdownCount,
+				providerShutdownCount,
+				flushCount,
+			}, {
+				samePromise: true,
+				ingressShutdownCount: 1,
+				providerShutdownCount: 1,
+				flushCount: 1,
+			});
+		}));
+
+		test('bounds stalled drains and reserves time to flush session data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const stalled = new DeferredPromise<void>();
+			let providerShutdownCount = 0;
+			let flushCount = 0;
+			service.createSession = async () => {
+				await stalled.p;
+				return URI.parse('copilot:/stalled-shutdown');
+			};
+			service.shutdown = async () => { providerShutdownCount++; };
+			nullSessionDataService.whenIdle = async () => { flushCount++; };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService());
+
+			void managementService.createSessionWithExtensions({});
+			await managementService.shutdown();
+
+			assert.deepStrictEqual({
+				providerShutdownCount,
+				flushCount,
+			}, {
+				providerShutdownCount: 1,
+				flushCount: 1,
+			});
+		}));
+
+		test('drains management mutations and rejects new ones during shutdown', async () => {
+			const session = URI.parse('copilot:/management-shutdown');
+			const createSession = new DeferredPromise<URI>();
+			let providerShutdownCount = 0;
+			let flushCount = 0;
+			service.createSession = () => createSession.p;
+			service.shutdown = async () => { providerShutdownCount++; };
+			nullSessionDataService.whenIdle = async () => { flushCount++; };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			const mutation = managementService.createSessionWithExtensions({});
+			const shutdown = managementService.shutdown();
+			await Promise.resolve();
+			const providerShutdownCountWhileMutationPending = providerShutdownCount;
+			const lateMutationError = assert.rejects(managementService.createSessionWithExtensions({}), /shutting down/);
+			createSession.complete(session);
+			await mutation;
+			await shutdown;
+
+			await lateMutationError;
+			assert.deepStrictEqual({
+				providerShutdownCountWhileMutationPending,
+				providerShutdownCount,
+				flushCount,
+			}, {
+				providerShutdownCountWhileMutationPending: 0,
+				providerShutdownCount: 1,
+				flushCount: 1,
 			});
 		});
 	});

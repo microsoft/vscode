@@ -121,6 +121,8 @@ async function startAgentHost(): Promise<void> {
 	}
 
 	const disposables = new DisposableStore();
+	const protocolIngressDisposables = disposables.add(new DisposableStore());
+	const protocolHandlers: ProtocolServerHandler[] = [];
 	const errorTelemetry = disposables.add(new MutableDisposable<ErrorTelemetry>());
 
 	// Services
@@ -339,8 +341,8 @@ async function startAgentHost(): Promise<void> {
 	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
 	if (server instanceof UtilityProcessServer) {
-		const localDataPlaneDisposables = disposables.add(new DisposableStore());
-		const messagePortProtocolServer = new MessagePortProtocolServer<string>();
+		const localDataPlaneDisposables = protocolIngressDisposables.add(new DisposableStore());
+		const messagePortProtocolServer = localDataPlaneDisposables.add(new MessagePortProtocolServer<string>());
 		// Shared config for the local data-plane protocol handlers (renderer
 		// MessagePort + the external endpoint, which each get their own handler).
 		const localProtocolHandlerConfig = {
@@ -354,7 +356,7 @@ async function startAgentHost(): Promise<void> {
 		};
 		try {
 			// Handler for the renderer's MessagePort data plane.
-			localDataPlaneDisposables.add(instantiationService.createInstance(
+			const messagePortProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
 				agentService.stateManager,
@@ -362,6 +364,7 @@ async function startAgentHost(): Promise<void> {
 				localProtocolHandlerConfig,
 				clientFileSystemProvider,
 			));
+			protocolHandlers.push(messagePortProtocolHandler);
 			// Non-protocol reverse bridges remain on their existing IPC channels.
 			// The renderer's MessagePortClient ctx is its clientId.
 			const authorityRegistrations = new Map<unknown, IDisposable>();
@@ -429,7 +432,7 @@ async function startAgentHost(): Promise<void> {
 				// publishing the metadata that advertises it, so a client can't connect
 				// in the gap and be missed.
 				localDataPlaneDisposables.add(localEndpoint.server);
-				localDataPlaneDisposables.add(instantiationService.createInstance(
+				const localEndpointProtocolHandler = localDataPlaneDisposables.add(instantiationService.createInstance(
 					ProtocolServerHandler,
 					agentService,
 					agentService.stateManager,
@@ -437,6 +440,7 @@ async function startAgentHost(): Promise<void> {
 					localProtocolHandlerConfig,
 					clientFileSystemProvider,
 				));
+				protocolHandlers.push(localEndpointProtocolHandler);
 				try {
 					await publishLocalAgentHostEndpointMetadata(environmentService.userDataPath, endpointMetadata, logService);
 					localDataPlaneDisposables.add(toDisposable(() => {
@@ -463,6 +467,9 @@ async function startAgentHost(): Promise<void> {
 		onDidChangeConnectionCount: connectionCountEmitter.event,
 		waitForConfiguredWebSocketServer: () => configuredWebSocketServer.p,
 		async startWebSocketServer(): Promise<IAgentHostSocketInfo> {
+			if (protocolIngressDisposables.isDisposed) {
+				throw new Error('Agent Host is shutting down.');
+			}
 			if (dynamicSocketInfo) {
 				return dynamicSocketInfo;
 			}
@@ -471,13 +478,18 @@ async function startAgentHost(): Promise<void> {
 				? `\\\\.\\pipe\\vscode-agent-host-${generateUuid().replace(/-/g, '')}`
 				: join(os.tmpdir(), `vscode-agent-host-${generateUuid().replace(/-/g, '')}.sock`);
 
-			const wsServer = disposables.add(await WebSocketProtocolServer.create(
+			const wsServer = await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
 				{ instantiationService, logsHome: environmentService.logsHome },
-			));
+			);
+			if (protocolIngressDisposables.isDisposed) {
+				wsServer.dispose();
+				throw new Error('Agent Host is shutting down.');
+			}
+			protocolIngressDisposables.add(wsServer);
 
-			const protocolHandler = disposables.add(instantiationService.createInstance(
+			const protocolHandler = protocolIngressDisposables.add(instantiationService.createInstance(
 				ProtocolServerHandler,
 				agentService,
 				agentService.stateManager,
@@ -492,7 +504,8 @@ async function startAgentHost(): Promise<void> {
 				},
 				clientFileSystemProvider,
 			));
-			disposables.add(protocolHandler.onDidChangeConnectionCount(count => connectionCountEmitter.fire(count)));
+			protocolHandlers.push(protocolHandler);
+			protocolIngressDisposables.add(protocolHandler.onDidChangeConnectionCount(count => connectionCountEmitter.fire(count)));
 
 			logService.info(`[AgentHost] Dynamic WebSocket server listening on ${socketPath}`);
 			dynamicSocketInfo = { socketPath };
@@ -545,9 +558,16 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	if (server instanceof UtilityProcessServer) {
-		server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(new AgentHostManagementService(agentService, connectionTrackerService), disposables));
-	} else {
+	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
+		AgentHostManagementService,
+		agentService,
+		connectionTrackerService,
+		async () => {
+			protocolIngressDisposables.dispose();
+			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
+		},
+	), disposables));
+	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
 
@@ -560,10 +580,11 @@ async function startAgentHost(): Promise<void> {
 		environmentService.logsHome,
 		logService,
 		otlpLogEmitter,
-		disposables,
+		protocolIngressDisposables,
 		hostLaunchKind,
 		connectionTelemetryTracker,
 		count => connectionCountEmitter.fire(count),
+		handler => protocolHandlers.push(handler),
 	);
 	configuredWebSocketServer.settleWith(configuredWebSocketServerStart);
 	void configuredWebSocketServerStart.catch(err => {
@@ -655,6 +676,7 @@ async function startWebSocketServer(
 	hostLaunchKind: AgentHostLaunchKind,
 	connectionTelemetryTracker: AgentHostClientConnectionTelemetryTracker,
 	onConnectionCountChanged: (count: number) => void,
+	onProtocolHandlerCreated: (handler: ProtocolServerHandler) => void,
 ): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
@@ -666,7 +688,7 @@ async function startWebSocketServer(
 	const connectionToken = process.env['VSCODE_AGENT_HOST_CONNECTION_TOKEN'];
 	const host = process.env['VSCODE_AGENT_HOST_HOST'] || 'localhost';
 
-	const wsServer = disposables.add(await WebSocketProtocolServer.create(
+	const wsServer = await WebSocketProtocolServer.create(
 		socketPath
 			? {
 				socketPath,
@@ -683,7 +705,12 @@ async function startWebSocketServer(
 			},
 		logService,
 		{ instantiationService, logsHome },
-	));
+	);
+	if (disposables.isDisposed) {
+		wsServer.dispose();
+		return;
+	}
+	disposables.add(wsServer);
 
 	const protocolHandler = disposables.add(instantiationService.createInstance(
 		ProtocolServerHandler,
@@ -700,6 +727,7 @@ async function startWebSocketServer(
 		},
 		clientFileSystemProvider,
 	));
+	onProtocolHandlerCreated(protocolHandler);
 	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));
 
 	// Wait for the listener to actually bind before reporting readiness.
