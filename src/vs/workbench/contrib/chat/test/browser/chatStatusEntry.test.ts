@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -194,6 +195,7 @@ suite('ChatStatusBarEntry', () => {
 		const whileDebugging = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inDebugMode: true });
 		const whileChatInProgress = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, updateTitleBarChatInProgress: true });
 		const inZenMode = createEntry({ entitlement: ChatEntitlement.Unknown, updateTitleBar: true, inZenMode: true });
+		const defaultStatusText = isWeb ? '$(copilot) Sign In' : '$(copilot)';
 
 		assert.deepStrictEqual({
 			text: {
@@ -212,10 +214,10 @@ suite('ChatStatusBarEntry', () => {
 			},
 		}, {
 			text: {
-				withoutUpdate: '$(copilot)',
+				withoutUpdate: defaultStatusText,
 				withUpdate: '$(copilot) Sign In',
-				whileDebugging: '$(copilot)',
-				whileChatInProgress: '$(copilot)',
+				whileDebugging: defaultStatusText,
+				whileChatInProgress: defaultStatusText,
 				inZenMode: '$(copilot) Sign In',
 			},
 			visibility: {
