@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,7 +24,7 @@ import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/b
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionHeaderMetaActionViewItem } from '../../../browser/parts/sessionHeaderMetaActionViewItem.js';
+import { SessionChangesMetaActionViewItem } from '../../../../workbench/browser/parts/sessionHeaderMetaActionViewItem.js';
 import { SessionHasChangesContext, IsQuickChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -230,17 +228,10 @@ registerAction2(CollapseUnchangedRegionsAction);
 
 // --- View All Changes action view item (session header diff stats)
 
-interface IDiffStats {
-	readonly files: number;
-	readonly insertions: number;
-	readonly deletions: number;
-	readonly branch: string | undefined;
-}
-
 /**
  * Renders the {@link ViewAllChangesAction} menu item contributed into {@link Menus.SessionHeaderMeta}
  * (the session header meta row) as a `<diff-icon> <n> files +insertions -deletions` pill. It extends the
- * generic {@link SessionHeaderMetaActionViewItem} (so the icon and label render consistently with other
+ * generic {@link SessionChangesMetaActionViewItem} (so the icon and label render consistently with other
  * meta actions) and appends the session's live aggregate diff stats. Activating the item runs the
  * action, which opens the multi-file diff editor.
  *
@@ -250,18 +241,15 @@ interface IDiffStats {
  * changeset the provider marks as {@link ISessionChangeset.isDefault} (or the session's
  * top-level {@link IActiveSession.changes} when none is default).
  */
-export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewItem {
-
-	private readonly _diffStatsObs: IObservable<IDiffStats>;
+export class ViewAllChangesActionViewItem extends SessionChangesMetaActionViewItem {
 
 	constructor(
 		action: MenuItemAction,
 		options: IActionViewItemOptions,
 		@ISessionContext sessionContext: ISessionContext,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(undefined, action, options);
-
-		this._diffStatsObs = derivedOpts<IDiffStats>({ owner: this, equalsFn: structuralEquals }, reader => {
+		super(undefined, action, options, reader => {
 			const session = sessionContext.session.read(reader);
 			const workspace = session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
@@ -276,7 +264,7 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 					files: changesSummary.files,
 					insertions: changesSummary.additions,
 					deletions: changesSummary.deletions,
-				} satisfies IDiffStats;
+				};
 			}
 
 			const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
@@ -293,46 +281,8 @@ export class ViewAllChangesActionViewItem extends SessionHeaderMetaActionViewIte
 				files: changes.length,
 				insertions,
 				deletions,
-			} satisfies IDiffStats;
-		});
-
-		this._register(autorun(reader => {
-			this._diffStatsObs.read(reader);
-			this.updateLabel();
-			this.updateTooltip();
-			this.updateAriaLabel();
-		}));
-	}
-
-	protected override getLabelText(): string {
-		const { files } = this._diffStatsObs.get();
-		return files === 1
-			? localize('agentSessions.changes.file', "{0} file", files)
-			: localize('agentSessions.changes.files', "{0} files", files);
-	}
-
-	protected override getAdditionalLabelContent(): Array<HTMLElement | string> {
-		const { insertions, deletions } = this._diffStatsObs.get();
-		return [
-			$('span.chat-composite-bar-meta-added', undefined, `+${insertions}`),
-			$('span.chat-composite-bar-meta-removed', undefined, `-${deletions}`),
-		];
-	}
-
-	protected override getTooltip(): string {
-		const { branch } = this._diffStatsObs.get();
-		return branch
-			? localize('agentSessions.viewChanges.tooltip.branch', "View All Changes ({0})", branch)
-			: localize('agentSessions.viewChanges.tooltip', "View All Changes");
-	}
-
-	protected override getAriaLabel(): string {
-		const { files, insertions, deletions } = this._diffStatsObs.get();
-		const filesLabel = files === 1
-			? localize('agentSessions.changes.file', "{0} file", files)
-			: localize('agentSessions.changes.files', "{0} files", files);
-		// e.g. "View All Changes (main): 3 files, +10, -4"
-		return localize('agentSessions.viewChanges.ariaLabel', "{0}: {1}, +{2}, -{3}", this.getTooltip(), filesLabel, insertions, deletions);
+			};
+		}, instantiationService);
 	}
 }
 

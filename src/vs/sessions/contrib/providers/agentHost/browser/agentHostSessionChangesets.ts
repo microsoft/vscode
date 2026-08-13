@@ -5,7 +5,7 @@
 
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -13,8 +13,11 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
+import { getDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { createRetainedChangesetFilesObs } from '../../../../../platform/agentHost/common/state/changesetFiles.js';
 import { ChangesetOperationTargetKind } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { createActiveAgentHostSubscriptionObs } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildDefaultChatUri, ChangesetStatus, Changeset, StateComponents, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -83,7 +86,7 @@ export function createChangesets(
 	const sessionChangesets: ISessionChangeset[] = [];
 
 	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
-	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+	const defaultChangeset = getDefaultChangeset(changesets);
 
 	for (const changeset of changesets) {
 		const isDefault = changeset === defaultChangeset;
@@ -114,28 +117,14 @@ export function createActiveSessionSubscriptionObs<T>(
 	component: StateComponents,
 	resourceObs: IObservable<URI | undefined>,
 ): IObservable<IObservable<T | Error | undefined | null>> {
-	return derived(reader => {
-		const connection = options.getConnection();
-		if (!connection) {
-			return constObservable(null);
-		}
-
-		const resource = resourceObs.read(reader);
-		if (!resource) {
-			return constObservable(null);
-		}
-
-		const isActiveSession = isActiveSessionObs.read(reader);
-		if (!isActiveSession) {
-			return constObservable(null);
-		}
-
-		const subscriptionRef = connection.getSubscription(component, resource, 'AgentHostSessionChangesets');
-		reader.store.add(subscriptionRef);
-
-		return observableFromEvent(subscriptionRef.object.onDidChange,
-			() => subscriptionRef.object.value as T | Error | undefined);
-	});
+	return createActiveAgentHostSubscriptionObs(
+		options,
+		options.connection,
+		isActiveSessionObs,
+		component,
+		resourceObs,
+		'AgentHostSessionChangesets',
+	);
 }
 
 /**
@@ -254,28 +243,8 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 		const mapDiffUri = this._options.mapDiffUri;
 
-		// Hold the raw `ChangesetFile[]` (with last-value semantics) so unchanged
-		// files keep their reference across reducer updates, enabling the
-		// per-file cache below to skip rebuilding them.
-		this._changesetFilesObs = derivedObservableWithCache<readonly ChangesetFile[] | undefined>(this, (reader, lastValue) => {
-			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			if (changesetState === null || changesetState instanceof Error) {
-				return [];
-			}
-
-			if (changesetState === undefined) {
-				return lastValue;
-			}
-
-			// Render `state.files` when the changeset is `Ready`, or on the very
-			// first arrival (the initial snapshot contains the file list persisted
-			// from the previous session).
-			if (changesetState.status !== ChangesetStatus.Ready && lastValue !== undefined) {
-				return lastValue;
-			}
-
-			return changesetState.files;
-		});
+		const changesetStateObs = derived(this, reader => this.changesetStateObs.read(reader));
+		this._changesetFilesObs = createRetainedChangesetFilesObs(this, changesetStateObs);
 
 		// Build one change per file, reusing the cached result for files whose
 		// `ChangesetFile` reference is unchanged so only changed files are
@@ -322,7 +291,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 	}
 
 	async invokeOperation(operationId: string, target?: ISessionChangesetOperationTarget): Promise<void> {
-		const connection = this._options.getConnection();
+		const connection = this._options.connection.get();
 		if (!connection) {
 			return;
 		}
@@ -366,7 +335,7 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 			return;
 		}
 
-		const connection = this._options.getConnection();
+		const connection = this._options.connection.get();
 		const channel = this.channelUriObs.get();
 		if (!connection || !channel) {
 			return;
@@ -420,11 +389,13 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 		this.channelUriObs = constObservable(URI.parse(changesetSummary.uriTemplate));
 
-		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
-			options,
+		this.changesetStateObs = createActiveAgentHostSubscriptionObs<ChangesetState>(
+			this,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Changeset,
 			this.channelUriObs,
+			'AgentHostSessionChangesets',
 		);
 
 		this.id = changesetSummary.changeKind;
@@ -469,11 +440,13 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		// chats, then track the chat that was modified most recently — its
 		// in-progress turn (or, when idle, its last completed turn) is the
 		// session's "last turn".
-		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
-			options,
+		const sessionStateObs = createActiveAgentHostSubscriptionObs<SessionState>(
+			this,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Session,
 			constObservable(sessionUri),
+			'AgentHostSessionChangesets',
 		);
 
 		// Reuse the session-state subscription above to expose the session's
@@ -491,11 +464,13 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 			return selectMostRecentChatUri(sessionState, sessionUri);
 		});
 
-		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
-			options,
+		const chatStateObs = createActiveAgentHostSubscriptionObs<ChatState>(
+			this,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Chat,
 			mostRecentChatUriObs,
+			'AgentHostSessionChangesets',
 		);
 
 		const lastTurnIdObs = derived(reader => {
@@ -521,11 +496,13 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 		});
 
 		// Subscribe to last turn changes
-		this.changesetStateObs = createActiveSessionSubscriptionObs<ChangesetState>(
-			options,
+		this.changesetStateObs = createActiveAgentHostSubscriptionObs<ChangesetState>(
+			this,
+			options.connection,
 			isActiveSessionObs,
 			StateComponents.Changeset,
 			this.channelUriObs,
+			'AgentHostSessionChangesets',
 		);
 
 		this.isEnabled = derived(reader => this.channelUriObs.read(reader) !== undefined);

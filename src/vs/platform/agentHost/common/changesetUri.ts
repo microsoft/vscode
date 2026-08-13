@@ -117,6 +117,11 @@ export const enum ChangesetKind {
 	Unknown = 'unknown',
 }
 
+/** Selects Branch Changes when advertised, otherwise the first changeset. */
+export function getDefaultChangeset(changesets: readonly Changeset[] | undefined): Changeset | undefined {
+	return changesets?.find(changeset => changeset.changeKind === ChangesetKind.Branch) ?? changesets?.[0];
+}
+
 export function buildBranchChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${BRANCH_CHANGESET_ID}`;
 }

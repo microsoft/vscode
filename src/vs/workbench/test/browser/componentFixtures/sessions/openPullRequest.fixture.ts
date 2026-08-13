@@ -9,6 +9,7 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../services/agentHost/common/agentSessionPullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IGitHubInfo, IGitHubPullRequestRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -23,8 +24,6 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 import { createPullRequestHoverElement } from '../../../../../sessions/contrib/github/browser/pullRequestHover.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { createGitHubReferenceListElement } from '../../../../../sessions/contrib/github/browser/githubReferenceList.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
@@ -95,7 +94,7 @@ function renderPullRequestPill(ctx: ComponentFixtureContext, pullRequest: IGitHu
 		additionalServices: (reg) => {
 			reg.defineInstance(ISessionContext, new SessionContext(session));
 			reg.defineInstance(IGitHubService, createFixtureGitHubService(pullRequestDetails.map(details => ({ owner: 'microsoft', repo: 'vscode', pullRequest: details }))));
-			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
+			reg.defineInstance(IAgentSessionPullRequestIconCache, createFixturePullRequestIconCache());
 		},
 	});
 

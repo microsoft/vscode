@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionStatus, AgentSessionsCache } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, AgentSessionsCache, canOpenAgentSessionChanges, createAgentSessionChangesEditorInput } from '../../../browser/agentSessions/agentSessionsModel.js';
 
 suite('AgentSessionsCache', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -89,5 +89,67 @@ suite('AgentSessionsCache', () => {
 		cache.saveCachedSessions([loaded]);
 		const serialized = JSON.parse(storageService.get(storageKey, StorageScope.WORKSPACE) ?? '[]');
 		assert.deepStrictEqual(serialized[0].changes, { files: 1, insertions: 3, deletions: 1 });
+	});
+});
+
+suite('Agent session changes editor input', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('includes changes with both diff sides', () => {
+		const sessionResource = URI.parse('test-session://provider/1');
+		const original = URI.file('/workspace/original.ts');
+		const modified = URI.file('/workspace/modified.ts');
+
+		const input = createAgentSessionChangesEditorInput({
+			providerType: 'test-session',
+			resource: sessionResource,
+			label: 'Fix issue',
+			changes: [
+				{ modifiedUri: modified, originalUri: original, insertions: 4, deletions: 2 },
+				{ modifiedUri: URI.file('/workspace/skipped.ts'), insertions: 1, deletions: 0 },
+			],
+		});
+
+		assert.deepStrictEqual(input, {
+			multiDiffSource: URI.from({
+				scheme: 'agent-session-changes',
+				path: '/',
+				query: encodeURIComponent(sessionResource.toString()),
+			}),
+			label: 'Fix issue - All Changes',
+		});
+	});
+
+	test('opens aggregate-only agent host changes through the shared source resolver', () => {
+		const resource = URI.parse('agent-host-copilotcli:/1');
+		assert.deepStrictEqual(createAgentSessionChangesEditorInput({
+			providerType: 'agent-host-copilotcli',
+			resource,
+			label: 'Fix issue',
+			changes: { files: 2, insertions: 4, deletions: 2 },
+		}), {
+			multiDiffSource: URI.from({
+				scheme: 'agent-session-changes',
+				path: '/',
+				query: encodeURIComponent(resource.toString()),
+			}),
+			label: 'Fix issue - All Changes',
+		});
+	});
+
+	test('returns undefined for aggregate-only non-agent-host changes', () => {
+		const session = {
+			providerType: 'test-session',
+			resource: URI.parse('test-session:/1'),
+			label: 'Fix issue',
+			changes: { files: 2, insertions: 4, deletions: 2 },
+		};
+		assert.deepStrictEqual({
+			canOpen: canOpenAgentSessionChanges(session),
+			editorInput: createAgentSessionChangesEditorInput(session),
+		}, {
+			canOpen: false,
+			editorInput: undefined,
+		});
 	});
 });

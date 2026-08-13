@@ -12,6 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IObservable, constObservable } from '../../../../../base/common/observable.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService, IActionViewItemFactory } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../services/agentHost/common/agentSessionPullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { BRANCH_CHANGES_CHANGESET_ID, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -32,8 +33,6 @@ import { GitHubPullRequestState, IGitHubPullRequest } from '../../../../../sessi
 import { IGitHubService } from '../../../../../sessions/contrib/github/browser/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { OpenPullRequestActionViewItem } from '../../../../../sessions/contrib/github/browser/pullRequestActions.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ViewAllChangesActionViewItem } from '../../../../../sessions/contrib/changes/browser/changesActions.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -202,7 +201,7 @@ function renderHeader(ctx: ComponentFixtureContext, session: IActiveSession): vo
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.defineInstance(ISessionContext, new SessionContext(constObservable<IActiveSession | undefined>(session)));
 			reg.defineInstance(IGitHubService, createFixtureGitHubService([{ owner: 'microsoft', repo: 'vscode', pullRequest: openPullRequestDetails }]));
-			reg.defineInstance(IPullRequestIconCache, createFixturePullRequestIconCache());
+			reg.defineInstance(IAgentSessionPullRequestIconCache, createFixturePullRequestIconCache());
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;

@@ -20,7 +20,14 @@
 		}
 
 		.chat-view-title-navigation-toolbar {
+			flex: 1 1 auto;
+			min-width: 80px;
 			overflow: hidden;
+
+			> .monaco-action-bar {
+				width: 100%;
+				min-width: 0;
+			}
 
 			.chat-view-title-action-item {
 				flex: 1 1 auto;
@@ -29,6 +36,52 @@
 				.chat-view-title-label-container {
 					display: flex;
 					gap: 4px;
+				}
+			}
+		}
+
+		.chat-view-title-session-meta {
+			display: none;
+			flex: 0 0 auto;
+			min-width: 0;
+			margin-left: var(--vscode-spacing-size60);
+
+			&.visible {
+				display: flex;
+			}
+
+			> .monaco-toolbar {
+				min-width: 0;
+				max-width: 100%;
+			}
+
+			.chat-composite-bar-meta-item,
+			.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
+				min-width: 0;
+				max-width: 100%;
+			}
+
+			.chat-composite-bar-meta-item .monaco-button.chat-composite-bar-meta-item-button {
+				width: 100%;
+				overflow: hidden;
+			}
+
+			&.compact {
+				.session-changes-meta-action {
+					.chat-composite-bar-meta-item-icon,
+					.chat-composite-bar-meta-item-label {
+						display: none;
+					}
+				}
+
+				.session-pull-request-meta-action {
+					.chat-composite-bar-meta-item-label {
+						display: none;
+					}
+
+					.monaco-button.chat-composite-bar-meta-item-button {
+						gap: 0;
+					}
 				}
 			}
 		}

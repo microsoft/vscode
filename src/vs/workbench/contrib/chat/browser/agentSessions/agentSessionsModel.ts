@@ -16,6 +16,7 @@ import { derived, IObservable, observableSignalFromEvent } from '../../../../../
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { toGitHubPullRequestUrl } from '../../../../../platform/agentHost/common/githubPullRequestReferences.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -23,6 +24,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IResourceMultiDiffEditorInput } from '../../../../common/editor.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
@@ -123,6 +125,31 @@ export function getAgentChangesSummary(changes: IAgentSession['changes']) {
 	return { files: changes.length, insertions, deletions };
 }
 
+export const AGENT_SESSION_CHANGES_SCHEME = 'agent-session-changes';
+
+/** Returns whether the session has enough information to open its complete change list. */
+export function canOpenAgentSessionChanges(session: Pick<IAgentSession, 'changes' | 'providerType'> | undefined): boolean {
+	return !!session && hasValidDiff(session.changes) && (Array.isArray(session.changes) || isAgentHostTarget(session.providerType));
+}
+
+/** Creates a multi-diff input backed by the agent session's complete change list. */
+export function createAgentSessionChangesEditorInput(session: Pick<IAgentSession, 'changes' | 'label' | 'providerType' | 'resource'>): IResourceMultiDiffEditorInput | undefined {
+	if (!canOpenAgentSessionChanges(session)) {
+		return undefined;
+	}
+
+	const multiDiffSource = URI.from({
+		scheme: AGENT_SESSION_CHANGES_SCHEME,
+		path: '/',
+		query: encodeURIComponent(session.resource.toString()),
+	});
+
+	return {
+		multiDiffSource,
+		label: localize('agentSession.changes.title', "{0} - All Changes", session.label),
+	};
+}
+
 export interface IAgentSession extends IAgentSessionData {
 	isArchived(): boolean;
 	setArchived(archived: boolean): void;
@@ -184,7 +211,7 @@ export function getAgentSessionPullRequestUri(session: Pick<IAgentSession, 'meta
 	const owner = metadata.owner;
 	const name = metadata.name;
 	if (typeof prNumber === 'number' && typeof owner === 'string' && owner && typeof name === 'string' && name) {
-		return URI.parse(`https://github.com/${owner}/${name}/pull/${prNumber}`);
+		return URI.parse(toGitHubPullRequestUrl({ owner, repo: name, number: prNumber }));
 	}
 
 	return undefined;

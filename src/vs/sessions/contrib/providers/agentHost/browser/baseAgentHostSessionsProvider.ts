@@ -45,6 +45,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../../workbench/services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../../common/sessionConfig.js';
@@ -53,7 +54,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computeSessionPullRequestIcon } from '../../../github/browser/pullRequestIconStatus.js';
-import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createChangesets } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
@@ -397,10 +397,8 @@ export interface IAgentHostAdapterOptions {
 	 * host that no longer exists.
 	 */
 	readonly readOnly?: IObservable<boolean>;
-	/**
-	 * Returns the agent connection for the session, if it exists.
-	 */
-	readonly getConnection: () => IAgentConnection | undefined;
+	/** Current agent connection for the session. */
+	readonly connection: IObservable<IAgentConnection | undefined>;
 	/** Agent capability lookup shared by every adapter owned by this provider. */
 	readonly agentCapabilities: IObservable<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>;
 	/**
@@ -732,7 +730,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		private readonly _options: IAgentHostAdapterOptions,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IPullRequestIconCache private readonly _pullRequestIconCache: IPullRequestIconCache,
+		@IAgentSessionPullRequestIconCache private readonly _pullRequestIconCache: IAgentSessionPullRequestIconCache,
 	) {
 		super();
 		const rawId = AgentSession.id(metadata.session);
@@ -2156,6 +2154,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _lastAgents: readonly AgentInfo[] | undefined;
 	private readonly _agentCapabilities = observableValue<ReadonlyMap<string, AgentCapabilities | undefined> | undefined>(this, undefined);
+	private readonly _adapterConnection = observableValueOpts<IAgentConnection | undefined>({ owner: this, equalsFn: () => false }, undefined);
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -2429,6 +2428,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
 
+	protected _setAdapterConnection(connection: IAgentConnection | undefined): void {
+		this._adapterConnection.set(connection, undefined);
+	}
+
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
 
@@ -2479,7 +2482,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mapDiffUri: this._diffUriMapper(),
 			gitHubService: this._gitHubService,
 			instantiationService: this._instantiationService,
-			getConnection: () => this.connection,
+			connection: this._adapterConnection,
 			agentCapabilities: this._agentCapabilities,
 			backendSessionScheme: this._backendSessionScheme(provider),
 			...this._adapterOptions(),
@@ -2856,7 +2859,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				mapDiffUri: this._diffUriMapper(),
 				gitHubService: this._gitHubService,
 				instantiationService: this._instantiationService,
-				getConnection: () => this.connection,
+				connection: this._adapterConnection,
 				agentCapabilities: this._agentCapabilities,
 				...this._adapterOptions(),
 			} satisfies IAgentHostAdapterOptions);

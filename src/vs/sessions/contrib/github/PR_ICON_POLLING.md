@@ -59,7 +59,7 @@ PR fetch completes** (a couple of seconds after startup), because the icon is de
 from the live model. To avoid that empty gap, the agent‑host adapter
 ([baseAgentHostSessionsProvider.ts](../providers/agentHost/browser/baseAgentHostSessionsProvider.ts))
 backs the icon with a small persistent cache —
-[`IPullRequestIconCache`](browser/pullRequestIconCache.ts):
+[`IAgentSessionPullRequestIconCache`](../../../workbench/services/agentHost/common/agentSessionPullRequestIconCache.ts):
 
 - **Read:** while `livePR` is still `undefined`, `gitHubInfo` falls back to the last‑known
   icon from the cache, so the row shows an icon immediately on startup.
@@ -72,21 +72,21 @@ entries are retained so the backing storage cannot grow without bound.
 
 ## Where the icon is shown
 
-The same `gitHubInfo.pullRequest.icon` value feeds two surfaces:
+The same computed and cached icon feeds three surfaces:
 
 - The sessions list rows — [sessionsList.ts](../sessions/browser/views/sessionsList.ts#L349)
   reads `gitHubInfo` and passes `gitHubInfo?.pullRequest?.icon` to the status‑icon widget.
 - The session header in the session view —
   [sessionHeader.ts](../../browser/parts/sessionHeader.ts#L336) reads the same icon.
+- The editor Chat title reads the shared cache by pull request URL and observes cache updates.
 
-Both read the icon **reactively** (via `.read(reader)` inside an `autorun`), so whatever
-the `gitHubInfo` observable produces is rendered immediately.
+All three update reactively, so freshly computed live state replaces the cached fallback.
 
 ## How the icon value is produced per provider
 
 Each session exposes `gitHubInfo: IObservable<IGitHubInfo | undefined>`, and the icon lives
 at `gitHubInfo.pullRequest.icon`. The icon glyph/color is computed by
-[`computePullRequestIcon`](common/types.ts#L119) from the PR state
+[`computePullRequestIcon`](../../../workbench/services/agentHost/common/agentSessionPullRequestIcon.ts) from the PR state
 (`open` / `closed` / `merged` / `draft`) and, for open PRs, optional refinements
 (failing CI checks, unresolved review threads).
 

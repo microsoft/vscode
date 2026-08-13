@@ -9,10 +9,11 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { parseGitHubPullRequestReferences } from '../../../../../../platform/agentHost/common/githubPullRequestReferences.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubState, SESSION_META_EHCLI_ADOPTABLE_KEY, SessionStatus, type SessionMeta, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemMetadata, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
@@ -193,6 +194,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
+			meta: summary._meta,
 		});
 	}
 
@@ -208,12 +210,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		changesSummary?: ChangesSummary;
 		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
 		adoptable?: boolean;
+		meta?: SessionMeta;
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
+		const pullRequestUrl = getSessionRelatedPullRequestUrls(readSessionGitHubState(opts.meta))[0];
 		const metadata = opts.adoptable
-			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
-			: this._buildMetadata(opts.workingDirectory);
+			? { ...(this._buildMetadata(opts.workingDirectory, pullRequestUrl) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
+			: this._buildMetadata(opts.workingDirectory, pullRequestUrl);
 		return {
 			resource: this._resource(rawId),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
@@ -247,8 +251,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		return URI.from({ scheme: this._sessionType, path: `/${rawId}` });
 	}
 
-	private _buildMetadata(workingDirectory: URI | undefined): { readonly [key: string]: unknown } | undefined {
-		if (!this._description && !workingDirectory) {
+	private _buildMetadata(workingDirectory: URI | undefined, pullRequestUrl: string | undefined): IChatSessionItemMetadata | undefined {
+		if (!this._description && !workingDirectory && !pullRequestUrl) {
 			return undefined;
 		}
 		const result: { [key: string]: unknown } = {};
@@ -257,6 +261,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		}
 		if (workingDirectory) {
 			result.workingDirectoryPath = workingDirectory.fsPath;
+		}
+		if (pullRequestUrl) {
+			result.pullRequestUrl = pullRequestUrl;
+			const [pullRequest] = parseGitHubPullRequestReferences(pullRequestUrl);
+			if (pullRequest) {
+				result.pullRequestNumber = pullRequest.number;
+			}
 		}
 		return Object.keys(result).length > 0 ? result : undefined;
 	}

@@ -5,10 +5,10 @@
 
 import { IReaderWithStore } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IAgentSessionPullRequestIconCache } from '../../../../workbench/services/agentHost/common/agentSessionPullRequestIconCache.js';
 import { IGitHubInfo } from '../../../services/sessions/common/session.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, IGitHubPullRequest, IPullRequestIconStatus } from '../common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubPullRequestState, type IGitHubPullRequest, type IPullRequestIconStatus } from '../common/types.js';
 import { IGitHubService } from './githubService.js';
-import { IPullRequestIconCache } from './pullRequestIconCache.js';
 
 /**
  * Reads the live {@link IPullRequestIconStatus} for a pull request from the shared
@@ -43,7 +43,7 @@ export function computeLivePullRequestIcon(reader: IReaderWithStore, gitHubServi
 /**
  * Computes a session PR icon from the shared live model, with persistent and provider-reported fallbacks while it loads.
  */
-export function computeSessionPullRequestIcon(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IPullRequestIconCache, gitHubInfo: IGitHubInfo): ThemeIcon | undefined {
+export function computeSessionPullRequestIcon(reader: IReaderWithStore, gitHubService: IGitHubService, iconCache: IAgentSessionPullRequestIconCache, gitHubInfo: IGitHubInfo): ThemeIcon | undefined {
 	const pullRequest = gitHubInfo.pullRequest;
 	if (!pullRequest) {
 		return undefined;
