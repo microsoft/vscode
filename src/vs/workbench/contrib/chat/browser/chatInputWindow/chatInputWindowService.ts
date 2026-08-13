@@ -500,6 +500,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
 		widget.setModel(modelRef.object);
+		widget.setInputPlaceholder(localize('chatInputWindow.inputPlaceholder', "Send a request to any session or folder..."));
 
 		let fitWindowToInput = () => { };
 
