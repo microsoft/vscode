@@ -263,6 +263,7 @@ class FakeSessionsService extends mock<ISessionsService>() {
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly sessionDeletedEmitter = new Emitter<ISession>();
 	private readonly deletedSessionResources = new Set<string>();
+	private readonly additionalSessions = new Map<string, ISession>();
 	override readonly onDidDeleteSession = this.sessionDeletedEmitter.event;
 	sessionExists = true;
 	readonly isRead = observableValue<boolean>(this, false);
@@ -342,6 +343,14 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	cancelError: Error | undefined;
 	readonly markAllReadCompleted = new DeferredPromise<void>();
 
+	override getSessions(): ISession[] {
+		if (!this.sessionExists) {
+			return [];
+		}
+		return [this.session, this.secondSession, ...this.additionalSessions.values()]
+			.filter(session => !this.deletedSessionResources.has(session.resource.toString()));
+	}
+
 	override getSession(resource: URI): ISession | undefined {
 		this.getSessionCalls++;
 		if (!this.sessionExists) {
@@ -356,7 +365,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		if (resource.toString() === SECOND_SESSION_RESOURCE.toString()) {
 			return this.secondSession;
 		}
-		return undefined;
+		return this.additionalSessions.get(resource.toString());
 	}
 
 	override async markRead(session: ISession): Promise<void> {
@@ -398,6 +407,16 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 
 	setSupportsDelete(supportsDelete: boolean): void {
 		this.capabilities.set({ supportsMultipleChats: false, supportsDelete }, undefined);
+	}
+
+	addSession(resource: URI, title: string): void {
+		this.additionalSessions.set(resource.toString(), upcastPartial<ISession>({
+			...this.session,
+			resource,
+			sessionId: resource.path,
+			title: constObservable(title),
+			isRead: constObservable(true),
+		}));
 	}
 
 	dispose(): void {
@@ -487,6 +506,54 @@ suite('AutomationsCardsWidget', () => {
 			schedule: `Daily at ${scheduleTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })}`,
 			sessionTitle: 'Daily review',
 			fallbackRows: 0,
+		});
+	});
+
+	test('preserves a temporary Working row until its session resolves', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const pendingRun = run({ status: 'pending', sessionResource: undefined });
+		automationService.setRuns([pendingRun]);
+		const temporaryRow = widget.element.querySelector('.automations-temporary-run');
+		const spinner = widget.element.querySelector('.automations-temporary-run-spinner .monaco-pixel-spinner');
+
+		automationService.setRuns([{ ...pendingRun, status: 'running' }]);
+		const runningRow = widget.element.querySelector('.automations-temporary-run');
+		const runningSpinner = widget.element.querySelector('.automations-temporary-run-spinner .monaco-pixel-spinner');
+
+		automationService.setRuns([{ ...pendingRun, status: 'running', sessionResource: SESSION_RESOURCE }]);
+
+		assert.deepStrictEqual({
+			title: temporaryRow?.querySelector('.automations-temporary-run-title')?.textContent,
+			status: temporaryRow?.querySelector('.automations-temporary-run-status')?.textContent,
+			rowPreserved: runningRow === temporaryRow,
+			spinnerPreserved: runningSpinner === spinner,
+			temporaryRowsAfterCommit: widget.element.querySelectorAll('.automations-temporary-run').length,
+			sessionRowsAfterCommit: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+		}, {
+			title: 'Daily review',
+			status: 'Working',
+			rowPreserved: true,
+			spinnerPreserved: true,
+			temporaryRowsAfterCommit: 0,
+			sessionRowsAfterCommit: 1,
+		});
+	});
+
+	test('removes a temporary row when the run fails before session creation', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const pendingRun = run({ status: 'pending', sessionResource: undefined });
+		automationService.setRuns([pendingRun]);
+
+		automationService.setRuns([{ ...pendingRun, status: 'failed', errorMessage: 'failed before session creation' }]);
+
+		assert.deepStrictEqual({
+			temporaryRows: widget.element.querySelectorAll('.automations-temporary-run').length,
+			historyVisible: widget.element.querySelector<HTMLElement>('.automations-history')?.style.display !== 'none',
+		}, {
+			temporaryRows: 0,
+			historyVisible: false,
 		});
 	});
 

@@ -29,7 +29,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains automation cards followed by run history."),
 			localize('automationsCustomView.help.cards', "Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
-			localize('automationsCustomView.help.history', "Run history is grouped by date and uses the Sessions list. Use Up Arrow and Down Arrow to navigate, Enter to open, and Tab to reach Stop or Delete actions when available. Delete permanently deletes the session and removes it from run history after confirmation."),
+			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name and Working status. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop or Delete actions when available. Delete permanently deletes the session and removes it from run history after confirmation."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
@@ -59,7 +59,11 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			{ type: AccessibleViewType.View },
 			() => buildAutomationsAccessibleContent(
 				automationService.automations.get(),
-				automationService.runs.get().filter(run => !!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource)),
+				automationService.runs.get().filter(run =>
+					run.status === 'pending'
+					|| run.status === 'running'
+					|| (!!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource))
+				),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,

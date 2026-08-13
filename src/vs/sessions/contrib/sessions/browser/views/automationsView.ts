@@ -8,16 +8,18 @@ import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -74,11 +76,19 @@ interface IAutomationHistoryItem {
 interface IAutomationHistoryGroup {
 	readonly element: HTMLElement;
 	readonly header: HTMLElement;
+	readonly temporaryRowsContainer: HTMLElement;
+	readonly temporaryRows: DisposableMap<string, IAutomationTemporaryRunRow>;
 	readonly listContainer: HTMLElement;
-	readonly list: SessionsFlatList;
+	readonly listDisposables: MutableDisposable<DisposableStore>;
+	list: SessionsFlatList | undefined;
 	readonly runsBySession: Map<string, IAutomationRun>;
 	sessions: readonly ISession[];
 	readonly disposables: DisposableStore;
+}
+
+interface IAutomationTemporaryRunRow extends IDisposable {
+	readonly element: HTMLElement;
+	readonly title: HTMLElement;
 }
 
 /**
@@ -99,6 +109,7 @@ export class AutomationsCardsWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -125,13 +136,18 @@ export class AutomationsCardsWidget extends Disposable {
 				return;
 			}
 			sessionDeleted.read(reader);
+			this.automationService.automations.read(reader);
 			const allRuns = this.automationService.runs.read(reader);
+			const sessionsByResource = new Map(this.sessionsManagementService.getSessions().map(session => [
+				this.uriIdentityService.extUri.getComparisonKey(session.resource),
+				session,
+			]));
 			const sessions = new Map<string, ISession>();
 			for (const run of allRuns) {
 				if (!run.sessionResource) {
 					continue;
 				}
-				const session = this.sessionsManagementService.getSession(run.sessionResource);
+				const session = sessionsByResource.get(this.uriIdentityService.extUri.getComparisonKey(run.sessionResource));
 				if (session) {
 					sessions.set(run.id, session);
 				}
@@ -550,9 +566,10 @@ class AutomationHistorySection extends Disposable {
 	}
 
 	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
-		const visibleRuns = runs.filter(run => sessions.has(run.id));
+		const sessionRuns = runs.filter(run => sessions.has(run.id));
+		const visibleRuns = runs.filter(run => sessions.has(run.id) || isTemporaryAutomationRun(run));
 		transaction(tx => {
-			this.currentRuns.set(visibleRuns, tx);
+			this.currentRuns.set(sessionRuns, tx);
 			this.currentSessions.set(sessions, tx);
 		});
 		this.runFocusTargets.clear();
@@ -582,15 +599,17 @@ class AutomationHistorySection extends Disposable {
 
 		for (const group of groups) {
 			const sessionItems = this.resolveSessionItems(group.runs, sessions);
+			const temporaryRuns = group.runs.filter(run => !sessions.has(run.id));
 
 			let entry = this.persistentGroups.get(group.key);
 			if (entry) {
 				if (entry.header.textContent !== group.label) {
 					entry.header.textContent = group.label;
 				}
+				this.updateTemporaryRuns(entry, temporaryRuns);
 				this.updateGroupSessions(entry, sessionItems);
 			} else {
-				entry = this.createGroup(group.key, group.label, sessionItems);
+				entry = this.createGroup(group.key, group.label, temporaryRuns, sessionItems);
 			}
 
 			const currentElement = this.groupsContainer.children.item(index);
@@ -600,6 +619,9 @@ class AutomationHistorySection extends Disposable {
 			index++;
 
 			for (const item of sessionItems) {
+				if (!entry.list) {
+					continue;
+				}
 				this.renderedFocusableRunIds.push(item.run.id);
 				this.runFocusTargets.set(item.run.id, { list: entry.list, session: item.session });
 			}
@@ -610,7 +632,9 @@ class AutomationHistorySection extends Disposable {
 
 	layout(): void {
 		for (const entry of this.persistentGroups.values()) {
-			this.layoutSessionList(entry.listContainer, entry.list);
+			if (entry.list) {
+				this.layoutSessionList(entry.listContainer, entry.list);
+			}
 		}
 	}
 
@@ -655,29 +679,102 @@ class AutomationHistorySection extends Disposable {
 		return items;
 	}
 
-	private createGroup(key: string, label: string, items: readonly IAutomationHistoryItem[]): IAutomationHistoryGroup {
+	private createGroup(key: string, label: string, temporaryRuns: readonly IAutomationRun[], items: readonly IAutomationHistoryItem[]): IAutomationHistoryGroup {
 		const disposables = new DisposableStore();
 		const element = $('.automations-history-group');
 		const header = DOM.append(element, $('.automations-history-group-header'));
 		header.textContent = label;
+		const temporaryRowsContainer = DOM.append(element, $('.automations-temporary-runs'));
 		const listContainer = DOM.append(element, $('.automations-run-session-list'));
 
 		const runsBySession = new Map<string, IAutomationRun>();
-		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, listContainer, {
+		const entry: IAutomationHistoryGroup = {
+			element,
+			header,
+			temporaryRowsContainer,
+			temporaryRows: disposables.add(new DisposableMap()),
+			listContainer,
+			listDisposables: disposables.add(new MutableDisposable()),
+			list: undefined,
+			runsBySession,
+			sessions: [],
+			disposables,
+		};
+		this.persistentGroups.set(key, entry);
+
+		this.updateTemporaryRuns(entry, temporaryRuns);
+		this.updateGroupSessions(entry, items);
+		return entry;
+	}
+
+	private ensureGroupList(entry: IAutomationHistoryGroup): SessionsFlatList {
+		if (entry.list) {
+			return entry.list;
+		}
+
+		const disposables = new DisposableStore();
+		const list = disposables.add(this.instantiationService.createInstance(SessionsFlatList, entry.listContainer, {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
 			markSessionReadOnOpen: false,
 			onSessionOpen: resource => void this.openRunSession(resource),
-			onToolbarAction: (action, session) => this.handleSessionToolbarAction(action, session, runsBySession),
+			onToolbarAction: (action, session) => this.handleSessionToolbarAction(action, session, entry.runsBySession),
 		}));
-		disposables.add(list.onDidChangeContentHeight(() => this.layoutSessionList(listContainer, list)));
+		disposables.add(list.onDidChangeContentHeight(() => this.layoutSessionList(entry.listContainer, list)));
+		entry.list = list;
+		entry.listDisposables.value = disposables;
+		return list;
+	}
 
-		const entry: IAutomationHistoryGroup = { element, header, listContainer, list, runsBySession, sessions: [], disposables };
-		this.persistentGroups.set(key, entry);
+	private updateTemporaryRuns(entry: IAutomationHistoryGroup, runs: readonly IAutomationRun[]): void {
+		const activeRunIds = new Set(runs.map(run => run.id));
+		for (const runId of entry.temporaryRows.keys()) {
+			if (!activeRunIds.has(runId)) {
+				entry.temporaryRows.deleteAndDispose(runId);
+			}
+		}
 
-		this.updateGroupSessions(entry, items);
-		return entry;
+		let index = 0;
+		for (const run of runs) {
+			const title = this.getAutomationName(run);
+			let row = entry.temporaryRows.get(run.id);
+			if (!row) {
+				row = this.createTemporaryRunRow(title);
+				entry.temporaryRows.set(run.id, row);
+			} else if (row.title.textContent !== title) {
+				row.title.textContent = title;
+				row.element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working", title));
+			}
+
+			const currentElement = entry.temporaryRowsContainer.children.item(index);
+			if (currentElement !== row.element) {
+				entry.temporaryRowsContainer.insertBefore(row.element, currentElement);
+			}
+			index++;
+		}
+	}
+
+	private createTemporaryRunRow(title: string): IAutomationTemporaryRunRow {
+		const disposables = new DisposableStore();
+		const element = $('.automations-temporary-run');
+		element.setAttribute('role', 'group');
+		element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working", title));
+		const titleElement = DOM.append(element, $('span.automations-temporary-run-title'));
+		titleElement.textContent = title;
+		const status = DOM.append(element, $('span.automations-temporary-run-status'));
+		const spinner = DOM.append(status, $('span.automations-temporary-run-spinner'));
+		spinner.setAttribute('aria-hidden', 'true');
+		disposables.add(createPixelSpinner(spinner, { variant: 'grid' }));
+		DOM.append(status, $('span')).textContent = localize('automationRunWorking', "Working");
+		return {
+			element,
+			title: titleElement,
+			dispose: () => {
+				disposables.dispose();
+				element.remove();
+			},
+		};
 	}
 
 	private updateGroupSessions(
@@ -694,8 +791,16 @@ class AutomationHistorySection extends Disposable {
 			return;
 		}
 		entry.sessions = sessions;
-		entry.list.setSessions(sessions);
-		this.layoutSessionList(entry.listContainer, entry.list);
+		if (sessions.length === 0) {
+			entry.list = undefined;
+			entry.listDisposables.clear();
+			DOM.clearNode(entry.listContainer);
+			entry.listContainer.style.height = '';
+			return;
+		}
+		const list = this.ensureGroupList(entry);
+		list.setSessions(sessions);
+		this.layoutSessionList(entry.listContainer, list);
 	}
 
 	private disposeAllGroups(): void {
@@ -868,6 +973,10 @@ class AutomationHistorySection extends Disposable {
 
 function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefined, reader: IReader): boolean {
 	return (run.status === 'completed' || run.status === 'failed') && !!session && !session.isRead.read(reader);
+}
+
+function isTemporaryAutomationRun(run: IAutomationRun): boolean {
+	return run.status === 'pending' || run.status === 'running';
 }
 
 function formatSchedule(automation: IAutomationDescriptor): string {
