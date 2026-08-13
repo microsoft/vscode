@@ -235,6 +235,8 @@ export interface ITestLayoutHarness {
 	onOpenChangesEditor?: () => Promise<void> | void;
 	/** Optional async hook awaited before `closeEditors` mutates the group. */
 	onCloseEditors?: () => Promise<void> | void;
+	/** Optional async hook awaited before `replaceEditors` mutates the group. */
+	onReplaceEditors?: () => Promise<void> | void;
 	/** Records every `openChangesEditor` call for assertions (session + whether active). */
 	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
@@ -349,6 +351,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
 		override async replaceEditors(replacements: IEditorReplacement[]) {
+			await harness.onReplaceEditors?.();
 			for (const replacement of replacements) {
 				const index = harness.activeGroupEditors.indexOf(replacement.editor);
 				if (index === -1) {

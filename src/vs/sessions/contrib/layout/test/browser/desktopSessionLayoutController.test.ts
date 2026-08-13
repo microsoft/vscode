@@ -2849,7 +2849,7 @@ suite('LayoutController (desktop)', () => {
 		let releaseClose!: () => void;
 		const closeGate = new Promise<void>(resolve => { releaseClose = resolve; });
 		let gateArmed = true;
-		harness.onCloseEditors = () => {
+		harness.onReplaceEditors = () => {
 			if (gateArmed) {
 				gateArmed = false;
 				return closeGate;
