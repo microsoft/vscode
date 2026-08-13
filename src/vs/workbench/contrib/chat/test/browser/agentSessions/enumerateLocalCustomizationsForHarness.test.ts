@@ -64,12 +64,10 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		}]);
 	});
 
-	test('combines workspace, extension, and built-in storage entries', async () => {
-		const workspaceAgent = URI.file('/workspace/.github/agents/reviewer.agent.md');
+	test('combines extension and built-in storage entries', async () => {
 		const extensionAgent = URI.file('/extension/agents/foo.agent.md');
 		const builtinSkill = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(workspaceAgent, PromptsType.agent, PromptsStorage.local)]],
 			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
@@ -77,101 +75,9 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, []);
 
 		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
-			{ uri: workspaceAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.local, disabled: false },
 			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
 			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
 		]);
-	});
-
-	test('resolves only local storage against the supplied workspace root', async () => {
-		const root = URI.file('/workspace');
-		const roots: (URI | undefined)[] = [];
-		const promptsService = {
-			async listPromptFilesForStorage(_type: PromptsType, _storage: PromptsStorage, _token: CancellationToken, scopeRoot?: URI): Promise<readonly IPromptPath[]> {
-				roots.push(scopeRoot);
-				return [];
-			},
-			getDisabledPromptFiles(): ResourceSet {
-				return new ResourceSet();
-			},
-		} as unknown as IPromptsService;
-
-		await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, [root]);
-
-		assert.deepStrictEqual(roots, Array.from({ length: 4 }, () => [root, undefined, undefined, undefined]).flat());
-	});
-
-	test('unions customizations from every root without duplicates', async () => {
-		const rootA = URI.file('/workspace-a');
-		const rootB = URI.file('/workspace-b');
-		const shared = URI.file('/shared/.github/agents/shared.agent.md');
-		const calls = new Map<PromptsStorage, number>();
-		const promptsService = {
-			async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> {
-				calls.set(storage, (calls.get(storage) ?? 0) + 1);
-				if (type !== PromptsType.agent || storage !== PromptsStorage.local) {
-					return [];
-				}
-				if (root?.toString() === rootA.toString()) {
-					return [
-						makePromptPath(URI.joinPath(rootA, '.github', 'agents', 'first.agent.md'), type, storage),
-						makePromptPath(shared, type, storage),
-					];
-				}
-				if (root?.toString() === rootB.toString()) {
-					return [
-						makePromptPath(URI.joinPath(rootB, '.github', 'agents', 'second.agent.md'), type, storage),
-						makePromptPath(shared, type, storage),
-					];
-				}
-				return [];
-			},
-			getDisabledPromptFiles(): ResourceSet {
-				return new ResourceSet();
-			},
-		} as unknown as IPromptsService;
-
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, [rootA, rootB]);
-
-		assert.deepStrictEqual({
-			uris: result.map(item => item.uri.toString()),
-			calls: [...calls.entries()],
-		}, {
-			uris: [
-				URI.joinPath(rootA, '.github', 'agents', 'first.agent.md').toString(),
-				shared.toString(),
-				URI.joinPath(rootB, '.github', 'agents', 'second.agent.md').toString(),
-			],
-			calls: [
-				[PromptsStorage.local, 8],
-				[PromptsStorage.plugin, 4],
-				[PromptsStorage.extension, 4],
-				[PromptsStorage.builtIn, 4],
-			],
-		});
-	});
-
-	test('uses ambient prompt discovery for an empty root set', async () => {
-		const ambient = URI.file('/ambient/.github/agents/ambient.agent.md');
-		const roots: (URI | undefined)[] = [];
-		const promptsService = {
-			async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> {
-				roots.push(root);
-				return type === PromptsType.agent && storage === PromptsStorage.local && root === undefined
-					? [makePromptPath(ambient, type, storage)]
-					: [];
-			},
-			getDisabledPromptFiles(): ResourceSet {
-				return new ResourceSet();
-			},
-		} as unknown as IPromptsService;
-
-		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, []);
-
-		assert.deepStrictEqual({ result: result.map(item => item.uri.toString()), roots }, {
-			result: [ambient.toString()],
-			roots: Array<URI | undefined>(16).fill(undefined),
-		});
 	});
 
 	test('marks built-in skills disabled when the sync provider says so', async () => {
@@ -272,11 +178,11 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		// hidden agent back. Dropping it from the bundle would remove it from the
 		// Agents-window list too, stranding it permanently — so the wire must
 		// ignore that store here and leave the agent enabled.
-		const hiddenAgent = URI.file('/workspace/.github/agents/reviewer.agent.md');
+		const hiddenAgent = URI.file('/extension/agents/reviewer.agent.md');
 		const promptsService = makePromptsService(
 			new Map([
-				[`${PromptsType.agent}/${PromptsStorage.local}`, [
-					makePromptPath(hiddenAgent, PromptsType.agent, PromptsStorage.local),
+				[`${PromptsType.agent}/${PromptsStorage.extension}`, [
+					makePromptPath(hiddenAgent, PromptsType.agent, PromptsStorage.extension),
 				]],
 			]),
 			new Map([[PromptsType.agent, new ResourceSet([hiddenAgent])]]),
