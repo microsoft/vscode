@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agent.js';
-import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat } from '../../../common/agent.js';
+import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 
 /**
@@ -80,5 +82,102 @@ suite('CodexAgent', () => {
 			withHostContext: session.toString(),
 			foreignUri: undefined,
 		});
+	});
+
+	test('cold native discovery waits for the SDK and emits through one deterministic path', async () => {
+		const sdkReady = new DeferredPromise<string>();
+		const onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
+		const discoveredChats: number[] = [];
+		const listener = onDidDiscoverChats.event(chats => discoveredChats.push(chats.length));
+		const startDiscovery = (CodexAgent.prototype as unknown as {
+			_startCodexChatDiscovery(this: {
+				_codexChatDiscovery: Promise<void> | undefined;
+				_resolveSdkRoot(): Promise<string>;
+				_emitCodexChats(): Promise<void>;
+				_logService: { warn(message: string): void };
+			}): Promise<void>;
+		})._startCodexChatDiscovery;
+		const harness = {
+			_logService: { warn: () => { } },
+			_codexChatDiscovery: undefined as Promise<void> | undefined,
+			_resolveSdkRoot: () => sdkReady.p,
+			_emitCodexChats: async () => onDidDiscoverChats.fire([{
+				chat: URI.parse('agenthost-chat://codex/session/default'),
+				startTime: 1,
+				modifiedTime: 1,
+				external: true,
+			}]),
+		};
+
+		const discovery = startDiscovery.call(harness);
+		assert.deepStrictEqual(discoveredChats, []);
+
+		sdkReady.complete('/sdk-root');
+		await discovery;
+
+		assert.deepStrictEqual(discoveredChats, [1]);
+		listener.dispose();
+		onDidDiscoverChats.dispose();
+	});
+
+	test('listChatsToMigrate returns only known Codex chats without provenance', async () => {
+		const knownInternal = AgentSession.uri('codex', 'known-internal');
+		const knownExternal = AgentSession.uri('codex', 'known-external');
+		const unknownExternal = AgentSession.uri('codex', 'unknown-external');
+		const chats = [
+			{ chat: URI.parse(buildDefaultChatUri(knownInternal)), startTime: 1, modifiedTime: 2 },
+			{ chat: URI.parse(buildDefaultChatUri(knownExternal)), startTime: 3, modifiedTime: 4 },
+			{ chat: URI.parse(buildDefaultChatUri(unknownExternal)), startTime: 5, modifiedTime: 6 },
+		];
+		const listChatsToMigrate = (CodexAgent.prototype as unknown as {
+			listChatsToMigrate(this: {
+				_isSdkResolvableWithoutDownload(): Promise<boolean>;
+				_listCodexChats(): Promise<typeof chats>;
+				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
+			}): Promise<typeof chats>;
+		}).listChatsToMigrate;
+
+		const result = await listChatsToMigrate.call({
+			_isSdkResolvableWithoutDownload: async () => true,
+			_listCodexChats: async () => chats,
+			_isKnownCodexChat: async chat => {
+				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				return id !== 'unknown-external';
+			},
+		});
+
+		assert.deepStrictEqual(result, chats.slice(0, 2));
+	});
+
+	test('native discovery emits only unknown Codex chats as external', async () => {
+		const knownInternal = AgentSession.uri('codex', 'known-internal');
+		const knownExternal = AgentSession.uri('codex', 'known-external');
+		const unknownExternal = AgentSession.uri('codex', 'unknown-external');
+		const chats = [
+			{ chat: URI.parse(buildDefaultChatUri(knownInternal)), startTime: 1, modifiedTime: 2 },
+			{ chat: URI.parse(buildDefaultChatUri(knownExternal)), startTime: 3, modifiedTime: 4 },
+			{ chat: URI.parse(buildDefaultChatUri(unknownExternal)), startTime: 5, modifiedTime: 6 },
+		];
+		const emitted: unknown[] = [];
+		const emitCodexChats = (CodexAgent.prototype as unknown as {
+			_emitCodexChats(this: {
+				_listCodexChats(): Promise<typeof chats>;
+				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
+				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
+				_logService: { warn(message: string): void };
+			}): Promise<void>;
+		})._emitCodexChats;
+
+		await emitCodexChats.call({
+			_listCodexChats: async () => chats,
+			_isKnownCodexChat: async chat => {
+				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				return id !== 'unknown-external';
+			},
+			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
+			_logService: { warn: () => { } },
+		});
+
+		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
 	});
 });

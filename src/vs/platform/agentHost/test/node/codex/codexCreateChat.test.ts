@@ -177,7 +177,11 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
-	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => options.sdkResolvableWithoutDownload ?? false });
+	instantiationService.stub(IAgentSdkDownloader, {
+		_serviceBrand: undefined,
+		isAvailable: () => true,
+		isSdkResolvableWithoutDownload: async () => options.sdkResolvableWithoutDownload ?? false,
+	});
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
@@ -1285,6 +1289,26 @@ suite('CodexAgent chat backing durability', () => {
 			listener.dispose();
 		}
 	}
+
+	test('materializeChat rejects missing peer and corrupt default providerData', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'invalid-backing');
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+
+		const missingPeer = await agent.materializeChat(peer, { configurationResource: session, resource: peer }, undefined);
+		const corruptDefault = await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, '{');
+
+		assert.deepStrictEqual({
+			missingPeer,
+			corruptDefault,
+			sessions: [...agent['_sessions'].keys()],
+		}, {
+			missingPeer: undefined,
+			corruptDefault: undefined,
+			sessions: [],
+		});
+	});
 
 	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {
 		const sessionStore = createTestSessionStore();
