@@ -1301,7 +1301,7 @@ export class ChatSessionRoutingController extends Disposable {
 					'chatSessionRouting.completedInWithResponse',
 					"Completed in {0}: {1}",
 					escapeMarkdownSyntaxTokens(sessionLabel),
-					escapeMarkdownSyntaxTokens(preview)
+					preview
 				));
 				const rendered = renderMarkdown(markdown);
 				rendered.element.classList.add('chat-routing-badge-response');
@@ -1398,7 +1398,7 @@ export class ChatSessionRoutingController extends Disposable {
 					'chatSessionRouting.completedInWithResponse',
 					"Completed in {0}: {1}",
 					escapeMarkdownSyntaxTokens(session.label),
-					escapeMarkdownSyntaxTokens(preview)
+					preview
 				));
 				const rendered = renderMarkdown(markdown);
 				rendered.element.classList.add('chat-routing-badge-response');
