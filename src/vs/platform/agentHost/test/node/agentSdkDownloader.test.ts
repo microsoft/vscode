@@ -179,7 +179,9 @@ suite('resolveSdkTarget', () => {
  * These run against whatever `process.platform` the test host is — the
  * pure `resolveSdkTarget` suite above covers the cross-host matrix.
  */
-suite('AgentSdkDownloader', () => {
+suite('AgentSdkDownloader', function () {
+	// I/O-bound integration tests (loopback download + extract) exceed the 2000ms default on slow Windows CI (microsoft/vscode-engineering#3401).
+	this.timeout(15_000);
 
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
@@ -209,14 +211,7 @@ suite('AgentSdkDownloader', () => {
 		hostSdkTarget = target;
 	});
 
-	setup(async function () {
-		// These are I/O-bound integration tests: each spins up a loopback HTTP
-		// server, downloads a gzipped tarball, and extracts it to disk. On slow
-		// Windows CI agents that legitimately exceeds the 2000ms mocha default
-		// (see microsoft/vscode-engineering#3401), so provision the whole suite
-		// with a generous timeout rather than racing the default.
-		this.timeout(15_000);
-
+	setup(async () => {
 		originalEnvOverride = process.env[AgentHostClaudeSdkRootEnvVar];
 		delete process.env[AgentHostClaudeSdkRootEnvVar];
 		userDataPath = await fsp.mkdtemp(path.join(os.tmpdir(), 'sdk-userdata-'));
