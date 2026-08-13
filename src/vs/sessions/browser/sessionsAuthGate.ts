@@ -39,15 +39,7 @@ import { SessionTypeAuthRequirement } from '../services/sessions/common/session.
  * is enabled in a desktop window. Web always requires sign-in.
  */
 export function isAllowSignedOutWhenUsableEnabled(configurationService: IConfigurationService): boolean {
-	return shouldAllowSignedOutWhenUsable(
-		configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true,
-		isWeb,
-	);
-}
-
-/** Whether the signed-out opt-in applies in the current environment. */
-export function shouldAllowSignedOutWhenUsable(settingEnabled: boolean, web: boolean): boolean {
-	return settingEnabled && !web;
+	return !isWeb && configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 }
 
 /**
