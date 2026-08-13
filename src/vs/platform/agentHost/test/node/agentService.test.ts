@@ -2741,8 +2741,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('concurrent listSessions calls share one registry discovery pass', async () => {
 			const gate = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
+				override readonly onDidDiscoverChats = Event.None;
 				listCalls = 0;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
 					this.listCalls++;
 					await gate.p;
 					return super.listExternalChats();
