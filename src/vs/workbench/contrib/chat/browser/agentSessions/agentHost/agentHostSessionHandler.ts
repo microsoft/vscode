@@ -2283,6 +2283,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 
 		const startedClientToolCalls = new Set<string>();
+		/**
+		 * Client tool calls currently being executed, armed synchronously when
+		 * execution begins and cleared when it settles.
+		 *
+		 * `startedClientToolCalls` cannot serve this purpose: it is only armed
+		 * from `markInvocationStarted`, which `_executeClientTool` calls after
+		 * awaiting `resolveToolInput`. A tool call that receives two
+		 * `ChatToolCallReady` actions in quick succession — which happens for
+		 * every client tool, since the permission flow and the agent's stream
+		 * mapper each emit one — therefore passes the started check twice and is
+		 * executed twice. The two differ only in `preApproved`, so the
+		 * `equals(observedRequest, request)` check above treats the second as a
+		 * new request rather than a duplicate. Observed: the same callId invoked
+		 * twice in the same millisecond, once with `preApproved=undefined` and
+		 * once with `preApproved={type:1}`; the tool runs, and the turn then
+		 * hangs waiting on the completion of the invocation nobody is tracking.
+		 */
+		const inFlightClientToolCalls = new Set<string>();
 		const clientToolExecutions = new Map<string, { readonly source: CancellationTokenSource; readonly retain: IDisposable; activeAttempts: number }>();
 		const releaseClientToolExecution = (key: string, execution: { readonly source: CancellationTokenSource; readonly retain: IDisposable; activeAttempts: number }) => {
 			if (clientToolExecutions.get(key) !== execution) {
@@ -2360,7 +2378,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						unobservedTimer.clear();
 						return;
 					}
-					if (startedClientToolCalls.has(key)) {
+					if (startedClientToolCalls.has(key) || inFlightClientToolCalls.has(key)) {
 						startedRequest = request;
 						unobservedTimer.clear();
 						return;
@@ -2383,6 +2401,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 					const execute = (contextSessionResource: URI | undefined) => {
 						startedRequest = request;
+						inFlightClientToolCalls.add(key);
 						unobservedTimer.clear();
 						const requestGeneration = generation;
 						execution.activeAttempts++;
@@ -2398,6 +2417,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								}
 							},
 						).finally(() => {
+							inFlightClientToolCalls.delete(key);
 							execution.activeAttempts--;
 							const invocation = this._clientToolInvocations.get(key);
 							if (execution.activeAttempts === 0 && invocation && IChatToolInvocation.isComplete(invocation)) {
