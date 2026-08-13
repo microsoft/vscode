@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -2024,7 +2025,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('accepts customization updates while creating a provisional session', async () => {
-			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin' } as const;
 			class ProvisionalCustomizationAgent extends MockAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
@@ -2197,7 +2198,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('retries a transient registry registration failure before reporting creation success', async () => {
 			const db = new TransientRegistryWriteDatabase();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			await svc.listSessions();
@@ -2295,7 +2296,9 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
+			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			svc.setWorktreeIsolation({
+				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 				prepareSessionDeletion: async () => {
 					order.push('prepareSessionDeletion');
 					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
@@ -2346,7 +2349,7 @@ suite('AgentService (node dispatcher)', () => {
 				...createSessionDataService(),
 				deleteSessionData: async () => { deleteSessionDataCalls++; },
 			};
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });
@@ -2946,7 +2949,7 @@ suite('AgentService (node dispatcher)', () => {
 			// set, but nothing has ever written a per-provider marker (that
 			// concept did not exist yet), and there are no tombstones.
 			await db.markSessionRegistryBackfilled();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new ChatListChangeAgent('copilot'));
 			svc.registerProvider(agent);
 
@@ -4312,7 +4315,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -5124,7 +5127,7 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.getSessionCustomizations = async () => {
 				getSessionCustomizationsCalls++;
 				return [
-					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill', enabled: true },
+					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill' },
 				];
 			};
 
@@ -5136,7 +5139,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(customizations?.[0]?.type, CustomizationType.Plugin);
 			assert.strictEqual(customizations?.[0]?.name, 'Restore Skill');
 			assert.strictEqual(customizations?.[0]?.id, customizationId('file:///restore-skill'));
-			assert.strictEqual(customizations?.[0]?.enabled, true);
+			assert.strictEqual(isCustomizationEnabled(customizations?.[0] ?? {}), true);
 		});
 
 		test('clears failed restore attempts so sessions can be retried', async () => {

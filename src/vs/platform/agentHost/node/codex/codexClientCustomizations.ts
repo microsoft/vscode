@@ -11,8 +11,9 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemSer
 import { IFileService } from '../../../files/common/files.js';
 import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
-import type { AgentSelection } from '../../common/state/protocol/state.js';
-import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationEnablementKind, type AgentSelection } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ChildCustomization, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 
 /**
@@ -38,6 +39,8 @@ import { toCodexMcpServerJson, type ICodexMcpServerConfigJson } from './codexMcp
 export interface ICodexClientPlugin {
 	readonly synced: ISyncedCustomization;
 	readonly parsed: IParsedPlugin | undefined;
+	readonly input?: ClientPluginCustomization;
+	readonly customization?: PluginCustomization;
 }
 
 export interface ICodexAgentRoleSource {
@@ -74,21 +77,12 @@ export class CodexClientCustomizationStore {
 		return this._byClient.delete(clientId);
 	}
 
-	/**
-	 * Toggle a client-pushed customization on/off. Returns whether the
-	 * enablement actually changed (so callers can skip a no-op refresh).
-	 */
 	setEnabled(id: string, enabled: boolean): boolean {
-		const current = this._enablement.get(id);
-		const effective = current !== false; // absent counts as enabled
-		if (effective === enabled) {
+		const current = this._enablement.get(id) !== false;
+		if (current === enabled) {
 			return false;
 		}
-		if (enabled) {
-			this._enablement.delete(id);
-		} else {
-			this._enablement.set(id, false);
-		}
+		this._enablement.set(id, enabled);
 		return true;
 	}
 
@@ -119,13 +113,22 @@ export class CodexClientCustomizationStore {
 		return out;
 	}
 
-	private _isEnabled(id: string): boolean {
-		return this._enablement.get(id) !== false;
+	private _isEnabled(plugin: ICodexClientPlugin): boolean {
+		return this._enablement.get(plugin.synced.customization.id) ?? isCustomizationEnabled(plugin.customization ?? plugin.synced.customization);
+	}
+
+	/** Every client plugin, deduplicated by customization id. */
+	plugins(): readonly ICodexClientPlugin[] {
+		return this._merged();
+	}
+
+	isEnabled(plugin: ICodexClientPlugin): boolean {
+		return this._isEnabled(plugin);
 	}
 
 	/** The merged plugins that are currently enabled and successfully parsed. */
 	enabledPlugins(): readonly ICodexClientPlugin[] {
-		return this._merged().filter(p => p.parsed !== undefined && this._isEnabled(p.synced.customization.id));
+		return this._merged().filter(p => p.parsed !== undefined && this._isEnabled(p));
 	}
 
 	/**
@@ -135,11 +138,11 @@ export class CodexClientCustomizationStore {
 	 */
 	toCustomizations(): PluginCustomization[] {
 		return this._merged().map(plugin => {
-			const base = plugin.synced.customization;
+			const base = plugin.customization ?? plugin.synced.customization;
 			const children = plugin.parsed ? parsedPluginChildren(plugin.parsed) : base.children;
 			return {
 				...base,
-				enabled: this._isEnabled(base.id),
+				...(this._enablement.has(base.id) ? { enablement: [{ kind: CustomizationEnablementKind.Session, enabled: this._enablement.get(base.id)! }] } : {}),
 				...(children ? { children } : {}),
 			};
 		});
@@ -147,7 +150,7 @@ export class CodexClientCustomizationStore {
 }
 
 /** Collects every child customization a parsed plugin exposes, deduped by id. */
-function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
+export function parsedPluginChildren(parsed: IParsedPlugin): ChildCustomization[] {
 	const byId = new Map<string, ChildCustomization>();
 	const add = (c: ChildCustomization) => { if (!byId.has(c.id)) { byId.set(c.id, c); } };
 	for (const a of parsed.agents) { add(a.customization); }
@@ -168,6 +171,10 @@ export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[
 	const out: Record<string, ICodexMcpServerConfigJson> = {};
 	for (const plugin of plugins) {
 		for (const def of plugin.parsed?.mcpServers ?? emptyMcpDefs) {
+			const child = plugin.customization?.children?.find((candidate): candidate is McpServerCustomization => candidate.type === CustomizationType.McpServer && candidate.name === def.name);
+			if (child && !isCustomizationEnabled(child)) {
+				continue;
+			}
 			if (!Object.prototype.hasOwnProperty.call(out, def.name)) {
 				out[def.name] = toCodexMcpServerJson(def.configuration);
 			}

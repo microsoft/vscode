@@ -19,7 +19,7 @@ import { DEFAULT_MCP_APP } from '../../../agentHost/common/state/protocol/mcpApp
 import { customizationId } from '../../../agentHost/common/state/sessionState.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', state: { kind: McpServerStatus.Starting } };
 }
 import {
 	IParsedHookCommand,
@@ -416,7 +416,6 @@ suite('pluginParsers', () => {
 				id: `${customizationId(uri.toString())}#mcp=${encodeURIComponent('fs server')}`,
 				uri: uri.toString(),
 				name: 'fs server',
-				enabled: true,
 				state: { kind: McpServerStatus.Stopped },
 				mcpApp: DEFAULT_MCP_APP,
 			});
