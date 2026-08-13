@@ -155,6 +155,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
+			this.updateFocusedItem();
+			this.previouslyFocusedItem = this.focusedItem;
 			let eventHandled = true;
 			const focusedItem = typeof this.focusedItem === 'number' ? this.viewItems[this.focusedItem] : undefined;
 
@@ -427,6 +429,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	getWidth(index: number): number {
 		return this.actionsList.children.item(index)?.clientWidth ?? 0;
+	}
+
+	getFocusElements(): readonly HTMLElement[] {
+		return Array.from(this.actionsList.querySelectorAll<HTMLElement>('button, a, [tabindex]'))
+			.filter(element => element !== this.actionsList);
 	}
 
 	getHeight(index: number): number {

@@ -14,9 +14,11 @@ import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from '../selectBox/selectBox.js';
 import { IToggleStyles } from '../toggle/toggle.js';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from '../../../common/actions.js';
+import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import './actionbar.css';
 import * as nls from '../../../../nls.js';
 import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from '../hover/hover.js';
@@ -270,6 +272,74 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		}
 		this._context = undefined;
 		super.dispose();
+	}
+}
+
+/**
+ * An action-bar item whose child controls share one tab stop and use horizontal arrow navigation.
+ */
+export abstract class HorizontalRovingActionViewItem extends BaseActionViewItem {
+	private focusable = false;
+
+	protected abstract getRovingFocusElements(): readonly HTMLElement[];
+
+	protected refreshRovingFocusElements(): void {
+		this.setFocusable(this.focusable);
+	}
+
+	protected registerRovingFocus(container: HTMLElement): void {
+		this._register(addDisposableListener(container, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (!event.equals(KeyCode.LeftArrow) && !event.equals(KeyCode.RightArrow)) {
+				return;
+			}
+
+			const elements = this.getRovingFocusElements();
+			const focusedIndex = elements.findIndex(element => element.ownerDocument.activeElement === element);
+			const nextIndex = focusedIndex + (event.equals(KeyCode.RightArrow) ? 1 : -1);
+			if (focusedIndex === -1 || nextIndex < 0 || nextIndex >= elements.length) {
+				return;
+			}
+
+			this.focusElement(elements[nextIndex]);
+			event.preventDefault();
+			event.stopPropagation();
+		}));
+	}
+
+	override focus(fromRight?: boolean): void {
+		const elements = this.getRovingFocusElements();
+		const element = fromRight ? elements.at(-1) : elements[0];
+		if (element) {
+			this.focusElement(element);
+		}
+	}
+
+	override isFocused(): boolean {
+		return this.getRovingFocusElements().some(element => element.tabIndex === 0);
+	}
+
+	override blur(): void {
+		for (const element of this.getRovingFocusElements()) {
+			element.tabIndex = -1;
+		}
+	}
+
+	override setFocusable(focusable: boolean): void {
+		this.focusable = focusable;
+		const elements = this.getRovingFocusElements();
+		const activeElement = elements.find(element => element.ownerDocument.activeElement === element);
+		const currentElement = activeElement ?? elements.find(element => element.tabIndex === 0) ?? elements[0];
+		for (const element of elements) {
+			element.tabIndex = focusable && element === currentElement ? 0 : -1;
+		}
+	}
+
+	private focusElement(element: HTMLElement): void {
+		for (const candidate of this.getRovingFocusElements()) {
+			candidate.tabIndex = candidate === element ? 0 : -1;
+		}
+		element.focus();
 	}
 }
 

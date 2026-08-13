@@ -4778,6 +4778,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label:is(
+	.codicon-mic,
+	.codicon-mic-filled,
+	.codicon-mic-download-compact,
+	.codicon-voice-mode-compact,
+	.codicon-loading-compact,
+	.codicon-debug-disconnect-compact
+):focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-filled,
 .chat-execute-toolbar.chat-voice-input-actions-multiple .monaco-action-bar .action-item > .action-label.codicon-mic-download-compact,

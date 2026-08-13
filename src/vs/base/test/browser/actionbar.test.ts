@@ -8,7 +8,26 @@ import { ActionBar, prepareActions } from '../../browser/ui/actionbar/actionbar.
 import { Action, Separator } from '../../common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 import { createToggleActionViewItemProvider, ToggleActionViewItem, unthemedToggleStyles } from '../../browser/ui/toggle/toggle.js';
-import { ActionViewItem } from '../../browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, HorizontalRovingActionViewItem } from '../../browser/ui/actionbar/actionViewItems.js';
+import { toDisposable } from '../../common/lifecycle.js';
+
+class TestHorizontalRovingActionViewItem extends HorizontalRovingActionViewItem {
+	private readonly elements: HTMLElement[] = [];
+
+	constructor(action: Action) {
+		super(undefined, action);
+	}
+
+	protected getRovingFocusElements(): readonly HTMLElement[] {
+		return this.elements;
+	}
+
+	override render(container: HTMLElement): void {
+		this.elements.push(container.appendChild(document.createElement('button')));
+		this.elements.push(container.appendChild(document.createElement('button')));
+		this.registerRovingFocus(container);
+	}
+}
 
 suite('Actionbar', () => {
 
@@ -61,6 +80,67 @@ suite('Actionbar', () => {
 		assert.strictEqual(actionbar.hasAction(a1), true);
 		actionbar.clear();
 		assert.strictEqual(actionbar.hasAction(a1), false);
+	});
+
+	test('horizontal roving action item is one tab stop and uses arrow navigation', function () {
+		const container = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const rovingAction = store.add(new Action('roving'));
+		const nextAction = store.add(new Action('next'));
+		const actionbar = store.add(new ActionBar(container, {
+			actionViewItemProvider: action => action === rovingAction ? new TestHorizontalRovingActionViewItem(rovingAction) : undefined,
+		}));
+
+		actionbar.push([rovingAction, nextAction]);
+		const buttons = container.querySelectorAll('button');
+		const dispatchRightArrow = (element: Element) => {
+			const event = new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' });
+			Object.defineProperty(event, 'keyCode', { value: 39 });
+			element.dispatchEvent(event);
+		};
+		actionbar.focus(0);
+		dispatchRightArrow(buttons[0]);
+
+		const afterInternalNavigation = {
+			activeElement: document.activeElement === buttons[1],
+			tabIndexes: [...buttons].map(button => button.tabIndex),
+		};
+
+		dispatchRightArrow(buttons[1]);
+		assert.deepStrictEqual({
+			afterInternalNavigation,
+			movedToNextAction: document.activeElement === container.querySelectorAll('.action-label')[0],
+		}, {
+			afterInternalNavigation: {
+				activeElement: true,
+				tabIndexes: [-1, 0],
+			},
+			movedToNextAction: true,
+		});
+	});
+
+	test('arrow navigation keeps one tab stop after focus enters the action bar', function () {
+		const container = document.body.appendChild(document.createElement('div'));
+		store.add(toDisposable(() => container.remove()));
+		const actionbar = store.add(new ActionBar(container));
+		actionbar.push([
+			store.add(new Action('first', 'First')),
+			store.add(new Action('second', 'Second')),
+		]);
+		const labels = container.querySelectorAll<HTMLElement>('.action-label');
+		actionbar.focus(0);
+		Reflect.set(actionbar, 'previouslyFocusedItem', 1);
+		const event = new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' });
+		Object.defineProperty(event, 'keyCode', { value: 39 });
+		labels[0].dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			activeElement: document.activeElement === labels[1],
+			tabIndexes: [...labels].map(label => label.tabIndex),
+		}, {
+			activeElement: true,
+			tabIndexes: [-1, 0],
+		});
 	});
 
 	suite('ToggleActionViewItemProvider', () => {

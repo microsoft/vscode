@@ -160,6 +160,10 @@ export class ModePicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._triggerElement ? [this._triggerElement] : [];
+	}
 	private readonly _modePickerModel: ModePickerModel;
 
 	constructor(
@@ -198,7 +202,7 @@ export class ModePicker extends Disposable {
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.tabIndex = 0;
+		trigger.tabIndex = -1;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
 
@@ -208,21 +212,21 @@ export class ModePicker extends Disposable {
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
 				dom.EventHelper.stop(e, true);
-				this._showPicker();
+				this.showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
-				this._showPicker();
+				this.showPicker();
 			}
 		}));
 
 		return slot;
 	}
 
-	private _showPicker(): void {
+	showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}

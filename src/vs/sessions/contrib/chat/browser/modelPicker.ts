@@ -6,7 +6,6 @@
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
-import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,6 +22,7 @@ import { ISessionModelSelectionModel } from './sessionModelSelectionModel.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IPickerActionViewItemWidget } from './pickerActionViewItem.js';
 
 /**
  * The sessions-core model picker. Unlike the previous per-provider pickers,
@@ -33,7 +33,7 @@ import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/b
  * {@link ModelPickerActionItem} so the dropdown looks and behaves like the
  * other chat model pickers.
  */
-export class ModelPicker extends Disposable {
+export class ModelPicker extends Disposable implements IPickerActionViewItemWidget {
 
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
@@ -127,6 +127,10 @@ export class ModelPicker extends Disposable {
 		this._updatePickerState();
 	}
 
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._modelPicker.actionBarFocusElements;
+	}
+
 	switchToModel(modelIdentifier: string): boolean {
 		return this._selectionModel.selectModel(modelIdentifier);
 	}
@@ -183,20 +187,3 @@ registerAction2(class extends Action2 {
 	}
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
-
-// -- Action View Item --
-
-export class ModelPickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: ModelPicker) {
-		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
-	}
-
-	override render(container: HTMLElement): void {
-		this.picker.render(container);
-	}
-
-	override dispose(): void {
-		this.picker.dispose();
-		super.dispose();
-	}
-}

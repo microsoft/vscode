@@ -154,10 +154,16 @@ suite('Copilot BranchPicker', () => {
 	});
 
 	test('isolation checkbox is checked when worktree mode is active', () => {
-		const { container } = createPicker({ isolationMode: 'worktree' });
+		const { picker, container } = createPicker({ isolationMode: 'worktree' });
 		const checkbox = container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox .monaco-checkbox');
 		assert.ok(checkbox);
-		assert.strictEqual(checkbox.getAttribute('aria-checked'), 'true');
+		assert.deepStrictEqual({
+			checked: checkbox.getAttribute('aria-checked'),
+			focusElements: picker.actionBarFocusElements.map(element => element === checkbox ? 'isolation' : element.className),
+		}, {
+			checked: 'true',
+			focusElements: ['isolation', 'action-label'],
+		});
 	});
 
 	test('isolation checkbox is unchecked when workspace mode is active', () => {

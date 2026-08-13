@@ -8,7 +8,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
-import { PickerActionViewItem } from './copilotChatSessionsActions.js';
+import { PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
 import { MobilePermissionPicker } from './mobilePermissionPicker.js';
 import { CopilotPermissionPickerDelegate } from './permissionPicker.js';
 

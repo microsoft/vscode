@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
@@ -23,6 +22,7 @@ import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { NewChatModePickerActionViewItem, PickerActionViewItem } from '../../../chat/browser/pickerActionViewItem.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(SessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
@@ -81,34 +81,6 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-// -- Helper --
-
-/**
- * Wraps a standalone picker widget as a {@link BaseActionViewItem}
- * so it can be rendered by a {@link MenuWorkbenchToolBar}.
- *
- * Exported so the web-only `CopilotPermissionPickerWebContribution`
- * (in `mobilePermissionPicker.contribution.ts`) can reuse the same
- * wrapper for its `MobilePermissionPicker` registration.
- */
-export class PickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, disposable?: IDisposable) {
-		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
-		if (disposable) {
-			this._register(disposable);
-		}
-	}
-
-	override render(container: HTMLElement): void {
-		this.picker.render(container);
-	}
-
-	override dispose(): void {
-		this.picker.dispose();
-		super.dispose();
-	}
-}
-
 // -- Action View Item Registrations --
 
 class CopilotPickerActionViewItemContribution extends Disposable implements IWorkbenchContribution {
@@ -160,7 +132,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 						provider.getSession(scopedSession.sessionId)?.setMode(mode);
 					}
 				}));
-				return new PickerActionViewItem(picker, disposableStore);
+				return scopedInstantiationService.createInstance(NewChatModePickerActionViewItem, picker, disposableStore, []);
 			},
 		));
 		// Permission picker registration is skipped on web so the

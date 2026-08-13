@@ -29,6 +29,13 @@ export class BranchPicker extends Disposable {
 	private _isolationOptionEnabled: boolean;
 	private _rendered = false; // Guards context key until DOM exists (#323361)
 
+	get actionBarFocusElements(): readonly HTMLElement[] {
+		return this._picker.actionBarFocusElements;
+	}
+	get onDidChangeActionBarFocusElements() {
+		return this._picker.onDidChangeActionBarFocusElements;
+	}
+
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-input-picker-item:has(.model-picker-split) {
+.interactive-session .chat-input-toolbar .chat-input-picker-item.model-picker-item {
 	overflow: visible;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split {
+.interactive-session .chat-input-toolbar .chat-input-picker-item.model-picker-item .action-label.model-picker-split,
+.sessions-chat-config-toolbar .chat-input-picker-item.model-picker-item .action-label.model-picker-split {
 	padding: 0;
 	overflow: visible;
 	height: auto;
@@ -19,13 +20,19 @@
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
 	display: flex;
 	align-items: center;
-	height: 16px;
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
-	border-radius: 4px;
+	box-sizing: border-box;
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	text-decoration: none;
 	color: inherit;
 	white-space: nowrap;
+}
+
+.chat-input-picker-item .action-label.model-picker-split .model-picker-section:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
 }
 
 .chat-input-picker-item .action-label.model-picker-split:hover,

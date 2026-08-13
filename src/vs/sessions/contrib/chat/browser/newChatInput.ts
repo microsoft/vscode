@@ -6,16 +6,15 @@
 import './media/chatInput.css';
 import './media/chatInputMobile.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { ActionViewItem, BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import type { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -45,7 +44,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
@@ -54,7 +53,7 @@ import { ChatDragAndDrop } from '../../../../workbench/contrib/chat/browser/widg
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 
-import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
+import { INewChatVoiceTargetService, isNewChatVoiceSessionActive, NEW_CHAT_DICTATION_ACTION_ID, NEW_CHAT_SEND_ACTION_ID, NEW_CHAT_VOICE_INPUT_MODE_ACTION_ID, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceController } from './newChatVoice.js';
 import { ISessionTypePickerOptions, SessionTypePicker } from './sessionTypePicker.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
@@ -62,13 +61,13 @@ import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobil
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getDictationHoverMarkdown } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions } from '../../../../workbench/contrib/chat/browser/speechToText/micButtonMenuActions.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -90,7 +89,8 @@ import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
-import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
+import { INewChatModePickerService, NewChatModePickerService } from './newChatModePicker.js';
+import { ModelPicker } from './modelPicker.js';
 import { ISessionModelSelectionModel, SessionModelSelectionModel } from './sessionModelSelectionModel.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
@@ -102,10 +102,10 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ChatSpeechToTextState, DictationSettingId, IChatSpeechToTextService, isDictationActiveOnSurface } from '../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browser/speechToText/dictationMicGlow.js';
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
-import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
+import { VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
+import { OpenModePickerAction, OpenModelPickerAction } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { notifyDictationSubmitted } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -118,6 +118,7 @@ import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnima
 import { PromptTemplatePlaceholderController } from './promptTemplatePlaceholder.js';
 import { INewSessionComposer, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsWidget } from './newSessionPromptOptions.js';
+import { PickerActionViewItem } from './pickerActionViewItem.js';
 
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
@@ -132,21 +133,60 @@ const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
 /** True while focus is in an Agents window composer that supports dictation. */
 const SessionsChatInputHasDictationFocus = new RawContextKey<boolean>('sessionsChatInputHasDictationFocus', false, localize('sessionsChatInputHasDictationFocus', "True when focus is in an Agents window chat composer that supports dictation."));
 
-const TOGGLE_DICTATION_COMMAND_ID = 'sessions.action.chat.toggleDictation';
+const ADD_CONTEXT_ACTION_ID = 'sessions.action.chat.addContext';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: ADD_CONTEXT_ACTION_ID,
+			title: localize2('addContext', "Add Context..."),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'navigation',
+				order: -2,
+			}],
+		});
+	}
+
+	override async run(): Promise<void> { }
+});
 
 /** Composer the dictation shortcut targets (the composer isn't an `IChatWidget`). */
-let activeDictationComposer: NewChatInputWidget | undefined;
+let activeNewChatComposer: NewChatInputWidget | undefined;
+
+function registerNewChatPickerCommandOverride(commandId: string, openPicker: (composer: NewChatInputWidget) => void): void {
+	const originalCommand = CommandsRegistry.getCommand(commandId);
+	if (!originalCommand) {
+		throw new Error(`Cannot override unregistered chat picker command '${commandId}'.`);
+	}
+	CommandsRegistry.registerCommand(commandId, (accessor, ...args) => {
+		if (activeNewChatComposer) {
+			openPicker(activeNewChatComposer);
+			return;
+		}
+		return originalCommand.handler(accessor, ...args);
+	});
+}
+
+registerNewChatPickerCommandOverride(OpenModePickerAction.ID, composer => composer.openModePicker());
+registerNewChatPickerCommandOverride(OpenModelPickerAction.ID, composer => composer.openModelPicker());
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: TOGGLE_DICTATION_COMMAND_ID,
+	id: NEW_CHAT_DICTATION_ACTION_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(
 		SessionsChatInputHasDictationFocus,
 		ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key),
 	),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-	handler: () => activeDictationComposer?.toggleDictation(),
+	handler: () => activeNewChatComposer?.toggleDictation(),
 });
+
+CommandsRegistry.registerCommand(NEW_CHAT_SEND_ACTION_ID, (_accessor, event?: MouseEvent | KeyboardEvent) => {
+	void activeNewChatComposer?.submit(!!event?.altKey);
+});
+CommandsRegistry.registerCommand(NEW_CHAT_VOICE_INPUT_MODE_ACTION_ID, () => { });
 
 // Preserve the command id so push-to-talk hold mode can track this chord.
 KeybindingsRegistry.registerKeybindingRule({
@@ -264,6 +304,58 @@ class NewChatInputStatusActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
+class NewChatAttachActionViewItem extends ActionViewItem {
+	override render(container: HTMLElement): void {
+		container.classList.add('sessions-chat-attach-action-item');
+		super.render(container);
+	}
+}
+
+class NewChatEmbeddedActionViewItem extends BaseActionViewItem {
+	private control: HTMLElement | undefined;
+
+	constructor(
+		action: MenuItemAction,
+		private readonly renderControl: (container: HTMLElement) => { element: HTMLElement; disposable: IDisposable },
+	) {
+		super(undefined, action, { useEventAsContext: true });
+	}
+
+	override render(container: HTMLElement): void {
+		const rendered = this.renderControl(container);
+		this.control = rendered.element;
+		this._register(rendered.disposable);
+		this._register(dom.addDisposableListener(this.control, dom.EventType.CLICK, event => this.onClick(event)));
+	}
+
+	override focus(): void {
+		this.control?.focus();
+	}
+
+	override blur(): void {
+		if (this.control) {
+			this.control.tabIndex = -1;
+		}
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (this.control) {
+			this.control.tabIndex = focusable ? 0 : -1;
+		}
+	}
+}
+
+class NewChatSendActionViewItem extends ActionViewItem {
+	constructor(action: MenuItemAction) {
+		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
+	}
+
+	override render(container: HTMLElement): void {
+		container.classList.add('sessions-chat-send-button');
+		super.render(container);
+	}
+}
+
 /**
  * Options passed to the {@link NewChatInputWidget}'s `sendRequest` callback when
  * the user submits the input.
@@ -344,6 +436,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** Opens the model picker dropdown. */
 	openModelPicker(): void { this._newChatModelPickerService.openModelPicker(); }
 
+	/** Opens the mode or custom-agent picker dropdown. */
+	openModePicker(): void { this._newChatModePickerService.openModePicker(); }
+
 	/** Moves the provider-contributed session controls into the given container. */
 	renderSessionControls(container: HTMLElement): void {
 		if (!this._sessionControlsContainer) {
@@ -365,7 +460,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _promptOptionsDismissed = false;
 
 	// Send button
-	private _sendButton: Button | undefined;
+	private readonly _sendEnabled = observableValue(this, false);
 	private _sending = false;
 
 	// Loading state
@@ -380,6 +475,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _newChatModelPickerService = new NewChatModelPickerService();
+	private readonly _newChatModePickerService = new NewChatModePickerService();
 	private readonly _sessionModelSelectionModel: SessionModelSelectionModel;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
@@ -457,6 +553,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		});
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
+			[INewChatModePickerService, this._newChatModePickerService],
 			[ISessionContext, new SessionContext(this.options.session)],
 			[ISessionModelSelectionModel, this._sessionModelSelectionModel],
 		)));
@@ -521,8 +618,21 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// back out of a notice once it is in one.
 		const composerFocusKey = ChatContextKeys.inChatComposer.bindTo(this._register(this.contextKeyService.createScoped(chatInputContainer)));
 		const composerFocusTracker = this._register(dom.trackFocus(chatInputContainer));
-		this._register(composerFocusTracker.onDidFocus(() => composerFocusKey.set(true)));
-		this._register(composerFocusTracker.onDidBlur(() => composerFocusKey.set(false)));
+		this._register(composerFocusTracker.onDidFocus(() => {
+			composerFocusKey.set(true);
+			activeNewChatComposer = this;
+		}));
+		this._register(composerFocusTracker.onDidBlur(() => {
+			composerFocusKey.set(false);
+			if (activeNewChatComposer === this) {
+				activeNewChatComposer = undefined;
+			}
+		}));
+		this._register(toDisposable(() => {
+			if (activeNewChatComposer === this) {
+				activeNewChatComposer = undefined;
+			}
+		}));
 
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
@@ -707,6 +817,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Create scoped context key service and register history navigation
 		// BEFORE creating the editor, so the editor's context key scope is a child
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
+		ChatContextKeys.location.bindTo(inputScopedContextKeyService).set(ChatAgentLocation.Chat);
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
 		this._historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this._historyNavigationForwardsEnablement = historyNavigationForwardsEnablement;
@@ -786,22 +897,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		const dictationFocusKey = SessionsChatInputHasDictationFocus.bindTo(inputScopedContextKeyService);
+		const inChatInputKey = ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService);
 		this._register(this._editor.onDidFocusEditorWidget(() => {
 			dictationFocusKey.set(true);
-			activeDictationComposer = this;
+			inChatInputKey.set(true);
 			this._onDidFocus.fire();
 		}));
 		this._register(this._editor.onDidBlurEditorWidget(() => {
 			dictationFocusKey.set(false);
-			if (activeDictationComposer === this) {
-				activeDictationComposer = undefined;
-			}
+			inChatInputKey.set(false);
 			this._onDidBlur.fire();
-		}));
-		this._register(toDisposable(() => {
-			if (activeDictationComposer === this) {
-				activeDictationComposer = undefined;
-			}
 		}));
 
 		this._register(this._editor.onKeyDown(e => {
@@ -908,116 +1013,44 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._editor.updateOptions({ fontFamily: isCommand ? EDITOR_FONT_DEFAULTS.fontFamily : NEW_CHAT_INPUT_FONT_FAMILY });
 	}
 
-	private _createAttachButton(container: HTMLElement): void {
-		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
-		const attachButtonLabel = localize('addContext', "Add Context...");
-		attachButton.tabIndex = 0;
-		attachButton.role = 'button';
-		attachButton.ariaLabel = attachButtonLabel;
-		this._register(this.hoverService.setupDelayedHover(attachButton, {
-			content: attachButtonLabel,
-			position: { hoverPosition: HoverPosition.BELOW },
-			appearance: { showPointer: true }
-		}));
-		dom.append(attachButton, renderIcon(Codicon.addCompact));
-		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
-			this._contextAttachments.showPicker(this.options.getContextFolderUri());
-		}));
-	}
-
 	private _createInputToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
-		let dictationActionVisible = false;
-		let voiceActionCount = 0;
-		const updateVoiceInputActionBorder = () => {
-			toolbar.classList.toggle('sessions-chat-voice-input-actions-multiple', Number(dictationActionVisible) + voiceActionCount > 1);
-		};
 
-		this._createAttachButton(toolbar);
-
-		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
+		// Context and session config pickers — rendered in one roving MenuWorkbenchToolBar.
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action) => {
+				if (action.id === ADD_CONTEXT_ACTION_ID) {
+					return new NewChatAttachActionViewItem(undefined, {
+						id: ADD_CONTEXT_ACTION_ID,
+						label: localize('addContext', "Add Context..."),
+						class: `${ThemeIcon.asClassName(Codicon.addCompact)} sessions-chat-attach-button`,
+						enabled: true,
+						tooltip: '',
+						run: () => this._contextAttachments.showPicker(this.options.getContextFolderUri()),
+					}, {
+						icon: true,
+						label: false,
+						hoverDelegate: getDefaultHoverDelegate('mouse'),
+					});
+				}
 				if (action.id === 'sessions.modelPicker') {
 					const picker = this._scopedInstantiationService.createInstance(ModelPicker, this._compactModelPicker);
-					return new ModelPickerActionViewItem(picker);
+					return new PickerActionViewItem(picker);
 				}
 				return undefined;
 			},
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
-
-		// Dictation mic button. Shares the STT service, mic
-		// device, and gating (backend support + `dictation.enabled`)
-		// with the main chat input; inserts the transcript into this composer's
-		// editor. Placed before the voice controls so dictation leads the
-		// mic-related group.
-		try {
-			this._createSpeechToTextButton(toolbar, visible => {
-				dictationActionVisible = visible;
-				updateVoiceInputActionBorder();
-			});
-		} catch (error) {
-			this.logService.error('Failed to create new-session dictation control:', error);
-		}
-
-		// Voice controls (mic/stop/settings/disconnect). The hand-built toolbar
-		// can't use the shared `MenuId.ChatExecute`, so a dedicated menu is used.
-		// Keep the session picker usable when optional voice initialization fails.
-		// The controller also handles voice target routing + input glow, which the
-		// segmented pill relies on, so it is created regardless of the pill; its
-		// toolbar items hide (via `when`) when the pill is active.
-		const voiceContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
-		try {
-			this._register(this.instantiationService.createInstance(NewChatVoiceController, {
-				toolbarContainer: voiceContainer,
-				inputContainer: container,
-				composer: this,
-				onDidChangeActions: actionCount => {
-					voiceActionCount = actionCount;
-					updateVoiceInputActionBorder();
-				},
-			}));
-		} catch (error) {
-			this.logService.error('Failed to create new-session voice controls:', error);
-		}
-
-		// Segmented voice/dictation pill (experimental). When enabled it replaces the
-		// standalone dictation button and voice controls above with a single control.
-		try {
-			this._createVoiceInputModePill(toolbar, container);
-		} catch (error) {
-			this.logService.error('Failed to create new-session voice input mode pill:', error);
-		}
-
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
 		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 		loadingIcon.setAttribute('aria-hidden', 'true');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
 		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
-		if (this.options.renderSendButton !== false) {
-			const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
-			const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
-				secondary: true,
-				title: this.options.supportsBackground
-					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-					: localize('send', "Send"),
-				ariaLabel: localize('send', "Send"),
-			}));
-			sendButton.icon = Codicon.arrowUpCompact;
-			// Hold Alt while clicking Send to start the session in the background.
-			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
-		}
-		updateVoiceInputActionBorder();
-	}
-
-	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement): void {
-		const pillContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-input-mode'));
 		const isVoiceInputActive = derived(this, reader => isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
 		const isVoiceSessionActive = derived(this, reader => isNewChatVoiceSessionActive(
 			this.voiceSessionController.isConnected.read(reader),
@@ -1025,44 +1058,57 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this.voiceSessionController.targetSession.read(reader),
 			this.voiceSessionController.hasDraftTarget.read(reader),
 		));
-
-		const action = toAction({
-			id: ChatVoiceInputModeAction.ID,
-			label: localize('voiceInputMode', "Voice Input Mode"),
-			run: () => { /* interaction handled by the view item */ },
-		});
-		const pill = this._register(this._scopedInstantiationService.createInstance(VoiceInputModeActionViewItem, action, {
-			// Dictation must target this composer's editor, not the last focused
-			// chat widget (this composer isn't an `IChatWidget`).
-			toggleDictation: () => { void this.toggleDictation(); },
-			isActive: isVoiceInputActive,
-			isVoiceActive: isVoiceSessionActive,
-		}));
-		pill.render(pillContainer);
-
-		// The pill only earns its place when it would host at least two cells:
-		//   - both dictation and Voice Mode are available, or
-		//   - only Voice Mode is available in manual (non-hands-free) mode AND a
-		//     session is active, so listen + voice-connection cells both render.
-		// Otherwise the standalone dictation + voice controls show instead.
-		this._register(autorun(reader => {
+		const voiceInputModeVisible = derived(this, reader => {
 			const dict = this.voiceInputModeService.dictationAvailable.read(reader);
 			const voice = this.voiceInputModeService.voiceAvailable.read(reader);
 			const handsFree = this.voiceInputModeService.handsFree.read(reader);
-			// The voice-only branch's "session active" must match the main-window
-			// `AGENTS_VOICE_CONNECTED` context key, which tracks `isConnected` only.
-			// Counting `isConnecting` here would show the pill while the scoped
-			// standalone toolbar still shows its Connecting item (duplicate controls).
 			const connected = isVoiceSessionActive.read(reader) && this.voiceSessionController.isConnected.read(reader);
-			const pillActive = (dict && voice) || (voice && !dict && !handsFree && connected);
-			pillContainer.classList.toggle('hidden', !pillActive);
-			// Mirror the pill's active state onto the input container so voice glow
-			// styling (driven by the voice controller) stays consistent.
-			inputContainer.classList.toggle('voice-input-mode-pill', pillActive);
+			return (dict && voice) || (voice && !dict && !handsFree && connected);
+		});
+		this._register(autorun(reader => container.classList.toggle('voice-input-mode-pill', voiceInputModeVisible.read(reader))));
+		const dictationStateChanged = observableFromEvent(this, Event.any(
+			this.chatSpeechToTextService.onDidChangeState,
+			this.chatSpeechToTextService.onDidChangePreparingModel,
+			this.chatSpeechToTextService.onDidChangeDownloadingModel,
+			this.configurationService.onDidChangeConfiguration,
+		), () => undefined);
+		const dictationVisible = derived(this, reader => {
+			dictationStateChanged.read(reader);
+			voiceInputModeVisible.read(reader);
+			return this._isSpeechToTextButtonVisible();
+		});
+
+		const executeContainer = dom.append(toolbar, dom.$('.sessions-chat-voice-toolbar'));
+		this._register(this.instantiationService.createInstance(NewChatVoiceController, {
+			toolbarContainer: executeContainer,
+			inputContainer: container,
+			composer: this,
+			dictationVisible,
+			voiceInputModeVisible,
+			sendVisible: this.options.renderSendButton !== false,
+			sendEnabled: this._sendEnabled,
+			actionViewItemProvider: (action, itemOptions) => {
+				if (action.id === NEW_CHAT_DICTATION_ACTION_ID && action instanceof MenuItemAction) {
+					return new NewChatEmbeddedActionViewItem(action, target => this._renderSpeechToTextButton(target));
+				}
+				if (action.id === NEW_CHAT_VOICE_INPUT_MODE_ACTION_ID) {
+					return this._scopedInstantiationService.createInstance(VoiceInputModeActionViewItem, action, {
+						toggleDictation: () => { void this.toggleDictation(); },
+						isActive: isVoiceInputActive,
+						isVoiceActive: isVoiceSessionActive,
+					});
+				}
+				if (action.id === NEW_CHAT_SEND_ACTION_ID && action instanceof MenuItemAction) {
+					return new NewChatSendActionViewItem(action);
+				}
+				return undefined;
+			},
+			onDidChangeActions: actionCount => toolbar.classList.toggle('sessions-chat-voice-input-actions-multiple', actionCount > 2),
 		}));
 	}
 
-	private _createSpeechToTextButton(container: HTMLElement, onDidChangeVisibility: (visible: boolean) => void): void {
+	private _renderSpeechToTextButton(container: HTMLElement): { element: HTMLElement; disposable: IDisposable } {
+		const store = new DisposableStore();
 		const sttService = this.chatSpeechToTextService;
 
 		const button = dom.append(container, dom.$('.sessions-chat-stt-button'));
@@ -1070,7 +1116,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		button.role = 'button';
 		const micLabel = localize('sessionsStt.dictate', "Dictate (Speech to Text)");
 		const stopLabel = localize('sessionsStt.stop', "Stop Dictation");
-		this._register(this.hoverService.setupDelayedHover(button, () => ({
+		store.add(this.hoverService.setupDelayedHover(button, () => ({
 			// While the model prepares, surface the download/connecting hover
 			// (which invites the user to click to cancel) so this composer matches
 			// the main chat toolbar affordance. Idle gets the richer description
@@ -1082,7 +1128,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			appearance: { showPointer: true }
 		})));
 
-		const downloadRing = this._register(new MutableDisposable<DictationDownloadRing>());
+		const downloadRing = store.add(new MutableDisposable<DictationDownloadRing>());
 		const renderState = () => {
 			const active = isDictationActiveOnSurface(sttService, 'chat');
 			const preparing = active && sttService.isPreparingModel;
@@ -1118,88 +1164,41 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				: (active ? stopLabel : micLabel);
 		};
 		renderState();
-		this._register(sttService.onDidChangeState(renderState));
-		this._register(sttService.onDidChangePreparingModel(renderState));
-		this._register(sttService.onDidChangeDownloadingModel(renderState));
-		this._register(setupDictationMicGlow(button, sttService, this.accessibilityService, undefined, this.themeService));
-
-		const updateVisibility = () => {
-			// Mirror the `MenuId.ChatExecute` dictation gate: hide while
-			// unconfigured, and while Voice Mode is connected so the dictation and
-			// voice mic affordances never compete on this composer. Also hide when
-			// the segmented voice/dictation pill applies (both modes available, so
-			// the pill hosts its own dictation cell), which supersedes this button.
-			const voiceActive = isNewChatVoiceSessionActive(
-				this.voiceSessionController.isConnected.get(),
-				this.voiceSessionController.isConnecting.get(),
-				this.voiceSessionController.targetSession.get(),
-				this.voiceSessionController.hasDraftTarget.get(),
-			);
-			const dict = this.voiceInputModeService.dictationAvailable.get();
-			const voice = this.voiceInputModeService.voiceAvailable.get();
-			const handsFree = this.voiceInputModeService.handsFree.get();
-			// Match the pill autorun / `AGENTS_VOICE_CONNECTED`: the voice-only branch
-			// keys off `isConnected` only, not the connecting phase.
-			const sessionActive = this.voiceSessionController.isConnected.get();
-			const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
-			// Honor the shared `dictation.showButton` visibility toggle: hiding the
-			// button still leaves Cmd/Ctrl+I working (its keybinding is independent).
-			const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
-			const visible = sttService.isConfigured && !voiceActive && !pillActive && buttonShown;
-			button.classList.toggle('hidden', !visible);
-			onDidChangeVisibility(visible);
-		};
-		updateVisibility();
-		this._register(autorun(reader => {
-			this.voiceSessionController.isConnected.read(reader);
-			this.voiceSessionController.isConnecting.read(reader);
-			this.voiceSessionController.targetSession.read(reader);
-			this.voiceSessionController.hasDraftTarget.read(reader);
-			this.voiceInputModeService.dictationAvailable.read(reader);
-			this.voiceInputModeService.voiceAvailable.read(reader);
-			this.voiceInputModeService.handsFree.read(reader);
-			updateVisibility();
-		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			// Both the enable kill-switch and the model selection can change
-			// availability (e.g. an unsupported on-device platform becomes
-			// configured when switching to the cloud backend).
-			if (e.affectsConfiguration('dictation.enabled') || e.affectsConfiguration('dictation.model') || e.affectsConfiguration(DictationSettingId.ShowButton)) {
-				updateVisibility();
-			}
-		}));
-
-		const toggle = () => this.toggleDictation();
-		// A styled div doesn't get Enter/Space activation or touch tap for free;
-		// wire them explicitly so the button is keyboard- and touch-accessible.
-		this._register(Gesture.addTarget(button));
-		[dom.EventType.CLICK, TouchEventType.Tap].forEach(eventType => {
-			this._register(dom.addDisposableListener(button, eventType, e => {
-				dom.EventHelper.stop(e);
-				void toggle();
-			}));
-		});
-		this._register(dom.addDisposableListener(button, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				dom.EventHelper.stop(event, true);
-				void toggle();
-			}
-		}));
+		store.add(sttService.onDidChangeState(renderState));
+		store.add(sttService.onDidChangePreparingModel(renderState));
+		store.add(sttService.onDidChangeDownloadingModel(renderState));
+		store.add(setupDictationMicGlow(button, sttService, this.accessibilityService, undefined, this.themeService));
 
 		// Right-click shows dictation-specific entries ("Configure Keybinding",
 		// "Select Microphone", "Disable Dictation") mirroring the chat-input mic
 		// button, since this custom button isn't a `MenuEntryActionViewItem`.
-		this._register(addMicButtonContextMenuListener(
+		store.add(addMicButtonContextMenuListener(
 			button,
-			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, TOGGLE_DICTATION_COMMAND_ID),
+			() => getDictationContextMenuActions(this.commandService, this.configurationService, this.keybindingService, NEW_CHAT_DICTATION_ACTION_ID),
 			this.contextMenuService,
 		));
+		return { element: button, disposable: store };
+	}
+
+	private _isSpeechToTextButtonVisible(): boolean {
+		const voiceActive = isNewChatVoiceSessionActive(
+			this.voiceSessionController.isConnected.get(),
+			this.voiceSessionController.isConnecting.get(),
+			this.voiceSessionController.targetSession.get(),
+			this.voiceSessionController.hasDraftTarget.get(),
+		);
+		const dict = this.voiceInputModeService.dictationAvailable.get();
+		const voice = this.voiceInputModeService.voiceAvailable.get();
+		const handsFree = this.voiceInputModeService.handsFree.get();
+		const sessionActive = this.voiceSessionController.isConnected.get();
+		const pillActive = (dict && voice) || (voice && !dict && !handsFree && sessionActive);
+		const buttonShown = this.configurationService.getValue<boolean>(DictationSettingId.ShowButton) !== false;
+		return this.chatSpeechToTextService.isConfigured && !voiceActive && !pillActive && buttonShown;
 	}
 
 	/**
 	 * Toggle dictation into this composer's editor. Shared by the mic button and
-	 * the Cmd/Ctrl+I chord ({@link TOGGLE_DICTATION_COMMAND_ID}); the shared
+	 * the Cmd/Ctrl+I chord ({@link NEW_CHAT_DICTATION_ACTION_ID}); the shared
 	 * Dictate action can't target this composer since it isn't an `IChatWidget`.
 	 */
 	async toggleDictation(): Promise<void> {
@@ -1211,7 +1210,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			keybindingService: this.keybindingService,
 			logService: this.logService,
 			onboardingService: this.dictationOnboardingService,
-		}, TOGGLE_DICTATION_COMMAND_ID, this._editor);
+		}, NEW_CHAT_DICTATION_ACTION_ID, this._editor);
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---
@@ -1349,13 +1348,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _updateSendButtonState(): void {
-		if (!this._sendButton) {
-			return;
-		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
-		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment || hasAdditionalSendContent) && this._canSendRequest.get();
+		this._sendEnabled.set(!this._sending && (hasText || hasSendableAttachment || hasAdditionalSendContent) && this._canSendRequest.get(), undefined);
 	}
 
 	private _restoreState(): void {
