@@ -55,10 +55,6 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
-export function shouldShowChatTip(isNoAgentHost: boolean, hasEnoughSessions: boolean, foregroundSessionCount: number, isCreatingNewSession: boolean): boolean {
-	return !isNoAgentHost && hasEnoughSessions && foregroundSessionCount === 0 && !isCreatingNewSession;
-}
-
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
@@ -396,9 +392,6 @@ export class NewChatWidget extends Disposable {
 		this._renderFeedbackBanner(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
 
-		// Start draft restoration before the tip presenter immediately evaluates eligibility.
-		this._seedWorkspaceDraft();
-
 		// The tip lives in the input's notice slot, so the presenter is created
 		// after the input has rendered it.
 		const chatTipContainer = this._newChatInput.gettingStartedTipContainerElement;
@@ -419,12 +412,9 @@ export class NewChatWidget extends Disposable {
 				// No tip in the no-agent-host empty state: there is no usable composer.
 				// Tips also stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
-				isEligible: () => shouldShowChatTip(
-					chatWidgetContent.classList.contains('no-agent-host'),
-					this._hasEnoughSessionsForFirstRunNotices(),
-					this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) ?? 0,
-					!!this._newSessionCreation.value,
-				),
+				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
+					&& this._hasEnoughSessionsForFirstRunNotices()
+					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),
 			},
 			this._newChatInput.noticeHost,
@@ -454,6 +444,13 @@ export class NewChatWidget extends Disposable {
 				}
 			}));
 		}
+
+		// Create initial session for any workspace already selected at construct time.
+		// If the selection arrives later (provider registers asynchronously), the
+		// picker fires onDidSelectWorkspace and our listener handles it.
+		// Skip if an active session already exists (restored by openNewSession
+		// from a new-session draft when navigating back from another session).
+		this._seedWorkspaceDraft();
 
 		// Re-seed the workspace draft when the composer swaps out of quick-chat
 		// mode (e.g. Cmd+N discards a quick chat, leaving the reused composer
@@ -555,7 +552,6 @@ export class NewChatWidget extends Disposable {
 		const creationCts = new CancellationTokenSource();
 		const creationLifecycle = toDisposable(() => creationCts.dispose(true));
 		this._newSessionCreation.value = creationLifecycle;
-		this._clearChatTip();
 		const userPick = this._newChatInput.sessionTypePicker.getUserPickedSessionType();
 		// Session creation is async, so a provider can start serving the folder
 		// (e.g. the local agent host finishing its handshake) between the call
@@ -575,7 +571,6 @@ export class NewChatWidget extends Disposable {
 		const isCurrentCreation = this._newSessionCreation.value === creationLifecycle;
 		if (isCurrentCreation) {
 			this._newSessionCreation.clear();
-			this._renderChatTip();
 		} else {
 			return result;
 		}

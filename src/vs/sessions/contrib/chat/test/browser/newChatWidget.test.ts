@@ -16,7 +16,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPreferredSessionType } from '../../browser/sessionTypePicker.js';
-import { NewChatWidget, shouldShowChatTip } from '../../browser/newChatWidget.js';
+import { NewChatWidget } from '../../browser/newChatWidget.js';
 
 interface INewChatWidgetHarness {
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
@@ -34,8 +34,6 @@ interface INewChatWidgetHarness {
 	_createNewSession(folderUri: URI): Promise<IOpenNewSessionResult>;
 	_scheduleRecreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined, replayMissedChange: boolean): void;
 	_recreateOnProviderChange(folderUri: URI, userPick: IPreferredSessionType | undefined, created: ISession | undefined): void;
-	_clearChatTip(): void;
-	_renderChatTip(): void;
 }
 
 const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession') as (
@@ -62,7 +60,6 @@ function createHarness(
 	newSessionCreation: MutableDisposable<IDisposable>,
 	onDidChangeSessionTypes: Event<void>,
 	createSessionNow: (token: CancellationToken) => Promise<IOpenNewSessionResult>,
-	tipEvents?: string[],
 ): INewChatWidgetHarness {
 	const harness: INewChatWidgetHarness = {
 		_pendingPreferredUpgrade: pendingPreferredUpgrade,
@@ -80,8 +77,6 @@ function createHarness(
 		_createNewSession: folderUri => createNewSession.call(harness, folderUri),
 		_scheduleRecreateOnProviderChange: (folderUri, userPick, created, replayMissedChange) => scheduleRecreateOnProviderChange.call(harness, folderUri, userPick, created, replayMissedChange),
 		_recreateOnProviderChange: (folderUri, userPick, created) => recreateOnProviderChange.call(harness, folderUri, userPick, created),
-		_clearChatTip: () => tipEvents?.push('clear'),
-		_renderChatTip: () => tipEvents?.push('render'),
 	};
 	return harness;
 }
@@ -176,29 +171,4 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);
 	});
 
-	test('only shows tips when the composer is ready', () => {
-		assert.deepStrictEqual([
-			shouldShowChatTip(false, true, 0, false),
-			shouldShowChatTip(false, true, 0, true),
-		], [true, false]);
-	});
-
-	test('clears the tip until new session creation finishes', async () => {
-		const sessionTypesChanged = disposables.add(new Emitter<void>());
-		const pendingPreferredUpgrade = disposables.add(new MutableDisposable<IDisposable>());
-		const newSessionCreation = disposables.add(new MutableDisposable<IDisposable>());
-		const creation = new DeferredPromise<IOpenNewSessionResult>();
-		const tipEvents: string[] = [];
-		const harness = createHarness(pendingPreferredUpgrade, newSessionCreation, sessionTypesChanged.event, () => creation.p, tipEvents);
-
-		const creating = harness._createNewSession(URI.file('/project'));
-		const whileCreating = [...tipEvents];
-		creation.complete({ session: undefined, trustDeclined: true });
-		await creating;
-
-		assert.deepStrictEqual({ whileCreating, afterCreating: tipEvents }, {
-			whileCreating: ['clear'],
-			afterCreating: ['clear', 'render'],
-		});
-	});
 });
