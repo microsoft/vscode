@@ -27,7 +27,7 @@ interface TestChildProcess {
 	emitExit(): void;
 }
 
-function createProcess(args: readonly string[], complete: boolean, statusOutput?: string, exitOnKill = true, env?: NodeJS.ProcessEnv): TestChildProcess {
+function createProcess(args: readonly string[], complete: boolean, statusOutput?: string, exitOnKill = true, env?: NodeJS.ProcessEnv, exitCode = 0): TestChildProcess {
 	const stdout = new PassThrough();
 	const stderr = new PassThrough();
 	let killed = false;
@@ -48,7 +48,7 @@ function createProcess(args: readonly string[], complete: boolean, statusOutput?
 			if (statusOutput) {
 				stdout.write(statusOutput);
 			}
-			child.emit('exit', 0);
+			child.emit('exit', exitCode);
 		});
 	}
 	return { child, stdout, stderr, args, env, kill: child.kill.bind(child), wasKilled: () => killed, emitExit: () => child.emit('exit', null) };
@@ -62,7 +62,7 @@ function agentRequest(): IAgentHostSharingRequest {
 	return { token: 'agent-token', authProvider: 'github', logLevel: LogLevel.Info };
 }
 
-function createCoordinator(exitOnKill = true, ordering?: string[]) {
+function createCoordinator(exitOnKill = true, ordering?: string[], installExitCode = 0) {
 	const processes: TestChildProcess[] = [];
 	const spawn: CodeTunnelSpawn = (_command: string, args: readonly string[], options: SpawnOptions) => {
 		const complete = args.includes('login') || args.includes('status') || args.includes('install') || args.includes('kill') || args.includes('uninstall');
@@ -70,7 +70,7 @@ function createCoordinator(exitOnKill = true, ordering?: string[]) {
 		if (isTunnelProcess) {
 			ordering?.push(args.includes('--agent-host-only') ? 'spawn-agent-host' : 'spawn-remote-access');
 		}
-		const process = createProcess(args, complete, args.includes('status') ? '{"service_installed":false,"tunnel":null}\n' : undefined, exitOnKill || complete, options.env);
+		const process = createProcess(args, complete, args.includes('status') ? '{"service_installed":false,"tunnel":null}\n' : undefined, exitOnKill || complete, options.env, args.includes('install') ? installExitCode : 0);
 		if (isTunnelProcess && ordering) {
 			process.child.on('exit', () => ordering.push(args.includes('--agent-host-only') ? 'exit-agent-host' : 'exit-remote-access'));
 			const kill = process.child.kill;
@@ -185,6 +185,55 @@ suite('TunnelProcessCoordinator', () => {
 		}
 	});
 
+	test('starts a session tunnel alongside the installed service so readiness can advance', async () => {
+		const { coordinator, processes } = createCoordinator();
+		try {
+			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
+			const sessionTunnel = processes.find(process => process.args.includes('--accept-server-license-terms')
+				&& !process.args.includes('install'));
+
+			// Without a session process nothing ever reports connected, so the
+			// UI stays stuck on "connecting" after the service is installed.
+			assert.deepStrictEqual({
+				installed: processes.some(process => process.args.includes('install')),
+				startedSessionTunnel: !!sessionTunnel,
+				mode: coordinator.getStatus().mode,
+			}, {
+				installed: true,
+				startedSessionTunnel: true,
+				mode: 'service',
+			});
+		} finally {
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
+
+	test('falls back to hosting in-session when the service install fails', async () => {
+		const { coordinator, processes } = createCoordinator(true, undefined, 1);
+		try {
+			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
+
+			assert.deepStrictEqual({
+				serviceInstallFailed: coordinator.getStatus().serviceInstallFailed,
+				startedSessionTunnel: processes.some(process => process.args.includes('--accept-server-license-terms')
+					&& !process.args.includes('install')),
+			}, {
+				serviceInstallFailed: true,
+				startedSessionTunnel: true,
+			});
+		} finally {
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
+
 	test('waits for the prior tunnel process to exit before spawning its replacement', async () => {
 		const ordering: string[] = [];
 		const { coordinator, processes } = createCoordinator(false, ordering);
@@ -218,19 +267,6 @@ suite('TunnelProcessCoordinator', () => {
 				['tunnel', '--agent-host-only', '--name', 'test_host', '--user-data-dir', 'custom-user-data', '--delegate-to-editor', '--parent-process-id', String(process.pid)],
 				['tunnel', '--agent-host-only', '--name', 'test_host', '--user-data-dir', 'custom-user-data', '--delegate-to-editor', '--parent-process-id', String(process.pid)],
 			]);
-		} finally {
-			coordinator.dispose();
-		}
-	});
-
-	test('uses no coordinator-owned tunnel process for service mode', async () => {
-		const { coordinator, processes } = createCoordinator();
-		try {
-			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
-			assert.deepStrictEqual({
-				status: coordinator.getStatus().mode,
-				tunnelProcesses: processes.filter(process => process.args[0] === 'tunnel' && !process.args.includes('status') && !process.args.includes('install')).length,
-			}, { status: 'service', tunnelProcesses: 0 });
 		} finally {
 			coordinator.dispose();
 		}

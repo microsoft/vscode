@@ -192,8 +192,8 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (this._status.mode !== target.mode || this._status.tunnelName !== tunnelName) {
 			return false;
 		}
-		// Only the modes that own a child process can be confirmed from here;
-		// `service` is hosted outside this process, so it always reconciles.
+		// Every mode except `none` runs a session process, even `service`, which
+		// attaches to the installed service's singleton to report its status.
 		return target.mode === 'none' || !!this._currentProcess;
 	}
 
@@ -231,15 +231,15 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (generation !== this._generation) {
 			return;
 		}
-		if (target.mode === 'service') {
-			let serviceInstallFailed = false;
-			if (!isServiceInstalled) {
-				serviceInstallFailed = await this._installService(target.logLevel, tunnelName!, generation) === false;
+		if (target.mode === 'service' && !isServiceInstalled) {
+			const serviceInstallFailed = await this._installService(target.logLevel, tunnelName!, generation) === false;
+			if (generation !== this._generation) {
+				return;
 			}
-			if (generation === this._generation) {
-				this._setStatus({ ...this._status, serviceInstallFailed });
-			}
-			return;
+			// A failed install is not fatal: the session tunnel below still
+			// runs, matching the pre-CLI behaviour of falling back to hosting
+			// in-session and reporting the failure alongside it.
+			this._setStatus({ ...this._status, serviceInstallFailed });
 		}
 
 		if (target.login) {
@@ -266,7 +266,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 			args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
 			args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
 		}
-		if (target.mode === 'remoteAccess' && this._preventSleep()) {
+		if (target.mode !== 'agentHost' && this._preventSleep()) {
 			args.push('--no-sleep');
 		}
 		this._startTunnel(args, target.mode, generation);
