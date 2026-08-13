@@ -18,16 +18,35 @@ import { ProtectedResourceMetadata, type Changeset, type ChatOrigin, type Config
 import type { AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
+/** Error returned when the Agent Host process cannot be started. */
+export class AgentHostStartError extends Error {
+	constructor(message: string, readonly fatal = false) {
+		super(message);
+	}
+}
+
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
 	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+	/** Gracefully shuts down Agent Host providers before the process is disposed. */
+	shutdown(): Promise<void>;
+}
+
+/** Allows a connection request to join the shared process startup. */
+export interface IAgentHostStartRequest {
+	waitUntil(promise: Promise<void>): void;
+}
+
+/** Allows the Agent Host process to join application shutdown. */
+export interface IAgentHostShutdownRequest {
+	join(promise: Promise<void>): void;
 }
 
 export interface IAgentHostStarter extends IDisposable {
-	readonly onRequestConnection?: Event<void>;
+	readonly onRequestConnection?: Event<IAgentHostStartRequest>;
 	readonly onRequestRestart?: Event<void>;
-	readonly onWillShutdown?: Event<void>;
+	readonly onWillShutdown?: Event<IAgentHostShutdownRequest>;
 
 	start(): Promise<IAgentHostConnection>;
 }
