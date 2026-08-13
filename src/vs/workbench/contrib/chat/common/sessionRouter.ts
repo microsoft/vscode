@@ -198,12 +198,14 @@ export interface IAdditionalRoutableSession extends IRoutableSession {
 	readonly rawSessionResource: URI;
 }
 
+export type ChatSessionRoutingDispatchReasonCode = 'cancelled' | 'providerRemoved' | 'workspaceNotTrusted';
+
 export interface IChatSessionRoutingDispatchResult {
 	readonly status: 'sent' | 'queued' | 'rejected';
 	readonly resource?: URI;
 	readonly requestId?: string;
 	readonly reason?: string;
-	readonly reasonCode?: 'cancelled' | 'providerRemoved';
+	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
 	readonly completion?: Promise<IChatSessionRoutingDispatchResult>;
 }
 

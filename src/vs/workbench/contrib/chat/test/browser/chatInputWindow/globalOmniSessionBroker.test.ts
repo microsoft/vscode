@@ -11,9 +11,25 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatSendResult, IChatModelReference, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatResponseModel, IChatModel } from '../../../common/model/chatModel.js';
+import { IChatAgentData } from '../../../common/participants/chatAgents.js';
 import { IChatSessionRoutingDispatchResult } from '../../../common/sessionRouter.js';
+import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { GlobalOmniSessionSourceRequestHandler } from '../../../browser/chatInputWindow/globalOmniSessionBroker.js';
 import { GlobalOmniSessionBrokerClient, GlobalOmniSessionBrokerMessage, IGlobalOmniSessionBrokerChannel } from '../../../browser/chatInputWindow/globalOmniSessionBrokerClient.js';
 import { decodeGlobalOmniSessionCandidateId, encodeGlobalOmniSessionCandidateId, GlobalOmniSessionBrokerModel, IGlobalOmniSessionSnapshotEntry } from '../../../browser/chatInputWindow/globalOmniSessionBrokerModel.js';
 
@@ -173,6 +189,100 @@ suite('GlobalOmniSessionBroker', () => {
 				resource: 'agent-host-copilotcli:/remote',
 				requestId: 'request-1',
 			},
+		});
+	});
+
+	test('trusted current-workspace source requests workspace trust before sending', async () => {
+		const workspaceFolder = URI.parse('vscode-remote://ssh-remote+host/work/vscode');
+		const harness = createSourceHarness({
+			metadataWorkingDirectoryPath: '/work/vscode',
+			workspaceFolder,
+			remoteAuthority: 'ssh-remote+host',
+			defaultUriScheme: 'vscode-remote',
+			trusted: true,
+		});
+
+		const result = await harness.handler.sendRequest(harness.session.resource, 'Fix it', {
+			userSelectedTools: constObservable({ terminal: true }),
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result: { status: result.status, resource: result.resource?.toString(), requestId: result.requestId },
+			trustRequests: harness.trustRequests,
+			order: harness.order,
+			sendCount: harness.sendOptions.length,
+			tools: harness.sendOptions[0]?.userSelectedTools?.get(),
+			disposedReferences: harness.disposedReferences(),
+		}, {
+			result: { status: 'sent', resource: harness.session.resource.toString(), requestId: 'request-1' },
+			trustRequests: [{ kind: 'workspace' }],
+			order: ['workspaceTrust', 'acquire', 'send'],
+			sendCount: 1,
+			tools: { terminal: true },
+			disposedReferences: 1,
+		});
+	});
+
+	test('declined standalone source trust rejects without loading or sending', async () => {
+		const targetFolder = URI.parse('vscode-agent-host://remote-host/work/repo?_ah=metadata');
+		const harness = createSourceHarness({
+			resolvedWorkingDirectory: targetFolder,
+			trusted: false,
+		});
+
+		const result = await harness.handler.sendRequest(harness.session.resource, 'Fix it', {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result: { status: result.status, resource: result.resource?.toString(), reasonCode: result.reasonCode },
+			trustRequests: harness.trustRequests,
+			order: harness.order,
+			sendCount: harness.sendOptions.length,
+		}, {
+			result: {
+				status: 'rejected',
+				resource: harness.session.resource.toString(),
+				reasonCode: 'workspaceNotTrusted',
+			},
+			trustRequests: [{ kind: 'resource', uri: targetFolder.toString() }],
+			order: ['resourceTrust'],
+			sendCount: 0,
+		});
+	});
+
+	test('evaluates source trust at dispatch time and preserves the typed rejection over the broker', async () => {
+		const bus = new TestBrokerBus();
+		const harness = createSourceHarness({
+			resolvedWorkingDirectory: URI.file('/standalone/repo'),
+			trusted: true,
+		});
+		const sourceA = disposables.add(new GlobalOmniSessionBrokerClient(
+			'profile',
+			'source-a',
+			bus.createChannel(),
+			async () => ({ status: 'rejected' }),
+			error => assert.fail(error instanceof Error ? error : String(error)),
+		));
+		const sourceB = disposables.add(new GlobalOmniSessionBrokerClient(
+			'profile',
+			'source-b',
+			bus.createChannel(),
+			(resource, message, options, token) => harness.handler.sendRequest(resource, message, options, token),
+			error => assert.fail(error instanceof Error ? error : String(error)),
+		));
+		sourceB.updateLocalSnapshot([snapshot(harness.session.resource.toString(), 'Remote')]);
+		const candidate = sourceA.getAdditionalCandidates([])[0];
+		harness.setTrusted(false);
+
+		const result = await sourceA.dispatch(candidate.sessionId, 'Fix it', {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result: { status: result?.status, reasonCode: result?.reasonCode },
+			trustRequests: harness.trustRequests,
+			sendCount: harness.sendOptions.length,
+		}, {
+			result: { status: 'rejected', reasonCode: 'workspaceNotTrusted' },
+			trustRequests: [{ kind: 'resource', uri: URI.file('/standalone/repo').toString() }],
+			sendCount: 0,
 		});
 	});
 
@@ -338,5 +448,118 @@ function snapshot(resource: string, label: string): IGlobalOmniSessionSnapshotEn
 		repo: 'microsoft/vscode',
 		cwd: '/work/vscode',
 		description: 'Session description',
+	};
+}
+
+function createSourceHarness(options: {
+	readonly resolvedWorkingDirectory?: URI;
+	readonly metadataWorkingDirectoryPath?: string;
+	readonly workspaceFolder?: URI;
+	readonly remoteAuthority?: string;
+	readonly defaultUriScheme?: string;
+	readonly trusted: boolean;
+}) {
+	const state = { trusted: options.trusted };
+	const order: string[] = [];
+	const trustRequests: ({ readonly kind: 'workspace' } | { readonly kind: 'resource'; readonly uri: string })[] = [];
+	const sendOptions: IChatSendRequestOptions[] = [];
+	let disposedReferences = 0;
+	const session = new class extends mock<IAgentSession>() {
+		override readonly resource = URI.parse('agent-host-copilotcli:/source-session');
+		override readonly providerType = AgentSessionProviders.AgentHostCopilot;
+		override readonly metadata = options.metadataWorkingDirectoryPath
+			? { workingDirectoryPath: options.metadataWorkingDirectoryPath }
+			: undefined;
+		override isArchived(): boolean { return false; }
+	};
+	const agentSessionsService = new class extends mock<IAgentSessionsService>() {
+		override getSession(resource: URI): IAgentSession | undefined {
+			return resource.toString() === session.resource.toString() ? session : undefined;
+		}
+	};
+	const chatSessionsService = new class extends mock<IChatSessionsService>() {
+		override getChatSessionContribution(): undefined { return undefined; }
+	};
+	const chatService = new class extends mock<IChatService>() {
+		override async acquireOrLoadSession(): Promise<IChatModelReference> {
+			order.push('acquire');
+			return {
+				object: new class extends mock<IChatModel>() { },
+				dispose: () => disposedReferences++,
+			};
+		}
+		override async sendRequest(_resource: URI, _message: string, requestOptions: IChatSendRequestOptions): Promise<ChatSendResult> {
+			order.push('send');
+			sendOptions.push(requestOptions);
+			const response = new class extends mock<IChatResponseModel>() {
+				override readonly requestId = 'request-1';
+			};
+			return {
+				kind: 'sent',
+				data: {
+					agent: {} as IChatAgentData,
+					responseCreatedPromise: Promise.resolve(response),
+					responseCompletePromise: Promise.resolve(),
+				},
+			};
+		}
+	};
+	const newSessionFolderService = new class extends mock<IAgentHostNewSessionFolderService>() {
+		override getFolder(): undefined { return undefined; }
+	};
+	const workingDirectoryResolver = new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
+		override resolve(): URI | undefined { return options.resolvedWorkingDirectory; }
+	};
+	const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+		override getWorkspaceFolder(resource: URI) {
+			const workspaceFolder = options.workspaceFolder;
+			if (workspaceFolder?.toString() === resource.toString()) {
+				return { uri: workspaceFolder, name: 'workspace', index: 0, toResource: () => workspaceFolder };
+			}
+			return null;
+		}
+	};
+	const workspaceTrustRequestService = new class extends mock<IWorkspaceTrustRequestService>() {
+		override async requestWorkspaceTrust(_options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+			order.push('workspaceTrust');
+			trustRequests.push({ kind: 'workspace' });
+			return state.trusted;
+		}
+		override async requestResourcesTrust(requestOptions: ResourceTrustRequestOptions): Promise<boolean | undefined> {
+			order.push('resourceTrust');
+			trustRequests.push({ kind: 'resource', uri: requestOptions.uri.toString() });
+			return state.trusted;
+		}
+	};
+	const pathService = new class extends mock<IPathService>() {
+		override readonly defaultUriScheme = options.defaultUriScheme ?? 'file';
+		override async fileURI(path: string): Promise<URI> { return URI.file(path); }
+	};
+	const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
+		override readonly remoteAuthority = options.remoteAuthority;
+	};
+	const logService = new class extends mock<ILogService>() {
+		override warn(): void { }
+	};
+	const handler = new GlobalOmniSessionSourceRequestHandler(
+		agentSessionsService,
+		chatSessionsService,
+		chatService,
+		newSessionFolderService,
+		workingDirectoryResolver,
+		workspaceContextService,
+		workspaceTrustRequestService,
+		pathService,
+		environmentService,
+		logService,
+	);
+	return {
+		handler,
+		session,
+		order,
+		trustRequests,
+		sendOptions,
+		disposedReferences: () => disposedReferences,
+		setTrusted: (trusted: boolean) => state.trusted = trusted,
 	};
 }

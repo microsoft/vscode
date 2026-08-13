@@ -14,7 +14,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions } from '../../common/chatService/chatService.js';
 import { UserSelectedTools } from '../../common/participants/chatAgents.js';
-import { IAdditionalRoutableSession, IChatSessionRoutingDispatchResult } from '../../common/sessionRouter.js';
+import { ChatSessionRoutingDispatchReasonCode, IAdditionalRoutableSession, IChatSessionRoutingDispatchResult } from '../../common/sessionRouter.js';
 import { decodeGlobalOmniSessionCandidateId, GlobalOmniSessionBrokerModel, IGlobalOmniSessionSnapshot, IGlobalOmniSessionSnapshotEntry } from './globalOmniSessionBrokerModel.js';
 
 const DEFAULT_HEARTBEAT_INTERVAL = 5_000;
@@ -71,7 +71,7 @@ interface IGlobalOmniSessionWireDispatchResult {
 	readonly resource?: string;
 	readonly requestId?: string;
 	readonly reason?: string;
-	readonly reasonCode?: 'cancelled' | 'providerRemoved';
+	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
 }
 
 interface IGlobalOmniSessionDispatchResultMessage {

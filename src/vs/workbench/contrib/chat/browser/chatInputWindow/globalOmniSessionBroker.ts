@@ -10,18 +10,27 @@ import { raceCancellation, RunOnceScheduler } from '../../../../../base/common/a
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { toLocalResource } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAdditionalRoutableSession, IChatSessionRoutingDispatchResult, IGlobalOmniSessionBroker, OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
+import { requestAgentSessionTargetWorkspaceTrust } from '../agentSessions/agentSessionWorkspaceTrust.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentSessionStatus, IAgentSession } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { decodeGlobalOmniSessionCandidateId, IGlobalOmniSessionSnapshotEntry } from './globalOmniSessionBrokerModel.js';
@@ -53,6 +62,197 @@ function isCopilotRoutingProvider(provider: string): boolean {
 		|| provider === AgentSessionProviders.AgentHostCopilot;
 }
 
+function isSerializedUri(value: string): boolean {
+	const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value)?.[1];
+	return !!scheme && !(scheme.length === 1 && /^[a-zA-Z]:[\\/]/.test(value));
+}
+
+export class GlobalOmniSessionSourceRequestHandler {
+
+	constructor(
+		private readonly agentSessionsService: Pick<IAgentSessionsService, 'getSession'>,
+		private readonly chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>,
+		private readonly chatService: Pick<IChatService, 'acquireOrLoadSession' | 'sendRequest'>,
+		private readonly newSessionFolderService: Pick<IAgentHostNewSessionFolderService, 'getFolder'>,
+		private readonly workingDirectoryResolver: Pick<IAgentHostSessionWorkingDirectoryResolver, 'resolve'>,
+		private readonly workspaceContextService: Pick<IWorkspaceContextService, 'getWorkspaceFolder'>,
+		private readonly workspaceTrustRequestService: Pick<IWorkspaceTrustRequestService, 'requestWorkspaceTrust' | 'requestResourcesTrust'>,
+		private readonly pathService: Pick<IPathService, 'defaultUriScheme' | 'fileURI'>,
+		private readonly environmentService: Pick<IWorkbenchEnvironmentService, 'remoteAuthority'>,
+		private readonly logService: Pick<ILogService, 'warn'>,
+	) { }
+
+	async sendRequest(
+		resource: URI,
+		message: string,
+		options: IChatSendRequestOptions,
+		token: CancellationToken,
+	): Promise<IChatSessionRoutingDispatchResult> {
+		const session = this.agentSessionsService.getSession(resource);
+		if (!session || !this._isEligibleSession(session)) {
+			return this._sourceUnavailable(resource);
+		}
+
+		let workingDirectory: URI | undefined;
+		try {
+			workingDirectory = await this._resolveWorkingDirectory(session);
+		} catch (error) {
+			this.logService.warn('[globalOmniSessionBroker] resolving the source session working directory failed:', error);
+			return this._workspaceNotTrusted(resource);
+		}
+
+		if (!await requestAgentSessionTargetWorkspaceTrust(
+			workingDirectory,
+			this.workspaceContextService,
+			this.workspaceTrustRequestService,
+		)) {
+			return this._workspaceNotTrusted(resource);
+		}
+		if (token.isCancellationRequested) {
+			return this._cancelled(resource);
+		}
+
+		const currentSession = this.agentSessionsService.getSession(resource);
+		if (!currentSession || !this._isEligibleSession(currentSession)) {
+			return this._sourceUnavailable(resource);
+		}
+
+		const reference = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'globalOmniRoute');
+		if (!reference) {
+			return {
+				status: 'rejected',
+				resource,
+				reason: 'The source session could not be loaded.',
+				reasonCode: 'providerRemoved',
+			};
+		}
+		if (token.isCancellationRequested) {
+			reference.dispose();
+			return this._cancelled(resource);
+		}
+
+		let disposeReference = true;
+		try {
+			const result = await this.chatService.sendRequest(resource, message, {
+				...options,
+				userSelectedModelId: undefined,
+				agentIdSilent: getChatSessionType(resource),
+				queue: ChatRequestQueueKind.Queued,
+			});
+			if (token.isCancellationRequested) {
+				return this._cancelled(resource);
+			}
+			if (result.kind === 'rejected') {
+				return {
+					status: 'rejected',
+					resource: result.newSessionResource ?? resource,
+					reason: result.reason,
+					reasonCode: result.reasonCode,
+				};
+			}
+			if (result.kind === 'queued') {
+				disposeReference = false;
+				return {
+					status: 'queued',
+					resource,
+					requestId: result.requestId,
+					completion: this._resolveQueuedCompletion(resource, result.deferred)
+						.finally(() => reference.dispose()),
+				};
+			}
+			const response = await raceCancellation(result.data.responseCreatedPromise, token);
+			if (!response) {
+				return this._cancelled(resource);
+			}
+			return {
+				status: 'sent',
+				resource: result.newSessionResource ?? resource,
+				requestId: response.requestId,
+			};
+		} finally {
+			if (disposeReference) {
+				reference.dispose();
+			}
+		}
+	}
+
+	private _isEligibleSession(session: IAgentSession): boolean {
+		return isCopilotRoutingProvider(session.providerType)
+			&& !session.isArchived()
+			&& this.chatSessionsService.getChatSessionContribution(getChatSessionType(session.resource))?.isReadOnly !== true;
+	}
+
+	private async _resolveWorkingDirectory(session: IAgentSession): Promise<URI | undefined> {
+		const resolved = this.newSessionFolderService.getFolder(session.resource)
+			?? this.workingDirectoryResolver.resolve(session.resource);
+		if (resolved) {
+			return resolved;
+		}
+
+		const workingDirectoryPath = session.metadata?.workingDirectoryPath;
+		if (typeof workingDirectoryPath !== 'string' || !workingDirectoryPath) {
+			return undefined;
+		}
+		if (isSerializedUri(workingDirectoryPath)) {
+			return URI.parse(workingDirectoryPath, true);
+		}
+
+		const fileUri = await this.pathService.fileURI(workingDirectoryPath);
+		return toLocalResource(fileUri, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
+	}
+
+	private async _resolveQueuedCompletion(resource: URI, deferred: Promise<ChatSendResult>): Promise<IChatSessionRoutingDispatchResult> {
+		try {
+			let result = await deferred;
+			while (result.kind === 'queued') {
+				result = await result.deferred;
+			}
+			return result.kind === 'sent'
+				? { status: 'sent', resource: result.newSessionResource ?? resource }
+				: {
+					status: 'rejected',
+					resource: result.newSessionResource ?? resource,
+					reason: result.reason,
+					reasonCode: result.reasonCode,
+				};
+		} catch (error) {
+			this.logService.warn('[globalOmniSessionBroker] queued request failed:', error);
+			return {
+				status: 'rejected',
+				resource,
+				reason: error instanceof Error ? error.message : String(error),
+			};
+		}
+	}
+
+	private _cancelled(resource: URI): IChatSessionRoutingDispatchResult {
+		return {
+			status: 'rejected',
+			resource,
+			reason: 'The routed request was cancelled.',
+			reasonCode: 'cancelled',
+		};
+	}
+
+	private _sourceUnavailable(resource: URI): IChatSessionRoutingDispatchResult {
+		return {
+			status: 'rejected',
+			resource,
+			reason: 'The source session is no longer available.',
+			reasonCode: 'providerRemoved',
+		};
+	}
+
+	private _workspaceNotTrusted(resource: URI): IChatSessionRoutingDispatchResult {
+		return {
+			status: 'rejected',
+			resource,
+			reason: localize('globalOmniSessionBroker.workspaceNotTrusted', "The target workspace or folder is not trusted."),
+			reasonCode: 'workspaceNotTrusted',
+		};
+	}
+}
+
 export class GlobalOmniSessionBrokerService extends Disposable implements IGlobalOmniSessionBroker {
 
 	declare readonly _serviceBrand: undefined;
@@ -63,16 +263,35 @@ export class GlobalOmniSessionBrokerService extends Disposable implements IGloba
 	private _profileId: string | undefined;
 	private _enablementGeneration = 0;
 	private _modelListenerRegistered = false;
+	private readonly _sourceRequestHandler: GlobalOmniSessionSourceRequestHandler;
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatService private readonly chatService: IChatService,
+		@IChatService chatService: IChatService,
+		@IAgentHostNewSessionFolderService newSessionFolderService: IAgentHostNewSessionFolderService,
+		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IPathService pathService: IPathService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this._sourceRequestHandler = new GlobalOmniSessionSourceRequestHandler(
+			agentSessionsService,
+			chatSessionsService,
+			chatService,
+			newSessionFolderService,
+			workingDirectoryResolver,
+			workspaceContextService,
+			workspaceTrustRequestService,
+			pathService,
+			environmentService,
+			logService,
+		);
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(OmniChatEnabledSettingId)) {
 				void this._updateEnablement();
@@ -177,112 +396,7 @@ export class GlobalOmniSessionBrokerService extends Disposable implements IGloba
 		options: IChatSendRequestOptions,
 		token: CancellationToken,
 	): Promise<IChatSessionRoutingDispatchResult> {
-		const session = this.agentSessionsService.getSession(resource);
-		if (!session || !this._isEligibleSession(session)) {
-			return {
-				status: 'rejected',
-				resource,
-				reason: 'The source session is no longer available.',
-				reasonCode: 'providerRemoved',
-			};
-		}
-
-		const reference = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'globalOmniRoute');
-		if (!reference) {
-			return {
-				status: 'rejected',
-				resource,
-				reason: 'The source session could not be loaded.',
-				reasonCode: 'providerRemoved',
-			};
-		}
-		if (token.isCancellationRequested) {
-			reference.dispose();
-			return {
-				status: 'rejected',
-				resource,
-				reason: 'The routed request was cancelled.',
-				reasonCode: 'cancelled',
-			};
-		}
-
-		let disposeReference = true;
-		try {
-			const result = await this.chatService.sendRequest(resource, message, {
-				...options,
-				userSelectedModelId: undefined,
-				agentIdSilent: getChatSessionType(resource),
-				queue: ChatRequestQueueKind.Queued,
-			});
-			if (token.isCancellationRequested) {
-				return {
-					status: 'rejected',
-					resource,
-					reason: 'The routed request was cancelled.',
-					reasonCode: 'cancelled',
-				};
-			}
-			if (result.kind === 'rejected') {
-				return {
-					status: 'rejected',
-					resource: result.newSessionResource ?? resource,
-					reason: result.reason,
-					reasonCode: result.reasonCode,
-				};
-			}
-			if (result.kind === 'queued') {
-				disposeReference = false;
-				return {
-					status: 'queued',
-					resource,
-					requestId: result.requestId,
-					completion: this._resolveQueuedCompletion(resource, result.deferred)
-						.finally(() => reference.dispose()),
-				};
-			}
-			const response = await raceCancellation(result.data.responseCreatedPromise, token);
-			if (!response) {
-				return {
-					status: 'rejected',
-					resource,
-					reason: 'The routed request was cancelled.',
-					reasonCode: 'cancelled',
-				};
-			}
-			return {
-				status: 'sent',
-				resource: result.newSessionResource ?? resource,
-				requestId: response.requestId,
-			};
-		} finally {
-			if (disposeReference) {
-				reference.dispose();
-			}
-		}
-	}
-
-	private async _resolveQueuedCompletion(resource: URI, deferred: Promise<ChatSendResult>): Promise<IChatSessionRoutingDispatchResult> {
-		try {
-			let result = await deferred;
-			while (result.kind === 'queued') {
-				result = await result.deferred;
-			}
-			return result.kind === 'sent'
-				? { status: 'sent', resource: result.newSessionResource ?? resource }
-				: {
-					status: 'rejected',
-					resource: result.newSessionResource ?? resource,
-					reason: result.reason,
-					reasonCode: result.reasonCode,
-				};
-		} catch (error) {
-			this.logService.warn('[globalOmniSessionBroker] queued request failed:', error);
-			return {
-				status: 'rejected',
-				resource,
-				reason: error instanceof Error ? error.message : String(error),
-			};
-		}
+		return this._sourceRequestHandler.sendRequest(resource, message, options, token);
 	}
 }
 
