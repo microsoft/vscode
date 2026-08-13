@@ -143,6 +143,16 @@ class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperim
 				"ErrorType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of error encountered when calling the new assignments endpoint" }
 			}
 		*/
+		/* __GDPR__
+			"tas-call" : {
+				"owner": "sbatten",
+				"comment": "Logs each TAS call (legacy and new assignments endpoint) with its outcome, to confirm calls are made and succeeding per extension",
+				"callType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Which endpoint was called: legacy or assignments" },
+				"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Call outcome: Success, ServerError, NoResponse, or GenericError" },
+				"extensionName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The extension/host the TAS call was made for" },
+				"assignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The assignment context returned by this call's endpoint" }
+			}
+		*/
 		this.telemetryService.publicLog(eventName, data);
 	}
 }
@@ -424,6 +434,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,
+			extensionName: 'vscode-core',
 			assignmentsEndpoint,
 			assignmentsFilterProviders,
 			// Route the assignments request through the main-process request service so it is

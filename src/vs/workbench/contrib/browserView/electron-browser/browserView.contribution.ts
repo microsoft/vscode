@@ -15,9 +15,12 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 // Register actions and browser features
 import './features/webContentsViewRendererFeature.js';
@@ -37,6 +40,11 @@ import './features/browserEditorFindFeature.js';
 import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
 import './features/browserRemoteFeatures.js';
+
+function getBrowserViewStateUrl(viewState: object | undefined): string | undefined {
+	const url = Object.entries(viewState ?? {}).find(([key]) => key === 'url')?.[1];
+	return typeof url === 'string' ? url : undefined;
+}
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -60,6 +68,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -95,6 +104,41 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 				}
 			}
 		);
+
+		for (const extension of ['html', 'htm']) {
+			editorResolverService.registerEditor(
+				`${Schemas.file}:/**/*.${extension}`,
+				{
+					id: BrowserEditorInput.EDITOR_ID,
+					label: localize('browser.htmlEditorLabel', "Integrated Browser"),
+					priority: RegisteredEditorPriority.option
+				},
+				{
+					canSupportResource: resource => resource.scheme === Schemas.file,
+					singlePerResource: true
+				},
+				{
+					createEditorInput: ({ resource, options }) => {
+						logBrowserOpen(telemetryService, 'fileResource');
+
+						const viewState = options?.viewState;
+						const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
+							...viewState,
+							url: getBrowserViewStateUrl(viewState) ?? resource.toString()
+						}, resource);
+						void browserInput.resolve();
+
+						return {
+							editor: browserInput,
+							options: {
+								pinned: true,
+								...options
+							}
+						};
+					}
+				}
+			);
+		}
 	}
 }
 

@@ -83,6 +83,15 @@ export interface IWorkspacePickerOptions {
 	readonly canRestoreWorkspace?: () => boolean;
 	readonly restoreFromSessions?: boolean;
 	readonly sessionWorkspaceProviderFilter?: (providerId: string) => boolean;
+	readonly getWorkspaceGroupAction?: (group: string | undefined) => IWorkspacePickerGroupAction | undefined;
+}
+
+export interface IWorkspacePickerGroupAction {
+	readonly label: string;
+	readonly description?: string;
+	readonly icon: ThemeIcon;
+	readonly commandId: string;
+	readonly hideWorkspaceItems?: boolean;
 }
 
 interface IBrowsedWorkspaceSelection {
@@ -204,11 +213,7 @@ export class WorkspacePicker extends Disposable {
 
 		this._tabbedWidget = this._register(this.instantiationService.createInstance(TabbedActionListWidget));
 		this._pickerGroupContext = SessionWorkspacePickerGroupContext.bindTo(this.contextKeyService);
-		this._register(this._tabbedWidget.onDidChangeTab(tab => {
-			this._activeTab = tab;
-			this._userPickedTab = true;
-			this._pickerGroupContext.set(tab);
-		}));
+		this._register(this._tabbedWidget.onDidChangeTab(tab => this._selectWorkspaceGroup(tab)));
 		this._register(this._tabbedWidget.onDidHide(() => {
 			this._pickerGroupContext.reset();
 		}));
@@ -272,6 +277,12 @@ export class WorkspacePicker extends Disposable {
 				this._userPickedTab = false;
 			}
 		}));
+	}
+
+	protected _selectWorkspaceGroup(group: string): void {
+		this._activeTab = group;
+		this._userPickedTab = true;
+		this._pickerGroupContext.set(group);
 	}
 
 	/**
@@ -810,13 +821,18 @@ export class WorkspacePicker extends Disposable {
 		// Collect recent workspaces from picker storage across all providers
 		const allProviders = this.sessionsProvidersService.getProviders();
 		const providerIds = new Set(allProviders.map(p => p.id));
+		const availableTabs = this._getAvailableTabs();
+		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
+		const workspaceGroupAction = this.options.getWorkspaceGroupAction?.(activeGroup);
 		const tabFilter = this._isTabFiltered()
 			? (w: IResolvedFolderWorkspace) => w.workspace.group === this._activeTab
 			: undefined;
 		// Own recents first, then VS Code recents (merged and deduplicated by the service)
-		const recentWorkspaces = this._getRecentWorkspaces()
-			.filter(w => providerIds.has(w.providerId))
-			.filter(w => !tabFilter || tabFilter(w));
+		const recentWorkspaces = workspaceGroupAction?.hideWorkspaceItems
+			? []
+			: this._getRecentWorkspaces()
+				.filter(w => providerIds.has(w.providerId))
+				.filter(w => !tabFilter || tabFilter(w));
 
 		// Build flat list in recency order (no source grouping)
 		for (const { workspace, providerId } of recentWorkspaces) {
@@ -837,14 +853,24 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		// Browse actions from all providers (filtered to the active tab)
-		const allBrowseActions = this._getAllBrowseActions();
+		const allBrowseActions = workspaceGroupAction?.hideWorkspaceItems ? [] : this._getAllBrowseActions();
 		// Remote providers with connection status — shown as dynamic rows
 		// in the Manage submenu on the Remote tab.
 		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 		const includeRemoteProviders = this._activeTab === SESSION_WORKSPACE_GROUP_REMOTE;
 
-		if (items.length > 0 && (allBrowseActions.length > 0)) {
+		if (items.length > 0 && (workspaceGroupAction || allBrowseActions.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
+		}
+
+		if (workspaceGroupAction) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: workspaceGroupAction.label,
+				description: workspaceGroupAction.description,
+				group: { title: '', icon: workspaceGroupAction.icon },
+				item: { commandId: workspaceGroupAction.commandId },
+			});
 		}
 
 		// Render each browse action individually. Within a tab, actions are

@@ -65,13 +65,13 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-/*
- * Auxiliary bar single-composite header label (e.g. "Chat") — render it Strong
- * like the part title-labels so it matches the primary side bar section header
- * instead of looking like a lighter composite tab.
- */
+/* Auxiliary bar composite header labels use the same regular body role as other tabs. */
 .style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
-	font-weight: var(--vscode-fontWeight-semiBold);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.style-override.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label.codicon {
+	font-weight: var(--vscode-fontWeight-regular);
 }
 
 /* Editor tab labels use Body 1 for comfortable readability at a normal viewing distance. */
@@ -144,6 +144,15 @@
 .style-override.monaco-workbench .part:not(.editor)[data-active-composite="workbench.view.explorer"] > .title > .title-label h2,
 .style-override .monaco-pane-view .pane > .pane-header > .icon.codicon-explorer-view-icon + .title {
 	text-transform: none;
+}
+
+/* Restore the legacy casing for view, part, and composite tab headers when requested. */
+.style-override.modern-ui-uppercase-view-headers .monaco-pane-view .pane > .pane-header > .title,
+.style-override.modern-ui-uppercase-view-headers.monaco-workbench .part:not(.editor) > .title > .title-label h2,
+.style-override.modern-ui-uppercase-view-headers.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override.modern-ui-uppercase-view-headers.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.style-override.modern-ui-uppercase-view-headers .monaco-pane-view .pane > .pane-header > .icon.codicon-explorer-view-icon + .title {
+	text-transform: uppercase;
 }
 
 /*

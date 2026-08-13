@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { classifySessionWorkspaceTopology, getSessionsTelemetryProviderId, hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 /** Storage key for the cumulative number of times this client has been launched. */
 const APP_LAUNCH_COUNT_KEY = 'agentSessions.telemetry.summary.appLaunchCount';
@@ -51,7 +52,7 @@ export type SessionLifecycleCounterKey =
  * spans across workspaces.
  */
 interface IStoredSessionStats {
-	// Identification (captured at first-observed time)
+	// Session and workspace context captured at first observation.
 	providerId: string;
 	providerType: string;
 	sessionResourceUri: string;
@@ -59,6 +60,12 @@ interface IStoredSessionStats {
 	isolationKind: 'worktree' | 'folder';
 	hasGitRepository: boolean;
 	isVirtualWorkspace: boolean;
+	// Topology fields are optional so rows persisted before they existed still
+	// load; `createEntry` always sets them and `buildSummary` defaults them.
+	isMultiRoot?: boolean;
+	folderCount?: number;
+	gitFolderCount?: number;
+	nonGitFolderCount?: number;
 
 	// Origin
 	firstRequestSentInThisClient: boolean;
@@ -118,6 +125,10 @@ export interface ISessionLifecycleSummary {
 	workspaceHash: string;
 	hasGitRepository: boolean;
 	isVirtualWorkspace: boolean;
+	isMultiRoot: boolean;
+	folderCount: number;
+	gitFolderCount: number;
+	nonGitFolderCount: number;
 	doneReason: SessionDoneReason;
 	firstRequestSentInThisClient: boolean;
 	hasWorktreeCreatedTask: boolean | undefined;
@@ -246,13 +257,13 @@ export class SessionsLifecycleTracker extends Disposable {
 	 * brand-new session the user starts from the Agents window.
 	 */
 	incrementAndGetUserRequestCounters(session: ISession): IUserRequestCounters {
-		const providerId = session.providerId;
+		const providerId = getSessionsTelemetryProviderId(session.providerId);
 		const workspaceUri = session.workspace.get()?.uri.toString();
 
 		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) + 1;
 		this._storageService.store(TOTAL_SESSIONS_KEY, userSessionsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const providerCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
+		const providerCounts = this._readProviderCounterMap();
 		const userSessionsForProvider = (providerCounts[providerId] ?? 0) + 1;
 		providerCounts[providerId] = userSessionsForProvider;
 		this._storageService.store(PROVIDER_SESSIONS_KEY, JSON.stringify(providerCounts), StorageScope.APPLICATION, StorageTarget.MACHINE);
@@ -318,14 +329,24 @@ export class SessionsLifecycleTracker extends Disposable {
 
 	private _readUserRequestCounters(providerId: string, workspaceUri: string | undefined): IUserRequestCounters {
 		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
-		const providerCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
-		const userSessionsForProvider = providerCounts[providerId] ?? 0;
+		const providerCounts = this._readProviderCounterMap();
+		const userSessionsForProvider = providerCounts[getSessionsTelemetryProviderId(providerId)] ?? 0;
 		let userSessionsInWorkspace = 0;
 		if (workspaceUri) {
 			const workspaceCounts = this._readCounterMap(WORKSPACE_SESSIONS_KEY);
 			userSessionsInWorkspace = workspaceCounts[workspaceUri] ?? 0;
 		}
 		return { userSessionsTotal, userSessionsInWorkspace, userSessionsForProvider };
+	}
+
+	private _readProviderCounterMap(): Record<string, number> {
+		const storedCounts = this._readCounterMap(PROVIDER_SESSIONS_KEY);
+		const providerCounts: Record<string, number> = {};
+		for (const [providerId, count] of Object.entries(storedCounts)) {
+			const telemetryProviderId = getSessionsTelemetryProviderId(providerId);
+			providerCounts[telemetryProviderId] = (providerCounts[telemetryProviderId] ?? 0) + count;
+		}
+		return providerCounts;
 	}
 
 	private _readCounterMap(key: string): Record<string, number> {
@@ -429,6 +450,8 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 	const hasWorktree = workspace?.folders.some(folder => folder.gitRepository?.workTreeUri !== undefined) ?? false;
 	const hasGit = workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false;
 	const isVirtual = workspace ? workspace.uri.scheme !== Schemas.file : false;
+	const folders = workspace?.folders ?? [];
+	const topology = classifySessionWorkspaceTopology(folders.length, folders.filter(folder => folder.gitRepository !== undefined).length);
 	return {
 		providerId: session.providerId,
 		providerType: session.sessionType,
@@ -437,6 +460,10 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 		isolationKind: hasWorktree ? 'worktree' : 'folder',
 		hasGitRepository: hasGit,
 		isVirtualWorkspace: isVirtual,
+		isMultiRoot: topology.isMultiRoot,
+		folderCount: topology.folderCount,
+		gitFolderCount: topology.gitFolderCount,
+		nonGitFolderCount: topology.nonGitFolderCount,
 		firstRequestSentInThisClient: false,
 		hasWorktreeCreatedTask: undefined,
 		configuredTasksCount: undefined,
@@ -474,13 +501,18 @@ function createEntry(session: ISession, appLaunchCount: number): IStoredSessionS
 function buildSummary(sessionId: string, entry: IStoredSessionStats, reason: SessionDoneReason, appLaunchCount: number, requestCounters: IUserRequestCounters): ISessionLifecycleSummary {
 	const now = Date.now();
 	return {
-		agentSessionId: sessionId,
-		providerId: entry.providerId,
+		agentSessionId: hashSessionIdForTelemetry(sessionId),
+		providerId: getSessionsTelemetryProviderId(entry.providerId),
 		providerType: entry.providerType,
 		isolationKind: entry.isolationKind,
 		workspaceHash: entry.workspaceUriString ? hash(entry.workspaceUriString).toString(16) : '',
 		hasGitRepository: entry.hasGitRepository,
 		isVirtualWorkspace: entry.isVirtualWorkspace,
+		// Back-compat: entries persisted before these fields existed default to 0/false.
+		isMultiRoot: entry.isMultiRoot ?? false,
+		folderCount: entry.folderCount ?? 0,
+		gitFolderCount: entry.gitFolderCount ?? 0,
+		nonGitFolderCount: entry.nonGitFolderCount ?? 0,
 		doneReason: reason,
 		firstRequestSentInThisClient: entry.firstRequestSentInThisClient,
 		hasWorktreeCreatedTask: entry.hasWorktreeCreatedTask,

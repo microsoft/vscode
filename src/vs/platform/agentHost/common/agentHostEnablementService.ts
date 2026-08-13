@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../base/common/observable.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import * as nls from '../../../nls.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { RawContextKey } from '../../contextkey/common/contextkey.js';
@@ -32,14 +33,25 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, prefers the Agent Host Copilot CLI for new editor chat sessions. If the local harness is selected, it is replaced with Copilot once."),
+			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
+			policy: {
+				name: 'ChatEditorPreferCopilotHarness',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.134',
+				localization: {
+					description: {
+						key: 'chat.editor.preferCopilotHarness.policy',
+						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."),
+					},
+				},
+			},
 		},
 		'chat.defaultToCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot CLI instead of the local harness."),
+			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot SDK instead of the local harness."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

@@ -78,11 +78,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		}));
 
 		const onRestart = () => {
-			for (const sender of this._windowSenders.values()) {
-				if (!sender.isDestroyed()) {
-					sender.send(AgentHostWillRestartIpcChannel);
-				}
-			}
+			this._notifyWindowsWillRestart();
 			this._onRequestRestart.fire();
 		};
 		validatedIpcMain.on(AgentHostRestartIpcChannel, onRestart);
@@ -195,6 +191,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			}
 			this._logService.error(`[AgentHost:stderr] ${data}`);
 		}));
+		store.add(this.utilityProcess.onExit(() => this._notifyWindowsWillRestart()));
 		store.add(toDisposable(() => {
 			this.utilityProcess?.kill();
 			this.utilityProcess?.dispose();
@@ -239,6 +236,14 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		}
 
 		e.sender.postMessage('vscode:createAgentHostMessageChannelResult', nonce, [port]);
+	}
+
+	private _notifyWindowsWillRestart(): void {
+		for (const sender of this._windowSenders.values()) {
+			if (!sender.isDestroyed()) {
+				sender.send(AgentHostWillRestartIpcChannel);
+			}
+		}
 	}
 
 	private _trackWindowSender(sender: WebContents): void {

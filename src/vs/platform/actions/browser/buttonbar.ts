@@ -38,6 +38,7 @@ export interface IWorkbenchButtonBarOptions {
 	buttonConfigProvider?: IButtonConfigProvider;
 	small?: boolean;
 	disableWhileRunning?: boolean;
+	renderSecondaryActions?: boolean;
 }
 
 export class WorkbenchButtonBar extends ButtonBar {
@@ -90,7 +91,10 @@ export class WorkbenchButtonBar extends ButtonBar {
 		// Support instant hover between buttons
 		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
-		for (let i = 0; i < actions.length; i++) {
+		const actionCount = this._options?.renderSecondaryActions === false
+			? Math.min(actions.length, 1)
+			: actions.length;
+		for (let i = 0; i < actionCount; i++) {
 
 			const secondary = i > 0;
 			const actionOrSubmenu = actions[i];
@@ -209,7 +213,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			}));
 		}
 
-		if (secondary.length > 0) {
+		if (this._options?.renderSecondaryActions !== false && secondary.length > 0) {
 
 			const btn = this.addButton({
 				secondary: true,
