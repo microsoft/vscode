@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { RootState, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostNewSessionFolderService = createDecorator<IAgentHostNewSessionFolderService>('agentHostNewSessionFolderService');
@@ -51,6 +51,71 @@ export function supportsMultipleWorkingDirectories(rootState: RootState | Error 
 export function hasImmutablePrimaryWorkingDirectory(rootState: RootState | Error | undefined, provider: string): boolean {
 	const agent = (rootState && !(rootState instanceof Error)) ? rootState.agents.find(a => a.provider === provider) : undefined;
 	return agent?.capabilities?.multipleWorkingDirectories?.immutablePrimary === true;
+}
+
+/**
+ * The change a chat widget should apply to the multi-root Folder picker for the
+ * harness-owned {@link ISessionFolderPickerDecision}. `noop` means retain the
+ * current state (used when a decision transiently disappears during provisional
+ * recreation of the *same* session, so the chip does not flash); `apply` carries
+ * the new visibility value (the picker is hidden by default and only revealed
+ * when the decision says so), the session resource now being tracked, and — only
+ * when the harness pins a primary the user hasn't overridden — the folder to
+ * auto-select.
+ */
+export type FolderPickerDecisionUpdate =
+	| { readonly kind: 'noop' }
+	| { readonly kind: 'apply'; readonly visible: boolean; readonly trackedSessionResource: URI | undefined; readonly selectPrimary: URI | undefined };
+
+/**
+ * Pure resolution of {@link FolderPickerDecisionUpdate} from a widget's current
+ * inputs. Extracted from the widget so the hidden-by-default reveal, tri-state
+ * retain, auto-select gating, after-start suppression, and Agents-window gate are
+ * unit-testable without a live chat widget.
+ *
+ * The picker is hidden until a decision affirmatively reveals it (a decision with
+ * `hidden: false`), so it never flashes visible-then-hidden while the decision is
+ * still resolving.
+ *
+ * @param sessionResource the widget's current session, or `undefined`.
+ * @param agentHostProviderId the locked Agent Host provider, or `undefined` for a non-Agent-Host widget.
+ * @param decision the harness decision for `sessionResource`, or `undefined` when not (yet) known.
+ * @param previousTrackedSessionResource the session the current visibility value reflects.
+ * @param isSessionsWindow whether the widget lives in the Agents window (which owns folder choice).
+ * @param sessionIsEmpty whether the session has no requests yet (its working directory isn't fixed).
+ * @param currentSelectedFolder the folder already chosen for `sessionResource`, if any.
+ */
+export function resolveFolderPickerDecisionUpdate(
+	sessionResource: URI | undefined,
+	agentHostProviderId: string | undefined,
+	decision: ISessionFolderPickerDecision | undefined,
+	previousTrackedSessionResource: URI | undefined,
+	isSessionsWindow: boolean,
+	sessionIsEmpty: boolean,
+	currentSelectedFolder: URI | undefined,
+): FolderPickerDecisionUpdate {
+	if (!sessionResource || !agentHostProviderId) {
+		return { kind: 'apply', visible: false, trackedSessionResource: undefined, selectPrimary: undefined };
+	}
+	const sameSession = previousTrackedSessionResource?.toString() === sessionResource.toString();
+	if (!decision) {
+		// Retain across a provisional recreation of the same session; stay hidden
+		// (the default) for a freshly bound session until a decision reveals it.
+		return sameSession
+			? { kind: 'noop' }
+			: { kind: 'apply', visible: false, trackedSessionResource: sessionResource, selectPrimary: undefined };
+	}
+	let selectPrimary: URI | undefined;
+	// Auto-select the pinned primary only before the session starts (its working
+	// directory is fixed once the first request is sent) and never in the Agents
+	// window, which owns folder choice through its own workspace picker.
+	if (decision.primary && !isSessionsWindow && sessionIsEmpty) {
+		const primary = URI.parse(decision.primary);
+		if (currentSelectedFolder?.toString() !== primary.toString()) {
+			selectPrimary = primary;
+		}
+	}
+	return { kind: 'apply', visible: !decision.hidden, trackedSessionResource: sessionResource, selectPrimary };
 }
 
 /**

@@ -1274,6 +1274,79 @@ export function withSessionPromptCacheState(meta: SessionMeta | undefined, promp
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Reserved key for the harness-owned new-session folder-picker decision. */
+export const SESSION_META_FOLDER_PICKER_KEY = 'vscode.folderPicker';
+
+/**
+ * Harness-owned decision about the multi-root new-session Folder picker for an
+ * agent-host session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_FOLDER_PICKER_KEY}.
+ *
+ * The provider (harness) owns this because the signal differs per backend — for
+ * example Copilot hides the picker when at most one workspace folder carries
+ * hooks under `.github/hooks/` (pinning that folder as {@link primary} when
+ * exactly one does), since the Copilot agent only applies hooks from the primary
+ * working directory, and shows the picker when several folders carry hooks so
+ * the user resolves the ambiguity. When {@link primary} is set, it names the
+ * working directory the client should auto-select before the session starts.
+ */
+export interface ISessionFolderPickerDecision {
+	/** Whether the client should hide the multi-root Folder picker. */
+	readonly hidden: boolean;
+	/**
+	 * The working directory the client should auto-select as the primary, as a
+	 * URI string. Present only when the harness pins a specific folder (it
+	 * always accompanies `hidden: true`, but a `hidden` decision need not pin
+	 * one — e.g. when no folder carries hooks the current selection is kept).
+	 */
+	readonly primary?: string;
+}
+
+/** Reads the validated folder-picker decision from session metadata. */
+export function readSessionFolderPickerDecision(meta: SessionMeta | undefined): ISessionFolderPickerDecision | undefined {
+	return validateSessionFolderPickerDecision(meta?.[SESSION_META_FOLDER_PICKER_KEY]);
+}
+
+/** Parses the validated folder-picker decision from its persisted JSON representation. */
+export function parseSessionFolderPickerDecision(value: string | undefined): ISessionFolderPickerDecision | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionFolderPickerDecision(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+function validateSessionFolderPickerDecision(value: unknown): ISessionFolderPickerDecision | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['hidden'] !== 'boolean') {
+		return undefined;
+	}
+	const primary = raw['primary'];
+	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0)) {
+		return undefined;
+	}
+	return primary !== undefined ? { hidden: raw['hidden'], primary } : { hidden: raw['hidden'] };
+}
+
+/** Returns session metadata with the folder-picker decision updated or removed. */
+export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, decision: ISessionFolderPickerDecision | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (decision) {
+		next[SESSION_META_FOLDER_PICKER_KEY] = decision.primary !== undefined
+			? { hidden: decision.hidden, primary: decision.primary }
+			: { hidden: decision.hidden };
+	} else {
+		delete next[SESSION_META_FOLDER_PICKER_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
  * Git state of a session's working directory, carried under
  * {@link SessionMeta} at {@link SESSION_META_GIT_KEY}. Used by clients to

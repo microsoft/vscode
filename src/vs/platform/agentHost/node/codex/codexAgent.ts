@@ -35,7 +35,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
@@ -50,6 +50,8 @@ import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, 
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
+import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
+import { codexDirectoryHasHooks } from './codexFolderPickerCriteria.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
@@ -3183,6 +3185,20 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	private _isMultiRootEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostCodexMultiRootEnabledConfigKey) === true;
+	}
+
+	/**
+	 * Hides the multi-root Folder picker unless several working directories carry
+	 * a Codex `.codex/hooks.json` hook manifest (see
+	 * {@link codexDirectoryHasHooks}). With one qualifying directory it pins that
+	 * folder; with several it shows the picker so the user chooses. This only
+	 * reads files to decide the picker — it never surfaces them as customizations.
+	 */
+	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
+		if (!this._isMultiRootEnabled()) {
+			return undefined;
+		}
+		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => codexDirectoryHasHooks(this._fileService, directory, t), token);
 	}
 
 	/**
