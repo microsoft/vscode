@@ -708,6 +708,40 @@ suite('StyleOverridesContribution', () => {
 		});
 	});
 
+	test('derives inactive tab foreground from a legacy active foreground customization', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
+		theme.setCustomColors({ [TAB_ACTIVE_FOREGROUND]: '#FEDCBA' });
+
+		const style = document.createElement('style');
+		style.textContent = generateColorThemeCSS(theme, '.active-foreground-only-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+
+		const root = document.createElement('div');
+		root.className = 'active-foreground-only-theme monaco-workbench modern-ui-tabs';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+
+		const editor = appendElement(root, 'part editor');
+		const content = appendElement(editor, 'content');
+		const activeGroup = appendElement(content, 'editor-group-container active');
+		const activeTabs = appendElement(appendElement(activeGroup, 'title'), 'tabs-container');
+		const inactiveAnchor = document.createElement('a');
+		appendElement(appendElement(activeTabs, 'tab'), 'tab-label').appendChild(inactiveAnchor);
+		const unfocusedGroup = appendElement(content, 'editor-group-container');
+		const unfocusedTabs = appendElement(appendElement(unfocusedGroup, 'title'), 'tabs-container');
+		const unfocusedInactiveAnchor = document.createElement('a');
+		appendElement(appendElement(unfocusedTabs, 'tab'), 'tab-label').appendChild(unfocusedInactiveAnchor);
+
+		assert.deepStrictEqual({
+			inactiveForeground: getWindow(inactiveAnchor).getComputedStyle(inactiveAnchor).color,
+			unfocusedInactiveForeground: getWindow(unfocusedInactiveAnchor).getComputedStyle(unfocusedInactiveAnchor).color,
+		}, {
+			inactiveForeground: 'rgba(254, 220, 186, 0.5)',
+			unfocusedInactiveForeground: 'rgba(254, 220, 186, 0.25)',
+		});
+	});
+
 	test('keeps panel global actions above overflowing title actions', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench style-override';

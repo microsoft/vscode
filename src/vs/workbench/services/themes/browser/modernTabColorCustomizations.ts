@@ -12,15 +12,15 @@ import { ColorThemeData } from '../common/colorThemeData.js';
 /**
  * Resolves the tab color to emit as a Modern UI variable, or `undefined` to leave the CSS default in place.
  *
- * When `relatedLegacyColorId` is passed, `legacyColorId`'s default definition in the color registry is assumed
- * to derive from it (e.g. `tab.unfocusedActiveBackground` defaults from `tab.activeBackground`), so customizing
- * the related color flows through `getColor` into the derived value.
+ * When `relatedLegacyColorIds` are passed, `legacyColorId`'s default definition in the color registry is assumed
+ * to derive from them (e.g. `tab.unfocusedInactiveForeground` derives transitively from `tab.inactiveForeground`
+ * and `tab.activeForeground`), so customizing any related color flows through `getColor` into the derived value.
  */
-function resolveLegacyTabColor(theme: ColorThemeData, legacyColorId: ColorIdentifier, modernColorId?: ColorIdentifier, relatedLegacyColorId?: ColorIdentifier): Color | undefined {
+function resolveLegacyTabColor(theme: ColorThemeData, legacyColorId: ColorIdentifier, modernColorId?: ColorIdentifier, ...relatedLegacyColorIds: ColorIdentifier[]): Color | undefined {
 	if (modernColorId && theme.getColorCustomization(modernColorId)) {
 		return undefined;
 	}
-	if (!theme.getColorCustomization(legacyColorId) && (!relatedLegacyColorId || !theme.getColorCustomization(relatedLegacyColorId))) {
+	if (!theme.getColorCustomization(legacyColorId) && !relatedLegacyColorIds.some(id => theme.getColorCustomization(id))) {
 		return undefined;
 	}
 	return theme.getColor(legacyColorId);
@@ -60,8 +60,8 @@ registerThemingParticipant((theme, collector) => {
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-background', unfocusedHoverBackground);
 	addColorVariable(declarations, '--modern-ui-editor-tab-active-foreground', resolveLegacyTabColor(theme, TAB_ACTIVE_FOREGROUND, MODERN_TAB_ACTIVE_FOREGROUND));
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-foreground', resolveLegacyTabColor(theme, TAB_UNFOCUSED_ACTIVE_FOREGROUND, MODERN_TAB_ACTIVE_FOREGROUND, TAB_ACTIVE_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-inactive-foreground', resolveLegacyTabColor(theme, TAB_INACTIVE_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-inactive-foreground', resolveLegacyTabColor(theme, TAB_UNFOCUSED_INACTIVE_FOREGROUND, undefined, TAB_INACTIVE_FOREGROUND));
+	addColorVariable(declarations, '--modern-ui-editor-tab-inactive-foreground', resolveLegacyTabColor(theme, TAB_INACTIVE_FOREGROUND, undefined, TAB_ACTIVE_FOREGROUND));
+	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-inactive-foreground', resolveLegacyTabColor(theme, TAB_UNFOCUSED_INACTIVE_FOREGROUND, undefined, TAB_INACTIVE_FOREGROUND, TAB_ACTIVE_FOREGROUND));
 	addColorVariable(declarations, '--modern-ui-editor-tab-hover-foreground', resolveLegacyTabColor(theme, TAB_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND));
 	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-foreground', resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND, TAB_HOVER_FOREGROUND));
 	addColorVariable(declarations, '--modern-ui-editor-tab-border', resolveLegacyTabColor(theme, TAB_BORDER));
