@@ -400,7 +400,7 @@ function createPolicyRestrictedConfigurationService(): TestConfigurationService 
 
 /**
  * Mimics production, where `chat.defaultConfiguration` ships with a schema
- * default (`{ mode: 'interactive', approvals: 'default' }`), so an untouched
+ * default (`{ mode: 'interactive', approvals: 'manual' }`), so an untouched
  * setting is reported by `inspect` only as `defaultValue` (no user layer).
  * The plain {@link TestConfigurationService} does not register schema defaults,
  * so it cannot reproduce the "configured default masks remembered pick" bug.
@@ -410,7 +410,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 		override inspect<T>(key: string) {
 			const base = super.inspect<T>(key);
 			if (key === 'chat.defaultConfiguration' && base.userValue === undefined) {
-				const schemaDefault = { mode: 'interactive', approvals: 'default' } as unknown as T;
+				const schemaDefault = { mode: 'interactive', approvals: 'manual' } as unknown as T;
 				return { ...base, value: schemaDefault, defaultValue: schemaDefault };
 			}
 			return base;
@@ -2773,7 +2773,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.config, { autoApprove: 'autoApprove' });
 	});
 
-	test('createNewSession does not seed autoApprove when chat.defaultConfiguration approvals is the default value', () => {
+	test('createNewSession does not seed autoApprove when chat.defaultConfiguration approvals is manual', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 
@@ -3171,7 +3171,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// Case 2: an ordinary configured setting is a plain default — the remembered pick wins over it
 		const configuredDefaultConfig = new TestConfigurationService();
-		await configuredDefaultConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'default' });
+		await configuredDefaultConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'manual' });
 		const configuredDefaultProvider = createProvider(disposables, agentHost, undefined, { configurationService: configuredDefaultConfig, storageService });
 		configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
 
@@ -3272,7 +3272,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override inspect<T>(key: string) {
 				const base = super.inspect<T>(key);
 				if (key === 'chat.defaultConfiguration') {
-					return { ...base, policyValue: { mode: 'autopilot', approvals: 'default' } as unknown as T };
+					return { ...base, policyValue: { mode: 'autopilot', approvals: 'manual' } as unknown as T };
 				}
 				return base;
 			}

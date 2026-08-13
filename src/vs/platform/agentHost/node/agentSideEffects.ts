@@ -1814,7 +1814,7 @@ export class AgentSideEffects extends Disposable {
 	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
 		const target = candidate.customization.type === CustomizationType.Plugin
 			? targetForPlugin(candidate.customization)
-			: targetForMcpServer(candidate.customization, candidate.owningPluginUri);
+			: targetForMcpServer(candidate.customization, candidate.owningPluginUri, false);
 		this._customizationEnablementService.replaceEnablement(session, target, enablement);
 	}
 

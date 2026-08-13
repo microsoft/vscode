@@ -159,6 +159,7 @@ import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.
 import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { ModelPickerActionItem, IModelPickerDelegate, IModelPickerPresentationOptions } from './modelPicker/modelPickerActionItem.js';
@@ -2802,7 +2803,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
 			});
-			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
+			this._notificationWidget.value.attachTo(this.chatInputNotificationContainer);
 		}
 	}
 
@@ -2816,7 +2817,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const widget = new ChatGoalBannerWidget();
 			this._register(widget.onDismiss(() => this._onDidDismissGoalBanner.fire()));
 			this._goalBannerWidget.value = widget;
-			this.chatGoalBannerContainer.appendChild(widget.domNode);
+			widget.attachTo(this.chatGoalBannerContainer);
 		}
 		return this._goalBannerWidget.value;
 	}
@@ -3046,18 +3047,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-plan-review-widget-container@chatPlanReviewContainer'),
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
-					dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
-					dom.h('.voice-mode-onboarding-container@voiceModeOnboardingContainer'),
-					dom.h('.dictation-onboarding-container@dictationOnboardingContainer'),
-					dom.h('.chat-goal-banner-container@chatGoalBannerContainer'),
-					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
-					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
-					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
-					dom.h('.chat-getting-started-tip-container@chatGettingStartedTipContainer'),
-					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
-						dom.h('.chat-input-container@inputContainer', [
-							dom.h('.chat-editor-container@editorContainer'),
-							dom.h('.chat-input-toolbars@inputToolbars'),
+					dom.h(`.${chatInputStackClass}`, [
+						dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
+						dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
+						dom.h(`.dictation-onboarding-container.${chatInputStackSlotClass}@dictationOnboardingContainer`),
+						dom.h(`.chat-goal-banner-container.${chatInputStackSlotClass}@chatGoalBannerContainer`),
+						dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
+						dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
+						dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
+						dom.h(`.chat-getting-started-tip-container.${chatInputStackSlotClass}@chatGettingStartedTipContainer`),
+						dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+							dom.h('.chat-input-container@inputContainer', [
+								dom.h('.chat-editor-container@editorContainer'),
+								dom.h('.chat-input-toolbars@inputToolbars'),
+							]),
 						]),
 					]),
 					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
@@ -3077,21 +3080,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 				dom.h('.interactive-input-followups@followupsContainer'),
-				dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
-				dom.h('.voice-mode-onboarding-container@voiceModeOnboardingContainer'),
-				dom.h('.dictation-onboarding-container@dictationOnboardingContainer'),
-				dom.h('.chat-goal-banner-container@chatGoalBannerContainer'),
-				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
-				dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
-				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
-				dom.h('.chat-getting-started-tip-container@chatGettingStartedTipContainer'),
-				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
-					dom.h('.chat-input-container@inputContainer', [
-						dom.h('.chat-attachments-container@attachmentsContainer', [
-							dom.h('.chat-attached-context@attachedContextContainer'),
+				dom.h(`.${chatInputStackClass}`, [
+					dom.h(`.chat-input-notification-container.${chatInputStackSlotClass}@chatInputNotificationContainer`),
+					dom.h(`.voice-mode-onboarding-container.${chatInputStackSlotClass}@voiceModeOnboardingContainer`),
+					dom.h(`.dictation-onboarding-container.${chatInputStackSlotClass}@dictationOnboardingContainer`),
+					dom.h(`.chat-goal-banner-container.${chatInputStackSlotClass}@chatGoalBannerContainer`),
+					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
+					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
+					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
+					dom.h(`.chat-getting-started-tip-container.${chatInputStackSlotClass}@chatGettingStartedTipContainer`),
+					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+						dom.h('.chat-input-container@inputContainer', [
+							dom.h('.chat-attachments-container@attachmentsContainer', [
+								dom.h('.chat-attached-context@attachedContextContainer'),
+							]),
+							dom.h('.chat-editor-container@editorContainer'),
+							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
-						dom.h('.chat-editor-container@editorContainer'),
-						dom.h('.chat-input-toolbars@inputToolbars'),
 					]),
 				]),
 				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
@@ -3128,7 +3133,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatArtifactsWidgetContainer = elements.chatArtifactsWidgetContainer;
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
-		this.chatGettingStartedTipContainer.style.display = 'none';
 		this.chatQuestionCarouselContainer = elements.chatQuestionCarouselContainer;
 		this.chatPlanReviewContainer = elements.chatPlanReviewContainer;
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
@@ -3298,10 +3302,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.inputEditorHasFocus.set(true);
 			this._onDidFocus.fire();
 			inputContainer.classList.toggle('focused', true);
+			setChatInputStackInputFocused(inputContainer, true);
 		}));
 		this._register(this._inputEditor.onDidBlurEditorText(() => {
 			this.inputEditorHasFocus.set(false);
 			inputContainer.classList.toggle('focused', false);
+			setChatInputStackInputFocused(inputContainer, false);
 
 			this._onDidBlur.fire();
 		}));
@@ -4094,9 +4100,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const widget = this._chatEditingTodosDisposables.add(this.instantiationService.createInstance(ChatTodoListWidget));
 			this._chatInputTodoListWidget.value = widget;
 
-			// Add the widget's DOM node to the dedicated todo list container
 			dom.clearNode(this.chatInputTodoListWidgetContainer);
-			dom.append(this.chatInputTodoListWidgetContainer, widget.domNode);
+			widget.attachTo(this.chatInputTodoListWidgetContainer);
 		}
 
 		this._chatInputTodoListWidget.value.render(chatSessionResource);
@@ -4115,7 +4120,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const widget = this._register(this.instantiationService.createInstance(ChatArtifactsWidget));
 			this._chatArtifactsWidget.value = widget;
 			dom.clearNode(this.chatArtifactsWidgetContainer);
-			dom.append(this.chatArtifactsWidgetContainer, widget.domNode);
+			widget.attachTo(this.chatArtifactsWidgetContainer);
 		}
 		this._chatArtifactsWidget.value.setSessionResource(chatSessionResource);
 	}
@@ -4393,7 +4398,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
-		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
+		this.setChatEditingSessionVisible(Boolean(chatEditingSession));
 
 		if (chatEditingSession) {
 			if (!isEqual(chatEditingSession.chatSessionResource, this._lastEditingSessionResource)) {
@@ -4495,9 +4500,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.clearNode(this.chatEditingSessionWidgetContainer);
 				this._chatEditsDisposables.clear();
 				this._chatEditList = undefined;
+				this.setChatEditingSessionVisible(false);
 			}
 		});
 	}
+
+	/** Show or hide the working set, and report the same to the stack. */
+	private setChatEditingSessionVisible(visible: boolean): void {
+		dom.setVisibility(visible, this.chatEditingSessionWidgetContainer);
+		setChatInputStackSlot(this.chatEditingSessionWidgetContainer, visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+	}
+
 	private renderChatEditingSessionWithEntries(
 		store: DisposableStore,
 		chatEditingSession: IChatEditingSession | null,
@@ -4624,7 +4637,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 
-			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
+			this.setChatEditingSessionVisible(shouldShowEditingSession);
 		}));
 
 		const countsContainer = dom.$('.working-set-line-counts');

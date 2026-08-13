@@ -183,6 +183,19 @@ export function codexMcpServersFromPlugins(plugins: readonly ICodexClientPlugin[
 	return out;
 }
 
+/** Maps each plugin-provided MCP server name to the URI of its owning plugin. */
+export function codexPluginMcpServerSources(plugins: readonly ICodexClientPlugin[]): ReadonlyMap<string, string> {
+	const sources = new Map<string, string>();
+	for (const plugin of plugins) {
+		for (const server of plugin.parsed?.mcpServers ?? emptyMcpDefs) {
+			if (!sources.has(server.name)) {
+				sources.set(server.name, plugin.synced.customization.uri);
+			}
+		}
+	}
+	return sources;
+}
+
 const emptyMcpDefs: readonly IMcpServerDefinition[] = [];
 
 /**

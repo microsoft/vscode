@@ -180,9 +180,12 @@ provider supports it.
 
 Turn-level file changes open through `IChatResponseFileChangesService`. The
 Editor workbench opens a standalone multi-diff, while the Agents Window selects
-the canonical Changes editor. Its moving last-turn changeset follows the most
-recently modified chat; historical turns and other chats use a transient
-selection backed by their exact per-turn changes.
+the canonical Changes editor. The active-turn pill uses a transient selection
+backed by the viewed chat's live `lastTurnChanges` observable so streamed edits
+appear before turn completion. The completed latest-response pill selects the
+provider's moving last-turn changeset, which follows the most recently modified
+chat; historical turns and other completed chats use a transient selection
+backed by their exact per-turn changes.
 
 Presentation and layout of changes are documented in [LAYOUT.md](LAYOUT.md).
 Provider translation and transport details belong in the relevant provider
@@ -345,6 +348,20 @@ Use the narrowest mechanism that represents the change:
 
 Do not add an event that mirrors an observable value. Do not use storage keys or
 provider internals as a side channel between components.
+
+### Omni CI attention boundary
+
+The floating Omni Chat input owns the presentation contract for external
+attention items. `IChatInputWindowService` defines and owns the narrow
+`IChatInputWindowCIFailureProvider` registration API in `vs/workbench`; it must
+not depend on Sessions models or import from `vs/sessions`.
+
+The Sessions-layer `OmniCIFailureContribution` owns the registration lifetime.
+It adapts `BlockedSessions` into UI-neutral failure data and delegates actions
+to the singleton `BlockedSessionsCIFixModel`. The title-bar blocked-sessions
+dropdown uses that same singleton so optimistic hiding and duplicate-submission
+guards apply globally across both surfaces. Disposing the contribution removes
+the provider registration and all Sessions-owned observations.
 
 ## Agents Window telemetry
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -129,6 +130,8 @@ class MockAgentService implements IAgentService {
 	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 	managedSettingsDiagnostics: readonly IAgentHostManagedSettingsDiagnostics[] = [];
 	shutdownCalls = 0;
+	createSessionBarrier: DeferredPromise<void> | undefined;
+	subscribeBarrier: DeferredPromise<void> | undefined;
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').ActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -153,6 +156,7 @@ class MockAgentService implements IAgentService {
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this.createSessionConfigs.push(config);
+		await this.createSessionBarrier?.p;
 		const session = config?.session ?? URI.parse('copilot:///new-session');
 		this._stateManager.createSession({
 			resource: session.toString(),
@@ -184,6 +188,7 @@ class MockAgentService implements IAgentService {
 	}
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI, _clientId: string): Promise<IStateSnapshot> {
+		await this.subscribeBarrier?.p;
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
@@ -947,6 +952,61 @@ suite('ProtocolServerHandler', () => {
 			errorCode: AhpErrorCodes.SessionAlreadyExists,
 			errorMessage: `Fork target session must differ from source session: ${session}`,
 			createCalls: 0,
+		});
+	});
+
+	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
+		const transport = connectClient('client-drain');
+		agentService.createSessionBarrier = new DeferredPromise<void>();
+		const newSession = URI.parse('copilot:///drain-session').toString();
+		transport.simulateMessage(request(2, 'createSession', { channel: newSession }));
+		handler.dispose();
+		let idle = false;
+		const whenIdle = handler.whenIdle().then(() => idle = true);
+
+		await Promise.resolve();
+		const idleWhileRequestPending = idle;
+		agentService.createSessionBarrier.complete();
+		await whenIdle;
+
+		assert.deepStrictEqual({
+			idleWhileRequestPending,
+			idleAfterRequest: idle,
+		}, {
+			idleWhileRequestPending: false,
+			idleAfterRequest: true,
+		});
+	});
+
+	test('whenIdle waits for reconnect subscription restoration', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const initialTransport = connectClient('client-drain-reconnect', [sessionUri]);
+		const initialResponse = findResponse(initialTransport.sent, 1) as { result: InitializeResult };
+		initialTransport.simulateClose();
+		agentService.subscribeBarrier = new DeferredPromise<void>();
+
+		const reconnectTransport = new MockProtocolTransport();
+		server.simulateConnection(reconnectTransport);
+		reconnectTransport.simulateMessage(request(2, 'reconnect', {
+			clientId: 'client-drain-reconnect',
+			lastSeenServerSeq: initialResponse.result.serverSeq,
+			subscriptions: [sessionUri],
+		}));
+		await Promise.resolve();
+		let idle = false;
+		const whenIdle = handler.whenIdle().then(() => idle = true);
+
+		await Promise.resolve();
+		const idleWhileRestoring = idle;
+		agentService.subscribeBarrier.complete();
+		await whenIdle;
+
+		assert.deepStrictEqual({
+			idleWhileRestoring,
+			idleAfterRestore: idle,
+		}, {
+			idleWhileRestoring: false,
+			idleAfterRestore: true,
 		});
 	});
 
