@@ -14,6 +14,7 @@ export class EditorHighlights<T> {
 		overviewRulerLane: vscode.OverviewRulerLane.Center,
 		overviewRulerColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
 	});
+
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly _ignore = new Set<string>();
 
