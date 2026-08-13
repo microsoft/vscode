@@ -8,7 +8,6 @@ import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -37,6 +36,7 @@ import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -761,9 +761,8 @@ class AutomationHistorySection extends Disposable {
 		element.setAttribute('role', 'group');
 		element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working...", title));
 		const icon = DOM.append(element, $('.session-icon'));
-		const spinner = DOM.append(icon, $('span'));
-		spinner.setAttribute('aria-hidden', 'true');
-		disposables.add(createPixelSpinner(spinner, { variant: 'grid' }));
+		const statusIcon = disposables.add(this.instantiationService.createInstance(SessionStatusIcon, icon));
+		statusIcon.setStatus(SessionStatus.InProgress, true, false);
 		const main = DOM.append(element, $('.session-main'));
 		const titleRow = DOM.append(main, $('.session-title-row'));
 		const titleElement = DOM.append(titleRow, $('span.session-title'));

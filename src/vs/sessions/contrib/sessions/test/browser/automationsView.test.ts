@@ -15,6 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -447,6 +449,9 @@ suite('AutomationsCardsWidget', () => {
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced(): boolean { return false; }
+		}());
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IAutomationDialogService, automationDialogService);
@@ -528,6 +533,7 @@ suite('AutomationsCardsWidget', () => {
 			status: temporaryRow?.querySelector('.session-description')?.textContent,
 			rowPreserved: runningRow === temporaryRow,
 			spinnerPreserved: runningSpinner === spinner,
+			spinnerUsesSharedIconSlot: spinner?.parentElement?.classList.contains('session-icon'),
 			temporaryRowsAfterCommit: widget.element.querySelectorAll('.automations-temporary-run').length,
 			sessionRowsAfterCommit: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 		}, {
@@ -535,6 +541,7 @@ suite('AutomationsCardsWidget', () => {
 			status: 'Working...',
 			rowPreserved: true,
 			spinnerPreserved: true,
+			spinnerUsesSharedIconSlot: true,
 			temporaryRowsAfterCommit: 0,
 			sessionRowsAfterCommit: 1,
 		});
