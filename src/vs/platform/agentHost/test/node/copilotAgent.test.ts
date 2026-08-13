@@ -714,6 +714,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	private readonly _fakeSessions = new Map<string, IFakeAgentSession>();
 	readonly resumeCalls: string[] = [];
 	readonly createdClientOptions: CopilotClientOptions[] = [];
+	lastClientOptions: CopilotClientOptions | undefined;
 
 	// Keep model-refresh retries effectively instant in tests.
 	protected override readonly _modelRefreshBaseDelayMs = 1;
@@ -742,6 +743,7 @@ class TestableCopilotAgent extends CopilotAgent {
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
 		this.createdClientOptions.push(options);
+		this.lastClientOptions = options;
 		return this._copilotClient as CopilotClient;
 	}
 
@@ -3152,6 +3154,45 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('does not restart the shared client when model-family overrides change', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listLegacyChats();
+
+				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-4.8' } } });
+				await timeout(0);
+				configurationService.updateRootConfig({ modelCapabilityOverrides: { '*': { family: 'gpt-5' } } });
+				await timeout(0);
+
+				assert.strictEqual(client.stopCount, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not pass an ambient model-family override to the shared runtime', async () => {
+			const previousModelFamily = process.env['COPILOT_MODEL_FAMILY'];
+			process.env['COPILOT_MODEL_FAMILY'] = 'claude-opus-4.8';
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listLegacyChats();
+
+				assert.strictEqual((agent as TestableCopilotAgent).lastClientOptions?.env?.['COPILOT_MODEL_FAMILY'], undefined);
+			} finally {
+				if (previousModelFamily === undefined) {
+					delete process.env['COPILOT_MODEL_FAMILY'];
+				} else {
+					process.env['COPILOT_MODEL_FAMILY'] = previousModelFamily;
+				}
+				await disposeAgent(agent);
+			}
+		});
+
 	});
 
 	test('models include billing multiplier metadata when SDK provides it', async () => {
@@ -5804,6 +5845,55 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('materialization applies the per-model capability overrides without changing the wire model', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				configurationService.updateRootConfig({
+					modelCapabilityOverrides: {
+						// Bare '*' expands to the three source wildcards rather than
+						// being dropped, so an 'exclude everything' is honoured.
+						'claude-sonnet': { family: 'claude-opus-4.8', reasoningEffort: 'xhigh', availableTools: ['*'], excludedTools: ['mcp:*', '*'], modelCapabilities: { supports: { vision: false } } },
+					},
+				});
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'capability-override-session'),
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'claude-sonnet', config: { thinkingLevel: 'medium' } },
+				});
+				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
+
+				assert.deepStrictEqual({
+					model: capturedConfig?.model,
+					reasoningEffort: capturedConfig?.reasoningEffort,
+					availableTools: capturedConfig?.availableTools,
+					excludedTools: capturedConfig?.excludedTools,
+					modelCapabilities: capturedConfig?.modelCapabilities,
+				}, {
+					// the alias routes the prompt only; the session still runs on the
+					// selected model
+					model: 'claude-sonnet',
+					// the per-model effort beats the picker's 'medium'
+					reasoningEffort: 'xhigh',
+					availableTools: ['builtin:*', 'mcp:*', 'custom:*'],
+					excludedTools: ['mcp:*', 'builtin:*', 'custom:*'],
+					modelCapabilities: { supports: { vision: false } },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('materialization forwards the GitHub token to the SDK at the session level (#318693)', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
@@ -6425,7 +6515,7 @@ suite('CopilotAgent', () => {
 			readonly remapCalls: ReadonlyMap<string, string>[];
 			readonly sends: { prompt: string; turnId: string | undefined; mode: unknown; senderClientId: string | undefined }[];
 			readonly resets: { turnId: string; senderClientId: string | undefined }[];
-			readonly modelCalls: { id: string }[];
+			readonly modelCalls: { id: string; effort: string | undefined; tier?: string | undefined }[];
 			readonly agentCalls: (string | undefined)[];
 		}
 
@@ -6460,7 +6550,7 @@ suite('CopilotAgent', () => {
 					rec.sends.push({ prompt, turnId, mode, senderClientId });
 				},
 				resetTurnState(turnId: string, senderClientId: string | undefined): void { rec.resets.push({ turnId, senderClientId }); },
-				async setModel(id: string): Promise<void> { rec.modelCalls.push({ id }); },
+				async setModel(id: string, reasoningEffort?: string, contextTier?: string): Promise<void> { rec.modelCalls.push({ id, effort: reasoningEffort, tier: contextTier }); },
 				async setAgent(name: string | undefined): Promise<void> { rec.agentCalls.push(name); },
 				handleClientToolCallComplete(): void { },
 				async getNextTurnEventId(): Promise<string | undefined> { return undefined; },
@@ -7309,6 +7399,83 @@ suite('CopilotAgent', () => {
 					aModels: ['model-x'],
 					bModels: [],
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel applies the per-model reasoning-effort override from the capability overrides', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				configurationService.updateRootConfig({ modelCapabilityOverrides: { 'model-x': { reasoningEffort: 'low' }, '*': { reasoningEffort: 'high' } } });
+				const session = AgentSession.uri('copilotcli', 'model-effort');
+				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
+				const a = makeFakeChatSession(session, 'sdk-a');
+				setPeerChatStub(agent, chatA, a.fake);
+
+				await agent.chats.changeModel(chatA, { id: 'model-x' });
+				await agent.chats.changeModel(chatA, { id: 'model-y', config: { thinkingLevel: 'medium' } });
+
+				assert.deepStrictEqual(a.rec.modelCalls, [
+					// the specific entry wins; the wildcard covers every other model,
+					// beating the picker's thinking level
+					{ id: 'model-x', effort: 'low', tier: undefined },
+					{ id: 'model-y', effort: 'high', tier: undefined },
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel keeps the selected model id and tuning through a family alias', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables);
+			try {
+				configurationService.updateRootConfig({
+					modelCapabilityOverrides: {
+						'preview-model': { family: 'claude-opus-4.8' },
+						'pinned-model': { family: 'gpt-5', reasoningEffort: 'high' },
+					},
+				});
+				const session = AgentSession.uri('copilotcli', 'model-family');
+				const chatA = URI.parse(buildChatUri(session, 'peer-a'));
+				const a = makeFakeChatSession(session, 'sdk-a');
+				setPeerChatStub(agent, chatA, a.fake);
+
+				await agent.chats.changeModel(chatA, { id: 'preview-model', config: { thinkingLevel: 'medium' } });
+				await agent.chats.changeModel(chatA, { id: 'pinned-model' });
+
+				assert.deepStrictEqual(a.rec.modelCalls, [
+					// the alias never reaches the wire; the picker's level survives
+					{ id: 'preview-model', effort: 'medium', tier: undefined },
+					// a per-model effort override still applies
+					{ id: 'pinned-model', effort: 'high', tier: undefined },
+				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('changeModel persists the model for metadata-fallback resumes', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }, { id: 'model-b', name: 'Model B' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'model-persist-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				await agent.chats.changeModel(chat, { id: 'model-b' }, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'model-b' });
 			} finally {
 				await disposeAgent(agent);
 			}

@@ -59,7 +59,6 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
-	PromptsStorage.local,
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
 	PromptsStorage.builtIn,
@@ -105,23 +104,16 @@ export async function enumerateLocalCustomizationsForHarness(
 	sessionType: string,
 	token: CancellationToken,
 	options: ILocalCustomizationSyncOptions | undefined,
-	roots: readonly URI[],
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
 	const seenUris = new ResourceSet();
 	const storageSources = options?.includeUserStorage
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
-	const rootsToResolve = roots.length > 0 ? roots : [undefined];
 	for (const type of SYNCABLE_PROMPT_TYPES) {
 		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
-			storageSources.map(async storage => {
-				const filesByRoot = storage === PromptsStorage.local
-					? await Promise.all(rootsToResolve.map(root => promptsService.listPromptFilesForStorage(type, storage, token, root)))
-					: [await promptsService.listPromptFilesForStorage(type, storage, token)];
-				return filesByRoot.flat();
-			}),
+			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
@@ -163,13 +155,12 @@ export async function resolveLocalCustomAgents(
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
-	roots: readonly URI[],
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
 	const parser = new PromptFileParser();
 	const pending: Promise<void>[] = [];
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, roots);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 
 	for (const agent of enumerated) {
 		if (agent.type !== PromptsType.agent || agent.disabled) {
@@ -400,9 +391,8 @@ export async function resolveCustomizationRefs(
 	sessionType: string,
 	includeWorkspaceDotMcp: boolean,
 	options: ILocalCustomizationSyncOptions | undefined,
-	roots: readonly URI[],
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, roots);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();

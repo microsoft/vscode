@@ -43,7 +43,7 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
 const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as INewChatWidgetHarness['_recreateOnProviderChange'];
 const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
-const hasEnoughSessionsForTips = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForTips') as (this: ISessionCountHarness) => boolean;
+const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 
 interface IPromptOptionsWorkspaceHarness {
 	readonly uriIdentityService: { readonly extUri: typeof extUri };
@@ -163,8 +163,8 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(changes, ['refreshed', 'cleared', 'refreshed']);
 	});
 
-	test('only allows tips once the session count threshold is reached', () => {
-		const eligibility = [0, 1, 2, 5].map(sessionCount => hasEnoughSessionsForTips.call({
+	test('only allows first-run notices once the session count threshold is reached', () => {
+		const eligibility = [0, 1, 2, 5].map(sessionCount => hasEnoughSessionsForFirstRunNotices.call({
 			storageService: { getNumber: () => sessionCount },
 		}));
 

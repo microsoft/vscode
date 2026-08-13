@@ -223,7 +223,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -256,7 +255,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
@@ -290,7 +288,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
@@ -316,7 +313,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -353,7 +349,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 		await resolveCustomizationRefs(
 			makeFileService(),
@@ -366,7 +361,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			{ includeUserStorage: true },
-			[]
 		);
 
 		assert.deepStrictEqual({
@@ -396,7 +390,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -419,7 +412,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -441,7 +433,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
@@ -462,7 +453,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
@@ -483,7 +473,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(false)]);
 	});
@@ -501,7 +490,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true)]);
 	});
@@ -523,7 +511,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 		assert.deepStrictEqual(refs.map(r => r.uri), [pluginUri.toString()]);
 	});
@@ -543,7 +530,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 		assert.deepStrictEqual(refs, []);
 		// Use CancellationToken so the import isn't dead in the bundle.
@@ -567,7 +553,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -603,7 +588,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			'agent-host-copilotcli',
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, [[
@@ -626,7 +610,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			'remote-test-copilotcli',
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, []);
@@ -646,7 +629,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			'agent-host-claude',
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp, [[
@@ -671,7 +653,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		// No loose files and no non-plugin MCP servers: bundler is never called.
@@ -696,7 +677,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(bundler.receivedMcp[0], [
@@ -721,7 +701,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[],
 		);
 
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true), globalEnablement(true)]);
@@ -745,7 +724,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -768,7 +746,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -791,7 +768,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			true,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -818,7 +794,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			true,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -841,7 +816,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -869,7 +843,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -892,7 +865,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -922,7 +894,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -945,7 +916,6 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			SessionType.CopilotCLI,
 			false,
 			undefined,
-			[]
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -982,7 +952,6 @@ suite('resolveLocalCustomAgents', () => {
 			makeAgentPluginService([plugin]),
 			SessionType.CopilotCLI,
 			undefined,
-			[]
 		);
 
 		assert.deepStrictEqual(agents, [{
@@ -1009,7 +978,6 @@ suite('resolveLocalCustomAgents', () => {
 			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]])),
 			SessionType.CopilotCLI,
 			undefined,
-			[],
 		);
 
 		assert.deepStrictEqual(agents.map(agent => agent.name), ['agent-0']);
@@ -1029,41 +997,9 @@ suite('resolveLocalCustomAgents', () => {
 			makeAgentPluginService([plugin], new Map([[pluginUri.toString(), false]])),
 			SessionType.CopilotCLI,
 			undefined,
-			[],
 		);
 
 		assert.deepStrictEqual(agents.map(agent => agent.uri), [agentUri.toString()]);
-	});
-
-	test('includes loose workspace agents in the pre-session picker', async () => {
-		const agentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
-		const agents = await resolveLocalCustomAgents(
-			makeFileService(new Map(), new Map([[agentUri.toString(), [
-				'---',
-				'name: Reviewer',
-				'description: Review workspace changes',
-				'user-invocable: true',
-				'---',
-				'Agent instructions',
-			].join('\n')]])),
-			makePromptsService(new Map([
-				[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.local)]],
-			])),
-			new FakeSyncProvider(),
-			makeAgentPluginService(),
-			SessionType.CopilotCLI,
-			undefined,
-			[]
-		);
-
-		assert.deepStrictEqual(agents, [{
-			type: 'agent',
-			id: agentUri.toString(),
-			uri: agentUri.toString(),
-			name: 'Reviewer',
-			description: 'Review workspace changes',
-			disableUserInvocation: undefined,
-		}]);
 	});
 });
 

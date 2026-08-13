@@ -68,6 +68,8 @@ export interface IAgentChatMetadata {
 	readonly modifiedTime: number;
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
+	/** Provider model that should be selected when this chat is restored. */
+	readonly model?: ModelSelection;
 	/** Activity bits plus the session-scoped {@link SessionStatus.IsRead} / {@link SessionStatus.IsArchived} flags. */
 	readonly status?: SessionStatus;
 	/** Human-readable description of what the session is currently doing. */
@@ -393,6 +395,8 @@ export interface IAgentChatContext {
 	 * session yet, which is deliberately distinct from an empty list.
 	 */
 	readonly customizations?: readonly Customization[];
+	/** Per-operation host instructions that providers add to model context without persisting as user content. */
+	readonly hostInstructions?: readonly string[];
 }
 
 /**
@@ -435,6 +439,10 @@ export function resolveSubagentChatParent(context?: URI | IAgentChatContext): IA
  */
 export function resolveAgentHostCustomizations(context?: URI | IAgentChatContext): readonly Customization[] | undefined {
 	return context && !URI.isUri(context) ? context.customizations : undefined;
+}
+
+export function resolveAgentHostInstructions(context?: URI | IAgentChatContext): readonly string[] | undefined {
+	return context && !URI.isUri(context) ? context.hostInstructions : undefined;
 }
 
 /** Fully resolved options for creating one chat. */

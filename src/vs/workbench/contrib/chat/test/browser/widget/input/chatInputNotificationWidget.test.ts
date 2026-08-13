@@ -19,6 +19,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
@@ -168,6 +169,98 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'First session only');
 		currentSessionResource.set(secondSession, undefined);
 		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header'), null);
+	});
+
+	test('reactively filters notifications deferred for new users without hiding other notifications', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, { deferredNotificationsEnabled }));
+		notificationService.setNotification({
+			id: 'ordinary',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Ordinary notification',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		});
+		notificationService.setNotification({
+			id: 'promotion',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Model promotion',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			deferForNewUsers: true,
+		});
+
+		const renderedText = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const before = renderedText();
+		deferredNotificationsEnabled.set(true, undefined);
+
+		assert.deepStrictEqual({ before, after: renderedText() }, {
+			before: 'Ordinary notification',
+			after: 'Model promotion',
+		});
+	});
+
+	test('standard workbench defers notifications for the first session only', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
+		let hasSessions = false;
+		const harness = {
+			environmentService: { isSessionsWindow: false },
+			chatService: { hasSessions: () => hasSessions },
+			_deferredNotificationsEnabled: deferredNotificationsEnabled,
+			_isFirstWorkbenchSession: undefined as boolean | undefined,
+		};
+		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
+			this: typeof harness,
+			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
+		) => void;
+		const untitled = URI.parse('agent-host-copilotcli:/untitled-1');
+		const materialized = URI.parse('agent-host-copilotcli:/session-1');
+		const second = URI.parse('agent-host-copilotcli:/session-2');
+
+		update.call(harness);
+		const firstSession = deferredNotificationsEnabled.get();
+		hasSessions = true;
+		update.call(harness, { previousSessionResource: untitled, currentSessionResource: materialized });
+		const materializedFirstSession = deferredNotificationsEnabled.get();
+		update.call(harness, { previousSessionResource: materialized, currentSessionResource: second });
+
+		assert.deepStrictEqual({
+			firstSession,
+			materializedFirstSession,
+			secondSession: deferredNotificationsEnabled.get(),
+		}, {
+			firstSession: false,
+			materializedFirstSession: false,
+			secondSession: true,
+		});
+	});
+
+	test('Agents window bypasses the workbench first-session gate', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
+		const harness = {
+			environmentService: { isSessionsWindow: true },
+			chatService: { hasSessions: () => false },
+			_deferredNotificationsEnabled: deferredNotificationsEnabled,
+			_isFirstWorkbenchSession: undefined as boolean | undefined,
+		};
+		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
+			this: typeof harness,
+			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
+		) => void;
+
+		update.call(harness);
+
+		assert.strictEqual(deferredNotificationsEnabled.get(), true);
 	});
 
 	test('renders markdown descriptions as rich content', () => {

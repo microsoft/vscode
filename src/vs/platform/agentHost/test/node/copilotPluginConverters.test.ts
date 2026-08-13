@@ -532,6 +532,20 @@ suite('copilotPluginConverters', () => {
 				cleanup();
 			}
 		});
+
+		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {
+			const hooks = toSdkHooks([], {
+				onPreToolUse: async () => { },
+				onPostToolUse: async () => { },
+				onUserPromptSubmitted: () => ({ additionalContext: 'Rename with exact casing' }),
+			});
+			const input = { prompt: 'Keep GitHub casing', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+			const result = await hooks.onUserPromptSubmitted!(input, { sessionId: 'test' });
+
+			assert.strictEqual(input.prompt, 'Keep GitHub casing');
+			assert.deepStrictEqual(result, { additionalContext: 'Rename with exact casing' });
+		});
 	});
 
 	// ---- parsedPluginsEqual ---------------------------------------------

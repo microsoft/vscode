@@ -2508,6 +2508,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-repeat: no-repeat;
 }
 
+.monaco-workbench .interactive-session .chat-attached-context .chat-attached-context-attachment.show-file-icons .monaco-icon-label.file-icon::before {
+	mask-size: var(--vscode-codiconFontSize-compact);
+	mask-position: center;
+	-webkit-mask-size: var(--vscode-codiconFontSize-compact);
+	-webkit-mask-position: center;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before {
 	padding: 0 0 0 2px;
 	align-content: center;
