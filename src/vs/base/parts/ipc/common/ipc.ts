@@ -1241,6 +1241,16 @@ export namespace ProxyChannel {
 						return options.properties.get(propKey);
 					}
 
+					// `then` must never resolve to a function: that would make this
+					// proxy a thenable, so `await proxy` — or returning it from an
+					// `async` function — would invoke it with the promise's own
+					// resolve/reject callbacks. Those are sent over the channel as a
+					// remote `then` call and the callbacks are never invoked, leaving
+					// the awaiting promise pending forever.
+					if (propKey === 'then') {
+						return undefined;
+					}
+
 					// Dynamic Event
 					if (propertyIsDynamicEvent(propKey)) {
 						return function (arg: unknown) {
