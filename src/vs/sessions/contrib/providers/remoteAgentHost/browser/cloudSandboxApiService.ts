@@ -19,7 +19,7 @@ import {
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/agentHost/common/github/githubEndpoints.js';
+import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';

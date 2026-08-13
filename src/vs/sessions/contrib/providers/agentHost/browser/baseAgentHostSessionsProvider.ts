@@ -21,7 +21,7 @@ import { AgentSession, AuthenticateParams, AuthenticateResult, IAgentSessionMeta
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
-import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/github/githubIssueReferences.js';
+import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';

@@ -15,7 +15,7 @@ import { META_GIT_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '..
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/github/agentHostOctoKitService.js';
+import type { CreatedPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 

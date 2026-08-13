@@ -8,7 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubRepoResource, IGitHubEndpoints } from '../common/github/githubEndpoints.js';
+import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubRepoResource, IGitHubEndpoints } from '../common/githubEndpoints.js';
 import { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 

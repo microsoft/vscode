@@ -86,13 +86,13 @@ import { AgentHostGitStateService } from './agentHostGitStateService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
-import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
-import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/github/agentHostOctoKitService.js';
-import { GitHubService, IGitHubService } from './shared/github/githubService.js';
+import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { GitHubService, IGitHubService } from '../../github/common/githubService.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { AgentHostChangesetSubscriptionService } from './agentHostChangesetSubscriptionService.js';
@@ -503,7 +503,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._authService = this._register(new AgentHostAuthenticationService(_logService));
+		this._authService = new AgentHostAuthenticationService(_logService);
 		const databasePath = this._rootConfigResource
 			? joinPath(resourcesDirname(this._rootConfigResource), 'agent-host.db').fsPath
 			: ':memory:';
@@ -540,7 +540,6 @@ export class AgentService extends Disposable implements IAgentService {
 			[IAgentHostGitService, this._gitService],
 			[IAgentHostStorageService, this._storageService],
 			[ITelemetryService, this._telemetryService],
-			[IAgentHostAuthenticationService, this._authService],
 			// The outer agent-host process DI registers `ISessionDataService`,
 			// but this nested strict `InstantiationService` does not inherit it.
 			// Add it explicitly so `@ISessionDataService` injection into the
@@ -559,28 +558,23 @@ export class AgentService extends Disposable implements IAgentService {
 				resource: this._gitHubEndpointService.getCopilotResource(),
 				reason: AuthRequiredReason.Required,
 			});
-			this._stateManager.emitAuthRequired({
-				resource: this._gitHubEndpointService.getRepoResource().resource,
-				reason: AuthRequiredReason.Required,
-			});
 		}));
-		const gitHubService = this._register(instantiationService.createInstance(GitHubService, fetchFn));
-		services.set(IGitHubService, gitHubService);
-		this._register(gitHubService.credentials.onDidInvalidate(event => {
-			if (event.reason === 'authentication') {
-				this._stateManager.emitAuthRequired({
-					resource: this._gitHubEndpointService.getRepoResource().resource,
-					reason: AuthRequiredReason.Required,
-				});
-			}
-		}));
-		const agentHostOctoKitService = new AgentHostOctoKitService(
-			this._logService,
-			this._gitHubEndpointService,
-			gitHubService.credentials,
-			gitHubService.transport,
-		);
+		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, fetchFn);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
+		const gitHubService = this._register(instantiationService.createInstance(GitHubService, {
+			endpoint: this._gitHubEndpointService,
+			tokenProvider: {
+				getToken: () => {
+					const resource = this._gitHubEndpointService.getRepoResource();
+					return this._authService.getAuthToken({
+						resource: resource.resource,
+						scopes: resource.scopes_supported,
+					});
+				},
+			},
+			fetch: fetchFn,
+		}));
+		services.set(IGitHubService, gitHubService);
 		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, fetchFn);
 		services.set(ICopilotApiService, effectiveCopilotApiService);
 		this._customizationEnablementService = this._register(instantiationService.createInstance(AgentHostCustomizationEnablementService));

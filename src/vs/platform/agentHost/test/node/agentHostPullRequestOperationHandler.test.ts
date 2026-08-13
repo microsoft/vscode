@@ -18,7 +18,7 @@ import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import type { AutoMergeMethod, CreatedPullRequest, GitHubIssueOrPullRequest, IAgentHostOctoKitService } from '../../node/shared/github/agentHostOctoKitService.js';
+import type { AutoMergeMethod, CreatedPullRequest, GitHubIssueOrPullRequest, IAgentHostOctoKitService } from '../../node/shared/agentHostOctoKitService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
