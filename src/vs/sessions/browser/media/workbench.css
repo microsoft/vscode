@@ -90,6 +90,10 @@
 	bottom: 15px;
 }
 
+.monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible > .notifications-toasts {
+	z-index: 2580; /* above the dialog modal block (2575), below workbench overlays (2600) */
+}
+
 .monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-center,
 .monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-toasts {
 	bottom: 15px;
