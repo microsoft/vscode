@@ -73,13 +73,19 @@ suite('CustomEditorModelManager', () => {
 		const viewType1 = 'customView1';
 		const viewType2 = 'customView2';
 
-		const failedPromise = Promise.reject(new Error('Failed to load'));
+		let rejectFailedPromise!: (err: any) => void;
+		const failedPromise = new Promise<ICustomEditorModel>((_, reject) => {
+			rejectFailedPromise = reject;
+		});
 		manager.add(resource, viewType1, failedPromise).catch(() => { });
 
 		const validModel = createFakeModel(viewType2, resource);
 		const ref = await manager.add(resource, viewType2, Promise.resolve(validModel));
 
-		const models = await manager.getAllModels(resource);
+		const getAllModelsPromise = manager.getAllModels(resource);
+		rejectFailedPromise(new Error('Failed to load'));
+
+		const models = await getAllModelsPromise;
 		assert.strictEqual(models.length, 1);
 		assert.strictEqual(models[0], validModel);
 
