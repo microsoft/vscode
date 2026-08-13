@@ -14,12 +14,7 @@ export const FOLDER_PICKER_TIP_DISMISSED_STORAGE_KEY = 'chat.agentHost.folderPic
 export const FOLDER_PICKER_TIP_LEARN_MORE_URL = 'https://aka.ms/vscode-session-primary-directory';
 export const FOLDER_PICKER_TIP_CLASS = 'agent-host-folder-picker-tip';
 
-/**
- * Central controller for the folder picker "Primary directory" tip. Returns a list-options
- * provider that the picker evaluates each time its dropdown opens: while the tip has not been
- * dismissed it contributes the header (icon, text, "Learn more" link and dismiss control);
- * once dismissed (persisted per user across sessions) it contributes only the widget class.
- */
+/** Provides dynamic list options for the dismissible folder picker tip. */
 export function createFolderPickerTip(storageService: IStorageService): IActionWidgetDropdownListOptionsProvider {
 	const headerText = localize('chat.agentHost.folderPickerTip.text', "Primary directory");
 	const headerLink = {
