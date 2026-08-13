@@ -515,24 +515,24 @@ suite('AutomationsCardsWidget', () => {
 		const pendingRun = run({ status: 'pending', sessionResource: undefined });
 		automationService.setRuns([pendingRun]);
 		const temporaryRow = widget.element.querySelector('.automations-temporary-run');
-		const spinner = widget.element.querySelector('.automations-temporary-run-spinner .monaco-pixel-spinner');
+		const spinner = widget.element.querySelector('.automations-temporary-run .session-icon .monaco-pixel-spinner');
 
 		automationService.setRuns([{ ...pendingRun, status: 'running' }]);
 		const runningRow = widget.element.querySelector('.automations-temporary-run');
-		const runningSpinner = widget.element.querySelector('.automations-temporary-run-spinner .monaco-pixel-spinner');
+		const runningSpinner = widget.element.querySelector('.automations-temporary-run .session-icon .monaco-pixel-spinner');
 
 		automationService.setRuns([{ ...pendingRun, status: 'running', sessionResource: SESSION_RESOURCE }]);
 
 		assert.deepStrictEqual({
-			title: temporaryRow?.querySelector('.automations-temporary-run-title')?.textContent,
-			status: temporaryRow?.querySelector('.automations-temporary-run-status')?.textContent,
+			title: temporaryRow?.querySelector('.session-title')?.textContent,
+			status: temporaryRow?.querySelector('.session-description')?.textContent,
 			rowPreserved: runningRow === temporaryRow,
 			spinnerPreserved: runningSpinner === spinner,
 			temporaryRowsAfterCommit: widget.element.querySelectorAll('.automations-temporary-run').length,
 			sessionRowsAfterCommit: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 		}, {
 			title: 'Daily review',
-			status: 'Working',
+			status: 'Working...',
 			rowPreserved: true,
 			spinnerPreserved: true,
 			temporaryRowsAfterCommit: 0,

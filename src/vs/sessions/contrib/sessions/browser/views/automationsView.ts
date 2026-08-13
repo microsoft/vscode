@@ -744,7 +744,7 @@ class AutomationHistorySection extends Disposable {
 				entry.temporaryRows.set(run.id, row);
 			} else if (row.title.textContent !== title) {
 				row.title.textContent = title;
-				row.element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working", title));
+				row.element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working...", title));
 			}
 
 			const currentElement = entry.temporaryRowsContainer.children.item(index);
@@ -757,16 +757,19 @@ class AutomationHistorySection extends Disposable {
 
 	private createTemporaryRunRow(title: string): IAutomationTemporaryRunRow {
 		const disposables = new DisposableStore();
-		const element = $('.automations-temporary-run');
+		const element = $('.automations-temporary-run.session-item');
 		element.setAttribute('role', 'group');
-		element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working", title));
-		const titleElement = DOM.append(element, $('span.automations-temporary-run-title'));
-		titleElement.textContent = title;
-		const status = DOM.append(element, $('span.automations-temporary-run-status'));
-		const spinner = DOM.append(status, $('span.automations-temporary-run-spinner'));
+		element.setAttribute('aria-label', localize('automationRunWorkingAriaLabel', "{0}, Working...", title));
+		const icon = DOM.append(element, $('.session-icon'));
+		const spinner = DOM.append(icon, $('span'));
 		spinner.setAttribute('aria-hidden', 'true');
 		disposables.add(createPixelSpinner(spinner, { variant: 'grid' }));
-		DOM.append(status, $('span')).textContent = localize('automationRunWorking', "Working");
+		const main = DOM.append(element, $('.session-main'));
+		const titleRow = DOM.append(main, $('.session-title-row'));
+		const titleElement = DOM.append(titleRow, $('span.session-title'));
+		titleElement.textContent = title;
+		const detailsRow = DOM.append(main, $('.session-details-row'));
+		DOM.append(detailsRow, $('span.session-description')).textContent = localize('automationRunWorking', "Working...");
 		return {
 			element,
 			title: titleElement,

@@ -325,35 +325,9 @@
 }
 
 .automations-temporary-run {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size120);
-	min-height: 54px;
-	padding: 0 var(--vscode-spacing-size160);
-	box-sizing: border-box;
-}
-
-.automations-temporary-run-title {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
-}
-
-.automations-temporary-run-status {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	flex: 0 0 auto;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-agents-fontSize-label1);
-}
-
-.automations-temporary-run-spinner {
-	flex: 0 0 auto;
+	height: 54px;
+	margin: 0 var(--vscode-spacing-size100);
+	width: calc(100% - var(--vscode-spacing-size200));
 }
 
 .hc-black .automations-card,
