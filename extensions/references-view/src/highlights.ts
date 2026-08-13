@@ -19,7 +19,7 @@ export class EditorHighlights<T> {
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 			overviewRulerLane: vscode.OverviewRulerLane.Center,
 			overviewRulerColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
-		})
+		});
 		this.disposables.push(
 			this._decorationType,
 			vscode.workspace.onDidChangeTextDocument(e => this._ignore.add(e.document.uri.toString())),
