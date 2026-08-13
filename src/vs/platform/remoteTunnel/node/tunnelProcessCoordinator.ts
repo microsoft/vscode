@@ -170,14 +170,34 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 	private _schedule(uninstallService: boolean, forceRestart = false): Promise<void> {
 		this._uninstallServicePending ||= uninstallService;
+
+		// Checked before stopping anything: `_reconcile` can only observe a
+		// process this method already stopped, so a no-op update would
+		// otherwise tear down a perfectly healthy tunnel.
+		if (!forceRestart && !this._uninstallServicePending && this._isTargetSatisfied()) {
+			return Promise.resolve();
+		}
+
 		const generation = ++this._generation;
 		void this._currentProcess?.stop();
-		const operation = this._queue.then(() => this._reconcile(generation, forceRestart));
+		const operation = this._queue.then(() => this._reconcile(generation));
 		this._queue = operation.catch(() => { });
 		return operation;
 	}
 
-	private async _reconcile(generation: number, forceRestart: boolean): Promise<void> {
+	/** Whether what is running already matches the resolved intent. */
+	private _isTargetSatisfied(): boolean {
+		const target = this._getTarget();
+		const tunnelName = target.mode === 'none' ? undefined : this._getTunnelName();
+		if (this._status.mode !== target.mode || this._status.tunnelName !== tunnelName) {
+			return false;
+		}
+		// Only the modes that own a child process can be confirmed from here;
+		// `service` is hosted outside this process, so it always reconciles.
+		return target.mode === 'none' || !!this._currentProcess;
+	}
+
+	private async _reconcile(generation: number): Promise<void> {
 		await this._stopCurrentProcess();
 		if (generation !== this._generation) {
 			return;
@@ -195,9 +215,6 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 		const target = this._getTarget();
 		const tunnelName = target.mode === 'none' ? undefined : this._getTunnelName();
-		if (!forceRestart && this._status.mode === target.mode && this._status.tunnelName === tunnelName && this._currentProcess) {
-			return;
-		}
 
 		if (target.mode === 'none') {
 			await this._runTransient('kill', ['tunnel', 'kill'], 'none', generation);

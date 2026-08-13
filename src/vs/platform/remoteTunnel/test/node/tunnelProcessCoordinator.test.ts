@@ -137,6 +137,54 @@ suite('TunnelProcessCoordinator', () => {
 		}
 	});
 
+	test('leaves a healthy tunnel running when the resolved target is unchanged', async () => {
+		const { coordinator, processes } = createCoordinator();
+		try {
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
+
+			// Remote Tunnel Access stays the winning target, so toggling agent
+			// host sharing must not disturb the running tunnel.
+			await coordinator.setAgentHostSharing(agentRequest());
+
+			assert.deepStrictEqual({
+				wasKilled: tunnel.wasKilled(),
+				tunnelProcessCount: processes.filter(process => process.args[0] === 'tunnel'
+					&& !process.args.includes('status')
+					&& !process.args.includes('login')
+					&& !process.args.includes('install')
+					&& !process.args.includes('kill')
+					&& !process.args.includes('uninstall')).length,
+			}, {
+				wasKilled: false,
+				tunnelProcessCount: 1,
+			});
+		} finally {
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
+
+	test('restart() still replaces a healthy tunnel', async () => {
+		const { coordinator, processes } = createCoordinator();
+		try {
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
+			await coordinator.restart();
+
+			assert.strictEqual(tunnel.wasKilled(), true);
+		} finally {
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
+
 	test('waits for the prior tunnel process to exit before spawning its replacement', async () => {
 		const ordering: string[] = [];
 		const { coordinator, processes } = createCoordinator(false, ordering);
