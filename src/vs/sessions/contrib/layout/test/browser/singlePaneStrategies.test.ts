@@ -233,6 +233,41 @@ suite('SinglePane layout strategies', () => {
 		});
 	});
 
+	test('Existing Session keeps the side pane open when multiple sessions are visible', async () => {
+		const ctx = setup();
+		const session = makeSession(URI.parse('session:/existing'));
+		const otherSession = makeSession(URI.parse('session:/other'));
+		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		harness.activeGroupEditors.push(editor);
+		store.add(harness.instaService.createInstance(
+			SinglePaneExistingSessionStrategy,
+			ctx,
+			harness.instaService.createInstance(SinglePaneVisibilityProfileStore),
+			createDetailPanel()
+		));
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session, otherSession], undefined);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.setPartHiddenCalls.length = 0;
+
+		harness.activeGroupEditors.length = 0;
+		harness.editorGroupsHaveContent = false;
+		harness.onDidCloseEditor.fire({ editor, groupId: 1 });
+		harness.onDidEditorsChange.fire();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: true,
+			visibilityChanges: [],
+		});
+	});
+
 	test('Quick Chat hides the side pane once on entry', async () => {
 		const ctx = setup();
 		const editor = store.add(new TestStubEditorInput(URI.parse('search-editor://outgoing')));

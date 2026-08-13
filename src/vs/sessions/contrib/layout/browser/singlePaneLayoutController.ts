@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { ISinglePaneLayoutContext } from './singlePane/singlePaneLayoutStrategy.js';
@@ -45,6 +46,7 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	private _context: ISinglePaneLayoutContext | undefined;
 	private _existingSession: SinglePaneExistingSessionStrategy | undefined;
+	private _managedTabs: SinglePaneDockedTabsCoordinator | undefined;
 
 	protected override get _layoutStateStorageKey(): string {
 		return SINGLE_PANE_LAYOUT_STATE_KEY;
@@ -87,8 +89,8 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 			if (this._store.isDisposed) {
 				return;
 			}
-			const managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx));
-			this._existingSession?.registerManagedTabs(managedTabs);
+			this._managedTabs = this._register(this._instantiationService.createInstance(SinglePaneDockedTabsCoordinator, this._ctx));
+			this._existingSession?.registerManagedTabs(this._managedTabs);
 		});
 	}
 
@@ -123,5 +125,9 @@ export class SinglePaneLayoutController extends BaseLayoutController {
 
 	protected override _shouldHideEditorPartOnApply(_editorPartHidden: boolean): boolean {
 		return false;
+	}
+
+	protected override _onWillApplyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): void {
+		this._managedTabs?.prepareWorkingSetRestore(workingSet !== 'empty');
 	}
 }
