@@ -21,17 +21,17 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type IAuthenticationProvider } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveTokenForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { commandId: string; args: unknown[] }[] = [];
 	result: unknown = { success: true, dialogSkipped: false };
-	onExecute: (() => void) | undefined;
+	onExecute: (() => void | Promise<void>) | undefined;
 
 	override async executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
 		this.calls.push({ commandId, args });
-		this.onExecute?.();
+		await this.onExecute?.();
 		return this.result as R;
 	}
 }
@@ -367,6 +367,90 @@ suite('AgentHostAuthTokenCache', () => {
 		await cache.authenticate('https://other.example.com', ['read'], 'tok2', authenticate);
 
 		assert.strictEqual(authenticateCalls, 4);
+	});
+});
+
+suite('AgentHostAuthenticationRecovery', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('force-forwards the post-sign-in token when session-change handling repopulates the cache', async () => {
+		const token = { value: 'tok-1' };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const cache = new AgentHostAuthTokenCache();
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache,
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		commandService.onExecute = async () => {
+			token.value = 'tok-2';
+			await cache.authenticate(resource.resource, resource.scopes_supported, token.value, async () => {
+				authenticateCalls.push(token.value);
+			});
+		};
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 1,
+			authenticateCalls: ['tok-1', 'tok-2', 'tok-2'],
+		});
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		assert.strictEqual(commandService.calls.length, 2);
+	});
+
+	test('forwards credential removal and resets escalation when the current token disappears', async () => {
+		const token = { value: 'tok-1' as string | undefined };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
+			getSessions: (_providerId, scopes) => Promise.resolve(token.value && scopes ? [{ scopes, accessToken: token.value }] : []),
+		});
+		const commandService = new TestCommandService();
+		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
+		const recovery = new AgentHostAuthenticationRecovery();
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['read'],
+		};
+		const authenticateCalls: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: new AgentHostAuthTokenCache(),
+			logPrefix: '[AgentHost]',
+			authenticate: async request => { authenticateCalls.push(request.token); },
+		};
+
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = undefined;
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+		token.value = 'tok-1';
+		await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
+
+		assert.deepStrictEqual({
+			commandCalls: commandService.calls.length,
+			authenticateCalls,
+		}, {
+			commandCalls: 0,
+			authenticateCalls: ['tok-1', '', 'tok-1'],
+		});
 	});
 });
 
@@ -1124,7 +1208,7 @@ suite('resolveAuthenticationInteractively', () => {
 	test('uses the product sign-in flow and forwards its token', async () => {
 		let signedIn = false;
 		const commandService = new TestCommandService();
-		commandService.onExecute = () => signedIn = true;
+		commandService.onExecute = () => { signedIn = true; };
 		const authService = createMockAuthService({
 			getOrActivateProviderIdForServer: () => Promise.resolve('provider-1'),
 			getSessions: () => Promise.resolve(signedIn ? [{ scopes: ['read'], accessToken: 'signed-in-token' }] : []),
