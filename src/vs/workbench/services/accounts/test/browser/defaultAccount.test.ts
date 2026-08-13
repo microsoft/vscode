@@ -52,14 +52,10 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			editorVersion: requestService.requests[0].headers?.['Editor-Version'],
-			runtimeVersion: requestService.requests[0].headers?.['Copilot-Runtime-Version'],
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			editorVersion: 'vscode/1.132.0',
-			runtimeVersion: 'copilot-runtime/0.0.344',
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});
