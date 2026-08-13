@@ -90,9 +90,13 @@
 	bottom: 15px;
 }
 
+.monaco-workbench.agent-sessions-workbench .monaco-dialog-modal-block.sessions-signing-in-dialog-modal-block {
+	z-index: 2570; /* below sign-in notifications and Quick Input (2571), and normal dialogs (2575) */
+}
+
 .monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible > .notifications-toasts,
 .monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible .quick-input-widget {
-	z-index: 2580; /* above the dialog modal block (2575), below workbench overlays (2600) */
+	z-index: 2571; /* above the sign-in dialog (2570), below normal dialogs (2575) */
 }
 
 .monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-center,

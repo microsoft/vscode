@@ -55,10 +55,12 @@ export class SessionsSigningInDialog extends Disposable {
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog'],
+				modalBlockExtraClasses: ['sessions-signing-in-dialog-modal-block'],
 				detail: localize('sessions.signingIn.detail', "Please complete sign-in in the browser."),
 				icon: Codicon.agent,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: 0,
+				disableCloseAction: true,
 				disableCloseButton: true,
 				disableDefaultAction: true,
 				isExternalFocusAllowed: target => !!target.closest('.quick-input-widget'),
