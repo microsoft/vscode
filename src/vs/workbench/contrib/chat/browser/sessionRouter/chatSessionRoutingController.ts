@@ -10,7 +10,7 @@ import { alert as ariaAlert } from '../../../../../base/browser/ui/aria/aria.js'
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -53,7 +53,6 @@ const ROUTE_MAX_CHOICES = 6;
  */
 const ROUTE_AUTOSEND_DELAY_MS = 5000;
 const MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS = 10000;
-const DELIVERY_RESPONSE_PREVIEW_LENGTH = 20;
 
 /** How long command review remains available before the command runs. */
 const COMMAND_AUTORUN_DELAY_MS = 5000;
@@ -86,13 +85,25 @@ function responsePreview(response: string | undefined): string | undefined {
 	if (!firstLine) {
 		return undefined;
 	}
-	return firstLine.length > DELIVERY_RESPONSE_PREVIEW_LENGTH
-		? `${firstLine.slice(0, DELIVERY_RESPONSE_PREVIEW_LENGTH - 3).trimEnd()}...`
-		: firstLine;
+	return firstLine;
 }
 
 function lowercaseFirstLetter(value: string): string {
 	return value.replace(/\p{L}/u, letter => letter.toLocaleLowerCase());
+}
+
+function renderCompletedResponse(labelElement: HTMLElement, sessionLabel: string, preview: string): IDisposable {
+	const prefix = dom.$('span.chat-routing-badge-response-prefix');
+	prefix.textContent = localize(
+		'chatSessionRouting.completedWithResponse',
+		"Completed {0}:",
+		lowercaseFirstLetter(sessionLabel)
+	);
+	const rendered = renderMarkdown(new MarkdownString(lowercaseFirstLetter(preview)));
+	rendered.element.classList.add('chat-routing-badge-response-preview');
+	labelElement.classList.add('chat-routing-badge-completed');
+	labelElement.replaceChildren(prefix, rendered.element);
+	return rendered;
 }
 
 function statusToString(status: AgentSessionStatus): string {
@@ -1301,18 +1312,10 @@ export class ChatSessionRoutingController extends Disposable {
 				? responsePreview(response.response.getMarkdown())
 				: undefined;
 			if (preview) {
-				const markdown = new MarkdownString(localize(
-					'chatSessionRouting.completedInWithResponse',
-					"Completed {0}: {1}",
-					escapeMarkdownSyntaxTokens(lowercaseFirstLetter(sessionLabel)),
-					lowercaseFirstLetter(preview)
-				));
-				const rendered = renderMarkdown(markdown);
-				rendered.element.classList.add('chat-routing-badge-response');
-				labelElement.replaceChildren(rendered.element);
-				renderedPreview.value = rendered;
+				renderedPreview.value = renderCompletedResponse(labelElement, sessionLabel, preview);
 			} else {
 				renderedPreview.clear();
+				labelElement.classList.remove('chat-routing-badge-completed');
 				labelElement.textContent = statusLabel;
 			}
 			mark.replaceChildren(renderIcon(icon));
@@ -1398,18 +1401,10 @@ export class ChatSessionRoutingController extends Disposable {
 
 			const preview = isCompleted ? responsePreview(session.lastResponse) : undefined;
 			if (preview) {
-				const markdown = new MarkdownString(localize(
-					'chatSessionRouting.completedInWithResponse',
-					"Completed {0}: {1}",
-					escapeMarkdownSyntaxTokens(lowercaseFirstLetter(session.label)),
-					lowercaseFirstLetter(preview)
-				));
-				const rendered = renderMarkdown(markdown);
-				rendered.element.classList.add('chat-routing-badge-response');
-				labelElement.replaceChildren(rendered.element);
-				renderedPreview.value = rendered;
+				renderedPreview.value = renderCompletedResponse(labelElement, session.label, preview);
 			} else {
 				renderedPreview.clear();
+				labelElement.classList.remove('chat-routing-badge-completed');
 				labelElement.textContent = statusLabel;
 			}
 			mark.replaceChildren(renderIcon(icon));

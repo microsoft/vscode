@@ -1039,17 +1039,17 @@ suite('ChatSessionRoutingController', () => {
 			label: 'Update routing badge',
 			status: 'idle',
 			lastActivity: 2,
-			lastResponse: '`Implemented` the requested change.',
+			lastResponse: 'Done. I created [megan.md](file:///megan.md).',
 		};
 		sessionsChanged.fire();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			label: container.querySelector('.chat-routing-badge-label')?.textContent,
-			code: container.querySelector('.chat-routing-badge-label code')?.textContent,
+			link: container.querySelector('.chat-routing-badge-response-preview a')?.textContent,
 		}, {
-			label: 'Completed update routing badge: implemented the...',
-			code: 'implemented',
+			label: 'Completed update routing badge:done. I created megan.md.',
+			link: 'megan.md',
 		});
 		const clearCompletedDeliveries = Reflect.get(controller, '_clearCompletedDeliveryConfirmations') as () => void;
 		clearCompletedDeliveries.call(controller);
