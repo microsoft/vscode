@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { append, $, Dimension, trackFocus } from '../../../../base/browser/dom.js';
 import { InputValidationType, ISCMInput, IInputValidation, ISCMViewService, SCMInputChangeReason, ISCMInputValueProviderContext } from '../common/scm.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -411,7 +411,10 @@ export class SCMInputWidget {
 		this.inputEditor.setModel(textModel);
 
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: textModel.uri }) !== 'off') {
-			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+			void this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+			this.repositoryDisposables.add(toDisposable(() => {
+				void this.configurationService.updateValue('editor.wordBasedSuggestions', undefined, { resource: textModel.uri }, ConfigurationTarget.MEMORY);
+			}));
 		}
 
 		// Validation

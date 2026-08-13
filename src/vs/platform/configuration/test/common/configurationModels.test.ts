@@ -813,6 +813,7 @@ suite('CustomConfigurationModel', () => {
 });
 
 export class TestConfiguration extends Configuration {
+	readonly memoryConfigurationByResource: ResourceMap<ConfigurationModel>;
 
 	constructor(
 		defaultConfiguration: ConfigurationModel,
@@ -820,6 +821,7 @@ export class TestConfiguration extends Configuration {
 		applicationConfiguration: ConfigurationModel,
 		localUserConfiguration: ConfigurationModel,
 		remoteUserConfiguration?: ConfigurationModel,
+		memoryConfigurationByResource = new ResourceMap<ConfigurationModel>(),
 	) {
 		super(
 			defaultConfiguration,
@@ -830,9 +832,10 @@ export class TestConfiguration extends Configuration {
 			ConfigurationModel.createEmptyModel(new NullLogService()),
 			new ResourceMap<ConfigurationModel>(),
 			ConfigurationModel.createEmptyModel(new NullLogService()),
-			new ResourceMap<ConfigurationModel>(),
+			memoryConfigurationByResource,
 			new NullLogService()
 		);
+		this.memoryConfigurationByResource = memoryConfigurationByResource;
 	}
 
 }
@@ -871,6 +874,17 @@ suite('Configuration', () => {
 		testObject.updateValue('a', 2);
 
 		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
+	});
+
+	test('Test remove empty resource memory configuration', () => {
+		const testObject = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
+		const resource = URI.file('/workspace/repository');
+
+		testObject.updateValue('a', 2, { resource });
+		assert.strictEqual(testObject.memoryConfigurationByResource.size, 1);
+
+		testObject.updateValue('a', undefined, { resource });
+		assert.strictEqual(testObject.memoryConfigurationByResource.size, 0);
 	});
 
 	test('Test compare and update default configuration', () => {

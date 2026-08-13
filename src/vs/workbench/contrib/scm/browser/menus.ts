@@ -365,6 +365,16 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 			this.contextualRepositoryMenus.clear();
 			this.contextualRepositoryMenus = undefined;
 		}
+		this.genericRepositoryContextMenu?.dispose();
+		if (this.contextualRepositoryContextMenus) {
+			dispose(this.contextualRepositoryContextMenus.values());
+			this.contextualRepositoryContextMenus.clear();
+			this.contextualRepositoryContextMenus = undefined;
+		}
+		dispose(this.artifactGroupMenus.values());
+		this.artifactGroupMenus.clear();
+		dispose(this.artifactMenus.values());
+		this.artifactMenus.clear();
 		this.resourceGroupMenusItems.forEach(item => item.dispose());
 		this.disposables.dispose();
 	}
