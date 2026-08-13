@@ -307,6 +307,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
+	private readonly _onDidLayout = this._register(new Emitter<{ width: number; height: number }>());
+	readonly onDidLayout = this._onDidLayout.event;
+
 	private _onDidChangeEmptyState = this._register(new Emitter<void>());
 	readonly onDidChangeEmptyState = this._onDidChangeEmptyState.event;
 
@@ -2890,8 +2893,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
-		if (this.viewModel.model.requestInProgress.get() && await this._executeSlashCommandDuringRequest(requestInputs.input, isUserQuery, options.preserveFocus)) {
-			return;
+		if (this.viewModel.model.requestInProgress.get()) {
+			const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
+			if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+				return;
+			}
 		}
 		const isEditing = this.viewModel?.editing;
 		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
@@ -3118,7 +3124,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return sent.data.responseCreatedPromise;
 	}
 
-	private async _executeSlashCommandDuringRequest(input: string, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
+	private _getAttachedContextForConcurrentSlashCommand(preserveInput: boolean | undefined): IChatRequestVariableEntry[] {
+		return preserveInput ? [] : this.input.getAttachedContext().asArray();
+	}
+
+	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
 		const viewModel = this.viewModel;
 		if (!viewModel) {
 			return false;
@@ -3159,6 +3169,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.location,
 				viewModel.sessionResource,
 				CancellationToken.None,
+				requestOptions,
 			);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
@@ -3371,6 +3382,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.layout(width);
 
 		this._layoutListForInputHeight();
+		this._onDidLayout.fire({ width, height });
 	}
 
 	/**
