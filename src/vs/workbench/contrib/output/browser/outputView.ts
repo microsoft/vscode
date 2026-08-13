@@ -49,9 +49,6 @@ import { Markers } from '../../markers/common/markers.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { viewFilterSubmenu } from '../../../browser/parts/views/viewFilter.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
-import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
-
-const MODERN_UI_OUTPUT_PADDING = 8;
 
 interface IOutputViewState {
 	filter?: string;
@@ -246,17 +243,6 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		super(OUTPUT_VIEW_ID, editorGroupService.activeGroup /* this is not correct but pragmatic */, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService, fileService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(LayoutSettings.MODERN_UI)) {
-				this.getControl()?.updateOptions({ padding: this.getPadding() });
-			}
-		}));
-	}
-
-	private getPadding(): ICodeEditorOptions['padding'] {
-		return this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI)
-			? { top: MODERN_UI_OUTPUT_PADDING, bottom: MODERN_UI_OUTPUT_PADDING }
-			: undefined;
 	}
 
 	override getId(): string {
@@ -280,7 +266,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		options.minimap = { enabled: false };
 		options.renderValidationDecorations = 'editable';
 		options.colorDecorators = false;
-		options.padding = this.getPadding();
+		options.padding = undefined;
 		options.readOnly = true;
 		options.domReadOnly = true;
 		options.roundedSelection = false;
