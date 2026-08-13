@@ -1241,9 +1241,7 @@ export namespace ProxyChannel {
 						return options.properties.get(propKey);
 					}
 
-					// Answering `then` with a function makes this proxy a thenable, so
-					// awaiting it would send the promise's own resolve/reject over the
-					// channel and never settle.
+					// Answering `then` makes this proxy a thenable, so `await` would forward it and never settle.
 					if (propKey === 'then') {
 						return undefined;
 					}

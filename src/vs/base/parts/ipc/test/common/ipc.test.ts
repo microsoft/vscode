@@ -520,8 +520,7 @@ suite('Base IPC', function () {
 		});
 
 		test('proxy is not a thenable', async function () {
-			// A thenable proxy would hand resolve/reject to a remote `then` call that
-			// never invokes them, hanging every `await`.
+			// A thenable proxy would forward `then` over the channel and never settle.
 			assert.strictEqual((ipcService as unknown as { then?: unknown }).then, undefined);
 
 			const awaited = await (async () => ipcService)();
