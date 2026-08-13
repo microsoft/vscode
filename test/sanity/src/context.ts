@@ -89,6 +89,7 @@ export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
 	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
+	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
 	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
@@ -504,14 +505,19 @@ export class TestContext {
 		this.log(`Validating Authenticode signature for ${filePath}`);
 		let signToolPath = this.signToolPath;
 		if (!signToolPath) {
-			const architecture = process.arch === 'arm64' ? 'arm64' : 'x64';
+			const architectures = process.arch === 'arm64' ? ['arm64', 'x64'] : ['x64'];
 			const command = `
 				$signTool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
 				if (-not $signTool) {
 					$sdkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\\10\\bin'
-					$signTool = Get-ChildItem (Join-Path $sdkRoot "*\\${architecture}\\signtool.exe") -ErrorAction SilentlyContinue |
-						Sort-Object FullName -Descending |
-						Select-Object -First 1 -ExpandProperty FullName
+					foreach ($architecture in @(${architectures.map(architecture => `'${architecture}'`).join(', ')})) {
+						$signTool = Get-ChildItem (Join-Path $sdkRoot "*\\$architecture\\signtool.exe") -ErrorAction SilentlyContinue |
+							Sort-Object FullName -Descending |
+							Select-Object -First 1 -ExpandProperty FullName
+						if ($signTool) {
+							break
+						}
+					}
 				}
 				if (-not $signTool) {
 					throw 'Unable to locate signtool.exe'
@@ -522,12 +528,15 @@ export class TestContext {
 			this.signToolPath = signToolPath;
 		}
 
-		const result = this.run(signToolPath, 'verify', '/pa', '/all', '/q', filePath);
+		const result = this.run(signToolPath, 'verify', '/pa', '/all', '/v', filePath);
 		if (result.error !== undefined) {
 			this.error(`Failed to validate Authenticode signatures for ${filePath}: ${result.error.message}`);
 		}
+		const details = `${result.stdout}\n${result.stderr}`.trim();
+		if (TestContext.authenticodeTestCertificate.test(details)) {
+			this.error(`Authenticode signature uses a test certificate for ${filePath}`);
+		}
 		if (result.status !== 0) {
-			const details = `${result.stdout}\n${result.stderr}`.trim();
 			this.error(`Not all Authenticode signatures are valid for ${filePath}${details ? `:\n${details}` : ''}`);
 		}
 
