@@ -732,6 +732,7 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link {
 	font-size: var(--vscode-agents-fontSize-body1);
@@ -747,6 +748,7 @@
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:hover,
 .mcp-list-widget .section-title-header .section-title-link:hover,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
@@ -754,6 +756,7 @@
 
 /* Inset the focus ring so it isn't clipped by the widget's overflow:hidden at the header's edge. */
 .ai-customization-list-widget .section-title-header .section-title-link:focus-visible,
+.ai-customization-management-editor .prompt-migration-content-container > .section-title-link:focus-visible,
 .mcp-list-widget .section-title-header .section-title-link:focus-visible,
 .ai-customization-management-editor .tools-list-widget .section-title-header .section-title-link:focus-visible {
 	outline-offset: -1px;
@@ -885,6 +888,12 @@
 	min-height: 0;
 }
 
+/* Migration copy is dynamic; don't reserve the two-line section-header height. */
+.ai-customization-management-editor .prompt-migration-content-container .section-title-description {
+	min-height: 0;
+	margin-bottom: 0;
+}
+
 /*
  * Migration banner — an Inner-tier callout that states the trade-off before the
  * user commits to a migration that deletes the originals by default.
@@ -952,6 +961,11 @@
 	justify-content: center;
 	width: 16px;
 	height: 16px;
+}
+
+.ai-customization-management-editor .migration-learn-more-link {
+	align-self: flex-start;
+	margin-top: var(--vscode-spacing-size80);
 }
 
 .ai-customization-management-editor .prompt-migration-list {

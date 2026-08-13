@@ -857,14 +857,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const titleRow = DOM.append(header, $('.section-title-row'));
 		this.migrationTitleElement = DOM.append(titleRow, $('h2.section-title'));
 		this.migrationDescriptionElement = DOM.append(header, $('p.section-title-description'));
-		const sectionLink = this.migrationLinkElement = DOM.append(header, $('a.section-title-link')) as HTMLAnchorElement;
+
+		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
+		this.migrationBannerContainer.style.display = 'none';
+
+		const sectionLink = this.migrationLinkElement = DOM.append(this.migrationContentContainer, $('a.section-title-link.migration-learn-more-link')) as HTMLAnchorElement;
 		this.editorDisposables.add(DOM.addDisposableListener(sectionLink, 'click', e => {
 			e.preventDefault();
 			this.openerService.open(URI.parse(sectionLink.href));
 		}));
-
-		this.migrationBannerContainer = DOM.append(this.migrationContentContainer, $('.customization-migration-banner'));
-		this.migrationBannerContainer.style.display = 'none';
 
 		const actions = DOM.append(this.migrationContentContainer, $('.list-search-and-button-container.prompt-migration-actions'));
 		const searchContainer = DOM.append(actions, $('.list-search-container'));

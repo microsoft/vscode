@@ -82,6 +82,8 @@ When the active harness is an agent host (`agent-host-*` / `remote-*`), the edit
 
 This page leads with a banner rather than a one-line description, because the migration has a consequence worth stating before the user commits: `promptsHome` is synced by `promptsSync`, so `.agent.md` and `.instructions.md` files there roam between devices with Settings Sync. Once migrated they live on one machine only. The banner names the trade so the choice is made knowingly, and is supplied by the category via the optional `getBanner` descriptor hook — a category that returns one has its page description suppressed to avoid repeating itself.
 
+The documentation link follows the migration note so the page reads in decision order: what this migration is, the consequence, then where to learn more.
+
 The two settings are independent: enabling one does not surface the other, and candidates are only scanned for enabled categories, so a disabled migration costs no prompt-file discovery. Each category declares its own `enablementSetting` on its descriptor, so adding a future migration means adding a descriptor rather than touching the editor.
 
 Both pages share the same machinery: search, per-item and per-group selection, independently collapsible groups, opening a file before migrating, deleting an obsolete file, an opt-out for deleting originals, collision-safe target names, and partial-failure reporting. When a destination type exposes multiple matching roots, migration prompts once for that target and reuses it for every selected file of that type and storage.
