@@ -60,13 +60,13 @@ suite('ChatWidget', () => {
 			progress: false,
 			message: false,
 		});
+	});
 
-		test('loading suppresses the getting-started tip', () => {
-			assert.deepStrictEqual([
-				shouldShowChatTip(0, false, false),
-				shouldShowChatTip(0, false, true),
-			], [true, false]);
-		});
+	test('loading suppresses the getting-started tip', () => {
+		assert.deepStrictEqual([
+			shouldShowChatTip(0, false, false),
+			shouldShowChatTip(0, false, true),
+		], [true, false]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
