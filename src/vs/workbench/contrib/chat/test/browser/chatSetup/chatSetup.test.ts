@@ -95,7 +95,7 @@ suite('Chat setup dialog presentation', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('places signed-out continuation after providers and scopes legal copy to sign-in', () => {
+	test('places signed-out continuation after providers', () => {
 		const buttons = getChatSetupDialogButtons(ChatEntitlement.Unknown, { allowContinueWithoutSignIn: true }, false, {
 			default: { name: 'GitHub' },
 			enterprise: { name: 'GHE' },
@@ -107,7 +107,7 @@ suite('Chat setup dialog presentation', () => {
 			termsStatementUrl: 'https://example.com/terms',
 			privacyStatementUrl: 'https://example.com/privacy',
 			publicCodeMatchesUrl: 'https://example.com/public-code',
-		}, true);
+		});
 
 		assert.deepStrictEqual({
 			buttonLabels: buttons.map(button => button.label),
@@ -120,7 +120,7 @@ suite('Chat setup dialog presentation', () => {
 				strategy: ChatSetupStrategy.Canceled,
 				classes: ['link-button'],
 			},
-			footer: 'By signing in, you agree to GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). GitHub Copilot may show [public code](https://example.com/public-code) suggestions and use your data to improve the product. You can change these [settings](https://example.com/settings) anytime.',
+			footer: 'By continuing, you agree to GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). GitHub Copilot may show [public code](https://example.com/public-code) suggestions and use your data to improve the product. You can change these [settings](https://example.com/settings) anytime.',
 		});
 	});
 });
