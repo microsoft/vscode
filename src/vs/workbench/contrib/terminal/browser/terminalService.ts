@@ -58,6 +58,8 @@ import { GroupIdentifier } from '../../../common/editor.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 
+const terminalServiceLintError = 'should trigger lint';
+
 interface IBackgroundTerminal {
 	instance: ITerminalInstance;
 	terminalLocationOptions?: ITerminalLocationOptions;
