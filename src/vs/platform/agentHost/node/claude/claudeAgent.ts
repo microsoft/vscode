@@ -29,7 +29,7 @@ import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../comm
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
-import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -338,9 +338,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _onDidCustomizationsChange = this._register(new Emitter<void>());
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
-
-	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
-	readonly onDidRequireAuth = this._onDidRequireAuth.event;
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
@@ -1123,7 +1120,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _makeCanUseTool(sdkSessionId: string, configurationResource: URI): NonNullable<Options['canUseTool']> {
 		return (toolName, input, options) =>
 			handleCanUseTool(
-				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, configurationResource, serverToolHost: this._serverToolHost },
+				{
+					getSession: id => this._findSessionBySdkId(id),
+					configurationService: this._configurationService,
+					configurationResource,
+					serverToolHost: this._serverToolHost,
+				},
 				sdkSessionId, toolName, input, options,
 			);
 	}

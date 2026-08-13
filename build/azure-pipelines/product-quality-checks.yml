@@ -1,7 +1,8 @@
 jobs:
   - job: Quality
     displayName: Quality Checks
-    timeoutInMinutes: 20
+    # Leave enough time for NOTICE retries and the fallback path to finish.
+    timeoutInMinutes: 30
     variables:
       - name: skipComponentGovernanceDetection
         value: true
@@ -154,7 +155,7 @@ jobs:
         inputs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
         retryCountOnTaskFailure: 3
-        timeoutInMinutes: 10
+        timeoutInMinutes: 15
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
 

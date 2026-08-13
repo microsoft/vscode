@@ -36,7 +36,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
@@ -1708,14 +1708,14 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, attachmentsRoot, warnings };
 		}
 
-		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
+		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageAttachment[]): Promise<void> {
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
 				{
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments },
 				},
 				'test-client', 1,
 			);
@@ -1751,6 +1751,45 @@ suite('AgentService (node dispatcher)', () => {
 			// File on disk holds exactly the original bytes
 			const written = await fileService.readFile(URI.parse(a.uri));
 			assert.deepStrictEqual([...written.value.buffer], [...png]);
+		});
+
+		test('snapshots embedded text attachments as text files without retaining the payload in state', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			const metadata = { kind: 'paste' };
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'Pasted text #1',
+				data: encodeBase64(VSBuffer.fromString('large pasted text')),
+				contentType: 'text/plain',
+				_meta: metadata,
+			}]);
+
+			const rewritten = agent.sendMessageCalls[0].attachments?.[0];
+			assert.ok(rewritten);
+			assert.strictEqual(rewritten.type, MessageAttachmentKind.Resource);
+			if (rewritten.type !== MessageAttachmentKind.Resource) {
+				return;
+			}
+			const stateAttachment = svc.stateManager.getSessionState(session.toString())?.activeTurn?.message.attachments?.[0];
+			assert.deepStrictEqual(stateAttachment, rewritten);
+			const resource = URI.parse(rewritten.uri);
+			const contents = await fileService.readFile(resource);
+			assert.deepStrictEqual({
+				label: rewritten.label,
+				displayKind: rewritten.displayKind,
+				metadata: rewritten._meta,
+				isSessionAttachment: resource.toString().startsWith(`${attachmentsRoot.toString()}/`),
+				fileName: resource.path.split('/').at(-1),
+				contents: contents.value.toString(),
+			}, {
+				label: 'Pasted text #1',
+				displayKind: undefined,
+				metadata,
+				isSessionAttachment: true,
+				fileName: 'Pasted text #1.txt',
+				contents: 'large pasted text',
+			});
 		});
 
 		test('preserves existing displayKind / range / selection / _meta on rewrite', async () => {
@@ -2241,6 +2280,10 @@ suite('AgentService (node dispatcher)', () => {
 				prepareSessionDeletion: async () => undefined,
 				removeSessionWorktree: async () => { removeWorktreeCalls++; },
 			} as unknown as WorktreeIsolation);
+			// Flush the provider backfill before injecting failures: its
+			// registry write is fire-and-forget and would otherwise consume
+			// part of the failure budget intended for the unregistration.
+			await svc.listSessions();
 			db.failRegistryWrites(2);
 
 			await assert.rejects(svc.disposeSession(session), /transient registry write failure/);

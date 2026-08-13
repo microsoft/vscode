@@ -9,14 +9,15 @@ import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, Delayer, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
-import { autorun, observableValue, type ISettableObservable } from '../../../../base/common/observable.js';
+import { autorun, observableValue, observableValueOpts, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
 import { delimiter, dirname, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -54,7 +55,7 @@ import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_READ_DB_KEY, withSessionEhcliAdoptable, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type HookCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { getByokLmAgentModelId } from '../../common/agentHostByokLm.js';
@@ -471,10 +472,12 @@ class CopilotChatEntry extends Disposable {
 		readonly chatSession: CopilotAgentSession,
 		activeClient: ActiveClient,
 		onMcpNotification: Emitter<IMcpNotification>,
+		onDidRequireAuth: () => void,
 	) {
 		super();
 		this._register(chatSession);
 		this._register(chatSession.onMcpNotification(notification => onMcpNotification.fire(notification)));
+		this._register(chatSession.onDidRequireAuth(onDidRequireAuth));
 		this._register(autorun(reader => activeClient.pluginController.mcpServerStates.set(chatSession.mcpServerStates.read(reader), undefined)));
 	}
 }
@@ -520,6 +523,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
+	private readonly _authenticationRequired = observableValueOpts<Omit<AuthRequiredParams, 'channel'> | undefined>(
+		{ owner: this, equalsFn: structuralEquals },
+		undefined,
+	);
+	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = this._authenticationRequired;
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
 	 * delegated by a tool call (the same fan-out the `subagent_started` /
@@ -613,6 +621,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _pendingClientRestartReasons = new Set<string>();
 	private _closedConnectionRecovery: { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> } | undefined;
 	private readonly _reportedClientFailures = new WeakSet<Error>();
+	private readonly _authenticationSequencer = new Sequencer();
 	private _githubToken: string | undefined;
 	private _serverToolHost: IAgentServerToolHost | undefined;
 
@@ -906,11 +915,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._requestClientRestart(`startup config changed: ${changed}`);
 	}
 
+	/**
+	 * Requests a CLI client restart, running it immediately when every chat is
+	 * idle and otherwise parking it until the last in-flight turn ends.
+	 *
+	 * Restarting tears the SDK sessions down, and a torn-down session stops
+	 * producing the events that finalize its protocol turn — the client would be
+	 * left with a turn that never completes, cancels, or errors, i.e. a session
+	 * that spins forever. Startup-only values (session sync, the SDK log level,
+	 * the enterprise host, the system proxy) can also change without any user
+	 * action, from an experiment or policy refresh, so this must never be paid
+	 * for with a running turn. {@link _ensureClient} reads them fresh on the next
+	 * start, so applying the restart late is always correct.
+	 */
 	private async _requestClientRestart(reason: string): Promise<void> {
-		if (this._shutdownPromise || !this._client) {
+		if (this._shutdownPromise || (!this._client && !this._clientStarting)) {
 			return;
 		}
 		this._pendingClientRestartReasons.add(reason);
+		if (this._clientStarting) {
+			try {
+				await this._clientStarting;
+			} catch {
+				this._pendingClientRestartReasons.delete(reason);
+				return;
+			}
+		}
+		if (!this._client) {
+			return;
+		}
 		const busyChats = this._chatsWithActiveTurn();
 		if (busyChats > 0) {
 			this._logService.info(`[Copilot] Deferring CopilotClient restart (${reason}) until ${busyChats} in-flight turn(s) finish`);
@@ -1263,16 +1296,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
-		const normalizedToken = token || undefined;
-		const tokenChanged = this._githubToken !== normalizedToken;
-		this._githubToken = normalizedToken;
-		this._updateRestrictedTelemetry(normalizedToken);
-		this._logService.info(`[Copilot] Auth token ${tokenChanged ? (normalizedToken ? 'updated' : 'cleared') : 'unchanged'}`);
-		if (tokenChanged) {
-			await this._restartClientIfProxyChanged();
-			void this._scheduleModelRefresh();
-		}
+		await this._authenticationSequencer.queue(async () => {
+			this._authenticationRequired.set(undefined, undefined);
+			await this._applyGitHubToken(token || undefined);
+		});
 		return true;
+	}
+
+	private async _applyGitHubToken(token: string | undefined): Promise<void> {
+		if (this._githubToken === token) {
+			return;
+		}
+		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		this._githubToken = token;
+		this._updateRestrictedTelemetry(token);
+		if (!token) {
+			await this._requestClientRestart('GitHub authentication cleared');
+			void this._scheduleModelRefresh();
+			return;
+		}
+		const host = this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com';
+		let restartRequired = false;
+		for (const session of this._allLiveSessions()) {
+			try {
+				const result = await session.updateGitHubCredentials(host, token);
+				if (!result.success) {
+					restartRequired = true;
+					this._logService.warn(`[Copilot:${session.sessionId}] GitHub credential update was rejected; scheduling a safe CopilotClient restart`);
+				} else if (result.copilotUserResolved === false) {
+					this._logService.warn(`[Copilot:${session.sessionId}] GitHub credentials were updated, but Copilot user metadata could not be resolved; plan, quota, and billing metadata may be degraded. Reauthenticate to restore it.`);
+				}
+			} catch (error) {
+				restartRequired = true;
+				this._logService.warn(`[Copilot:${session.sessionId}] Failed to update GitHub credentials; scheduling a safe CopilotClient restart: ${getErrorMessage(error)}`);
+			}
+		}
+		if (restartRequired) {
+			await this._requestClientRestart('GitHub credential update failed');
+		} else {
+			await this._restartClientIfProxyChanged();
+		}
+		void this._scheduleModelRefresh();
+	}
+
+	private _handleCopilotSessionAuthRequired(): void {
+		this._authenticationRequired.set({
+			resource: this._gitHubEndpointService.getCopilotResource(),
+			reason: AuthRequiredReason.Expired,
+		}, undefined);
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
@@ -1469,6 +1540,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._githubToken !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
 			}
+			if (/\b401\b/.test(getErrorMessage(err))) {
+				this._handleCopilotSessionAuthRequired();
+			}
 			await this._recoverFromClosedConnection(err, 'modelRefresh');
 			if (attempt + 1 < this._modelRefreshMaxAttempts) {
 				const delay = this._modelRefreshBackoff(attempt);
@@ -1608,6 +1682,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const env = createCopilotCliEnvironment();
+			// Family aliases are host-side (prompt and tool-profile routing) and
+			// deliberately never reach the runtime; an ambient value here would
+			// re-introduce a process-wide alias for every session behind its back.
+			delete env['COPILOT_MODEL_FAMILY'];
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -3635,13 +3713,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
 			const freeLongContext = this._isFreeLongContext(model.id);
-			// Match create-time reasoning-effort resolution without resolving it before a provisional session is used.
+			// A `family` alias routes the host's prompt and tool profile only. The
+			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
 			if (provisional) {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
+				// Keep the session-scope metadata in step for resumes that fall back
+				// to it; chat leaves persist through their backing instead.
+				if (current.resource.toString() === current.configurationResource.toString()) {
+					await this._storeSessionMetadata(current.resource, model, undefined, undefined, undefined, undefined);
+				}
 			}
 			const backing = this._chatBackings.get(current.chatKey);
 			if (backing) {
@@ -3783,13 +3867,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * When the GitHub token changes, the token-discovered CAPI endpoint (and so
-	 * the resolved proxy) can change. The proxy is baked into the SDK subprocess
-	 * env at client start, so if it would now differ we restart the running
-	 * client here (deferred while a turn is in flight, see
-	 * {@link _requestClientRestart}); the next `_ensureClient` re-resolves it
-	 * against the new token. No-op when no client is running/starting or the
-	 * proxy is unchanged.
+	 * Restarts the client when token-based CAPI endpoint discovery changes its
+	 * subprocess proxy. Session credential updates otherwise keep the process alive.
 	 */
 	private async _restartClientIfProxyChanged(): Promise<void> {
 		if (!this._client && !this._clientStarting) {
@@ -3800,21 +3879,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (newProxy === oldProxy) {
 			return;
 		}
-		// Let any in-flight start finish so we stop a live client rather than
-		// racing it (the start would otherwise come up with the stale proxy).
 		if (this._clientStarting) {
 			try {
 				await this._clientStarting;
 			} catch {
-				// Start failed; nothing running to restart.
+				return;
 			}
 		}
 		if (!this._client) {
 			return;
 		}
 		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
-		this._chatEntriesBySdkId.clearAndDisposeAll();
-		await this._stopClient();
+		await this._requestClientRestart('CAPI proxy changed after GitHub token update');
 	}
 
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
@@ -3864,7 +3940,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _createChatEntry(session: CopilotAgentSession, activeClient: ActiveClient): CopilotChatEntry {
-		return new CopilotChatEntry(session, activeClient, this._onMcpNotification);
+		return new CopilotChatEntry(session, activeClient, this._onMcpNotification, () => this._handleCopilotSessionAuthRequired());
 	}
 
 	private _registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: ActiveClient): void {

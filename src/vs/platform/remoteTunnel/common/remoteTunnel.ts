@@ -75,8 +75,8 @@ export namespace TunnelStates {
 }
 
 export interface ConnectionInfo {
-	link: string;
-	domain: string;
+	link?: string;
+	domain?: string;
 	tunnelName: string;
 	isAttached: boolean;
 }
