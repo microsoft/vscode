@@ -44,7 +44,7 @@ export interface IAccountPolicyGateInfo {
 export const ChatAccountPolicyGateActiveContext = new RawContextKey<boolean>(
 	'chatAccountPolicyGateActive',
 	false,
-	{ type: 'boolean', description: localize('chatAccountPolicyGateActive', "True when the 'Require Approved Account' policy is in effect and the user is not yet signed into an approved GitHub organization, so all AI features are disabled until they sign in.") }
+	{ type: 'boolean', description: localize('chatAccountPolicyGateActive', "True when account or managed-settings compatibility policy prevents this client from using AI features.") }
 );
 
 /**

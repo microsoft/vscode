@@ -26,7 +26,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
-import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -1901,6 +1901,28 @@ suite('AgentSideEffects', () => {
 	// ---- registerProgressListener ---------------------------------------
 
 	suite('registerProgressListener', () => {
+
+		test('emits auth-required notifications when observable state becomes required', () => {
+			const notifications: INotification[] = [];
+			disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const requirement = {
+				resource: {
+					resource: 'https://api.github.com',
+					authorization_servers: ['https://github.com/login/oauth'],
+				},
+				reason: AuthRequiredReason.Expired,
+			};
+
+			agent.setAuthenticationRequired(requirement);
+			agent.setAuthenticationRequired(undefined);
+			agent.setAuthenticationRequired(requirement);
+
+			assert.deepStrictEqual(notifications.filter(notification => notification.type === 'auth/required'), [
+				{ type: 'auth/required', channel: ROOT_STATE_URI, ...requirement },
+				{ type: 'auth/required', channel: ROOT_STATE_URI, ...requirement },
+			]);
+		});
 
 		test('maps agent progress events to state actions', () => {
 			setupSession();
