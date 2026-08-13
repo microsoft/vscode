@@ -9,7 +9,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { type MarkedExtension } from '../../../../../base/common/marked/marked.js';
-import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IMarkdownRenderer, IMarkdownRendererService, openLinkFromMarkdown } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -120,7 +120,7 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 	constructor(
 		@ILanguageService languageService: ILanguageService,
-		@IOpenerService openerService: IOpenerService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
@@ -132,7 +132,10 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 			return plainTextResult;
 		}
 
-		options = getChatMarkdownRenderOptions(options);
+		options = getChatMarkdownRenderOptions({
+			...options,
+			actionHandler: options?.actionHandler ?? ((link, markdown) => openLinkFromMarkdown(this.openerService, link, markdown.isTrusted)),
+		});
 
 		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{

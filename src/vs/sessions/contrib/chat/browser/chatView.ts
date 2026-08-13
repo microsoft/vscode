@@ -7,14 +7,17 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isNative } from '../../../../base/common/platform.js';
+import { extname, isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenExternalOptions, OpenInternalOptions, OpenOptions, ResolveExternalUriOptions } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -23,6 +26,7 @@ import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
+import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -120,6 +124,44 @@ export class NewChatView extends AbstractChatView {
 	}
 }
 
+class SessionChatOpenerService implements IOpenerService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		private readonly delegate: IOpenerService,
+		private readonly session: IObservable<ISession | undefined>,
+	) { }
+
+	registerOpener(opener: IOpener): IDisposable {
+		return this.delegate.registerOpener(opener);
+	}
+
+	registerValidator(validator: IValidator): IDisposable {
+		return this.delegate.registerValidator(validator);
+	}
+
+	registerExternalUriResolver(resolver: IExternalUriResolver): IDisposable {
+		return this.delegate.registerExternalUriResolver(resolver);
+	}
+
+	setDefaultExternalOpener(opener: IExternalOpener): void {
+		this.delegate.setDefaultExternalOpener(opener);
+	}
+
+	registerExternalOpener(opener: IExternalOpener): IDisposable {
+		return this.delegate.registerExternalOpener(opener);
+	}
+
+	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		return this.delegate.open(resource, getSessionChatResourceOpenOptions(resource, options, this.session.get()));
+	}
+
+	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
+		return this.delegate.resolveExternalUri(resource, options);
+	}
+}
+
 /**
  * A session view that hosts the standard chat {@link ChatWidget} — used to
  * render an active chat session inside the `SessionsPart` grid.
@@ -172,6 +214,7 @@ export class ChatView extends AbstractChatView {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -192,7 +235,10 @@ export class ChatView extends AbstractChatView {
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, scopedContextKeyService])
+			new ServiceCollection(
+				[IContextKeyService, scopedContextKeyService],
+				[IOpenerService, isNative ? new SessionChatOpenerService(openerService, this._currentSessionObs) : openerService],
+			)
 		));
 
 		// Matches `AGENTS_VOICE_INITIATED_HERE` in agentsVoice.contribution.ts.
@@ -518,6 +564,52 @@ export class ChatView extends AbstractChatView {
 		this._isVisible = visible;
 		this._widget.setVisible(visible);
 	}
+}
+
+export function getSessionChatResourceOpenOptions(
+	resource: URI | string,
+	options: OpenOptions | undefined,
+	session: Pick<ISession, 'workspace' | 'isQuickChat'> | undefined,
+): OpenOptions | undefined {
+	let resourceUri: URI;
+	try {
+		resourceUri = URI.isUri(resource) ? resource : URI.parse(resource);
+	} catch {
+		return options;
+	}
+
+	if (resourceUri.scheme !== Schemas.file || !session || !['.html', '.htm'].includes(extname(resourceUri).toLowerCase())) {
+		return options;
+	}
+
+	const editorOptions = options?.editorOptions;
+	if (options?.openExternal || editorOptions?.override !== undefined) {
+		return options;
+	}
+
+	const workspace = session.workspace.get();
+	if (!workspace) {
+		if (session.isQuickChat?.get() !== true) {
+			return options;
+		}
+	} else {
+		const comparisonResource = resourceUri.with({ query: null, fragment: null });
+		if (workspace.folders.some(folder =>
+			isEqualOrParent(comparisonResource, folder.root)
+			|| isEqualOrParent(comparisonResource, folder.workingDirectory)
+			|| (!!folder.gitRepository?.workTreeUri && isEqualOrParent(comparisonResource, folder.gitRepository.workTreeUri))
+		)) {
+			return options;
+		}
+	}
+
+	return {
+		...options,
+		editorOptions: {
+			...editorOptions,
+			override: BrowserEditorInput.EDITOR_ID,
+		},
+	};
 }
 
 export function shouldShowTranscriptPreparationProgress(requestCount: number, visibleRequestCount: number, hiddenRequestIncomplete: boolean | undefined): boolean {
