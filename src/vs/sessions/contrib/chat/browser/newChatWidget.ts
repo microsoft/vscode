@@ -55,10 +55,6 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 /** Minimum number of started sessions required before showing tips and promotions. */
 const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
-export function shouldShowChatTip(isNoAgentHost: boolean, hasEnoughSessions: boolean, foregroundSessionCount: number, isLoading: boolean): boolean {
-	return !isNoAgentHost && hasEnoughSessions && foregroundSessionCount === 0 && !isLoading;
-}
-
 export class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
@@ -305,8 +301,6 @@ export class NewChatWidget extends Disposable {
 		// changes externally (e.g. sessionsService.openNewSession({ folderUri })).
 		let previousFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			activeSession?.loading.read(reader);
 			const session = this._session.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
 			this._handlePromptOptionsWorkspaceChange(previousFolderUri, folderUri);
@@ -314,7 +308,6 @@ export class NewChatWidget extends Disposable {
 			if (folderUri && !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri)) {
 				this._workspacePicker.setSelectedWorkspace(folderUri, { fireEvent: false });
 			}
-			this._renderChatTip();
 		}));
 	}
 
@@ -419,12 +412,9 @@ export class NewChatWidget extends Disposable {
 				// No tip in the no-agent-host empty state: there is no usable composer.
 				// Tips also stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
-				isEligible: () => shouldShowChatTip(
-					chatWidgetContent.classList.contains('no-agent-host'),
-					this._hasEnoughSessionsForFirstRunNotices(),
-					this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) ?? 0,
-					this.sessionsService.activeSession.get()?.loading.get() ?? false,
-				),
+				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
+					&& this._hasEnoughSessionsForFirstRunNotices()
+					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),
 			},
 			this._newChatInput.noticeHost,
