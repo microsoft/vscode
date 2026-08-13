@@ -34,7 +34,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 
 | Feature | Phone Status | Mechanism |
 |---------|--------------|-----------|
-| Sessions list (sidebar) | ✅ Compatible | No gate |
+| Sessions list (sidebar) | ✅ Compatible | No gate — session rows reuse the inline workspace badge under custom groups; live-status rows still hide details, and the phone toolbar reservation constrains the remaining badge width |
 | Sessions Part (chat views) | ✅ Compatible | No gate — phone enforces a single visible session via `MobileSessionsPart` |
 | Changes view (AuxiliaryBar) | ❌ Gated (with mobile equivalent) | `when: !sessionsIsPhoneLayout` on view descriptor; phone uses `MobileChangesView` overlay reachable from the title-bar Changes pill |
 | Files view (AuxiliaryBar) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |

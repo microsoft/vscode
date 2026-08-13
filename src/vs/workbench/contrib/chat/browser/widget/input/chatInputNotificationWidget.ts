@@ -68,6 +68,7 @@ const severityToIcon: Record<ChatInputNotificationSeverity, ThemeIcon> = {
 export interface IChatInputNotificationDelegate {
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
 	readonly sessionResource?: IObservable<URI | undefined>;
+	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly openModelPicker?: () => void;
 	/** Returns false to open this input's model picker as a fallback. */
 	readonly switchToModel?: (modelIdentifier: string) => boolean;
@@ -100,6 +101,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	private _lastShownTelemetryData: ChatInputNotificationTelemetryEvent | undefined;
 	private _modelTargetChatSessionType: string | undefined;
 	private _sessionResource: URI | undefined;
+	private _deferredNotificationsEnabled = true;
 	private _visible = false;
 	private _slot: HTMLElement | undefined;
 
@@ -127,6 +129,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		this._register(autorun(reader => {
 			this._modelTargetChatSessionType = this._delegate?.modelTargetChatSessionType?.read(reader);
 			this._sessionResource = this._delegate?.sessionResource?.read(reader);
+			this._deferredNotificationsEnabled = this._delegate?.deferredNotificationsEnabled?.read(reader) ?? true;
 			this._render();
 		}));
 	}
@@ -195,7 +198,8 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 	}
 
 	private _matchesSession(notification: IChatInputNotification): boolean {
-		return isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
+		return (!notification.deferForNewUsers || this._deferredNotificationsEnabled)
+			&& isChatInputNotificationApplicableToSession(notification, this._modelTargetChatSessionType, this._sessionResource);
 	}
 
 	private _renderNotification(notification: IChatInputNotification): void {

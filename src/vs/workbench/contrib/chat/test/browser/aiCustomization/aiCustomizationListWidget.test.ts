@@ -227,6 +227,7 @@ suite('aiCustomizationListWidget', () => {
 				plugins: observableValue('test', []),
 				enablementModel: {
 					readEnabled: () => ContributionEnablementState.EnabledProfile,
+					readProfileEnabled: () => true,
 					setEnabled: () => { },
 					remove: () => { },
 				},
