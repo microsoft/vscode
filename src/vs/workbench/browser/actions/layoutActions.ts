@@ -1288,7 +1288,9 @@ CommandsRegistry.registerCommand({
 		return layoutService.getSize(Parts.SIDEBAR_PART).width;
 	},
 	metadata: {
-		description: 'Get the width of the primary side bar in pixels. Returns undefined when the primary side bar is hidden.'
+		description: localize2('getSideBarWidth.description', "Get the width of the primary side bar in pixels. Returns undefined when the primary side bar is hidden."),
+		args: [],
+		returns: 'The primary side bar width in pixels, or undefined when it is hidden.'
 	}
 });
 
@@ -1296,19 +1298,19 @@ CommandsRegistry.registerCommand({
 	id: 'workbench.action.setSideBarWidth',
 	handler: (accessor: ServicesAccessor, width: number): void => {
 		if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
-			throw new Error(`Invalid side bar width: ${width}`);
+			throw new Error(localize('setSideBarWidth.invalidWidth', "Invalid side bar width: {0}", width));
 		}
 
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			throw new Error('Cannot set the width of the primary side bar while it is hidden');
+			throw new Error(localize('setSideBarWidth.sideBarHidden', "Cannot set the width of the primary side bar while it is hidden."));
 		}
 
 		const { height } = layoutService.getSize(Parts.SIDEBAR_PART);
 		layoutService.setSize(Parts.SIDEBAR_PART, { width, height });
 	},
 	metadata: {
-		description: 'Set the width of the primary side bar in pixels. The width is clamped to the layout constraints of the side bar. Fails when the primary side bar is hidden.',
+		description: localize2('setSideBarWidth.description', "Set the width of the primary side bar in pixels. The width is clamped to the layout constraints of the side bar. Fails when the primary side bar is hidden."),
 		args: [{
 			name: 'width',
 			description: 'The new width of the primary side bar in pixels',
