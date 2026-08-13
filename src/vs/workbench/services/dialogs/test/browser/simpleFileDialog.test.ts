@@ -179,6 +179,38 @@ suite('SimpleFileDialog', () => {
 		});
 	});
 
+	test('updates items when navigating from root into a child folder', async () => {
+		const filePickBox = {
+			value: '/folder/',
+			validationMessage: undefined
+		};
+		let update: { value: string; folder: URI } | undefined;
+
+		const dialog = Object.assign(Object.create(SimpleFileDialog.prototype), {
+			filePickBox,
+			currentFolder: URI.file('/'),
+			userEnteredPathSegment: '',
+			autoCompletePathSegment: 'folder',
+			separator: '/',
+			isWindows: false,
+			scheme: Schemas.file,
+			tryUpdateItems: async (value: string, folder: URI) => {
+				update = { value, folder };
+				return 0;
+			},
+			setActiveItems: () => { }
+		}) as {
+			handleValueChange(value: string): Promise<void>;
+		};
+
+		await dialog.handleValueChange(filePickBox.value);
+
+		assert.deepStrictEqual(update && { value: update.value, folder: update.folder.toString() }, {
+			value: '/folder/',
+			folder: URI.file('/folder/').toString()
+		});
+	});
+
 	test('does not let a canceled slow folder update overwrite a newer folder', async () => {
 		const slowFolder = URI.file('/slow');
 		const fastFolder = URI.file('/fast');
