@@ -133,6 +133,7 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+	readonly onDidRemoveWidget: Event<IChatWidget>;
 
 	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
