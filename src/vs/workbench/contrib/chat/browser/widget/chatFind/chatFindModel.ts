@@ -10,7 +10,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { getChatResponsePlaintextParts } from '../../accessibility/chatResponseAccessibleView.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget/annotations.js';
-import { moveSessionCreatedToolsAfterFinalResponse } from '../chatListRenderer.js';
+import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
 
 /** Upper bound on tracked matches, mirroring `LIMIT_FIND_COUNT` in `textModelSearch.ts`, so a pathological regex can't pin the UI. */
 const MAX_FIND_MATCHES = 9999;
@@ -66,7 +66,7 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 		} else if (isResponseVM(item)) {
 			const annotated = annotateSpecialMarkdownContentWithSource(item.response.value);
 			const renderedContent = item.isComplete
-				? moveSessionCreatedToolsAfterFinalResponse(annotated.map(entry => entry.content))
+				? moveResponseOutcomeToolsAfterFinalResponse(annotated.map(entry => entry.content))
 				: annotated.map(entry => entry.content);
 			// Mirrors the renderer, which puts the references slot first and code citations
 			// between the response content and the trailing parts that hold row-level text.

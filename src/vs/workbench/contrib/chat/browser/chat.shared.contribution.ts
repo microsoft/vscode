@@ -12,10 +12,11 @@ import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostModelCapabilityOverridesSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostReasoningEffortOverrideSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, copilotSdkLogLevelSettingValues } from '../../../../platform/agentHost/common/copilotCliConfig.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL } from '../../../../platform/localTranscription/common/localTranscription.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
@@ -611,7 +612,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows an inline \"Sandboxing for terminal\" toggle on the Default Permissions option. The toggle reflects and updates `#chat.agent.sandbox.enabled#`."),
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows an inline \"Sandboxing for terminal\" toggle on the Default Permissions option. For Copilot SDK sessions using the built-in shell tool, the toggle reflects and updates `#chat.agentHost.sdkSandbox.enabled#` or `#chat.agentHost.sdkSandbox.enabledWindows#`."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -723,23 +724,17 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
-			default: {
-				'**/*': true,
-				'**/.vscode/*.json': false,
-				'**/.git/**': false,
-				'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env,Cargo.toml}': false,
-				'**/{.npmrc,.yarnrc,.yarnrc.yml,.pnpmfile.js,.pnpmfile.cjs,.pnpmfile.mjs,pnpm-workspace.yaml}': false,
-				'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props,gradle,gradle.kts}': false,
-				'**/gradle.properties': false,
-				'**/ruby_lsp/*/addon': false, // Auto-included Ruby addons
-				'**/*.lock': false, // yarn.lock, bun.lock, etc.
-				'**/*-lock.{yaml,json}': false, // pnpm-lock.yaml, package-lock.json
-			},
+			default: DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by the agent are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
-			}
+			},
+			scope: ConfigurationScope.APPLICATION,
+			agentHost: {
+				key: AgentHostEditAutoApprovePatternsConfigKey,
+				transform: mergeChatEditAutoApprovePatterns,
+			},
 		},
 		[ChatConfiguration.AutoApprovedUrls]: {
 			default: {
@@ -1582,20 +1577,33 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostAllowSignedOutWhenUsableSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, Agent Host sessions remain available while signed out. The Agents window opens without forcing GitHub sign-in, and editor chat lets you select the Copilot harness. Agents usable without GitHub (for example Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub prompt you to add a model or sign in. When disabled (the default), GitHub sign-in is required before the Agents window opens."),
+			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, Agent Host sessions remain available while signed out. The Agents window opens without forcing GitHub sign-in, and editor chat lets you select the Copilot harness. Agents usable without GitHub (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub prompt you to add a model or sign in. When disabled (the default), GitHub sign-in is required before the Agents window opens."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostSdkSandboxEnabledSettingId]: {
 			type: 'string',
-			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 			enumDescriptions: [
 				nls.localize('chat.agentHost.sdkSandbox.enabled.off', "No sandbox policy is forwarded for the SDK's built-in shell tool — commands run unsandboxed."),
-				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy and host-list-restricted network."),
-				nls.localize('chat.agentHost.sdkSandbox.enabled.allowNetwork', "The SDK's built-in shell tool runs inside a sandbox with unrestricted outbound network access."),
+				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy with outbound network blocked."),
 			],
-			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with default permissions — not when approvals are bypassed — and is not supported on Windows yet."),
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool on macOS and Linux. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`. The sandbox applies only to requests that run with default permissions — not when approvals are bypassed. Unrestricted network is controlled by `#chat.agent.sandbox.allowNetwork#`. Use `#chat.agentHost.sdkSandbox.enabledWindows#` on Windows."),
+			default: AgentSandboxEnabledValue.Off,
+			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			},
+		},
+		[AgentHostSdkSandboxWindowsEnabledSettingId]: {
+			type: 'string',
+			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.sdkSandbox.enabledWindows.off', "No sandbox policy is forwarded for the SDK's built-in shell tool on Windows — commands run unsandboxed."),
+				nls.localize('chat.agentHost.sdkSandbox.enabledWindows.on', "The SDK's built-in shell tool runs inside the Windows sandbox using the configured filesystem policy."),
+			],
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabledWindows', "Sandbox mode for the Copilot SDK's built-in shell tool on Windows. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`. This setting is independent of `#chat.agentHost.sdkSandbox.enabled#` so Windows sandbox support can be enabled separately. Unrestricted network is controlled by `#chat.agent.sandbox.allowNetwork#`."),
 			default: AgentSandboxEnabledValue.Off,
 			tags: ['experimental', 'advanced'],
 			experiment: {

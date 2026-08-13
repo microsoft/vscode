@@ -122,7 +122,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// UI. Sends originating from {@link sendRequest} and
 		// {@link sendNewChatRequest} are deduplicated via
 		// {@link _pendingSendChatResources}.
-		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message }) => {
+		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource, message, attachedContext }) => {
 			if (this._pendingSendChatResources.has(chatSessionResource.toString())) {
 				return;
 			}
@@ -133,7 +133,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					chat: ownedChat.chat,
 					isNewSession: false,
 					isNewChat: false,
-					options: { query: message?.text ?? '' },
+					options: { query: message?.text ?? '', attachedContext },
 				});
 			}
 		}));

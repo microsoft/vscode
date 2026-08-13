@@ -263,13 +263,6 @@
 	align-items: center;
 	height: 100%;
 	min-height: calc(var(--vscode-spacing-size240) + var(--vscode-spacing-size40) * 2);
-	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 22%, var(--session-view-background));
-	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--session-view-background));
-}
-
-.vs .chat-composite-bar-tabs {
-	--modern-ui-editor-tab-action-active-background: color-mix(in srgb, var(--vscode-foreground) 16%, var(--session-view-background));
-	--modern-ui-editor-tab-action-hover-background: color-mix(in srgb, var(--vscode-foreground) 6%, var(--session-view-background));
 }
 
 /* "New Chat" button pinned at the end of the tab strip, after the Conversations menu. */

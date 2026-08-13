@@ -13,13 +13,14 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
-import { AgentSession } from '../../../common/agentService.js';
+import { AgentSession } from '../../../common/agent.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
+import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
@@ -46,6 +47,12 @@ class RecordingOTelService implements IAgentHostOTelService {
 	async flush(): Promise<void> { }
 }
 
+/**
+ * Builds a Codex agent whose only host input is the narrow session-title seam,
+ * driven end to end from a real {@link AgentHostStateManager}: the agent itself
+ * never sees the state manager, so a passing test proves the telemetry survives
+ * on the seam alone.
+ */
 function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateManager: AgentHostStateManager; otelService: RecordingOTelService } {
 	const instantiationService = new TestInstantiationService();
 	const logService = new NullLogService();
@@ -62,7 +69,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, otelService);
-	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager)));
 	instantiationService.stub(IProductService, { _serviceBrand: undefined, version: '1.0.0-test' } as IProductService);
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
