@@ -8,22 +8,27 @@ import { Emitter, Event, PauseableEmitter } from '../../../base/common/event.js'
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketDiagnostics, SocketDiagnosticsEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 
-export const makeRawSocketHeaders = (path: string, query: string, deubgLabel: string) => {
-	// https://tools.ietf.org/html/rfc6455#section-4
-	const buffer = new Uint8Array(16);
-	for (let i = 0; i < 16; i++) {
-		buffer[i] = Math.round(Math.random() * 256);
-	}
-	const nonce = encodeBase64(VSBuffer.wrap(buffer));
+ export const makeRawSocketHeaders = (path: string, query: string, debugLabel: string) => {
+        // Girdi Doğrulama: CRLF enjeksiyonunu ve istek bölünmesini engellemek için kontrol
+        if (/[\r\n]/.test(path) || /[\r\n]/.test(query)) {
+                throw new Error("Invalid characters detected in path or query parameters.");
+        }
 
-	const headers = [
-		`GET ws://localhost${path}?${query}&skipWebSocketFrames=true HTTP/1.1`,
-		`Connection: Upgrade`,
-		`Upgrade: websocket`,
-		`Sec-WebSocket-Key: ${nonce}`
-	];
+        // https://tools.ietf.org/html/rfc6455#section-4
+        const buffer = new Uint8Array(16);
+        for (let i = 0; i < 16; i++) {
+                buffer[i] = Math.round(Math.random() * 256);
+        }
+        const nonce = encodeBase64(VSBuffer.wrap(buffer));
 
-	return headers.join('\r\n') + '\r\n\r\n';
+        const headers = [
+                `GET ws://localhost${path}?${query}&skipWebSocketFrames=true HTTP/1.1`,
+                `Connection: Upgrade`,
+                `Upgrade: websocket`,
+                `Sec-WebSocket-Key: ${nonce}`
+        ];
+
+        return headers.join('\r\n') + '\r\n\r\n';
 };
 
 export const socketRawEndHeaderSequence = VSBuffer.fromString('\r\n\r\n');
