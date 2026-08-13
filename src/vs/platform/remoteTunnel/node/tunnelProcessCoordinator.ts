@@ -35,6 +35,26 @@ interface ITunnelLoginCredentials {
 	readonly token: string;
 }
 
+/** The tunnel the current intents resolve to. */
+interface ITunnelTarget {
+	readonly mode: TunnelProcessMode;
+	readonly login: ITunnelLoginCredentials | undefined;
+	readonly logLevel: LogLevel;
+}
+
+/**
+ * A launched process's inputs, kept so a later intent update can tell whether
+ * it would produce the same process or genuinely needs a new one.
+ */
+interface ILaunchDescription {
+	readonly mode: TunnelProcessMode;
+	readonly tunnelName: string;
+	readonly providerId: string | undefined;
+	readonly token: string | undefined;
+	readonly logLevel: LogLevel;
+	readonly preventSleep: boolean;
+}
+
 /** A line emitted by a CLI invocation owned by the coordinator. */
 export interface ITunnelProcessOutput {
 	readonly mode: TunnelProcessMode;
@@ -115,6 +135,8 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	 * idea an uninstall was owed. Cleared only once an uninstall succeeds.
 	 */
 	private _uninstallServicePending = false;
+	/** Inputs of the currently running process, or undefined when none runs. */
+	private _launched: ILaunchDescription | undefined;
 	private _status: ITunnelProcessStatus = { mode: 'none', tunnelName: undefined, tunnelId: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
 
 	constructor(
@@ -186,16 +208,45 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		return operation;
 	}
 
-	/** Whether what is running already matches the resolved intent. */
+	/**
+	 * Whether the running process was launched from exactly the inputs the
+	 * current intent resolves to. Compares the full launch description, not
+	 * just mode and name: callers also update the session token, log level and
+	 * sleep prevention, and each of those has to reach a new process.
+	 */
 	private _isTargetSatisfied(): boolean {
 		const target = this._getTarget();
-		const tunnelName = target.mode === 'none' ? undefined : this._getTunnelName();
-		if (this._status.mode !== target.mode || this._status.tunnelName !== tunnelName) {
+		if (target.mode === 'none') {
+			return this._status.mode === 'none';
+		}
+		// A run that already reported failure cannot satisfy anything: a token
+		// error cancels the child and marks us disconnected before it exits, so
+		// treating it as healthy would skip the reconcile and leave nothing
+		// running once the cancelled child finally goes away.
+		if (!this._currentProcess || this._status.connectionState === 'disconnected') {
 			return false;
 		}
-		// Every mode except `none` runs a session process, even `service`, which
-		// attaches to the installed service's singleton to report its status.
-		return target.mode === 'none' || !!this._currentProcess;
+		const launched = this._launched;
+		const wanted = this._describeLaunch(target);
+		return !!launched
+			&& launched.mode === wanted.mode
+			&& launched.tunnelName === wanted.tunnelName
+			&& launched.providerId === wanted.providerId
+			&& launched.token === wanted.token
+			&& launched.logLevel === wanted.logLevel
+			&& launched.preventSleep === wanted.preventSleep;
+	}
+
+	/** Everything that changes what a launched tunnel process actually does. */
+	private _describeLaunch(target: ITunnelTarget): ILaunchDescription {
+		return {
+			mode: target.mode,
+			tunnelName: this._getTunnelName(),
+			providerId: target.login?.providerId,
+			token: target.login?.token,
+			logLevel: target.logLevel,
+			preventSleep: this._preventSleep(),
+		};
 	}
 
 	private async _reconcile(generation: number): Promise<void> {
@@ -270,6 +321,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		if (target.mode !== 'agentHost' && this._preventSleep()) {
 			args.push('--no-sleep');
 		}
+		this._launched = this._describeLaunch(target);
 		this._startTunnel(args, target.mode, generation);
 	}
 
@@ -278,7 +330,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	 * {@link IRemoteTunnelSession}: agent host sharing has no session, only a
 	 * token, and fabricating one with empty ids would misrepresent that.
 	 */
-	private _getTarget(): { mode: TunnelProcessMode; login: ITunnelLoginCredentials | undefined; logLevel: LogLevel } {
+	private _getTarget(): ITunnelTarget {
 		if (this._remoteAccess.mode.active) {
 			const session = this._remoteAccess.mode.session;
 			return {
@@ -323,24 +375,16 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	private _startTunnel(args: readonly string[], mode: TunnelProcessMode, generation: number): void {
 		const tunnelRun = this._tunnelCli.run('tunnel', args, (message, isError) => this._fireOutput(mode, message, isError, true, () => tunnelRun.result.cancel(), generation), { VSCODE_CLI_MACHINE_STATUS: '1' });
 		this._currentProcess = tunnelRun;
-		void tunnelRun.result.then(
-			() => {
-				if (this._currentProcess === tunnelRun) {
-					this._currentProcess = undefined;
-					if (generation === this._generation) {
-						this._setStatus({ ...this._status, connectionState: 'disconnected' });
-					}
+		const onSettled = () => {
+			if (this._currentProcess === tunnelRun) {
+				this._currentProcess = undefined;
+				this._launched = undefined;
+				if (generation === this._generation) {
+					this._setStatus({ ...this._status, connectionState: 'disconnected' });
 				}
-			},
-			() => {
-				if (this._currentProcess === tunnelRun) {
-					this._currentProcess = undefined;
-					if (generation === this._generation) {
-						this._setStatus({ ...this._status, connectionState: 'disconnected' });
-					}
-				}
-			},
-		);
+			}
+		};
+		void tunnelRun.result.then(onSettled, onSettled);
 	}
 
 	private async _runTransient(logLabel: string, args: readonly string[], mode: TunnelProcessMode, generation: number, env?: Record<string, string>, onOutput?: CodeTunnelCliOutput): Promise<number> {
@@ -368,6 +412,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		await run.stop();
 		if (this._currentProcess === run) {
 			this._currentProcess = undefined;
+			this._launched = undefined;
 		}
 	}
 

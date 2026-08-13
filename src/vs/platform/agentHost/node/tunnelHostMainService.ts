@@ -56,9 +56,13 @@ export class TunnelHostMainService extends Disposable implements ITunnelAgentHos
 		// the start timeout elapses.
 		const store = new DisposableStore();
 		try {
-			const ready = this._waitForActiveStatus(store);
-			await this.tunnelProcessCoordinator.setAgentHostSharing({ token, authProvider, logLevel: this._logger.getLevel() });
-			const status = await ready;
+			// Awaited together so the readiness promise always has a handler
+			// attached: disposing the store below rejects it, which would
+			// otherwise go unhandled on exactly the failure path this guards.
+			const [status] = await Promise.all([
+				this._waitForActiveStatus(store),
+				this.tunnelProcessCoordinator.setAgentHostSharing({ token, authProvider, logLevel: this._logger.getLevel() }),
+			]);
 			return status.info;
 		} catch (error) {
 			// Without this the caller sees a failure while the sharing intent

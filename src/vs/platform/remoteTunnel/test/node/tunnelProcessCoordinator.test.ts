@@ -168,6 +168,59 @@ suite('TunnelProcessCoordinator', () => {
 		}
 	});
 
+	test('restarts when the session token changes even though mode and name do not', async () => {
+		const { coordinator, processes } = createCoordinator();
+		const countTunnels = () => processes.filter(p => p.args[0] === 'tunnel'
+			&& !p.args.includes('status') && !p.args.includes('login')
+			&& !p.args.includes('install') && !p.args.includes('kill') && !p.args.includes('uninstall')).length;
+		try {
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			const before = countTunnels();
+
+			// A refreshed token has to reach a new process; skipping the
+			// reconcile would leave the tunnel running on the stale one.
+			const refreshed: ActiveTunnelMode = {
+				active: true,
+				asService: false,
+				session: { providerId: 'github', sessionId: 'session', accountLabel: 'account', token: 'refreshed-token' },
+			};
+			await coordinator.setRemoteAccess(refreshed, LogLevel.Info);
+
+			assert.deepStrictEqual({ before, after: countTunnels() }, { before: 1, after: 2 });
+		} finally {
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
+
+	test('restarts a run that already reported disconnected', async () => {
+		const { coordinator, processes } = createCoordinator();
+		const countTunnels = () => processes.filter(p => p.args[0] === 'tunnel'
+			&& !p.args.includes('status') && !p.args.includes('login')
+			&& !p.args.includes('install') && !p.args.includes('kill') && !p.args.includes('uninstall')).length;
+		try {
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			const before = countTunnels();
+
+			// A token error cancels the child and reports disconnected before it
+			// exits. Treating that run as healthy would skip the reconcile and
+			// leave nothing running once the cancelled child goes away.
+			coordinator.setRemoteAccessStatus({ type: 'disconnected' });
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+
+			assert.deepStrictEqual({ before, after: countTunnels() }, { before: 1, after: 2 });
+		} finally {
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
+
 	test('restart() still replaces a healthy tunnel', async () => {
 		const { coordinator, processes } = createCoordinator();
 		try {
