@@ -75,6 +75,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		dynamic: boolean;
 	}
 
+	interface SaveSnapshot {
+		endpoint: string;
+		status: number;
+		body: unknown;
+		active: boolean;
+		editorText: string;
+	}
+
 	const $ = (id: string): HTMLElement => document.getElementById(id)!;
 	const tabs = $('tabs');
 	const editor = $('editor') as HTMLTextAreaElement;
@@ -92,6 +100,10 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 	const drafts: Record<string, string> = {};
 	let schema: JsonSchema | null = null;
 	let overridesWired = false;
+	let proxyBaseUrl = '';
+	let proxyUpstream = '';
+	let stateUpdateQueue: Promise<void> = Promise.resolve();
+	const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
 
 	function activeEndpoint(): Endpoint | undefined {
 		return endpoints.find(e => e.id === activeId);
@@ -109,6 +121,14 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 	function setLiveSaveState(): void {
 		setSaveState('live', activeEndpoint()?.active ? 'Serving' : 'Saved');
+	}
+
+	function renderSaveState(): void {
+		if (pendingSaves.has(activeId)) {
+			setSaveState('pending', 'Saving\u2026');
+		} else {
+			setLiveSaveState();
+		}
 	}
 
 	function parseResponseStatus(): number | undefined {
@@ -381,11 +401,12 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		editor.value = drafts[id] ?? JSON.stringify(endpoint.body ?? {}, null, '\t');
 		renderTabs();
 		renderPresets();
+		renderProxy();
 		// Show the schema section only for schema-backed endpoints.
 		$('schema-section').hidden = endpoint.schema !== true;
 		$('validation-results').hidden = true;
 		parseEditor();
-		setLiveSaveState();
+		renderSaveState();
 	}
 
 	function renderPresets(): void {
@@ -414,6 +435,7 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		editor.value = JSON.stringify(preset.body, null, '\t');
 		drafts[activeId] = editor.value;
 		parseEditor();
+		clearPendingSave(activeId);
 		void save();
 	}
 
@@ -426,35 +448,53 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		action.className = `${state.wired ? 'btn-secondary' : 'btn-primary'} btn-full`;
 	}
 
-	function renderProxy(state: ServerState): void {
-		if (state.upstream) {
-			$('map-from').textContent = `${state.upstream}/copilot_internal/*`;
-		}
-		if (state.baseUrl) {
-			$('map-to').textContent = `${state.baseUrl}/copilot_internal/*`;
-		}
+	function renderProxy(): void {
+		const endpoint = activeEndpoint();
+		$('map-from').textContent = endpoint && proxyUpstream ? `${proxyUpstream}${endpoint.path}` : '';
+		$('map-to').textContent = endpoint && proxyBaseUrl ? `${proxyBaseUrl}${endpoint.path}` : '';
 	}
 
 	function applyState(state: ServerState): void {
 		endpoints = state.endpoints;
+		proxyBaseUrl = state.baseUrl ?? '';
+		proxyUpstream = state.upstream ?? '';
 		renderWired(state);
-		renderProxy(state);
+		renderProxy();
 		renderTabs();
+	}
+
+	function updateState(payload: Record<string, unknown>): Promise<ServerState> {
+		const request = stateUpdateQueue.then(() => api<ServerState>('/api/state', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		}));
+		stateUpdateQueue = request.then(() => undefined, () => undefined);
+		return request;
 	}
 
 	async function setEndpointActive(endpoint: Endpoint, active: boolean): Promise<void> {
 		const previousActive = endpoint.active;
 		endpoint.active = active;
-		try {
-			const state = await api<ServerState>('/api/state', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint: endpoint.id, active })
-			});
-			applyState(state);
-			if (endpoint.id === activeId) {
-				setLiveSaveState();
+		if (endpoint.id === activeId) {
+			const snapshot = captureSaveSnapshot();
+			if (!snapshot) {
+				endpoint.active = previousActive;
+				renderTabs();
+				return;
 			}
+			clearPendingSave(endpoint.id);
+			if (await saveSnapshot(snapshot)) {
+				toast(active ? `Mocking ${endpoint.label}` : `Proxying ${endpoint.label}`);
+			} else {
+				endpoint.active = previousActive;
+				renderTabs();
+			}
+			return;
+		}
+		try {
+			const state = await updateState({ endpoint: endpoint.id, active });
+			applyState(state);
 			toast(active ? `Mocking ${endpoint.label}` : `Proxying ${endpoint.label}`);
 		} catch (e) {
 			endpoint.active = previousActive;
@@ -463,41 +503,82 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		}
 	}
 
-	async function save(): Promise<void> {
+	function captureSaveSnapshot(): SaveSnapshot | undefined {
 		const responseStatus = parseResponseStatus();
 		if (responseStatus === undefined) {
 			setSaveState('error', 'Not saved');
-			return;
+			return undefined;
 		}
 		const parsed = parseEditor();
 		if (parsed === undefined) {
 			setSaveState('error', 'Not saved');
-			return;
+			return undefined;
 		}
 		const endpoint = activeEndpoint();
-		if (endpoint) {
-			endpoint.status = responseStatus;
+		if (!endpoint) {
+			return undefined;
 		}
+		endpoint.status = responseStatus;
+		return {
+			endpoint: endpoint.id,
+			status: responseStatus,
+			body: parsed,
+			active: endpoint.active === true,
+			editorText: editor.value
+		};
+	}
+
+	async function saveSnapshot(snapshot: SaveSnapshot): Promise<boolean> {
 		try {
-			const state = await api<ServerState>('/api/state', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint: activeId, status: responseStatus, body: parsed, active: endpoint?.active })
+			const state = await updateState({
+				endpoint: snapshot.endpoint,
+				status: snapshot.status,
+				body: snapshot.body,
+				active: snapshot.active
 			});
 			applyState(state);
-			drafts[activeId] = editor.value;
-			setLiveSaveState();
+			drafts[snapshot.endpoint] = snapshot.editorText;
+			if (snapshot.endpoint === activeId && editor.value === snapshot.editorText && !pendingSaves.has(snapshot.endpoint)) {
+				setLiveSaveState();
+			}
+			return true;
 		} catch (e) {
-			setSaveState('error', 'Not saved');
+			if (snapshot.endpoint === activeId) {
+				setSaveState('error', 'Not saved');
+			}
 			toast(`Save failed: ${e instanceof Error ? e.message : String(e)}`, true);
+			return false;
 		}
 	}
 
-	let saveTimer: ReturnType<typeof setTimeout> | 0 = 0;
+	async function save(): Promise<void> {
+		const snapshot = captureSaveSnapshot();
+		if (!snapshot) {
+			return;
+		}
+		clearPendingSave(snapshot.endpoint);
+		await saveSnapshot(snapshot);
+	}
+
+	function clearPendingSave(endpoint: string): void {
+		const timer = pendingSaves.get(endpoint);
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			pendingSaves.delete(endpoint);
+		}
+	}
+
 	function debouncedSave(): void {
+		const snapshot = captureSaveSnapshot();
+		if (!snapshot) {
+			return;
+		}
 		setSaveState('pending', 'Saving\u2026');
-		clearTimeout(saveTimer);
-		saveTimer = setTimeout(save, 400);
+		clearPendingSave(snapshot.endpoint);
+		pendingSaves.set(snapshot.endpoint, setTimeout(() => {
+			pendingSaves.delete(snapshot.endpoint);
+			void saveSnapshot(snapshot);
+		}, 400));
 	}
 
 	async function wire(wireIt: boolean): Promise<void> {
@@ -737,7 +818,6 @@ declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 		document.addEventListener('keydown', event => {
 			if ((event.metaKey || event.ctrlKey) && event.key === 's') {
 				event.preventDefault();
-				clearTimeout(saveTimer);
 				void save();
 			}
 		});

@@ -90,6 +90,9 @@ const server = http.createServer((req, res) => {
 		// an unrelated website cannot drive /api/wire and rewrite the local
 		// product.overrides.json from the user's browser.
 		if (pathname === '/api' || pathname.startsWith('/api/')) {
+			if (!isAllowedControlOrigin(req)) {
+				return sendJson(res, 403, { error: 'Cross-origin control API requests are not allowed.' });
+			}
 			return handleControlApi(req, res, pathname);
 		}
 
@@ -350,6 +353,21 @@ function resetEndpointState(): void {
 	}
 }
 
+function isAllowedControlOrigin(req: IncomingMessage): boolean {
+	const origin = req.headers.origin;
+	if (!origin) {
+		return true;
+	}
+	if (Array.isArray(origin) || !req.headers.host) {
+		return false;
+	}
+	try {
+		return new URL(origin).origin === new URL(`http://${req.headers.host}`).origin;
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Forward a request to the real upstream API and stream the response back, so
  * anything this server is not deliberately faking still behaves normally.
@@ -363,15 +381,32 @@ function passthrough(req: IncomingMessage, res: ServerResponse, url: URL): void 
 	// headers that only described the connection to this server. The client's
 	// Authorization header is forwarded untouched so the response is real.
 	headers.host = target.host;
-	delete headers.connection;
-	delete headers['proxy-connection'];
-	delete headers['keep-alive'];
+	const connectionHeaders = Array.isArray(headers.connection) ? headers.connection : [headers.connection ?? ''];
+	const hopByHopHeaders = [
+		'connection',
+		'keep-alive',
+		'proxy-authenticate',
+		'proxy-authorization',
+		'proxy-connection',
+		'te',
+		'trailer',
+		'transfer-encoding',
+		'upgrade',
+		...connectionHeaders.flatMap(value => value.split(',')).map(value => value.trim().toLowerCase()).filter(Boolean),
+	];
+	for (const header of hopByHopHeaders) {
+		delete headers[header];
+	}
 	// Never negotiate compression on the client's behalf: identity keeps the
 	// streamed bytes readable in a proxy UI.
 	delete headers['accept-encoding'];
 
 	const upstreamReq = transport.request(target, { method: req.method, headers }, upstreamRes => {
 		record(req, url.pathname, 'passthrough', upstreamRes.statusCode ?? 0);
+		upstreamRes.on('error', error => {
+			record(req, url.pathname, 'upstream-error', 502);
+			res.destroy(error);
+		});
 		res.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
 		upstreamRes.pipe(res);
 	});
@@ -477,9 +512,12 @@ function clearManagedSettingsCache(): { cleared: { dir: string; files: number }[
 		let entries: string[];
 		try {
 			entries = fs.readdirSync(dir);
-		} catch {
-			missing.push(dir);
-			continue;
+		} catch (error) {
+			if (Reflect.get(error, 'code') === 'ENOENT') {
+				missing.push(dir);
+				continue;
+			}
+			throw error;
 		}
 		fs.rmSync(dir, { recursive: true, force: true });
 		cleared.push({ dir, files: entries.length });

@@ -177,7 +177,7 @@ main {
 	content: attr(data-tooltip);
 	position: absolute;
 	bottom: calc(100% + 8px);
-	left: 0;
+	right: 0;
 	width: 280px;
 	padding: 8px 10px;
 	background: var(--surface);
@@ -564,6 +564,10 @@ code {
 
 .schema-details[hidden] {
 	display: none;
+}
+
+.schema-heading {
+	width: 100%;
 }
 
 
