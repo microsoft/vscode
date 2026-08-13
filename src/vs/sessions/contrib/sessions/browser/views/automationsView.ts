@@ -436,8 +436,8 @@ class AutomationHistorySection extends Disposable {
 	private shouldRestoreFocus = false;
 	private headerRow: HTMLElement | undefined;
 	private markAllButton: Button | undefined;
-	private currentRuns: readonly IAutomationRun[] = [];
-	private currentSessions: ReadonlyMap<string, ISession> = new Map();
+	private readonly currentRuns = observableValue<readonly IAutomationRun[]>('currentRuns', []);
+	private readonly currentSessions = observableValue<ReadonlyMap<string, ISession>>('currentSessions', new Map());
 
 	override dispose(): void {
 		this.disposeAllGroups();
@@ -461,8 +461,8 @@ class AutomationHistorySection extends Disposable {
 	}
 
 	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
-		this.currentRuns = runs;
-		this.currentSessions = sessions;
+		this.currentRuns.set(runs, undefined);
+		this.currentSessions.set(sessions, undefined);
 		this.runFocusTargets.clear();
 		this.renderedFocusableRunIds = [];
 
@@ -544,10 +544,12 @@ class AutomationHistorySection extends Disposable {
 		this.markAllButton.element.classList.add('automations-mark-all-read');
 		this.headerDisposables.add(this.markAllButton.onDidClick(() => {
 			this.markAllButton!.enabled = false;
-			void this.markAllRunsRead(this.currentRuns);
+			void this.markAllRunsRead(this.currentRuns.get());
 		}));
 		this.headerDisposables.add(autorun(reader => {
-			const hasUnread = this.currentRuns.some(run => isUnreadAutomationRun(run, this.currentSessions.get(run.id), reader));
+			const runs = this.currentRuns.read(reader);
+			const sessions = this.currentSessions.read(reader);
+			const hasUnread = runs.some(run => isUnreadAutomationRun(run, sessions.get(run.id), reader));
 			this.markAllButton!.element.style.display = hasUnread ? '' : 'none';
 			this.markAllButton!.enabled = hasUnread;
 		}));
