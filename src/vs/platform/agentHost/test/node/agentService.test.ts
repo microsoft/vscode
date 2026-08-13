@@ -99,7 +99,6 @@ function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCr
 				source: config.fork.chat,
 				turnIndex: config.fork.turnIndex,
 				turnId: config.fork.turnId,
-				turns: config.fork.turns,
 				turnIdMapping: config.fork.turnIdMapping,
 			},
 		} : {}),
@@ -5687,7 +5686,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				forkSource: receivedFork?.source.toString(),
 				forkTurnId: receivedFork?.turnId,
-				forkTurns: receivedFork?.turns?.map(turn => ({ id: turn.id, text: turn.message.text })),
 				mappingSize: receivedFork?.turnIdMapping?.size,
 				mappedFromT1: receivedFork?.turnIdMapping?.get('t1'),
 				newTurnCount: newTurnIds.length,
@@ -5696,7 +5694,6 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				forkSource: buildDefaultChatUri(session),
 				forkTurnId: 't1',
-				forkTurns: [{ id: newTurnIds[0], text: 'first' }],
 				mappingSize: 1,
 				mappedFromT1: newTurnIds[0],
 				newTurnCount: 1,
@@ -7790,6 +7787,43 @@ suite('AgentService (node dispatcher)', () => {
 				stateWhileBlocked: undefined,
 				autoApproveAfterRestoration: 'default',
 			});
+		});
+
+		test('does not restore an evicted session for a read-status action', async () => {
+			const restoration = new DeferredPromise<void>();
+			let restoreCalls = 0;
+			class RestoringAgent extends MockAgent {
+				override async getSessionMessages(): Promise<readonly Turn[]> {
+					restoreCalls++;
+					await restoration.p;
+					return [];
+				}
+			}
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new RestoringAgent('copilot'));
+			localService.registerProvider(agent);
+			const evictedSession = await localService.createSession({ provider: 'copilot' });
+			const liveSession = await localService.createSession({ provider: 'copilot' });
+			localService.stateManager.deleteSession(evictedSession.toString());
+
+			localService.dispatchAction(evictedSession.toString(), {
+				type: ActionType.SessionIsReadChanged,
+				isRead: true,
+			}, 'client-1', 1);
+			localService.dispatchAction(liveSession.toString(), {
+				type: ActionType.SessionTitleChanged,
+				title: 'Updated title',
+			}, 'client-1', 2);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				restoreCalls,
+				liveSessionTitle: localService.stateManager.getSessionState(liveSession.toString())?.title,
+			}, {
+				restoreCalls: 0,
+				liveSessionTitle: 'Updated title',
+			});
+			restoration.complete();
 		});
 
 		test('invalidates a restored peer resolver when its parent session is disposed', async () => {

@@ -1598,7 +1598,6 @@ export class AgentService extends Disposable implements IAgentService {
 				for (const t of sourceTurns) {
 					turnIdMapping.set(t.id, generateUuid());
 				}
-				const forkedTurns = sourceTurns.map(t => ({ ...t, id: turnIdMapping.get(t.id) ?? generateUuid() }));
 				// The SDK fork boundary must be a concrete (SDK-backed) turn.
 				// When the client forked at a host-injected local turn
 				// (`/rename` / `!command`), redirect the agent to the preceding
@@ -1610,7 +1609,6 @@ export class AgentService extends Disposable implements IAgentService {
 					fork: {
 						...config.fork,
 						chat: URI.parse(buildDefaultChatUri(config.fork.session)),
-						turns: forkedTurns,
 						turnIdMapping,
 						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
 					},
@@ -1899,7 +1897,6 @@ export class AgentService extends Disposable implements IAgentService {
 					fork: {
 						...options.fork,
 						source: URI.parse(sourceChatKey),
-						turns: forkedTurns,
 						turnIdMapping,
 						...(concreteForkTurnId !== undefined ? { turnId: concreteForkTurnId } : {}),
 					},
@@ -2374,7 +2371,6 @@ export class AgentService extends Disposable implements IAgentService {
 					source: config.fork.chat,
 					turnIndex: config.fork.turnIndex,
 					turnId: config.fork.turnId,
-					turns: config.fork.turns,
 					turnIdMapping: config.fork.turnIdMapping,
 				},
 			} : {}),
@@ -3192,7 +3188,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// lookup, telemetry, permissions — all keyed by session).
 		const chatChannel = isAhpChatChannel(channel) ? channel : undefined;
 		const sessionChannel = chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel;
-		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
+		const requiresSessionRestore = action.type !== ActionType.SessionIsReadChanged && (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);

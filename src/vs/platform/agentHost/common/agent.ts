@@ -323,8 +323,6 @@ export interface IAgentCreateSessionConfig {
 		readonly chat: URI;
 		readonly turnIndex: number;
 		readonly turnId: string;
-		/** Bounded source turns with their forked-session IDs already assigned. */
-		readonly turns?: readonly Turn[];
 		/**
 		 * Maps old protocol turn IDs to new protocol turn IDs.
 		 * Populated by the service layer after generating fresh UUIDs
@@ -481,8 +479,6 @@ export interface IAgentCreateChatForkSource {
 	readonly turnId: string;
 	/** Zero-based source turn index, when the provider needs it for import/fork mapping. */
 	readonly turnIndex?: number;
-	/** Bounded source turns with their forked-chat IDs already assigned. */
-	readonly turns?: readonly Turn[];
 	/**
 	 * Maps old source turn IDs to fresh turn IDs for the forked chat. Populated
 	 * by the agent service so the agent can remap per-turn data (e.g. SDK event

@@ -80,6 +80,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly clientId = generateUuid();
 
 	private _messagePortClient: MessagePortClient | undefined;
+	private _managementService: IAgentHostManagementService | undefined;
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: RemoteAgentHostProtocolClient | undefined;
 	private _connectStarted = false;
@@ -172,6 +173,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private _createTransport(): AgentHostIpcChannelTransport {
 		const clientEventually = new DeferredPromise<MessagePortClient>();
 		const connectionStore = new DisposableStore();
+		const managementService = ProxyChannel.toService<IAgentHostManagementService>(
+			getDelayedChannel(clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Management)))
+		);
+		this._managementService = managementService;
+		connectionStore.add(toDisposable(() => {
+			if (this._managementService === managementService) {
+				this._managementService = undefined;
+			}
+		}));
 		void this._acquireMessagePort(clientEventually, connectionStore).catch(error => clientEventually.error(error));
 		return new LocalAgentHostIpcChannelTransport(
 			getDelayedChannel(clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
@@ -229,10 +239,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _getAvailableManagementService(): IAgentHostManagementService {
-		if (!this._messagePortClient) {
+		if (!this._managementService) {
 			throw new Error('Local agent host management connection is not available.');
 		}
-		return ProxyChannel.toService<IAgentHostManagementService>(this._messagePortClient.getChannel(AgentHostIpcChannels.Management));
+		return this._managementService;
 	}
 
 	private async _callManagement<T>(callback: (management: IAgentHostManagementService) => Promise<T>): Promise<T> {

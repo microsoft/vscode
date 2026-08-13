@@ -539,6 +539,48 @@ suite('ChatSessionsService - untitled↔real session aliases', () => {
 		service.clearMaterializedSessionResource(untitled);
 		assert.strictEqual(service.getSessionOption(real, 'model'), 'sonnet');
 	});
+
+	test('materialization promotes the provider session under the untitled alias', async () => {
+		const type = 'agent-host-test';
+		const provisionalResource = URI.from({ scheme: type, path: '/untitled-abc' });
+		const materializedResource = URI.from({ scheme: type, path: '/real-abc' });
+		const forkedResource = URI.from({ scheme: type, path: '/forked-abc' });
+		let forkCalls = 0;
+		let provideCalls = 0;
+		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: resource => {
+				provideCalls++;
+				return Promise.resolve({
+					sessionResource: resource,
+					history: [],
+					onWillDispose: Event.None,
+					forkSession: async () => {
+						forkCalls++;
+						return {
+							resource: forkedResource,
+							label: 'Forked session',
+							timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+						};
+					},
+					dispose: () => { },
+				});
+			},
+		}));
+
+		await service.getOrCreateChatSession(provisionalResource, CancellationToken.None);
+		service.registerSessionResourceAlias(provisionalResource, materializedResource);
+		await service.getOrCreateChatSession(materializedResource, CancellationToken.None);
+		service.setMaterializedSessionResource(provisionalResource, materializedResource);
+		await service.getOrCreateChatSession(materializedResource, CancellationToken.None);
+		const forked = await service.forkChatSession(provisionalResource, undefined, CancellationToken.None);
+
+		assert.deepStrictEqual({ forkCalls, provideCalls, forkedResource: forked.resource.toString() }, {
+			forkCalls: 1,
+			provideCalls: 1,
+			forkedResource: forkedResource.toString(),
+		});
+	});
 });
 
 suite('ChatSessionsService - lightweight history reads', () => {

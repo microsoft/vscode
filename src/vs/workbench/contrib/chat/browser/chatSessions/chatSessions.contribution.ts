@@ -1235,7 +1235,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		{
-			const existingSessionData = this._sessions.get(sessionResource);
+			const resolvedResource = this._resolveMaterializedResource(sessionResource);
+			const existingSessionData = this._sessions.get(resolvedResource);
 			if (existingSessionData) {
 				return existingSessionData.session;
 			}
@@ -1248,7 +1249,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		// Check again after async provider resolution
 		{
-			const existingSessionData = this._sessions.get(sessionResource);
+			const existingSessionData = this._sessions.get(this._resolveMaterializedResource(sessionResource));
 			if (existingSessionData) {
 				return existingSessionData.session;
 			}
@@ -1394,11 +1395,35 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._resourceAliases.get(resource) ?? resource;
 	}
 
+	private _resolveMaterializedResource(resource: URI): URI {
+		const untitledResource = this._resourceAliases.get(resource);
+		return untitledResource && this._realResources.has(untitledResource) ? untitledResource : resource;
+	}
+
 	public registerSessionResourceAlias(untitledResource: URI, realResource: URI): void {
 		this._resourceAliases.set(realResource, untitledResource);
 	}
 
 	public setMaterializedSessionResource(untitledResource: URI, realResource: URI): void {
+		const materializedSession = this._sessions.get(realResource);
+		if (materializedSession) {
+			const provisionalSession = this._sessions.get(untitledResource);
+			const options = new Map(materializedSession.getAllOptions());
+			for (const [optionId, value] of provisionalSession?.getAllOptions() ?? []) {
+				options.set(optionId, value);
+			}
+
+			provisionalSession?.dispose();
+			materializedSession.dispose();
+			provisionalSession?.session.dispose();
+			this._sessions.delete(realResource);
+
+			const canonicalSession = new ContributedChatSessionData(materializedSession.session, materializedSession.chatSessionType, untitledResource, options, resource => {
+				canonicalSession.dispose();
+				this._sessions.delete(resource);
+			});
+			this._sessions.set(untitledResource, canonicalSession);
+		}
 		this._realResources.set(untitledResource, realResource);
 	}
 

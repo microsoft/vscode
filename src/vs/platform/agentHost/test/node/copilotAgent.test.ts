@@ -131,7 +131,6 @@ async function provisionSession(agent: CopilotAgent, config: IAgentCreateSession
 				source: config.fork.chat,
 				turnIndex: config.fork.turnIndex,
 				turnId: config.fork.turnId,
-				turns: config.fork.turns,
 				turnIdMapping: config.fork.turnIdMapping,
 			},
 		} : {}),
@@ -3996,20 +3995,20 @@ suite('CopilotAgent', () => {
 		 * forked SDK id, and `_createAgentSession` returns a recording fake.
 		 */
 		function stubForkSeams(agent: CopilotAgent, forkedSdkId = 'forked-sdk-id'): {
-			readonly forks: { sourceStorageScope: URI; turnId: string; targetDbDir: string }[];
+			readonly forks: { sourceEntry: unknown; turnId: string; targetDbDir: string }[];
 			readonly launches: { kind: string; sessionId: string; workingDirectory: string | undefined; chatChannelUri: string | undefined; resource: string | undefined }[];
 			readonly remaps: ReadonlyMap<string, string>[];
 		} {
-			const forks: { sourceStorageScope: URI; turnId: string; targetDbDir: string }[] = [];
+			const forks: { sourceEntry: unknown; turnId: string; targetDbDir: string }[] = [];
 			const launches: { kind: string; sessionId: string; workingDirectory: string | undefined; chatChannelUri: string | undefined; resource: string | undefined }[] = [];
 			const remaps: ReadonlyMap<string, string>[] = [];
 			const internals = agent as unknown as {
-				_forkSdkChat: (sourceStorageScope: URI, sourceWorkingDirectory: URI | undefined, turnId: string, targetDbDir: URI, sourceTurns: readonly Turn[]) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
+				_forkSdkChat: (sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 				_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, dir: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI; resource?: URI }) => CopilotAgentSession;
 			};
-			internals._forkSdkChat = async (sourceStorageScope, _sourceWorkingDirectory, turnId, targetDbDir) => {
+			internals._forkSdkChat = async (sourceEntry, turnId, targetDbDir) => {
 				const sessionId = forks.length === 0 ? forkedSdkId : `${forkedSdkId}-${forks.length + 1}`;
-				forks.push({ sourceStorageScope, turnId, targetDbDir: targetDbDir.toString() });
+				forks.push({ sourceEntry, turnId, targetDbDir: targetDbDir.toString() });
 				return { sessionId, inheritedTurnCount: 1 };
 			};
 			internals._createAgentSession = (launchPlan, _dir, _ac, identity) => {
@@ -4080,15 +4079,15 @@ suite('CopilotAgent', () => {
 				sessionUri: sourceSession,
 				sessionId: AgentSession.id(sourceSession),
 				workingDirectory,
-				getMessages: () => new Promise<readonly Turn[]>(() => { }),
+				getMessages: async () => sourceTurns,
 			} as unknown as CopilotAgentSession;
 			const target = AgentSession.uri('copilotcli', 'bounded-fork-target');
 			const internals = agent as unknown as {
-				_forkSdkChat: (sourceStorageScope: URI, sourceWorkingDirectory: URI | undefined, turnId: string, targetDbDir: URI, sourceTurns: readonly Turn[]) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
+				_forkSdkChat: (sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			};
 
 			try {
-				const result = await internals._forkSdkChat(sourceEntry.sessionUri, sourceEntry.workingDirectory, 'fork-boundary', sessionDataService.getSessionDataDir(target), sourceTurns.slice(0, 2));
+				const result = await internals._forkSdkChat(sourceEntry, 'fork-boundary', sessionDataService.getSessionDataDir(target));
 				const eventsPath = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', result.sessionId, 'events.jsonl');
 				const events = await fs.readFile(eventsPath, 'utf8');
 
@@ -4171,7 +4170,7 @@ suite('CopilotAgent', () => {
 					providerData: JSON.parse(result.providerData!),
 					backingSession: result.backingSession?.toString(),
 					recordedBacking: chatBackings(agent).get(defaultChatUri(target).toString()),
-					forkedFromSource: seams.forks.map(fork => ({ sourceStorageScope: fork.sourceStorageScope.toString(), turnId: fork.turnId })),
+					forkedFromSource: seams.forks.map(fork => ({ isSourceEntry: fork.sourceEntry === sourceStub, turnId: fork.turnId })),
 					launches: seams.launches,
 					remaps: seams.remaps.map(mapping => [...mapping]),
 					storedWorkingDirectory,
@@ -4186,7 +4185,7 @@ suite('CopilotAgent', () => {
 					providerData: { sdkSessionId: 'forked-sdk-id' },
 					backingSession: AgentSession.uri('copilotcli', 'forked-sdk-id').toString(),
 					recordedBacking: { sdkSessionId: 'forked-sdk-id' },
-					forkedFromSource: [{ sourceStorageScope: source.toString(), turnId: sourceTurn.id }],
+					forkedFromSource: [{ isSourceEntry: true, turnId: sourceTurn.id }],
 					launches: [{
 						kind: 'resume',
 						sessionId: 'forked-sdk-id',
@@ -6218,10 +6217,9 @@ suite('CopilotAgent', () => {
 		type ChatInternals = {
 			_chatBackings: Map<string, { sdkSessionId: string; model?: ModelSelection }>;
 			_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: unknown, identity?: { sessionUri: URI; chatChannelUri: URI }) => CopilotAgentSession;
-			_ensureResolvedChatSession: () => Promise<CopilotAgentSession | undefined>;
 			_resumeSession: (sessionId: string) => Promise<CopilotAgentSession>;
 			_getOrCreateSessionLifetime: (sessionId: string) => { queueSession<T>(task: () => Promise<T>): Promise<T> } | undefined;
-			_forkSdkChat: (sourceStorageScope: URI, sourceWorkingDirectory: URI | undefined, turnId: string, targetDbDir: URI, sourceTurns: readonly Turn[]) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
+			_forkSdkChat: (sourceEntry: unknown, turnId: string, targetDbDir: URI) => Promise<{ sessionId: string; inheritedTurnCount: number }>;
 			_resolveAgentName: (snapshot: IActiveClientSnapshot, agent: AgentSelection) => string | undefined;
 			_resolveChatContext: (chat: URI, context: IAgentChatContext) => unknown;
 		};
@@ -6804,15 +6802,16 @@ suite('CopilotAgent', () => {
 				await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
 
 				const internals = agent as unknown as ChatInternals;
-				internals._ensureResolvedChatSession = async () => {
-					throw new Error('source runtime must not be resolved');
-				};
+				// Install the session-backed chat as the fork source so resolution stays
+				// in-memory (no SDK resume).
+				const source = makeFakeChatSession(session, 'source-sdk');
+				setDefaultSessionStub(agent, AgentSession.id(session), source.fake, defaultChatUri(session));
 
 				// Stub the SDK/fs fork seam: assert the inputs and hand back a
 				// deterministic forked chat id.
-				let forkArgs: { sourceStorageScope: URI; turnId: string; sourceTurns: readonly Turn[] } | undefined;
-				internals._forkSdkChat = async (sourceStorageScope, _sourceWorkingDirectory, turnId, _targetDbDir, sourceTurns) => {
-					forkArgs = { sourceStorageScope, turnId, sourceTurns };
+				let forkArgs: { sourceEntry: unknown; turnId: string } | undefined;
+				internals._forkSdkChat = async (sourceEntry, turnId) => {
+					forkArgs = { sourceEntry, turnId };
 					return { sessionId: 'forked-sdk-id', inheritedTurnCount: 0 };
 				};
 				let captured: CopilotSessionLaunchPlan | undefined;
@@ -6824,18 +6823,13 @@ suite('CopilotAgent', () => {
 				};
 
 				const chatUri = URI.parse(buildChatUri(session, 'peer-fork'));
-				const sourceTurn: Turn = { id: 'forked-t1', state: TurnState.Complete, message: { text: 'source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined };
-				const result = await agent.chats.createChat(chatUri, session, {
-					fork: { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1', turns: [sourceTurn] },
-					workingDirectories: [URI.file('/workspace')],
-				});
+				const result = await agent.chats.createChat(chatUri, session, { fork: { source: URI.parse(buildDefaultChatUri(session)), turnId: 't1' }, workingDirectories: [URI.file('/workspace')] });
 
 				const db = sessionDataService.openDatabase(session);
 				const raw = await db.object.getMetadata('copilot.chats');
 				assert.deepStrictEqual({
-					sourceStorageScope: forkArgs?.sourceStorageScope.toString(),
+					sourceIsDefaultSession: forkArgs?.sourceEntry === source.fake,
 					forkedTurnId: forkArgs?.turnId,
-					forkedTurns: forkArgs?.sourceTurns,
 					launchKind: captured?.kind,
 					launchSessionId: captured?.sessionId,
 					tracked: hasLiveChat(agent, chatUri),
@@ -6844,9 +6838,8 @@ suite('CopilotAgent', () => {
 					legacyCatalogWritten: raw !== undefined,
 					sessionForkCallCount: client.sessionForkCallCount,
 				}, {
-					sourceStorageScope: session.toString(),
+					sourceIsDefaultSession: true,
 					forkedTurnId: 't1',
-					forkedTurns: [sourceTurn],
 					launchKind: 'resume',
 					launchSessionId: 'forked-sdk-id',
 					tracked: true,
@@ -6972,7 +6965,7 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), source.fake, defaultChatUri(session));
 				const internals = agent as unknown as ChatInternals;
 				let forkTurnId: string | undefined;
-				internals._forkSdkChat = async (_sourceStorageScope, _sourceWorkingDirectory, turnId) => {
+				internals._forkSdkChat = async (_sourceEntry, turnId) => {
 					forkTurnId = turnId;
 					return { sessionId: 'side-sdk-id', inheritedTurnCount: 1 };
 				};
@@ -7528,7 +7521,7 @@ suite('CopilotAgent', () => {
 				installFake(agent, AgentSession.id(session), 'session', session);
 
 				const forkArgs: { turnId: string }[] = [];
-				(agent as unknown as { _forkSdkChat: (sourceStorageScope: URI, sourceWorkingDirectory: URI | undefined, turnId: string) => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async (_sourceStorageScope, _sourceWorkingDirectory, turnId) => {
+				(agent as unknown as { _forkSdkChat: (sourceEntry: unknown, turnId: string) => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async (_sourceEntry, turnId) => {
 					forkArgs.push({ turnId });
 					return { sessionId: 'forked-sdk-id', inheritedTurnCount: 0 };
 				};
@@ -7566,7 +7559,7 @@ suite('CopilotAgent', () => {
 				let resolvedSourceResource: string | undefined;
 				(agent as unknown as { _ensureResolvedChatSession: (context: { resource: URI }) => Promise<CopilotAgentSession> })._ensureResolvedChatSession = async context => {
 					resolvedSourceResource = context.resource.toString();
-					return { getMessages: async () => [] } as unknown as CopilotAgentSession;
+					return {} as unknown as CopilotAgentSession;
 				};
 				(agent as unknown as { _forkSdkChat: () => Promise<{ sessionId: string; inheritedTurnCount: number }> })._forkSdkChat = async () => {
 					return { sessionId: 'forked-peer-sdk', inheritedTurnCount: 0 };

@@ -3128,22 +3128,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sideChat: IPersistedChat['sideChat'];
 			let sourceEntry: CopilotAgentSession | undefined;
 			if (fork) {
-				let forked: { sessionId: string; inheritedTurnCount: number };
-				if (fork.turns) {
-					forked = await this._forkSdkChat(
-						this._resolveChatStorageScope(fork.source),
-						workingDirectory,
-						fork.turnId,
-						this._sessionDataService.getSessionDataDir(storageScope),
-						fork.turns,
-					);
-				} else {
-					sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
-					if (!sourceEntry) {
-						throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
-					}
-					forked = await this._forkSdkChat(sourceEntry.sessionUri, sourceEntry.workingDirectory, fork.turnId, this._sessionDataService.getSessionDataDir(storageScope), await sourceEntry.getMessages());
+				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { configurationResource: forkSourceScope!, resource: this._resolveChatStorageScope(fork.source) }));
+				if (!sourceEntry) {
+					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
+				const forked = await this._forkSdkChat(sourceEntry, fork.turnId, this._sessionDataService.getSessionDataDir(storageScope));
 				sdkSessionId = forked.sessionId;
 				launchPlan = {
 					kind: 'resume',
@@ -3162,7 +3151,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!sideChatSource) {
 					throw new Error(`[Copilot] createChat side chat: source chat ${options.sideChat.source.toString()} not found`);
 				}
-				const forked = await this._forkSdkChat(sideChatSource.sessionUri, sideChatSource.workingDirectory, options.sideChat.providerAnchorTurnId ?? options.sideChat.turnId, this._sessionDataService.getSessionDataDir(storageScope), await sideChatSource.getMessages());
+				const forked = await this._forkSdkChat(sideChatSource, options.sideChat.providerAnchorTurnId ?? options.sideChat.turnId, this._sessionDataService.getSessionDataDir(storageScope));
 				sdkSessionId = forked.sessionId;
 				sideChat = {
 					source: options.sideChat.source.toString(),
@@ -3300,17 +3289,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Seeds a bounded SDK chat from {@link sourceTurns} and copies its database
+	 * Seeds a bounded SDK chat from {@link sourceEntry} and copies its database
 	 * into {@link targetDbDir}. Returns the new SDK session id.
 	 */
-	private async _forkSdkChat(sourceStorageScope: URI, sourceWorkingDirectory: URI | undefined, turnId: string, targetDbDir: URI, sourceTurns: readonly Turn[]): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+	private async _forkSdkChat(sourceEntry: CopilotAgentSession, turnId: string, targetDbDir: URI): Promise<{ sessionId: string; inheritedTurnCount: number }> {
+		const sourceTurns = await sourceEntry.getMessages();
 		const sourceTurnIndex = sourceTurns.findIndex(turn => turn.id === turnId);
 		const inheritedTurnCount = sourceTurnIndex === -1 ? sourceTurns.length : sourceTurnIndex + 1;
 		const newSessionId = generateUuid();
 		const eventsPath = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', newSessionId, 'events.jsonl');
 		const jsonl = buildSessionEventLogFromTurns(sourceTurns.slice(0, inheritedTurnCount), {
 			sessionId: newSessionId,
-			workingDirectory: sourceWorkingDirectory?.fsPath,
+			workingDirectory: sourceEntry.workingDirectory?.fsPath,
 		});
 		await fs.mkdir(dirname(eventsPath), { recursive: true });
 		await fs.writeFile(eventsPath, jsonl, 'utf8');
@@ -3318,7 +3308,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// VACUUM INTO is safe even while the source DB is open.
 		const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
 		try {
-			const sourceDbRef = await this._sessionDataService.tryOpenDatabase(sourceStorageScope);
+			const sourceDbRef = await this._sessionDataService.tryOpenDatabase(sourceEntry.sessionUri);
 			if (sourceDbRef) {
 				try {
 					await fs.mkdir(targetDbDir.fsPath, { recursive: true });
