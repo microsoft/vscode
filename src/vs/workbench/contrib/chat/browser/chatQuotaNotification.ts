@@ -688,10 +688,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	}
 
 	private _setNotification(notification: IChatInputNotification): void {
-		this._chatInputNotificationService.setNotification({
-			...notification,
-			deferForNewUsers: true,
-		});
+		this._chatInputNotificationService.setNotification(notification);
 	}
 
 	private _hideNotification(): void {

@@ -314,13 +314,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 
-			assert.deepStrictEqual({
-				message: notificationMock.getNotification()?.message,
-				deferForNewUsers: notificationMock.getNotification()?.deferForNewUsers,
-			}, {
-				message: 'Credit Limit Reached',
-				deferForNewUsers: true,
-			});
+			assert.strictEqual(notificationMock.getNotification()?.message, 'Credit Limit Reached');
 		});
 
 		test('shows exhausted notification for free user via chat snapshot', () => {
