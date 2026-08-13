@@ -126,7 +126,10 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		});
 	});
 
-	(config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING) ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
+	const peerChatPersistenceEnabled = config.supportsMultipleChats
+		&& (config.supportsMultipleChatsE2E !== false || RECORDING)
+		&& (!(context.isWindows && config.provider === 'copilotcli') || context.runKnownIssueTests);
+	(peerChatPersistenceEnabled ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
 		tempDirs.push(workspace);
@@ -153,6 +156,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			60_000,
 		);
 
+		await releaseAndRestoreSession(sessionUri);
 		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
 
 		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });

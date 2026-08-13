@@ -1934,13 +1934,20 @@ export interface IChatSendRequestOptions {
 
 export type IChatModelReference = IReference<IChatModel>;
 
+/** Data from a chat request after submission begins. */
+export interface IChatRequestSubmittedEvent {
+	readonly chatSessionResource: URI;
+	readonly message?: IParsedChatRequest;
+	readonly attachedContext?: IChatRequestVariableEntry[];
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
+	readonly onDidSubmitRequest: Event<IChatRequestSubmittedEvent>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
