@@ -476,6 +476,9 @@ class SessionsSetUpWidget extends Disposable {
 			let continueWithoutSignIn = false;
 			const showReturnToVSCodeEditor = !isWeb && (await this.commandService.executeCommand<boolean>(SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID)) === true;
 			const onContinueWithoutSignIn = () => {
+				if (!this._allowSignedOutWhenUsable.get()) {
+					return;
+				}
 				continueWithoutSignIn = true;
 				setupCancellation.cancel();
 			};
