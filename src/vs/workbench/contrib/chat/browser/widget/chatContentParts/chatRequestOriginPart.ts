@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSideChatOrigin.css';
+import './media/chatRequestOrigin.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
@@ -18,43 +18,47 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IChatWidgetService } from '../../chat.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatRequestOriginKind, IChatRequestOrigin, IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSideChatOrigin, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 
-/**
- * Shows the conversation and prompt a side chat branched from.
- */
-export class ChatSideChatOriginPart extends Disposable {
+/** Shows where a request or side chat originated and opens its source. */
+export class ChatRequestOriginPart extends Disposable {
 
 	readonly domNode: HTMLElement;
 
 	private readonly _disposeCts = new CancellationTokenSource();
 	private _renderVersion = 0;
+	private _openSource: (() => Promise<void>) | undefined;
 
 	constructor(
 		sessionResource: URI,
+		requestOrigin: IChatRequestOrigin | undefined,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatSideChatService private readonly _sideChatService: IChatSideChatService,
+		@IChatRequestOriginService private readonly _requestOriginService: IChatRequestOriginService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
 		this._register(toDisposable(() => this._disposeCts.dispose(true)));
-		this.domNode = dom.$('.chat-side-chat-origin.hidden');
+		this.domNode = dom.$('.chat-request-origin.hidden');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'button');
 		this._register(Gesture.addTarget(this.domNode));
 		this._register(hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'),
 			this.domNode,
-			localize('chat.sideChatOrigin.showOriginalMessage', "Show the original message"),
+			localize('chat.requestOrigin.openSource', "Open source chat"),
 		));
 
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._register(dom.addDisposableListener(this.domNode, eventType, () => {
-				this._revealSource(sessionResource);
+				this._open();
 			}));
 		}
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, e => {
@@ -62,17 +66,36 @@ export class ChatSideChatOriginPart extends Disposable {
 			if ((event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) && !event.metaKey && !event.ctrlKey && !event.altKey) {
 				event.preventDefault();
 				event.stopPropagation();
-				this._revealSource(sessionResource);
+				this._open();
 			}
 		}));
 
+		if (requestOrigin) {
+			this._openSource = () => this._openRequestOrigin(requestOrigin);
+			this._renderRequestOrigin(requestOrigin);
+			return;
+		}
+
+		this._openSource = () => this._sideChatService.revealSideChatSource(sessionResource);
 		const origin = this._sideChatService.observeSideChatOrigin(sessionResource);
 		this._register(autorun(reader => {
-			this._renderOrigin(origin.read(reader));
+			this._renderSideChatOrigin(origin.read(reader));
 		}));
 	}
 
-	private _renderOrigin(origin: IChatSideChatOrigin | undefined): void {
+	private _renderRequestOrigin(origin: IChatRequestOrigin): void {
+		switch (origin.kind) {
+			case ChatRequestOriginKind.Delegation:
+				this._renderContent(
+					localize('chat.requestOrigin.delegation', "Sent by Codex from another chat"),
+					undefined,
+					localize('chat.requestOrigin.delegationAriaLabel', "Sent by Codex from another chat. Select to open the source chat."),
+				);
+				break;
+		}
+	}
+
+	private _renderSideChatOrigin(origin: IChatSideChatOrigin | undefined): void {
 		const renderVersion = ++this._renderVersion;
 
 		if (!origin) {
@@ -107,7 +130,7 @@ export class ChatSideChatOriginPart extends Disposable {
 				origin.sourceSessionResource,
 				ChatAgentLocation.Chat,
 				this._disposeCts.token,
-				'ChatSideChatOriginPart#resolveSourceQuote',
+				'ChatRequestOriginPart#resolveSourceQuote',
 			);
 			if (!reference) {
 				return;
@@ -141,22 +164,23 @@ export class ChatSideChatOriginPart extends Disposable {
 		return quote || undefined;
 	}
 
-	private _renderContent(title: string, quote: string | undefined): void {
+	private _renderContent(title: string, quote: string | undefined, ariaLabel?: string): void {
 		dom.clearNode(this.domNode);
 		this.domNode.classList.remove('hidden');
 		this.domNode.classList.toggle('has-no-quote', !quote);
+		this.domNode.classList.toggle('delegation', ariaLabel !== undefined);
 
-		const header = dom.$('.chat-side-chat-origin-header');
-		const icon = dom.$('span.chat-side-chat-origin-icon');
+		const header = dom.$('.chat-request-origin-header');
+		const icon = dom.$('span.chat-request-origin-icon');
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.reply));
 		icon.setAttribute('aria-hidden', 'true');
-		const titleElement = dom.$('span.chat-side-chat-origin-title');
+		const titleElement = dom.$('span.chat-request-origin-title');
 		titleElement.textContent = title;
 		header.append(icon, titleElement);
 		this.domNode.appendChild(header);
 
 		if (quote) {
-			const quoteElement = dom.$('span.chat-side-chat-origin-quote');
+			const quoteElement = dom.$('span.chat-request-origin-quote');
 			quoteElement.textContent = quote;
 			this.domNode.appendChild(quoteElement);
 			this.domNode.setAttribute('aria-label', localize(
@@ -165,6 +189,8 @@ export class ChatSideChatOriginPart extends Disposable {
 				title,
 				quote,
 			));
+		} else if (ariaLabel) {
+			this.domNode.setAttribute('aria-label', ariaLabel);
 		} else {
 			this.domNode.setAttribute('aria-label', localize(
 				'chat.sideChatOrigin.ariaLabelNoQuote',
@@ -174,7 +200,13 @@ export class ChatSideChatOriginPart extends Disposable {
 		}
 	}
 
-	private _revealSource(sessionResource: URI): void {
-		void this._sideChatService.revealSideChatSource(sessionResource).catch(onUnexpectedError);
+	private async _openRequestOrigin(origin: IChatRequestOrigin): Promise<void> {
+		if (!await this._requestOriginService.open(origin)) {
+			await this._chatWidgetService.openSession(origin.sourceSessionResource);
+		}
+	}
+
+	private _open(): void {
+		void this._openSource?.().catch(onUnexpectedError);
 	}
 }
