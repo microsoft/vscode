@@ -253,7 +253,7 @@ suite('Agent host _meta readers', () => {
 
 	suite('client plugin MCP default cwd meta', () => {
 		function plugin(meta: Record<string, unknown> | undefined): ClientPluginCustomization {
-			return { type: CustomizationType.Plugin, id: 'p', uri: 'file:///p', name: 'p', enabled: true, _meta: meta };
+			return { type: CustomizationType.Plugin, id: 'p', uri: 'file:///p', name: 'p', _meta: meta };
 		}
 
 		test('round-trips URI and primary-directory defaults', () => {

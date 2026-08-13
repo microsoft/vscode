@@ -34,7 +34,7 @@ Each session row displays:
 - **Status icon** — animated indicator for InProgress / NeedsInput / Error / Completed / Unread; unread takes precedence over completed-state glyphs such as a pull request, while quick chats never show a PR glyph (they have no GitHub PR association) and no per-row chat icon is shown either (the Chats section header, Pinned section, or custom group already conveys their identity)
 - **Title** — the session's display title (observable)
 - **Type icon** (regular sessions only) — folder/worktree/cloud icon indicating the workspace kind; omitted for quick chats
-- **Workspace badge** — folder/worktree/cloud icon + label (hidden when redundant with section header)
+- **Workspace badge** — workspace label rendered inline after the folder/worktree/cloud type icon. It is hidden only when a workspace section header already carries the same label; date, custom-group, Pinned, and Done rows show it unless live status temporarily hides row details.
 - **Diff stats** (regular sessions only) — `+insertions −deletions` when the session has pending changes; omitted for quick chats
 - **Status description or timestamp** (regular sessions only) — InProgress/NeedsInput/Error show a status message, otherwise a relative timestamp; quick chats show none of this (their compact spinner status icon already conveys "in progress", and diff stats/timestamps are omitted for their more compact row)
 - **Approval row** (optional) — pending agent approvals with an "Allow" button
@@ -67,6 +67,8 @@ Two grouping modes (user-switchable):
 - **By Date** — user groups form a contiguous, user-ordered block directly below Pinned; the non-grouped sessions follow in the fixed date sections (Recent, Older), where Recent holds up to 10 sessions from the last 7 days and Older holds the rest. Groups never mix into the date sections.
 
 User groups are **fully user-managed**: their order is owned by `ISessionSectionOrderService`, defaults to newest-first, and is shared across both grouping modes (it no longer derives from the recency of a group's member sessions). Groups remain visible and persisted until explicitly deleted. A group with no currently-visible member rows renders a muted **"No session" placeholder row** like the empty Chats section; its hover briefly explains that sessions can be added through the session context menu or drag and drop. This includes genuinely empty groups and groups whose members currently render in Pinned or are hidden by a filter. Archiving a session removes its group membership, so a group whose last member is marked done becomes empty and can be deleted.
+
+`SessionsList.getRenderedSessionGroup` is the shared placement predicate for custom-group membership: the membership must resolve to an existing group, and Pinned/Done precedence excludes the row. `isRenderedInCustomGroup` derives from it and makes a custom-group row reuse the standard always-visible workspace badge because the group header names the group rather than the workspace. Do not add a separate hover- or focus-revealed workspace label; equivalent workspace identity uses the same badge presentation everywhere.
 
 Archived sessions always go to the archived section (labelled "Archived" or "Done" depending on `chat.experimental.sessionArchiveActionWording`) regardless of grouping mode. Archive wins over pin — an archived session is never shown in Pinned — and archiving removes the session from any user-created group. This cleanup also applies when an archived session is added by a provider and when persisted group state loads. Restoring the session does not restore its former group membership.
 
@@ -145,7 +147,7 @@ The insertion line relies on the base list widget's `drop-target-before`/`drop-t
 
 Archived sessions do not show the session group context menu actions ("Create Group", "Add to Group", "Move to Group", or "Remove from Group").
 
-The **Create Group** context-menu action is also available from list blank space, section headers, group headers, "show more" rows, and placeholder rows. These non-session entry points create an empty group and immediately start inline renaming; the session-row action creates the group with the selected sessions as before.
+The **Create Group** context-menu action is also available from list blank space, section headers, group headers, "show more" rows, and placeholder rows. These non-session entry points create an empty group and immediately start inline renaming; the session-row action creates the group with the selected sessions as before. Transient context-menu actions are non-disposable values; the contributed session-row menu remains owned for the menu lifetime and is disposed when it closes.
 
 ### Read / Unread
 

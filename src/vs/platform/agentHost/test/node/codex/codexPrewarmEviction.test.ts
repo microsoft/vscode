@@ -28,12 +28,14 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
+import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
-import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
+import { buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
@@ -41,6 +43,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../c
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
+import type { ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
@@ -49,6 +52,7 @@ import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js
 import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -68,6 +72,7 @@ interface ITestWireRequest {
 }
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
+const OPENAI_TEST_MODEL = toCodexModelSelectionId('openai', 'gpt-5.6-sol');
 
 interface ITestPeer {
 	readonly transport: ICodexAppServerTransport;
@@ -137,6 +142,7 @@ interface ICreateAgentOptions {
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
+	readonly customizationEnablementService?: IAgentHostCustomizationEnablementService;
 }
 
 class TestCodexLogService extends NullLogService {
@@ -190,9 +196,16 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
 	configurationService.updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: options.multiRootEnabled });
 	instantiationService.stub(ISessionDataService, createSessionDataService(options.database));
+	instantiationService.stub(IAgentPluginManager, {
+		_serviceBrand: undefined,
+		basePath: URI.file('/plugins'),
+		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
+	});
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => true });
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
@@ -308,6 +321,136 @@ suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('lists Codex Desktop chats without a chosen folder as workspace-less', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const userHome = agent['_environmentService'].userHome;
+		const generatedWorkspace = URI.joinPath(userHome, 'Documents', 'Codex', '2026-08-11', 'this');
+		const selectedWorkspace = URI.file(join(sep, 'repo', 'codex'));
+		const sessionsDirectory = URI.joinPath(userHome, '.codex', 'sessions', '2026', '08', '11');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+
+		const desktopGeneratedRollout = URI.joinPath(sessionsDirectory, 'desktop-generated.jsonl');
+		const desktopSelectedRollout = URI.joinPath(sessionsDirectory, 'desktop-selected.jsonl');
+		const vscodeGeneratedRollout = URI.joinPath(sessionsDirectory, 'vscode-generated.jsonl');
+		await Promise.all([
+			agent['_fileService'].createFile(desktopGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n')),
+			agent['_fileService'].createFile(desktopSelectedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n')),
+			agent['_fileService'].createFile(vscodeGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{}}\n')),
+		]);
+
+		const listing = agent.listLegacyChats();
+		const request = await readNextRequest(peer.outbound);
+		peer.push({
+			id: request.id,
+			result: {
+				data: [
+					{ id: 'desktop-generated', cwd: generatedWorkspace.fsPath, path: desktopGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 1, updatedAt: 2, name: 'Desktop generated' },
+					{ id: 'desktop-selected', cwd: selectedWorkspace.fsPath, path: desktopSelectedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 3, updatedAt: 4, name: 'Desktop selected' },
+					{ id: 'vscode-generated', cwd: generatedWorkspace.fsPath, path: vscodeGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 5, updatedAt: 6, name: 'VS Code generated' },
+				],
+				nextCursor: null,
+			}
+		});
+
+		const chats = await listing;
+		assert.ok(chats);
+		assert.deepStrictEqual(chats.map(chat => ({
+			id: AgentSession.id(parseChatUri(chat.chat)!.session),
+			workspaceless: readSessionWorkspaceless(chat._meta),
+			workingDirectories: chat.workingDirectories?.map(directory => directory.fsPath),
+		})), [
+			{ id: 'desktop-generated', workspaceless: true, workingDirectories: [generatedWorkspace.fsPath] },
+			{ id: 'desktop-selected', workspaceless: false, workingDirectories: [selectedWorkspace.fsPath] },
+			{ id: 'vscode-generated', workspaceless: false, workingDirectories: [generatedWorkspace.fsPath] },
+		]);
+		peer.exit();
+	});
+
+	test('bounds concurrent Codex Desktop rollout inspections while listing chats', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const release = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		let active = 0;
+		let maximum = 0;
+		agent['_readCodexDesktopRolloutPrefix'] = async () => {
+			active++;
+			maximum = Math.max(maximum, active);
+			if (active === 8) {
+				saturated.complete();
+			}
+			await release.p;
+			active--;
+			return null;
+		};
+
+		const listing = agent.listLegacyChats();
+		const request = await readNextRequest(peer.outbound);
+		peer.push({
+			id: request.id,
+			result: {
+				data: Array.from({ length: 32 }, (_, index) => ({
+					id: `desktop-${index}`,
+					cwd: `/workspace/${index}`,
+					path: `/rollout/${index}.jsonl`,
+					source: 'vscode',
+					modelProvider: 'openai',
+					createdAt: index,
+					updatedAt: index,
+				})),
+				nextCursor: null,
+			},
+		});
+
+		await saturated.p;
+		assert.strictEqual(active, 8);
+		release.complete();
+		const chats = await listing;
+		assert.deepStrictEqual({ maximum, count: chats?.length }, { maximum: 8, count: 32 });
+		peer.exit();
+	});
+
+	test('bounds concurrent cold session reads', async () => {
+		const agent = await createAgent(disposables);
+		const release = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		let active = 0;
+		let maximum = 0;
+		agent['_doReadSession'] = async () => {
+			active++;
+			maximum = Math.max(maximum, active);
+			if (active === 8) {
+				saturated.complete();
+			}
+			await release.p;
+			active--;
+			return undefined;
+		};
+
+		const reads = Promise.all(Array.from({ length: 32 }, (_, index) =>
+			agent['_readSession'](AgentSession.uri(agent.id, `session-${index}`))));
+		await saturated.p;
+		assert.strictEqual(active, 8);
+		release.complete();
+		await reads;
+		assert.strictEqual(maximum, 8);
+	});
+
 	test('session actions target the owning session after the chat is bound', async () => {
 		const agent = await createAgent(disposables);
 		const signals: AgentSignal[] = [];
@@ -323,6 +466,252 @@ suite('CodexAgent prewarm eviction', () => {
 			resource: session.toString(),
 			type: ActionType.SessionActivityChanged,
 		}]);
+	});
+
+	test('peer client customization publication and removal target the owning session and reload MCP state', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		let skillRootRefreshes = 0;
+		agent['_refreshSkillExtraRoots'] = async () => { skillRootRefreshes++; };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = URI.parse('agent-chat://peer/customizations');
+		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'thread-customizations' } } });
+		await creating;
+		const entry = agent['_sessions'].get('thread-customizations')!;
+		const parentEntry = agent['_sessions'].get(AgentSession.id(parent.session))!;
+		const pluginDir = URI.file('/plugin');
+		const clientPlugin = {
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin' }, pluginDir },
+			parsed: {
+				format: PluginFormat.OpenPlugin,
+				hooks: [],
+				agents: [],
+				instructions: [],
+				skills: [],
+				mcpServers: [{
+					name: 'local',
+					uri: URI.file('/plugin/.mcp.json'),
+					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
+				}],
+			},
+		} satisfies ICodexClientPlugin;
+		entry.clientCustomizations.setClient('client-1', [clientPlugin]);
+		parentEntry.clientCustomizations.setClient('client-1', [{
+			...clientPlugin,
+			synced: {
+				...clientPlugin.synced,
+				customization: { ...clientPlugin.synced.customization, name: 'owner-plugin' },
+			},
+		}]);
+		entry.firstTurnSent = true;
+		entry.materializedMcpSig = 'materialized-with-plugin';
+		entry.materializedCustomizationsSig = (await agent['_buildCustomizationLaunch'](entry)).signature;
+		agent.getOrCreateActiveClient(chat, { configurationResource: parent.session, resource: chat }, { clientId: 'client-1' });
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
+		agent.removeActiveClient(chat, { configurationResource: parent.session, resource: chat }, 'client-1');
+		await agent['_reconcileMaterializedCustomizations'](entry);
+		const removedWhileSiblingContributed = signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved);
+		await agent['_removeClientCustomizations'](parentEntry, 'client-1', []);
+
+		const customizationActions = signals.filter(signal => signal.kind === 'action'
+			&& (signal.action.type === ActionType.SessionCustomizationUpdated || signal.action.type === ActionType.SessionCustomizationRemoved));
+		assert.deepStrictEqual({
+			actions: customizationActions.map(signal => signal.kind === 'action' ? {
+				resource: signal.resource.toString(),
+				type: signal.action.type,
+				name: signal.action.type === ActionType.SessionCustomizationUpdated ? signal.action.customization.name : undefined,
+			} : undefined),
+			removedWhileSiblingContributed,
+			customizationsEmpty: entry.clientCustomizations.isEmpty() && parentEntry.clientCustomizations.isEmpty(),
+			needsResume: entry.needsResume,
+			unsubscribeBeforeResume: entry.unsubscribeBeforeResume,
+			skillRootRefreshes,
+		}, {
+			actions: [
+				{ resource: parent.session.toString(), type: ActionType.SessionCustomizationUpdated, name: 'owner-plugin' },
+				{ resource: parent.session.toString(), type: ActionType.SessionCustomizationUpdated, name: 'owner-plugin' },
+				{ resource: parent.session.toString(), type: ActionType.SessionCustomizationRemoved, name: undefined },
+			],
+			removedWhileSiblingContributed: false,
+			customizationsEmpty: true,
+			needsResume: true,
+			unsubscribeBeforeResume: true,
+			skillRootRefreshes: 2,
+		});
+	});
+
+	test('replacing a client customization snapshot removes plugins absent from the replacement', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const { session } = await createSession(agent);
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const customization = {
+			type: CustomizationType.Plugin,
+			id: 'plugin-a',
+			uri: 'https://plugin-a',
+			name: 'Plugin A',
+		} as const;
+
+		await agent['_syncClientCustomizations'](entry.sessionUri, 'client-1', [customization]);
+		await agent['_syncClientCustomizations'](entry.sessionUri, 'client-1', []);
+
+		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action'
+			&& (signal.action.type === ActionType.SessionCustomizationUpdated || signal.action.type === ActionType.SessionCustomizationRemoved)
+			? [{
+				resource: signal.resource.toString(),
+				type: signal.action.type,
+				id: signal.action.type === ActionType.SessionCustomizationUpdated ? signal.action.customization.id : signal.action.id,
+			}]
+			: []), [
+			{ resource: session.toString(), type: ActionType.SessionCustomizationUpdated, id: customization.id },
+			{ resource: session.toString(), type: ActionType.SessionCustomizationRemoved, id: customization.id },
+		]);
+	});
+
+	test('owning runtime MCP state takes precedence over peer state in the shared session', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = URI.parse('agent-chat://peer/mcp-owner');
+		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'thread-mcp-peer' } } });
+		await creating;
+		const ownerEntry = agent['_sessions'].get(AgentSession.id(parent.session))!;
+		const peerEntry = agent['_sessions'].get('thread-mcp-peer')!;
+		agent['_getOrCreateMcpController'](peerEntry);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		agent['_mcpInventory'].setState(peerEntry.threadId!, 'shared', {
+			kind: McpServerStatus.Error,
+			error: { errorType: 'peer-error', message: 'peer failed' },
+		});
+		agent['_applyMcpInventoryToSession'](peerEntry);
+		const ownerController = agent['_getOrCreateMcpController'](ownerEntry);
+		ownerController.applyAll([{ name: 'shared', state: { kind: McpServerStatus.Ready } }]);
+		ownerEntry.disposed = true;
+		agent['_sessions'].delete(ownerEntry.sessionId);
+		agent['_releaseMcpPublisher'](ownerEntry);
+		ownerController.dispose();
+
+		const actions = signals.flatMap(signal => signal.kind === 'action'
+			&& (signal.action.type === ActionType.SessionCustomizationUpdated || signal.action.type === ActionType.SessionCustomizationRemoved)
+			? [{
+				resource: signal.resource.toString(),
+				type: signal.action.type,
+				customization: signal.action.type === ActionType.SessionCustomizationUpdated ? {
+					name: signal.action.customization.name,
+					state: signal.action.customization.type === CustomizationType.McpServer ? signal.action.customization.state.kind : undefined,
+					channel: signal.action.customization.type === CustomizationType.McpServer ? signal.action.customization.channel : undefined,
+				} : undefined,
+			}]
+			: []);
+		assert.deepStrictEqual({
+			actions,
+			publisherSessionId: agent['_sessionForMcpControl'](parent.session)?.sessionId,
+		}, {
+			actions: [
+				{
+					resource: parent.session.toString(),
+					type: ActionType.SessionCustomizationUpdated,
+					customization: {
+						name: 'shared',
+						state: McpServerStatus.Error,
+						channel: undefined,
+					},
+				},
+				{
+					resource: parent.session.toString(),
+					type: ActionType.SessionCustomizationRemoved,
+					customization: undefined,
+				},
+				{
+					resource: parent.session.toString(),
+					type: ActionType.SessionCustomizationUpdated,
+					customization: {
+						name: 'shared',
+						state: McpServerStatus.Ready,
+						channel: `mcp://codex/${encodeURIComponent(ownerEntry.sessionId)}/shared`,
+					},
+				},
+				{
+					resource: parent.session.toString(),
+					type: ActionType.SessionCustomizationRemoved,
+					customization: undefined,
+				},
+				{
+					resource: parent.session.toString(),
+					type: ActionType.SessionCustomizationUpdated,
+					customization: {
+						name: 'shared',
+						state: McpServerStatus.Error,
+						channel: undefined,
+					},
+				},
+			],
+			publisherSessionId: peerEntry.sessionId,
+		});
+	});
+
+	test('customization reconciliation is serialized per runtime', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const { session } = await createSession(agent);
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		let active = 0;
+		let calls = 0;
+		let maximumActive = 0;
+		agent['_doReconcileMaterializedCustomizations'] = async () => {
+			calls++;
+			active++;
+			maximumActive = Math.max(maximumActive, active);
+			if (calls === 1) {
+				firstStarted.complete();
+				await releaseFirst.p;
+			}
+			active--;
+		};
+
+		const first = agent['_reconcileMaterializedCustomizations'](entry);
+		await firstStarted.p;
+		const second = agent['_reconcileMaterializedCustomizations'](entry);
+		await new Promise(resolve => setImmediate(resolve));
+		const callsWhileFirstActive = calls;
+		releaseFirst.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({ callsWhileFirstActive, calls, maximumActive }, {
+			callsWhileFirstActive: 1,
+			calls: 2,
+			maximumActive: 1,
+		});
 	});
 
 	test('immediately releases, restores, and sends a workspace-less peer before metadata flushes', async () => {
@@ -362,6 +751,8 @@ suite('CodexAgent prewarm eviction', () => {
 		await agent.materializeChat(chat, parent.session, created.providerData);
 		const restoredEntry = agent['_sessions'].get('thread-peer')!;
 		const sending = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-peer');
+		const reloadUnsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: reloadUnsubscribe.id, result: {} });
 		const resume = await readNextRequest(peer.outbound);
 		peer.push({
 			id: resume.id,
@@ -379,6 +770,7 @@ suite('CodexAgent prewarm eviction', () => {
 		assert.deepStrictEqual({
 			start: { method: start.method, cwd: start.params.cwd },
 			release: { method: releaseUnsubscribe.method, threadId: releaseUnsubscribe.params.threadId },
+			reload: { method: reloadUnsubscribe.method, threadId: reloadUnsubscribe.params.threadId },
 			resume: { method: resume.method, threadId: resume.params.threadId },
 			inventory: { method: inventory.method, threadId: inventory.params.threadId },
 			turn: { method: turn.method, threadId: turn.params.threadId },
@@ -389,6 +781,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}, {
 			start: { method: 'thread/start', cwd: managedDirectory.fsPath },
 			release: { method: 'thread/unsubscribe', threadId: 'thread-peer' },
+			reload: { method: 'thread/unsubscribe', threadId: 'thread-peer' },
 			resume: { method: 'thread/resume', threadId: 'thread-peer' },
 			inventory: { method: 'mcpServerStatus/list', threadId: 'thread-peer' },
 			turn: { method: 'turn/start', threadId: 'thread-peer' },
@@ -541,7 +934,7 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
-	test('cold resume carries workspace and client MCP and preserves an in-flight MCP invalidation', async () => {
+	test('cold resume carries workspace and client MCP and consumes an in-flight MCP invalidation before reading', async () => {
 		const database = new TestSessionDatabase();
 		const repo = URI.file('/repo');
 		await database.setMetadata('codex.threadId', 'restored-mcp-thread');
@@ -565,7 +958,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const entry = agent['_sessions'].get('restored-mcp')!;
 		const pluginDir = URI.file('/plugin');
 		entry.clientCustomizations.setClient('test', [{
-			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin' }, pluginDir },
 			parsed: {
 				format: PluginFormat.OpenPlugin,
 				hooks: [],
@@ -576,7 +969,7 @@ suite('CodexAgent prewarm eviction', () => {
 					name: 'local',
 					uri: URI.file('/plugin/.mcp.json'),
 					configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
-					customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+					customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
 				}],
 			},
 		}]);
@@ -584,10 +977,16 @@ suite('CodexAgent prewarm eviction', () => {
 		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
 		const resume = await readNextRequest(peer.outbound);
 		assert.strictEqual(entry.needsResume, false);
-		entry.needsResume = true;
+		agent['_markSessionForReload'](entry);
 		peer.push({ id: resume.id, result: { thread: { id: 'restored-mcp-thread', turns: [] }, runtimeWorkspaceRoots: [] } });
 		const inventory = await readNextRequest(peer.outbound);
 		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const followUpResume = await readNextRequest(peer.outbound);
+		peer.push({ id: followUpResume.id, result: { thread: { id: 'restored-mcp-thread', turns: [] }, runtimeWorkspaceRoots: [] } });
+		const followUpInventory = await readNextRequest(peer.outbound);
+		peer.push({ id: followUpInventory.id, result: { data: [], nextCursor: null } });
 		const read = await readNextRequest(peer.outbound);
 		peer.push({ id: read.id, result: { thread: { id: 'restored-mcp-thread', turns: [] } } });
 		await reading;
@@ -598,7 +997,12 @@ suite('CodexAgent prewarm eviction', () => {
 				threadId: resume.params.threadId,
 				mcp: resume.params.config?.['mcp_servers'],
 			},
+			followUp: {
+				unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+				resume: { method: followUpResume.method, threadId: followUpResume.params.threadId },
+			},
 			needsResume: entry.needsResume,
+			unsubscribeBeforeResume: entry.unsubscribeBeforeResume,
 		}, {
 			resume: {
 				method: 'thread/resume',
@@ -608,9 +1012,83 @@ suite('CodexAgent prewarm eviction', () => {
 					local: { command: 'node', args: ['server.js'] },
 				},
 			},
-			needsResume: true,
+			followUp: {
+				unsubscribe: { method: 'thread/unsubscribe', threadId: 'restored-mcp-thread' },
+				resume: { method: 'thread/resume', threadId: 'restored-mcp-thread' },
+			},
+			needsResume: false,
+			unsubscribeBeforeResume: false,
 		});
 		peer.exit();
+	});
+
+	test('scoped enablement changes republish resolved plugin children and invalidate MCP launch state', async () => {
+		const onDidChange = new Emitter<{ readonly sessions: readonly string[] }>();
+		let enabled = true;
+		const resolve = (): CustomizationEnablementResolution => ({
+			kind: 'resolved',
+			enablement: [{ kind: CustomizationEnablementKind.Session, enabled }],
+			enabled,
+			workingDirectory: { kind: 'workspaceless' as const },
+		});
+		const customizationEnablementService: IAgentHostCustomizationEnablementService = {
+			_serviceBrand: undefined,
+			onDidChange: onDidChange.event,
+			initializeSession: async () => { },
+			getWorkingDirectoryState: () => ({ kind: 'workspaceless' }),
+			resolve,
+			applyClientGlobalEnablement: resolve,
+			replaceEnablement: resolve,
+			setEnablement: resolve,
+			whenIdle: async () => { },
+		};
+		const agent = await createAgent(disposables, { customizationEnablementService });
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')] });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		const pluginDir = URI.file('/plugin');
+		entry.clientCustomizations.setClient('test', [{
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin' }, pluginDir },
+			parsed: {
+				format: PluginFormat.OpenPlugin,
+				hooks: [],
+				agents: [],
+				instructions: [],
+				skills: [],
+				mcpServers: [{
+					name: 'local',
+					uri: URI.file('/plugin/.mcp.json'),
+					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
+				}],
+			},
+		}]);
+		entry.firstTurnSent = true;
+		entry.materializedMcpSig = 'before';
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+
+		enabled = false;
+		onDidChange.fire({ sessions: [session.toString()] });
+
+		const pluginUpdate = signals
+			.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated)
+			.map(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated ? signal.action.customization : undefined)
+			.find(customization => customization?.id === 'plugin');
+		const pluginCustomization = pluginUpdate?.type === CustomizationType.Plugin ? pluginUpdate : undefined;
+		const mcpChild = pluginCustomization?.children?.find(child => child.type === CustomizationType.McpServer);
+		assert.deepStrictEqual({
+			pluginEnablement: pluginCustomization?.enablement,
+			childEnablement: mcpChild?.type === CustomizationType.McpServer ? mcpChild.enablement : undefined,
+			materializedMcpSig: entry.materializedMcpSig,
+			needsResume: entry.needsResume,
+			unsubscribeBeforeResume: entry.unsubscribeBeforeResume,
+		}, {
+			pluginEnablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			childEnablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+			materializedMcpSig: undefined,
+			needsResume: true,
+			unsubscribeBeforeResume: true,
+		});
 	});
 
 	test('disposing a released workspace-less peer removes its managed directory', async () => {
@@ -788,14 +1266,14 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'local',
 				uri: URI.file('/plugin/.mcp.json'),
 				configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
-				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
 			}],
 		};
 		const unsafeSession = URI.from({ scheme: 'codex', path: '/../../codex-customization-victim' });
 		const { session } = await createSession(agent, { session: unsafeSession, workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL }, agent: { uri: agentUri.toString() } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		entry.clientCustomizations.setClient('test', [{
-			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', }, pluginDir },
 			parsed,
 		}]);
 
@@ -824,6 +1302,70 @@ suite('CodexAgent prewarm eviction', () => {
 			capabilityPaths: [URI.file('/plugin/skills').fsPath],
 			roleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Review carefully."\n',
 			roleFileUsesHostGeneratedRoot: true,
+		});
+		peer.exit();
+	});
+
+	test('resumes an established thread when the selected workspace agent changes', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const repo = URI.file('/repo-workspace-agent-edit');
+		const agentUri = URI.joinPath(repo, '.github', 'agents', 'reviewer.agent.md');
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the original instructions.'));
+		const { session } = await createSession(agent, {
+			workingDirectories: [repo],
+			model: { id: COPILOT_TEST_MODEL },
+			agent: { uri: agentUri.toString() },
+		});
+		const chat = URI.parse(buildDefaultChatUri(session));
+
+		const firstSend = agent.chats.sendMessage(chat, 'first', [repo], undefined, 'turn-1');
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'thread-workspace-agent' } } });
+		const firstTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: firstTurn.id, result: {} });
+		await firstSend;
+
+		await agent['_fileService'].writeFile(agentUri, VSBuffer.fromString('---\nname: Reviewer\ndescription: Reviews changes\n---\nUse the updated instructions.'));
+		const secondSend = agent.chats.sendMessage(chat, 'second', [repo], undefined, 'turn-2');
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		const resumedAgents = resume.params.config?.['agents'] as Record<string, { description: string; config_file: string }>;
+		const resumedRoleFile = await fs.promises.readFile(resumedAgents.Reviewer.config_file, 'utf8');
+		peer.push({ id: resume.id, result: { thread: { id: 'thread-workspace-agent', cwd: repo.fsPath }, cwd: repo.fsPath } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const secondTurn = await readNextRequest(peer.outbound);
+		peer.push({ id: secondTurn.id, result: {} });
+		await secondSend;
+
+		assert.deepStrictEqual({
+			start: { method: start.method, developerInstructions: start.params.developerInstructions },
+			firstTurn: { method: firstTurn.method, developerInstructions: firstTurn.params.collaborationMode?.settings.developer_instructions },
+			unsubscribe: { method: unsubscribe.method, threadId: unsubscribe.params.threadId },
+			resume: { method: resume.method, developerInstructions: resume.params.developerInstructions },
+			secondTurn: { method: secondTurn.method, developerInstructions: secondTurn.params.collaborationMode?.settings.developer_instructions },
+			resumedRoleFile,
+			needsResume: agent['_sessions'].get(AgentSession.id(session))?.needsResume,
+		}, {
+			start: { method: 'thread/start', developerInstructions: 'Use the original instructions.' },
+			firstTurn: { method: 'turn/start', developerInstructions: 'Use the original instructions.' },
+			unsubscribe: { method: 'thread/unsubscribe', threadId: 'thread-workspace-agent' },
+			resume: { method: 'thread/resume', developerInstructions: 'Use the updated instructions.' },
+			secondTurn: { method: 'turn/start', developerInstructions: 'Use the updated instructions.' },
+			resumedRoleFile: 'name = "Reviewer"\ndescription = "Reviews changes"\ndeveloper_instructions = "Use the updated instructions."\n',
+			needsResume: false,
 		});
 		peer.exit();
 	});
@@ -1507,6 +2049,9 @@ suite('CodexAgent prewarm eviction', () => {
 
 			const restoredChat = defaultChatOf(created.session);
 			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat });
+			const originalProbe = await readNextRequest(peerB.outbound);
+			assert.strictEqual(originalProbe.params.threadId, AgentSession.id(created.session));
+			peerB.push({ id: originalProbe.id, error: { code: -32000, message: 'thread not found' } });
 			const read = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: read.id,
@@ -1528,6 +2073,9 @@ suite('CodexAgent prewarm eviction', () => {
 			// session-addressed seam: Agent Host addresses it by its exact chat
 			// URI plus the transient owning-session context.
 			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { configurationResource: created.session, resource: restoredChat });
+			const reloadUnsubscribe = await readNextRequest(peerB.outbound);
+			assert.strictEqual(reloadUnsubscribe.method, 'thread/unsubscribe');
+			peerB.push({ id: reloadUnsubscribe.id, result: {} });
 			const resume = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: resume.id,
@@ -1548,6 +2096,7 @@ suite('CodexAgent prewarm eviction', () => {
 				canonicalOverlay: canonicalOverlay.workingDirectories?.map(directory => directory.fsPath),
 				metadata: metadata?.workingDirectories?.map(directory => directory.fsPath),
 				resume: {
+					unsubscribe: reloadUnsubscribe.method,
 					cwd: resume.params.cwd,
 					runtimeWorkspaceRoots: resume.params.runtimeWorkspaceRoots,
 					selectedCapabilityRoots: resume.params.selectedCapabilityRoots,
@@ -1558,6 +2107,7 @@ suite('CodexAgent prewarm eviction', () => {
 				canonicalOverlay: [repoA.fsPath, repoB.fsPath],
 				metadata: [repoA.fsPath, repoB.fsPath],
 				resume: {
+					unsubscribe: 'thread/unsubscribe',
 					cwd: repoA.fsPath,
 					runtimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath],
 					selectedCapabilityRoots: undefined,
@@ -1569,6 +2119,149 @@ suite('CodexAgent prewarm eviction', () => {
 			peerB?.exit();
 			peerA.exit();
 		}
+	});
+
+	test('directly restored Desktop thread heals a stale overlay and uses the latest rollout provider', async () => {
+		const database = new TestSessionDatabase();
+		await Promise.all([
+			database.setMetadata('codex.threadId', 'replacement-thread'),
+			database.setMetadata('codex.model', OPENAI_TEST_MODEL),
+		]);
+		const agent = await createAgent(disposables, { database });
+		const baseModel = agent.models.get()[0];
+		agent['_models'].set([
+			{ ...baseModel, id: COPILOT_TEST_MODEL },
+			{ ...baseModel, id: OPENAI_TEST_MODEL },
+		], undefined);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const session = AgentSession.uri('codex', 'desktop-thread');
+		const chat = defaultChatOf(session);
+		const context = { configurationResource: session, resource: chat };
+		const workingDirectory = URI.file('/workspace/codex');
+		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
+		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+		await agent['_fileService'].createFile(rollout, VSBuffer.fromString([
+			'{"type":"session_meta","payload":{"originator":"Codex Desktop","model_provider":"openai"}}',
+			'{"type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-test","model_provider_id":"vscode-proxy"}}}',
+			'{"type":"event_msg","payload":{"type":"task_started","turn_id":"desktop-turn"}}',
+			'{"type":"turn_context","payload":{"turn_id":"desktop-turn","model":"gpt-test"}}',
+		].join('\n')));
+		const persistedTurn = {
+			id: 'desktop-turn',
+			items: [
+				{ type: 'userMessage', id: 'user-1', clientId: null, content: [{ type: 'text', text: 'remember capybara', text_elements: [] }] },
+				{ type: 'agentMessage', id: 'assistant-1', text: 'I will remember capybara.', phase: 'final_answer', memoryCitation: null },
+			],
+			itemsView: { type: 'full' },
+			status: 'completed',
+			error: null,
+			startedAt: 1,
+			completedAt: 2,
+			durationMs: 1000,
+		};
+
+		const metadataPromise = agent.getChatMetadata(chat, context);
+		const metadataRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: metadataRead.id,
+			result: {
+				thread: {
+					id: metadataRead.params.threadId,
+					cwd: workingDirectory.fsPath,
+					modelProvider: 'openai',
+					path: rollout.fsPath,
+					source: 'vscode',
+					turns: [persistedTurn],
+				},
+			},
+		});
+		const metadata = await metadataPromise;
+		const metadataInventory = await readNextRequest(peer.outbound);
+		peer.push({ id: metadataInventory.id, result: { data: [], nextCursor: null } });
+		const restored = agent['_sessions'].get(AgentSession.id(session));
+
+		const historyPromise = agent.chats.getMessages(chat, context);
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({
+			id: resume.id,
+			result: {
+				thread: { id: resume.params.threadId, cwd: workingDirectory.fsPath },
+				cwd: workingDirectory.fsPath,
+			},
+		});
+		const resumeInventory = await readNextRequest(peer.outbound);
+		peer.push({ id: resumeInventory.id, result: { data: [], nextCursor: null } });
+		const historyRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: historyRead.id,
+			result: {
+				thread: {
+					id: historyRead.params.threadId,
+					cwd: workingDirectory.fsPath,
+					modelProvider: 'openai',
+					path: rollout.fsPath,
+					source: 'vscode',
+					turns: [persistedTurn],
+				},
+			},
+		});
+		const history = await historyPromise;
+
+		const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, undefined, context);
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			metadataReadThreadId: metadataRead.params.threadId,
+			metadataModel: metadata?.model?.id,
+			restored: {
+				threadId: restored?.threadId,
+				model: restored?.model?.id,
+				materializedModelProvider: restored?.materializedModelProvider,
+			},
+			history: history.map(item => ({
+				id: item.id,
+				message: item.message.text,
+				messageModel: item.message.model?.id,
+				usageModel: item.usage?.model,
+			})),
+			resume: { method: resume.method, threadId: resume.params.threadId, modelProvider: resume.params.modelProvider },
+			historyReadThreadId: historyRead.params.threadId,
+			turn: { method: turn.method, threadId: turn.params.threadId, model: turn.params.model },
+			overlay: {
+				threadId: await database.getMetadata('codex.threadId'),
+				modelId: await database.getMetadata('codex.model'),
+			},
+		}, {
+			metadataReadThreadId: 'desktop-thread',
+			metadataModel: COPILOT_TEST_MODEL,
+			restored: {
+				threadId: 'desktop-thread',
+				model: COPILOT_TEST_MODEL,
+				materializedModelProvider: 'vscode-proxy',
+			},
+			history: [{
+				id: 'desktop-turn',
+				message: 'remember capybara',
+				messageModel: COPILOT_TEST_MODEL,
+				usageModel: COPILOT_TEST_MODEL,
+			}],
+			resume: { method: 'thread/resume', threadId: 'desktop-thread', modelProvider: 'vscode-proxy' },
+			historyReadThreadId: 'desktop-thread',
+			turn: { method: 'turn/start', threadId: 'desktop-thread', model: 'gpt-test' },
+			overlay: { threadId: 'desktop-thread', modelId: COPILOT_TEST_MODEL },
+		});
+		peer.exit();
 	});
 });
 suite('CodexAgent baseline checkpoint', () => {

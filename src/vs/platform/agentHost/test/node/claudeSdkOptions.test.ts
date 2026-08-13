@@ -190,7 +190,6 @@ suite('claudeSdkOptions / MCP server projection', () => {
 		id: 'mcp',
 		uri: 'file:///mcp',
 		name: 'mcp',
-		enabled: true,
 		state: { kind: McpServerStatus.Stopped },
 	};
 	const definition = (name: string, defaultCwd: URI, remote = false): IMcpServerDefinition => ({

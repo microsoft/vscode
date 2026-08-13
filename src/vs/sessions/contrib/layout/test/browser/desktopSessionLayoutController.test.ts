@@ -3318,7 +3318,7 @@ suite('LayoutController (desktop)', () => {
 	});
 
 	test('[managed tabs / close] re-opens the default tabs for the new session after switching (empty group)', async () => {
-		createSinglePaneController({ activateAux: true });
+		const controller = createSinglePaneController({ activateAux: true });
 		await settle();
 
 		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
@@ -3331,12 +3331,110 @@ suite('LayoutController (desktop)', () => {
 		await settle();
 		assert.strictEqual(hasFilesTab(), false);
 
-		// Switching sessions closes the previous session's tabs (stale) leaving an
-		// empty group, so the new session's defaults are opened.
+		// The switched-to session's working set closes the previous session's tabs,
+		// leaving an empty group when the restore settles.
 		harness.activeSessionObs.set(makeSession(URI.parse('session:2')), undefined);
+		controller.runWithRestore(() => {
+			harness.activeGroupEditors.length = 0;
+			harness.activeEditorInput = undefined;
+			harness.onDidEditorsChange.fire();
+		});
 		await settle();
 
 		assert.strictEqual(hasFilesTab(), true, 'the default tabs are opened for the new session');
+	});
+
+	test('[managed tabs / session switch] preserves a dismissed Files tab while replacing Changes in place', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const session1 = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session1, undefined);
+		await settle();
+		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(filesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: filesTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: false });
+
+		const session2 = makeSession(URI.parse('session:2'));
+		harness.activeSessionObs.set(session2, undefined);
+		await settle();
+
+		const incomingChangesResource = harness.sessionChangesService.getChangesEditorResource(session2.resource);
+		assert.deepStrictEqual({
+			hasIncomingChangesTab: harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, incomingChangesResource)),
+			hasFilesTab: hasFilesTab(),
+			editorCount: harness.activeGroupEditors.length,
+		}, {
+			hasIncomingChangesTab: true,
+			hasFilesTab: false,
+			editorCount: 1,
+		});
+	});
+
+	test('[managed tabs / session switch] removes a dismissed Files tab restored by a previously visited session', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		const filesTab = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput)!;
+		harness.activeGroupEditors.splice(harness.activeGroupEditors.indexOf(filesTab), 1);
+		harness.onDidCloseEditor.fire({ editor: filesTab });
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		harness.onApplyWorkingSet = workingSet => {
+			if (workingSet === 'empty' || workingSet.name !== `session-working-set:${sessionA.resource.toString()}`) {
+				return;
+			}
+			harness.activeGroupEditors.push(store.add(harness.instaService.createInstance(EmptyFileEditorInput, sessionA.workspace.get())));
+			harness.onDidEditorsChange.fire();
+		};
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+
+		const incomingChangesResource = harness.sessionChangesService.getChangesEditorResource(sessionA.resource);
+		assert.deepStrictEqual({
+			hasIncomingChangesTab: harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, incomingChangesResource)),
+			hasFilesTab: hasFilesTab(),
+		}, {
+			hasIncomingChangesTab: true,
+			hasFilesTab: false,
+		});
+	});
+
+	test('[managed tabs / session switch] keeps restored Files after a transiently empty group', async () => {
+		createSinglePaneController({ activateAux: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		harness.activeSessionObs.set(makeSession(URI.parse('session:b')), undefined);
+		await settle();
+
+		harness.activeGroupEditors.length = 0;
+		harness.activeEditorInput = undefined;
+		harness.onDidEditorsChange.fire();
+		harness.onApplyWorkingSet = workingSet => {
+			if (workingSet === 'empty' || workingSet.name !== `session-working-set:${sessionA.resource.toString()}`) {
+				return;
+			}
+			harness.activeGroupEditors.push(store.add(harness.instaService.createInstance(EmptyFileEditorInput, sessionA.workspace.get())));
+			harness.onDidEditorsChange.fire();
+		};
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+
+		assert.strictEqual(hasFilesTab(), true);
 	});
 
 	test('[managed tabs / add-tab] a missing Changes tab flips SinglePaneChangesTabMissingContext', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -2024,7 +2025,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('accepts customization updates while creating a provisional session', async () => {
-			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin' } as const;
 			class ProvisionalCustomizationAgent extends MockAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
@@ -2197,7 +2198,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('retries a transient registry registration failure before reporting creation success', async () => {
 			const db = new TransientRegistryWriteDatabase();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			await svc.listSessions();
@@ -2295,7 +2296,9 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
+			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			svc.setWorktreeIsolation({
+				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 				prepareSessionDeletion: async () => {
 					order.push('prepareSessionDeletion');
 					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
@@ -2346,7 +2349,7 @@ suite('AgentService (node dispatcher)', () => {
 				...createSessionDataService(),
 				deleteSessionData: async () => { deleteSessionDataCalls++; },
 			};
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });
@@ -2456,6 +2459,62 @@ suite('AgentService (node dispatcher)', () => {
 				listCalls: 1,
 				first: [legacy.toString()],
 				second: [legacy.toString()],
+			});
+		});
+
+		test('listSessions does not wait for a forced refresh after registry backfill', async () => {
+			const refreshGate = new DeferredPromise<void>();
+			class GatedRefreshAgent extends MockAgent {
+				listCalls = 0;
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					if (this.listCalls > 1) {
+						await refreshGate.p;
+					}
+					return super.listLegacyChats();
+				}
+
+				fireChatListChanged(): void {
+					this._onDidChangeChatList.fire();
+				}
+
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedRefreshAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.listSessions();
+
+			agent.fireChatListChanged();
+			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 2);
+
+			const listing = svc.listSessions();
+			let completed = false;
+			void listing.then(() => completed = true);
+			for (let i = 0; i < 20 && !completed; i++) {
+				await timeout(0);
+			}
+			const completedBeforeRefresh = completed;
+			refreshGate.complete();
+			const listed = await listing;
+
+			assert.deepStrictEqual({
+				completedBeforeRefresh,
+				sessions: listed.map(item => item.session.toString()),
+			}, {
+				completedBeforeRefresh: true,
+				sessions: [session.toString()],
 			});
 		});
 
@@ -2946,7 +3005,7 @@ suite('AgentService (node dispatcher)', () => {
 			// set, but nothing has ever written a per-provider marker (that
 			// concept did not exist yet), and there are no tombstones.
 			await db.markSessionRegistryBackfilled();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new ChatListChangeAgent('copilot'));
 			svc.registerProvider(agent);
 
@@ -3404,6 +3463,51 @@ suite('AgentService (node dispatcher)', () => {
 				before: linkedCheckout.toString(),
 				after: primaryRoot.toString(),
 				persistedRepositoryRoot: primaryRoot.toString(),
+			});
+		});
+
+		test('restoreSession recognizes an external linked worktree without persisted metadata', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/codex');
+			const sessionWorktree = URI.file('/home/user/.codex/worktrees/4b6d/codex');
+			const agent = new MockAgent('codex');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree], project: undefined };
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sessionWorktree;
+			gitService.getWorktreeRoots = async () => [primaryRoot, sessionWorktree];
+			gitService.getCurrentBranch = async () => undefined;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			svc.registerProvider(agent);
+			const { session } = await createAgentSession(agent);
+			agent.sessionMessages = [];
+
+			await svc.restoreSession(session);
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				isolation: svc.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation],
+				project: listed[0].project && { uri: listed[0].project.uri.toString(), displayName: listed[0].project.displayName },
+				workingDirectory: listed[0].workingDirectories?.[0].toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				persistedBranch: await db.getMetadata('copilot.worktree.branchName'),
+				persistedPath: await db.getMetadata('copilot.worktree.path'),
+			}, {
+				isolation: 'folder',
+				project: { uri: primaryRoot.toString(), displayName: 'codex' },
+				workingDirectory: sessionWorktree.toString(),
+				persistedRepositoryRoot: primaryRoot.toString(),
+				persistedBranch: undefined,
+				persistedPath: undefined,
 			});
 		});
 
@@ -4267,7 +4371,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -5079,7 +5183,7 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.getSessionCustomizations = async () => {
 				getSessionCustomizationsCalls++;
 				return [
-					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill', enabled: true },
+					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill' },
 				];
 			};
 
@@ -5091,7 +5195,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(customizations?.[0]?.type, CustomizationType.Plugin);
 			assert.strictEqual(customizations?.[0]?.name, 'Restore Skill');
 			assert.strictEqual(customizations?.[0]?.id, customizationId('file:///restore-skill'));
-			assert.strictEqual(customizations?.[0]?.enabled, true);
+			assert.strictEqual(isCustomizationEnabled(customizations?.[0] ?? {}), true);
 		});
 
 		test('clears failed restore attempts so sessions can be retried', async () => {
@@ -9130,6 +9234,76 @@ suite('AgentService (node dispatcher)', () => {
 
 			const persisted = await sessionDb.getMetadata('configValues');
 			assert.strictEqual(persisted, undefined);
+		});
+
+		test('restoreSession defaults an external folder session with persisted config to folder isolation', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => workingDirectory;
+			gitService.revParse = async () => 'head';
+			gitService.getCurrentBranch = async () => 'main';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			const localAgent = new MockAgent('codex');
+			localAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], project: undefined };
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			localService.registerProvider(localAgent);
+
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
+			const { session } = await createAgentSession(localAgent);
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await localService.restoreSession(session);
+
+			const values = localService.stateManager.getSessionState(session.toString())?.config?.values;
+			assert.deepStrictEqual({
+				isolation: values?.[SessionConfigKey.Isolation],
+				autoApprove: values?.autoApprove,
+			}, {
+				isolation: 'folder',
+				autoApprove: 'autoApprove',
+			});
+		});
+
+		test('restoreSession seeds the provider model into the default chat draft', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('codex');
+			const model = { id: 'codex-model:openai:gpt-5.6-sol' };
+			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(localAgent);
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setChatDraft(URI.parse(buildDefaultChatUri(session)), {
+				text: 'unsent text',
+				origin: { kind: MessageKind.User },
+				model: { id: 'codex-model:vscode-proxy:gpt-5-mini', config: { thinkingLevel: 'medium' } },
+			});
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual(localService.stateManager.getDefaultChatState(session.toString())?.draft, {
+				text: 'unsent text',
+				origin: { kind: MessageKind.User },
+				model,
+			});
 		});
 
 		test('restoreSession overlays persisted config values onto the resolved config', async () => {

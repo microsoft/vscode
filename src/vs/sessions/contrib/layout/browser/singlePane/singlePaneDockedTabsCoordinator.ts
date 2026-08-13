@@ -61,21 +61,21 @@ export interface IManagedTabsTarget {
 export interface IReconcileTrigger {
 	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
 	readonly openDefaultsIfEmpty?: boolean;
-	/** The active session resource changed, so session defaults may be restored without affecting same-session dismissals. */
-	readonly sessionSwitch?: boolean;
 	/** Ensure the Changes tab, inactive, when a new-session view becomes eligible or finishes restoring. */
 	readonly ensureChanges?: boolean;
 	/** Ensure the Changes tab, opened **active**, even in a non-empty group — new-session submit (so the detail panel maps to Changes rather than the still-present Files placeholder). */
 	readonly ensureChangesActive?: boolean;
+	/** A saved working set finished restoring for the active session. */
+	readonly workingSetRestored?: boolean;
 }
 
 /** OR-combines two triggers so accumulated intents are never dropped when reconciles are coalesced. */
 function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTrigger {
 	return {
 		openDefaultsIfEmpty: a.openDefaultsIfEmpty || b.openDefaultsIfEmpty,
-		sessionSwitch: a.sessionSwitch || b.sessionSwitch,
 		ensureChanges: a.ensureChanges || b.ensureChanges,
 		ensureChangesActive: a.ensureChangesActive || b.ensureChangesActive,
+		workingSetRestored: a.workingSetRestored || b.workingSetRestored,
 	};
 }
 
@@ -106,6 +106,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	private _generation = 0;
 	private _lastSyncedSessionKey: string | undefined;
+	private _preserveMissingFilesForSessionKey: string | undefined;
+	private _filesTabDismissed = false;
+	private _changingFilesInternally = false;
 
 	// The pending reconcile intents, **scoped to the session they were queued for**. Multiple
 	// triggers can fire for one logical event on the same session (e.g. submit fires the
@@ -146,13 +149,12 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// Existing, and Quick Chat alike — a quick chat's target wants neither tab, so this
 		// reconciles any stray managed tabs away). The New/Existing-specific "ensure the
 		// Changes tab" nuances are supplied by those strategies via `queueReconcile`.
-		let previousSessionKey: string | undefined;
 		this._register(autorun(reader => {
 			const target = this._readTarget(reader);
-			const sessionKey = this._sessionsService.activeSession.read(reader)?.resource.toString();
-			const sessionSwitch = previousSessionKey !== undefined && previousSessionKey !== sessionKey;
-			previousSessionKey = sessionKey;
-			this.queueReconcile(target, { openDefaultsIfEmpty: true, sessionSwitch });
+			if (!target.wantsChangesTab) {
+				this._filesTabDismissed = false;
+			}
+			this.queueReconcile(target, { openDefaultsIfEmpty: true });
 		}));
 
 		// [Ambient trigger] The user opened the side pane.
@@ -180,7 +182,7 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 			const session = this._sessionsService.activeSession.get();
 			const target = this._readTarget(undefined);
 			const ensureChanges = target.wantsChangesTab && session?.isCreated.get() === false;
-			this.queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges });
+			this.queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, workingSetRestored: true });
 		}));
 
 		// [Tidy strip] Opening a real workspace file makes the empty Files placeholder
@@ -192,6 +194,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		// `onWillOpenEditor` while the editor is already in the group), when it targets a
 		// non-main-part group, or during a restore-driven open.
 		this._register(this._editorService.onWillOpenEditor(e => {
+			if (e.editor instanceof EmptyFileEditorInput && !this._changingFilesInternally && !this._ctx.isRestoringSessionLayout) {
+				this._filesTabDismissed = false;
+			}
 			if (this._ctx.isRestoringSessionLayout || !this._isWorkspaceFileEditor(e.editor)) {
 				return;
 			}
@@ -200,6 +205,15 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 				return;
 			}
 			void this._sequencer.queue(() => this._removeFilesTab(this._editorGroupsService.mainPart.activeGroup)).catch(onUnexpectedError);
+		}));
+		this._register(this._editorService.onDidCloseEditor(e => {
+			if (e.editor instanceof EmptyFileEditorInput
+				&& !this._changingFilesInternally
+				&& !this._ctx.isRestoringSessionLayout
+				&& !this._layoutService.isEditorPartAutoVisibilitySuppressed()
+				&& this._readTarget(undefined).wantsChangesTab) {
+				this._filesTabDismissed = true;
+			}
 		}));
 
 		// [Editor-area collapse] When the editor area is hidden **while the detail panel (aux
@@ -253,6 +267,11 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	getChangesEditorResource(editor: EditorInput): URI | undefined {
 		const resource = editor.resource;
 		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
+	}
+
+	prepareWorkingSetRestore(hasSavedWorkingSet: boolean): void {
+		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		this._preserveMissingFilesForSessionKey = hasSavedWorkingSet && this._filesTabDismissed ? sessionKey : undefined;
 	}
 
 	// --- Trigger plumbing (called by the New/Existing lifecycle strategies) -----------------
@@ -329,19 +348,26 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 				return;
 			}
 			this._updateFilesEditors(group, target.workspace);
+			const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+			const preserveMissingFiles = !!trigger.workingSetRestored && this._preserveMissingFilesForSessionKey === sessionKey;
+			if (preserveMissingFiles) {
+				await this._removeFilesTab(group);
+				if (generation !== this._generation) {
+					return;
+				}
+			}
 
 			// [2] Decide which docked inputs to open, from the trigger + group state.
 			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
-			const onlyManagedEditors = group.editors.every(editor => editor instanceof DockedEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
 			const activateChanges = !!trigger.ensureChangesActive && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
 			const ensureAllInputs = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 				&& !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 
 			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs || trigger.ensureChanges)));
-			const openFiles = target.wantsFilesTab && !filesPresent && (openIntoEmpty || ensureAllInputs || (trigger.sessionSwitch && onlyManagedEditors));
+			const openFiles = target.wantsFilesTab && !filesPresent && !preserveMissingFiles && (openIntoEmpty || ensureAllInputs);
 			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
 			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
 
@@ -370,6 +396,9 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 		} finally {
 			suppression.dispose();
 			if (generation === this._generation) {
+				if (trigger.workingSetRestored) {
+					this._preserveMissingFilesForSessionKey = undefined;
+				}
 				this._updateAddTabContexts(target);
 			}
 		}
@@ -402,9 +431,12 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 
 	private async _openFilesTab(group: IEditorGroup, workspace: ISessionWorkspace | undefined): Promise<void> {
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		this._changingFilesInternally = true;
 		try {
 			await this._editorService.openEditor(this._instantiationService.createInstance(EmptyFileEditorInput, workspace), FILES_TAB_OPTIONS, group);
+			this._filesTabDismissed = false;
 		} finally {
+			this._changingFilesInternally = false;
 			suppression.dispose();
 		}
 	}
@@ -412,7 +444,12 @@ export class SinglePaneDockedTabsCoordinator extends Disposable {
 	private async _removeFilesTab(group: IEditorGroup): Promise<void> {
 		const placeholder = group.editors.find((editor): editor is EmptyFileEditorInput => editor instanceof EmptyFileEditorInput);
 		if (placeholder) {
-			await this._closeManagedEditors(group, [placeholder]);
+			this._changingFilesInternally = true;
+			try {
+				await this._closeManagedEditors(group, [placeholder]);
+			} finally {
+				this._changingFilesInternally = false;
+			}
 		}
 	}
 
