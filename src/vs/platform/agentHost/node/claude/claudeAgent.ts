@@ -21,7 +21,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { buildSideChatSourceContext, prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
+import { buildSideChatSourceContext, prepareSideChatPrompt, sliceSideChatTurns } from '../agentPeerChats.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
@@ -1928,7 +1928,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
 		const sideChat = this._chatBackings.get(context.chatKey)?.sideChat;
-		return stripSideChatContext(turns.slice(sideChat?.inheritedTurnCount ?? 0), sideChat);
+		return sliceSideChatTurns(turns, sideChat, message => this._logService.warn(`[Claude] getMessages: chat ${context.chatKey}: ${message}`));
 	}
 
 	/**

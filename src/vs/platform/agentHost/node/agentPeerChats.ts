@@ -92,7 +92,7 @@ export function injectSideChatContext(prompt: string, partialResponse?: string, 
 }
 
 export function prepareSideChatPrompt(prompt: string, turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): string {
-	if (!sideChat || turns.length > sideChat.inheritedTurnCount) {
+	if (!sideChat || turns.length > resolveSideChatBoundary(turns, sideChat)) {
 		return prompt;
 	}
 	const selectedSourceTurn = turns.find(turn => turn.id === sideChat.turnId);
@@ -118,14 +118,9 @@ function buildSideChatContextBlock(message: string, response: string | undefined
 		: `User request:\n${userText}`;
 }
 
-export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
-	if (!sideChat || turns.length === 0) {
-		return turns;
-	}
-	const first = turns[0];
-	const text = first.message.text;
+function parseSideChatSeed(text: string): string | undefined {
 	if (!text.startsWith(SIDE_CHAT_CONTEXT_START)) {
-		return turns;
+		return undefined;
 	}
 	const lengthHeaderStart = SIDE_CHAT_CONTEXT_START.length + 1;
 	if (text.slice(lengthHeaderStart).startsWith(SIDE_CHAT_CONTEXT_LENGTH_PREFIX)) {
@@ -137,17 +132,70 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 			const contextStart = lengthLineEnd + 1;
 			const contextEnd = contextStart + parsedLength;
 			if (text.slice(contextEnd, contextEnd + SIDE_CHAT_CONTEXT_END.length + 1) === `\n${SIDE_CHAT_CONTEXT_END}`) {
-				const userPrompt = text.slice(contextEnd + SIDE_CHAT_CONTEXT_END.length + 1).trimStart();
-				return [{ ...first, message: { ...first.message, text: userPrompt } }, ...turns.slice(1)];
+				return text.slice(contextEnd + SIDE_CHAT_CONTEXT_END.length + 1).trimStart();
 			}
 		}
 	}
 	const endIndex = text.lastIndexOf(SIDE_CHAT_CONTEXT_END);
-	if (endIndex < 0) {
+	return endIndex < 0 ? undefined : text.slice(endIndex + SIDE_CHAT_CONTEXT_END.length).trimStart();
+}
+
+export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): readonly Turn[] {
+	if (!sideChat || turns.length === 0) {
 		return turns;
 	}
-	const userPrompt = text.slice(endIndex + SIDE_CHAT_CONTEXT_END.length).trimStart();
+	const first = turns[0];
+	const userPrompt = parseSideChatSeed(first.message.text);
+	if (userPrompt === undefined) {
+		return turns;
+	}
 	return [{ ...first, message: { ...first.message, text: userPrompt } }, ...turns.slice(1)];
+}
+
+/**
+ * Resolves the first turn owned by a side chat. The persisted count is a
+ * fork-time hint and fallback for an unseeded chat, while the seed marker is
+ * the authoritative boundary once present so a drifted count cannot hide turns.
+ */
+export function resolveSideChatBoundary(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined): number {
+	if (!sideChat) {
+		return 0;
+	}
+
+	const recorded = Math.min(Math.max(sideChat.inheritedTurnCount ?? 0, 0), turns.length);
+	const seeds: number[] = [];
+	for (let i = 0; i < turns.length; i++) {
+		if (parseSideChatSeed(turns[i].message.text) !== undefined) {
+			seeds.push(i);
+		}
+	}
+
+	if (seeds.includes(recorded)) {
+		return recorded;
+	}
+	const seedBeforeRecorded = seeds.find(seed => seed < recorded);
+	if (seedBeforeRecorded !== undefined) {
+		return seedBeforeRecorded;
+	}
+	const seedAfterRecorded = seeds.find(seed => seed > recorded);
+	return seedAfterRecorded ?? recorded;
+}
+
+/**
+ * Returns a side chat's own turns, using its self-describing seed marker to
+ * correct a stale persisted inherited-turn count when necessary.
+ */
+export function sliceSideChatTurns(turns: readonly Turn[], sideChat: IPersistedSideChat | undefined, onMisaligned?: (message: string) => void): readonly Turn[] {
+	if (!sideChat) {
+		return turns;
+	}
+
+	const recorded = Math.min(Math.max(sideChat.inheritedTurnCount ?? 0, 0), turns.length);
+	const boundary = resolveSideChatBoundary(turns, sideChat);
+	if (boundary !== recorded) {
+		onMisaligned?.(`Side chat inherited turn count misaligned: recorded ${recorded}, resolved ${boundary}.`);
+	}
+	return stripSideChatContext(turns.slice(boundary), sideChat);
 }
 
 /**

@@ -7306,13 +7306,11 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, AgentSession.id(session), source.fake, defaultChatUri(session));
 				const internals = agent as unknown as ChatInternals;
 				internals._forkSdkChat = async () => ({ sessionId: 'side-sdk-id', inheritedTurnCount: 1 });
-				let messageReadCount = 0;
 				let sideRecorder: IFakeChatRecorder | undefined;
 				internals._createAgentSession = launchPlan => {
-					const side = makeFakeChatSession(session, launchPlan.sessionId, async () => {
-						messageReadCount++;
-						return messageReadCount <= 2 ? [sourceTurn] : [sourceTurn, sideTurn];
-					}, launchPlan.shellManager);
+					const side = makeFakeChatSession(session, launchPlan.sessionId, async () => (
+						sideRecorder && sideRecorder.sends.length > 0 ? [sourceTurn, sideTurn] : [sourceTurn]
+					), launchPlan.shellManager);
 					sideRecorder = side.rec;
 					return side.fake;
 				};
@@ -7394,13 +7392,11 @@ suite('CopilotAgent', () => {
 					forkTurnId = turnId;
 					return { sessionId: 'side-sdk-id', inheritedTurnCount: 1 };
 				};
-				let messageReadCount = 0;
 				let sideRecorder: IFakeChatRecorder | undefined;
 				internals._createAgentSession = launchPlan => {
-					const side = makeFakeChatSession(session, launchPlan.sessionId, async () => {
-						messageReadCount++;
-						return messageReadCount <= 2 ? [sourceTurn] : [sourceTurn, sideTurn];
-					}, launchPlan.shellManager);
+					const side = makeFakeChatSession(session, launchPlan.sessionId, async () => (
+						sideRecorder && sideRecorder.sends.length > 0 ? [sourceTurn, sideTurn] : [sourceTurn]
+					), launchPlan.shellManager);
 					sideRecorder = side.rec;
 					return side.fake;
 				};
