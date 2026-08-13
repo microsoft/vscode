@@ -7,6 +7,7 @@ import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey } from '../../../../../base/common/resources.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
@@ -114,45 +115,68 @@ export async function migrateCustomizations(
 	const migratedCustomizations: IMigratedCustomization[] = [];
 	let migratedCount = 0;
 	const deleteOriginalFiles = options?.deleteOriginalFiles ?? true;
+	const customizationsBySource = new ResourceMap<IPromptPath[]>();
 
 	for (const customization of customizations) {
-		const targetType = getCustomizationMigrationTargetType(customization);
+		const sourceCustomizations = customizationsBySource.get(customization.uri) ?? [];
+		sourceCustomizations.push(customization);
+		customizationsBySource.set(customization.uri, sourceCustomizations);
+	}
+
+	for (const sourceCustomizations of customizationsBySource.values()) {
+		const sourceCustomization = sourceCustomizations[0];
+		const writtenTargetUris: URI[] = [];
+		const migratedSourceCustomizations: IMigratedCustomization[] = [];
+		const sourceUnsupportedHeaderKeys = new Set<string>();
 
 		try {
-			const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
-			if (!targetFolder) {
-				throw new Error(`No ${targetType} target folder is configured for ${customization.storage} customizations.`);
-			}
-
-			const content = (await fileService.readFile(customization.uri)).value.toString();
-			let targetUri: URI;
-			let migratedContent = content;
-			if (customization.type === PromptsType.prompt) {
-				const migratedPrompt = migratePromptFileToSkill(customization, content);
-				const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
-				const skillName = await getAvailableMigratedSkillName(targetFolder.uri, migratedPrompt.skillName, reservedNamesForFolder, fileService);
-				const migratedSkill = skillName === migratedPrompt.skillName ? migratedPrompt : migratePromptFileToSkill(customization, content, skillName);
-				for (const key of migratedSkill.unsupportedHeaderKeys) {
-					unsupportedHeaderKeys.add(key);
+			const content = (await fileService.readFile(sourceCustomization.uri)).value.toString();
+			for (const customization of sourceCustomizations) {
+				const targetType = getCustomizationMigrationTargetType(customization);
+				const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
+				if (!targetFolder) {
+					throw new Error(`No ${targetType} target folder is configured for ${customization.storage} customizations.`);
 				}
-				targetUri = createSkillFileUri(targetFolder.uri, skillName);
-				migratedContent = migratedSkill.content;
-			} else {
-				const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedFileNames);
-				targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);
+
+				let targetUri: URI;
+				let migratedContent = content;
+				if (customization.type === PromptsType.prompt) {
+					const migratedPrompt = migratePromptFileToSkill(customization, content);
+					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
+					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, migratedPrompt.skillName, reservedNamesForFolder, fileService);
+					const migratedSkill = skillName === migratedPrompt.skillName ? migratedPrompt : migratePromptFileToSkill(customization, content, skillName);
+					for (const key of migratedSkill.unsupportedHeaderKeys) {
+						sourceUnsupportedHeaderKeys.add(key);
+					}
+					targetUri = createSkillFileUri(targetFolder.uri, skillName);
+					migratedContent = migratedSkill.content;
+				} else {
+					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedFileNames);
+					targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);
+				}
+
+				await fileService.createFolder(targetFolder.uri);
+				await fileService.createFolder(dirname(targetUri));
+				writtenTargetUris.push(targetUri);
+				await fileService.writeFile(targetUri, VSBuffer.fromString(migratedContent));
+				migratedSourceCustomizations.push({ uri: targetUri, type: targetType });
 			}
 
-			await fileService.createFolder(targetFolder.uri);
-			await fileService.createFolder(dirname(targetUri));
-			await fileService.writeFile(targetUri, VSBuffer.fromString(migratedContent));
 			if (deleteOriginalFiles) {
-				await fileService.del(customization.uri);
+				await fileService.del(sourceCustomization.uri);
 			}
-			migratedCustomizations.push({ uri: targetUri, type: targetType });
-			migratedCount++;
+			for (const key of sourceUnsupportedHeaderKeys) {
+				unsupportedHeaderKeys.add(key);
+			}
+			migratedCustomizations.push(...migratedSourceCustomizations);
+			migratedCount += migratedSourceCustomizations.length;
 		} catch (error) {
-			failedCustomizationFileNames.push(basename(customization.uri));
-			onMigrationError?.(error instanceof Error ? error : new Error(String(error)));
+			const migrationError = error instanceof Error ? error : new Error(String(error));
+			const rollbackErrors = await rollbackMigrationTargets(writtenTargetUris, fileService);
+			failedCustomizationFileNames.push(basename(sourceCustomization.uri));
+			onMigrationError?.(rollbackErrors.length > 0
+				? new AggregateError([migrationError, ...rollbackErrors], `Failed to migrate and roll back ${basename(sourceCustomization.uri)}`)
+				: migrationError);
 		}
 	}
 
@@ -162,6 +186,21 @@ export async function migrateCustomizations(
 		unsupportedHeaderKeys: Array.from(unsupportedHeaderKeys).sort(),
 		migratedCustomizations,
 	};
+}
+
+async function rollbackMigrationTargets(targetUris: readonly URI[], fileService: IFileService): Promise<Error[]> {
+	const errors: Error[] = [];
+	for (let index = targetUris.length - 1; index >= 0; index--) {
+		const targetUri = targetUris[index];
+		try {
+			if (await fileService.exists(targetUri)) {
+				await fileService.del(targetUri);
+			}
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+	return errors;
 }
 
 function getOrCreateReservedNames(folder: URI, reservedNames: Map<string, Set<string>>): Set<string> {

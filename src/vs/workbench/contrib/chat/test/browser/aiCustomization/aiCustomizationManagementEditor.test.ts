@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
@@ -45,7 +45,7 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationBannerContainer: HTMLElement | undefined;
 		migrationLinkElement: HTMLAnchorElement | undefined;
 		migrationSearchQuery: string;
-		selectedCustomizationMigrationUris: ResourceSet;
+		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		collapsedCustomizationMigrationGroups: Set<string>;
 		migrationPageDisposables: DisposableStore;
 		labelService: { getUriLabel(uri: URI, options?: { relative?: boolean }): string };
@@ -60,6 +60,9 @@ suite('aiCustomizationManagementEditor', () => {
 		onStructuredPreviewSettingChanged(): void;
 		refreshCustomizationMigrationUi(): void;
 		renderCustomizationMigrationPage(): void;
+		setCustomizationsToMigrate(candidates: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>): void;
+		isCustomizationSelectedForMigration(customization: IPromptPath): boolean;
+		setCustomizationSelectedForMigration(customization: IPromptPath, selected: boolean): void;
 		updateContentVisibility(): void;
 		setVisible(visible: boolean): void;
 	};
@@ -102,7 +105,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationBannerContainer = undefined;
 		editor.migrationLinkElement = undefined;
 		editor.migrationSearchQuery = '';
-		editor.selectedCustomizationMigrationUris = new ResourceSet();
+		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.collapsedCustomizationMigrationGroups = new Set();
 		editor.migrationPageDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.labelService = {
@@ -267,6 +270,43 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
+	test('tracks migration selection by URI and storage', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const sharedUri = URI.file('/home/user/shared.prompt.md');
+		const workspacePrompt: IPromptPath = {
+			uri: sharedUri,
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.ConfigWorkspace,
+		};
+		const userPrompt: IPromptPath = {
+			uri: sharedUri,
+			storage: PromptsStorage.user,
+			type: PromptsType.prompt,
+			source: PromptFileSource.ConfigPersonal,
+		};
+		const candidates = new Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>([
+			[CustomizationMigrationCategoryId.PromptFiles, [workspacePrompt, userPrompt]],
+		]);
+
+		editor.setCustomizationsToMigrate(candidates);
+		editor.setCustomizationSelectedForMigration(workspacePrompt, false);
+		editor.setCustomizationsToMigrate(candidates);
+
+		assert.deepStrictEqual({
+			workspaceSelected: editor.isCustomizationSelectedForMigration(workspacePrompt),
+			userSelected: editor.isCustomizationSelectedForMigration(userPrompt),
+			selectedStorages: [...(editor.selectedCustomizationMigrationItems.get(sharedUri) ?? [])],
+		}, {
+			workspaceSelected: false,
+			userSelected: true,
+			selectedStorages: [PromptsStorage.user],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
 	test('user data migration banner states the Settings Sync trade-off and replaces the description', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
@@ -301,7 +341,7 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMigrationCategoryId.UserData, userDataCustomizations],
 			[CustomizationMigrationCategoryId.PromptFiles, promptFiles],
 		]);
-		editor.selectedCustomizationMigrationUris = new ResourceSet();
+		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.migrationListContainer = document.createElement('div');
 		editor.migrationTitleElement = document.createElement('h2');
 		editor.migrationDescriptionElement = document.createElement('p');
@@ -348,6 +388,48 @@ suite('aiCustomizationManagementEditor', () => {
 		}
 	});
 
+	test('opens a migration candidate through its native button', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
+		}));
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const openedItems: unknown[][] = [];
+		editor.showEmbeddedEditor = async (...args: unknown[]) => { openedItems.push(args); };
+		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, [promptFile]]]);
+		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
+		editor.migrationListContainer = document.createElement('div');
+		editor.migrationMigrateButton = { enabled: false, label: '' };
+		document.body.appendChild(editor.migrationListContainer);
+
+		try {
+			editor.renderCustomizationMigrationPage();
+			const openButton = editor.migrationListContainer.querySelector<HTMLButtonElement>('.prompt-migration-open-button');
+			openButton?.click();
+
+			assert.deepStrictEqual({
+				tagName: openButton?.tagName,
+				type: openButton?.type,
+				ariaLabel: openButton?.getAttribute('aria-label'),
+				openedItems,
+			}, {
+				tagName: 'BUTTON',
+				type: 'button',
+				ariaLabel: 'Open Review',
+				openedItems: [[promptFile.uri, 'Review', PromptsType.prompt, PromptsStorage.local, true]],
+			});
+		} finally {
+			editor.migrationListContainer.remove();
+			editor.migrationPageDisposables.dispose();
+			editor.editorPreviewDisposables.dispose();
+		}
+	});
+
 	test('customization migration groups can be collapsed independently', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
@@ -384,7 +466,9 @@ suite('aiCustomizationManagementEditor', () => {
 		];
 		editor.customizationsByMigrationCategory = new Map([[CustomizationMigrationCategoryId.PromptFiles, promptFiles]]);
 		editor.activeMigrationCategoryId = CustomizationMigrationCategoryId.PromptFiles;
-		editor.selectedCustomizationMigrationUris = new ResourceSet(promptFiles.map(file => file.uri));
+		for (const promptFile of promptFiles) {
+			editor.setCustomizationSelectedForMigration(promptFile, true);
+		}
 		editor.migrationListContainer = document.createElement('div');
 		editor.migrationTitleElement = document.createElement('h2');
 		editor.migrationDescriptionElement = document.createElement('p');

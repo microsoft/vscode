@@ -1025,6 +1025,7 @@
 
 .ai-customization-management-editor .prompt-migration-item {
 	gap: 8px;
+	cursor: default;
 }
 
 .ai-customization-management-editor .prompt-migration-checkbox {
@@ -1038,6 +1039,21 @@
 
 .ai-customization-management-editor .prompt-migration-item .item-left {
 	gap: 8px;
+}
+
+.ai-customization-management-editor .prompt-migration-open-button {
+	all: unset;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+	cursor: pointer;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.ai-customization-management-editor .prompt-migration-open-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .ai-customization-management-editor .prompt-migration-item .icon-button {
