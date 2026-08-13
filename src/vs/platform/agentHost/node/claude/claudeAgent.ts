@@ -1120,7 +1120,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _makeCanUseTool(sdkSessionId: string, configurationResource: URI): NonNullable<Options['canUseTool']> {
 		return (toolName, input, options) =>
 			handleCanUseTool(
-				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, configurationResource, serverToolHost: this._serverToolHost },
+				{
+					getSession: id => this._findSessionBySdkId(id),
+					configurationService: this._configurationService,
+					configurationResource,
+					serverToolHost: this._serverToolHost,
+				},
 				sdkSessionId, toolName, input, options,
 			);
 	}

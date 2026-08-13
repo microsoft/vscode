@@ -42,7 +42,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
-import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -720,8 +720,6 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 	/** Session database reference. */
 	private readonly _databaseRef: IReference<ISessionDatabase>;
-	/** On-disk root for per-session data (database, attachments, …). */
-	private readonly _sessionDataDir: URI;
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
 	 * when the session is idle (no active turn). Replaces the former set of
@@ -900,7 +898,7 @@ export class CopilotAgentSession extends Disposable {
 		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@ISessionDataService sessionDataService: ISessionDataService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
@@ -943,10 +941,8 @@ export class CopilotAgentSession extends Disposable {
 		this._activeClientToolSet = options.activeClientToolSet ?? new ActiveClientToolSet();
 		this._clientReachesChat = options.clientReachesChat ?? (() => true);
 
-		this._databaseRef = sessionDataService.openDatabase(this._storageUri);
+		this._databaseRef = this._sessionDataService.openDatabase(this._storageUri);
 		this._register(toDisposable(() => this._databaseRef.dispose()));
-		this._sessionDataDir = sessionDataService.getSessionDataDir(this._storageUri);
-
 		this._editTracker = this._instantiationService.createInstance(
 			FileEditTracker,
 			this._storageUri.toString(),
@@ -2717,20 +2713,6 @@ export class CopilotAgentSession extends Disposable {
 				return { kind: 'approve-once' };
 			}
 
-			// Auto-approve reads of files under the session's attachments
-			// directory. The agent host writes user-message attachments
-			// (pasted images, snapshotted client-side files, etc.) there
-			// before dispatching the turn; the agent ends up needing to
-			// read those same files back, and prompting the user to
-			// approve a read of bytes they themselves attached is
-			// redundant.
-			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string'
-				&& this._isSessionAttachmentPath(request.path)
-			) {
-				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving session attachment ${request.path}`);
-				return { kind: 'approve-once' };
-			}
-
 			// Auto-approve reads of large-tool-output temp files written by the
 			// Copilot SDK itself. The SDK spills oversized tool results to
 			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
@@ -2912,19 +2894,6 @@ export class CopilotAgentSession extends Disposable {
 
 		const permissionUri = normalizePath(URI.file(permissionPath));
 		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
-	}
-
-	/**
-	 * Returns true when `permissionPath` lives under this session's
-	 * `<sessionDataDir>/attachments` directory — i.e. the bytes were
-	 * written by the agent host's user-message attachment rewriter and so
-	 * are already user-supplied content that does not need to be
-	 * re-confirmed via a permission prompt.
-	 */
-	private _isSessionAttachmentPath(permissionPath: string): boolean {
-		const attachmentsDir = normalizePath(URI.joinPath(this._sessionDataDir, SESSION_ATTACHMENTS_DIRNAME));
-		const permissionUri = normalizePath(URI.file(permissionPath));
-		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, attachmentsDir);
 	}
 
 	/**
