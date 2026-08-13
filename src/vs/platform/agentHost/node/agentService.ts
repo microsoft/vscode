@@ -1383,7 +1383,16 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 	}
-	async listSessions(mode = this._externalSessionsMode, preferLiveState = false, preferDiscoveredMetadata = false): Promise<IAgentSessionMetadata[]> {
+	async listSessions(): Promise<IAgentSessionMetadata[]> {
+		return this._listSessions({ mode: this._externalSessionsMode });
+	}
+
+	private async _listSessions(options: {
+		readonly mode: AgentHostExternalSessionsMode;
+		readonly preferLiveState?: boolean;
+		readonly preferDiscoveredMetadata?: boolean;
+	}): Promise<IAgentSessionMetadata[]> {
+		const { mode, preferLiveState = false, preferDiscoveredMetadata = false } = options;
 		this._logService.trace('[AgentService] listSessions called');
 		// The first list waits for registration-time discovery if it is still in flight.
 		await this._awaitInitialProviderDiscovery();
@@ -1664,7 +1673,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
 		const previouslyBroadcast = new Map(this._broadcastExternalSessions);
 		if (previouslyBroadcast.size === 0 && previousMode !== undefined) {
-			for (const session of await this.listSessions(previousMode, true, true)) {
+			for (const session of await this._listSessions({ mode: previousMode, preferLiveState: true, preferDiscoveredMetadata: true })) {
 				if (readSessionExternal(session._meta)) {
 					const key = session.session.toString();
 					previouslyBroadcast.set(key, session);
@@ -1672,7 +1681,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		const listed = await this.listSessions(this._externalSessionsMode, true, true);
+		const listed = await this._listSessions({ mode: this._externalSessionsMode, preferLiveState: true, preferDiscoveredMetadata: true });
 		const listedKeys = new Set(listed.map(session => session.session.toString()));
 		const visible = new Map<string, IAgentSessionMetadata>();
 		for (const session of listed) {
