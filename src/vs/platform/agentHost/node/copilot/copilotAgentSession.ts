@@ -946,15 +946,16 @@ export class CopilotAgentSession extends Disposable {
 			this._databaseRef.object,
 		);
 
+		const pluginMcpServerSources = new Map((options.clientSnapshot?.plugins ?? []).flatMap(plugin => {
+			const sourceUri = plugin.sourceUri;
+			return sourceUri === undefined ? [] : plugin.mcpServers.map(server => [server.name, sourceUri.toString()] as const);
+		}));
 		this._mcpCustomizations = this._register(this._instantiationService.createInstance(McpCustomizationController, {
 			providerId: this.resourceUri.scheme,
 			sessionId: this.sessionId,
 			sessionUri: this.resourceUri,
 			emit: action => this._emitAction(action),
-			pluginMcpServerSources: new Map((options.clientSnapshot?.plugins ?? []).flatMap(plugin => {
-				const sourceUri = plugin.sourceUri;
-				return sourceUri === undefined ? [] : plugin.mcpServers.map(server => [server.name, sourceUri.toString()] as const);
-			})),
+			pluginMcpServerSources: () => pluginMcpServerSources,
 			resolveEnablement: (server, owningPluginUri) => {
 				const resolution = this._customizationEnablementService.resolve(this._ownerSessionUri.toString(), targetForMcpServer(server, owningPluginUri, false));
 				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
