@@ -226,7 +226,7 @@ export interface ITestLayoutHarness {
 	 * tests to simulate external visibility changes (e.g. the single-pane detail
 	 * panel) while `_isRestoringSessionLayout` is true.
 	 */
-	onApplyWorkingSet?: () => void;
+	onApplyWorkingSet?: (workingSet: IEditorWorkingSet | 'empty') => void;
 	/**
 	 * Optional async hook awaited at the start of `openChangesEditor`, letting a
 	 * test pause a managed-tab reconcile mid-open (e.g. to switch sessions and
@@ -675,7 +675,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
-			harness.onApplyWorkingSet?.();
+			harness.onApplyWorkingSet?.(workingSet);
 			return true;
 		}
 		override deleteWorkingSet() { }
