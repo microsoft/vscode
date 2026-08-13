@@ -19,6 +19,14 @@ const CHAT_PET_DEFAULT_SCALE = 1;
 
 export type ChatPetVariant = 'stable' | 'insiders';
 
+export interface IChatPetActivity {
+	readonly hasActiveRequest: boolean;
+	readonly needsInput: boolean;
+	readonly hasInput: boolean;
+	readonly completionToken?: string;
+	readonly sessionResource?: string;
+}
+
 type ChatPetEnablementEvent = {
 	enabled: boolean;
 	source: 'startup' | 'change';

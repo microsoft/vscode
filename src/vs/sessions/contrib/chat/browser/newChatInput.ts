@@ -112,6 +112,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { DictationDownloadRing, getDictationDownloadHoverMarkdown, getDictationPreparingLabel } from '../../../../workbench/contrib/chat/browser/speechToText/dictationDownloadRing.js';
 import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ChatPetWidget } from '../../../../workbench/contrib/chat/browser/widget/chatPetWidget.js';
+import { IChatPetHostService } from '../../../../workbench/contrib/chat/browser/chatPetHostService.js';
 import { IVoiceModeOnboardingService } from '../../../../workbench/contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { AGENTS_VOICE_ENABLED } from '../../../../workbench/contrib/agentsVoice/common/agentsVoice.js';
 import { animatePromptTyping, IPromptTypingAnimation } from './promptTypingAnimation.js';
@@ -383,6 +384,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _sessionModelSelectionModel: SessionModelSelectionModel;
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
+	private readonly _hostVisible = observableValue(this, true);
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -445,6 +447,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IVoiceModeOnboardingService private readonly voiceModeOnboardingService: IVoiceModeOnboardingService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IChatPetHostService private readonly chatPetHostService: IChatPetHostService,
 	) {
 		super();
 		this._sessionModelSelectionModel = this._register(this.instantiationService.createInstance(SessionModelSelectionModel, this.options.session));
@@ -595,7 +598,23 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
-		this._register(this.instantiationService.createInstance(ChatPetWidget, chatInputContainer, inputArea, root, constObservable(undefined), inputHasContent, constObservable(true), this._editor.onDidChangeModelContent));
+		const targetWindow = dom.getWindow(root);
+		const petHostRegistration = this._register(this.chatPetHostService.registerHost({
+			hostVisible: this._hostVisible,
+			hostPreferred: constObservable(true),
+			model: constObservable(undefined),
+			hasInput: inputHasContent,
+			getScreenBounds: () => {
+				const bounds = chatInputContainer.getBoundingClientRect();
+				return {
+					x: targetWindow.screenX + bounds.left,
+					y: targetWindow.screenY + bounds.top,
+					width: bounds.width,
+					height: bounds.height,
+				};
+			},
+		}));
+		this._register(this.instantiationService.createInstance(ChatPetWidget, chatInputContainer, inputArea, root, constObservable(undefined), inputHasContent, petHostRegistration.activity, undefined, petHostRegistration.visible, this._editor.onDidChangeModelContent));
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
@@ -604,6 +623,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const sessionTypePickerHost = dom.append(newChatControlsContainer, dom.$('.new-chat-session-type-picker-host'));
 			this.sessionTypePicker.render(sessionTypePickerHost);
 		}
+
 		const sessionControlsContainer = this._sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
 		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, sessionControlsContainer, Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -644,6 +664,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(dom.addDisposableListener(chatInputContainer, 'animationend', () => {
 			this._editor?.layout();
 		}, { once: true }));
+	}
+
+	setHostVisible(visible: boolean): void {
+		this._hostVisible.set(visible, undefined);
 	}
 
 	private _updateInputLoadingState(): void {

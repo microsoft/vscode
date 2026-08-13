@@ -19,6 +19,17 @@
 	border-color: var(--vscode-focusBorder) !important;
 }
 
+.chat-input-window.chat-pet-input-window {
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size120) var(--vscode-widget-shadow);
+}
+
+.monaco-workbench.hc-black .chat-input-window.chat-pet-input-window,
+.monaco-workbench.hc-light .chat-input-window.chat-pet-input-window {
+	border-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}
+
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;

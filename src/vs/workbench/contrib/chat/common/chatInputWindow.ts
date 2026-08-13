@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 
@@ -25,6 +26,10 @@ export const enum ChatInputWindowStorageKeys {
 }
 
 export const IChatInputWindowService = createDecorator<IChatInputWindowService>('chatInputWindowService');
+
+export type ChatPetInputTarget =
+	| { readonly kind: 'new' }
+	| { readonly kind: 'session'; readonly sessionResource: URI };
 
 export interface IChatInputWindowService {
 	readonly _serviceBrand: undefined;
@@ -58,4 +63,7 @@ export interface IChatInputWindowService {
 	 * Toggles the floating chat input window open/closed.
 	 */
 	toggleWindow(invokingWindowBounds?: IRectangle): Promise<void>;
+
+	/** Opens the voice-first input anchored to the desktop pet. */
+	openPetInput(target: ChatPetInputTarget, petBounds: IRectangle): Promise<void>;
 }

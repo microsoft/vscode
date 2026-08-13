@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
 import { localize } from '../../../../../nls.js';
@@ -55,6 +56,28 @@ export class ChatInputWindowAccessibilityHelp implements IAccessibleViewImplemen
 	}
 }
 
+export class ChatPetAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly priority = 122;
+	readonly name = 'chatPet';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ChatContextKeys.chatPetFocused;
+
+	getProvider(accessor: ServicesAccessor) {
+		return getStandaloneChatAccessibilityHelpProvider(accessor, 'chatPet');
+	}
+}
+
+export class ChatPetInputWindowAccessibilityHelp implements IAccessibleViewImplementation {
+	readonly priority = 123;
+	readonly name = 'chatPetInputWindow';
+	readonly type = AccessibleViewType.Help;
+	readonly when = ChatContextKeys.inChatPetInputWindow;
+
+	getProvider(accessor: ServicesAccessor) {
+		return getStandaloneChatAccessibilityHelpProvider(accessor, 'chatPetInputWindow');
+	}
+}
+
 export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 119;
 	readonly name = 'editsView';
@@ -75,8 +98,22 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, inputWindowEnabled: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow' | 'chatPet' | 'chatPetInputWindow', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, inputWindowEnabled: boolean = false): string {
 	const content = [];
+	if (type === 'chatPet') {
+		content.push(localize('chatPet.accessibility.overview', 'The VS Code pet is one interactive button. Press Enter or Space to interact with it.'));
+		content.push(localize('chatPet.accessibility.desktopMovement', 'On the desktop, drag the pet to move it without changing application focus.'));
+		content.push(localize('chatPet.accessibility.contextMenu', 'Open the pet context menu{0} (for example Shift+F10) to dictate in a new chat or the most recent chat, go to the selected chat, hide the pet, or change pet behavior and appearance.', '<keybinding:editor.action.showContextMenu>'));
+		content.push(localize('chatPet.accessibility.chatMovement', 'Inside chat, use the left and right arrow keys to make the pet hop. Hold Shift with either arrow to throw it toward a wall.'));
+		return content.join('\n');
+	}
+	if (type === 'chatPetInputWindow') {
+		content.push(localize('chatPetInputWindow.accessibility.overview', 'The desktop pet input sends a request to the destination chosen from the pet context menu without revealing the main VS Code window.'));
+		content.push(localize('chatPetInputWindow.accessibility.dictation', 'Dictation starts when the input opens. Edit the transcript by typing, then press Enter or use the send button to submit.'));
+		content.push(localize('chatPetInputWindow.accessibility.folder', 'When a new chat has more than one possible workspace folder, a destination picker appears inside the pet input before sending.'));
+		content.push(localize('chatPetInputWindow.accessibility.close', 'Press Escape or activate Close to dismiss the pet input. A failed send keeps the draft available.'));
+		return content.join('\n');
+	}
 	if (type === 'chatInputWindow') {
 		content.push(localize('chatInputWindow.overview', 'The floating chat input window is an input-only surface. It has no response list; instead each request you submit is routed to the coding session it best matches, and its response appears in that session rather than here.'));
 		content.push(localize('chatInputWindow.routing', 'When no existing session is a confident match, a new session is started for the request. When an existing session matches, a destination picker appears with a countdown before sending. Press Escape from the input box to cancel, or use Tab to reach the picker, the arrow keys to move, Space to select more than one destination, and Enter to send. The picker also offers starting a new session.'));
@@ -86,6 +123,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chatInputWindow.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
 		return content.join('\n');
 	}
+
 	if (type === 'panelChat' || type === 'quickChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.fileChangesDisclosure', 'File change summaries show the total files, additions, and deletions. Focus the disclosure and press Enter or Space to show or hide the individual files.'));
 	}
@@ -105,7 +143,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			}
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
-		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet above the input. Drag it around the chat with the mouse and release it to drop it, or flick it horizontally to throw it toward a wall. If it falls past the input, a despawn effect appears at the bottom and a respawn effect appears at the top before it automatically returns to the input. Moving the pointer rapidly between the pet\u2019s left and right sides makes it dizzy. With the keyboard, use Tab to focus the pet, then the left and right arrows to make it hop along the input until it reaches an edge. Hold Shift with the left or right arrow to throw it toward a wall; rapidly alternate the unmodified arrows to make it dizzy. Press Enter or Space while it is resting to interact with it. Open its context menu{0} (for example Shift+F10), use the up and down arrow keys to choose Go on the Run, Come Back, Grow, Shrink, Stable Colors, or Insiders Colors, and press Enter to activate the choice. Grow and Shrink change its size in twenty-percent steps. The selected size is shared across chats and resets when you hide the pet with /vscode-pet.', '<keybinding:editor.action.showContextMenu>'));
+		content.push(localize('chat.vscodePet', 'Type /vscode-pet to show or hide the VS Code pet. On supported desktop environments, one pet moves to the desktop whenever no visible chat owns it. Drag the desktop pet across monitors without changing application focus; its position is restored. Open its context menu{0} (for example Shift+F10) to dictate in a new or recent chat without revealing the main workbench, go to the selected chat, hide the pet, or change its behavior, size, and colors. Inside chat, drag and drop it or flick it horizontally toward a wall. Use the left and right arrows to hop, hold Shift with either arrow to throw it, and press Enter or Space to interact.', '<keybinding:editor.action.showContextMenu>'));
 		if (supportsFileReferences) {
 			content.push(localize('chat.attachments.inlineReferences', 'To mention an attached context item at a specific position without removing it from the attached context, type # or @ and select the attachment from the suggestions.'));
 			content.push(localize('chat.attachments.inlineReferenceHover', 'To inspect an inline attachment reference, place the cursor on it and invoke Show or Focus Hover{0}. Image references include a preview, while file and folder references include their path.', '<keybinding:editor.action.showHover>'));
@@ -199,6 +237,22 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	content.push(localize('chat.attachments.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 	content.push(localize('chat.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
 	return content.join('\n');
+}
+
+function getStandaloneChatAccessibilityHelpProvider(accessor: ServicesAccessor, type: 'chatPet' | 'chatPetInputWindow'): AccessibleContentProvider {
+	const focusedElement = dom.getActiveDocument().activeElement;
+	const helpText = getAccessibilityHelpText(type, accessor.get(IKeybindingService), false);
+	return new AccessibleContentProvider(
+		type === 'chatPet' ? AccessibleViewProviderId.ChatPet : AccessibleViewProviderId.ChatPetInputWindow,
+		{ type: AccessibleViewType.Help },
+		() => helpText,
+		() => {
+			if (dom.isHTMLElement(focusedElement)) {
+				focusedElement.focus();
+			}
+		},
+		AccessibilityVerbositySettingId.Chat,
+	);
 }
 
 export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView' | 'chatInputWindow'): AccessibleContentProvider | undefined {

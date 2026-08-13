@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, HandlerDetails, WebContents, app } from 'electron';
+import { BrowserWindow, HandlerDetails, WebContents, app } from 'electron';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../base/common/network.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { AuxiliaryWindow, IAuxiliaryWindow } from './auxiliaryWindow.js';
-import { IAuxiliaryWindowsMainService } from './auxiliaryWindows.js';
+import { IAuxiliaryBrowserWindowOptions, IAuxiliaryWindowsMainService } from './auxiliaryWindows.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { IWindowState, WindowMode, defaultAuxWindowState } from '../../window/electron-main/window.js';
+import { IWindowState, defaultAuxWindowState } from '../../window/electron-main/window.js';
 import { IDefaultBrowserWindowOptionsOverrides, WindowStateValidator, defaultBrowserWindowOptions, getLastFocused } from '../../windows/electron-main/windows.js';
+import { parseAuxiliaryWindowFeatures } from './auxiliaryWindowFeatures.js';
 
 export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
 
@@ -36,7 +38,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
-	private readonly pendingWindowOptionsQueue: BrowserWindowConstructorOptions[] = [];
+	private readonly pendingWindowOptionsQueue: IAuxiliaryBrowserWindowOptions[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -92,72 +94,47 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		});
 	}
 
-	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions {
-		const { state, overrides } = this.computeWindowStateAndOverrides(details);
-		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
+	createWindow(details: HandlerDetails): IAuxiliaryBrowserWindowOptions {
+		const { state, overrides, showInactive, showHidden, alwaysOnTopLevel, focusable, nonActivatingPanel, parentless, skipTaskbar, visibleOnAllWorkspaces, visibleOnFullScreen } = this.computeWindowStateAndOverrides(details);
+		const options: IAuxiliaryBrowserWindowOptions = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
 			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
+		options.show = showInactive || showHidden ? false : options.show;
+		options.skipTaskbar = skipTaskbar;
+		options.focusable = focusable;
+		if (isMacintosh && nonActivatingPanel) {
+			options.type = 'panel';
+		}
+		options.vscodeWindowState = state;
+		options.vscodeShowInactive = showInactive;
+		options.vscodeShowHidden = showHidden;
+		options.vscodeAlwaysOnTopLevel = alwaysOnTopLevel;
+		options.vscodeParentless = parentless;
+		options.vscodeVisibleOnAllWorkspaces = visibleOnAllWorkspaces;
+		options.vscodeVisibleOnFullScreen = visibleOnAllWorkspaces && visibleOnFullScreen;
 		this.pendingWindowOptionsQueue.push(options);
 		return options;
 	}
 
-	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides } {
-		const windowState: IWindowState = {};
-		const overrides: IDefaultBrowserWindowOptionsOverrides = {};
-
-		const features = details.features.split(','); // for example: popup=yes,left=270,top=14.5,width=1024,height=768
-		for (const feature of features) {
-			const [key, value] = feature.split('=');
-			switch (key) {
-				case 'width':
-					windowState.width = parseInt(value, 10);
-					break;
-				case 'height':
-					windowState.height = parseInt(value, 10);
-					break;
-				case 'left':
-					windowState.x = parseInt(value, 10);
-					break;
-				case 'top':
-					windowState.y = parseInt(value, 10);
-					break;
-				case 'window-maximized':
-					windowState.mode = WindowMode.Maximized;
-					break;
-				case 'window-fullscreen':
-					windowState.mode = WindowMode.Fullscreen;
-					break;
-				case 'window-disable-fullscreen':
-					overrides.disableFullscreen = true;
-					break;
-				case 'window-native-titlebar':
-					overrides.forceNativeTitlebar = true;
-					break;
-				case 'window-always-on-top':
-					overrides.alwaysOnTop = true;
-					break;
-				case 'window-frameless':
-					overrides.frameless = true;
-					break;
-				case 'window-transparent':
-					overrides.transparent = true;
-					break;
-				case 'window-not-resizable':
-					overrides.notResizable = true;
-					break;
-				case 'window-background-color':
-					if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
-						overrides.backgroundColor = value;
-					}
-					break;
-			}
-		}
-
-		const state = WindowStateValidator.validateWindowState(this.logService, windowState) ?? defaultAuxWindowState();
+	private computeWindowStateAndOverrides(details: HandlerDetails): { readonly state: IWindowState; readonly overrides: IDefaultBrowserWindowOptionsOverrides; readonly showInactive: boolean; readonly showHidden: boolean; readonly alwaysOnTopLevel?: 'screen-saver'; readonly focusable: boolean; readonly nonActivatingPanel: boolean; readonly parentless: boolean; readonly skipTaskbar: boolean; readonly visibleOnAllWorkspaces: boolean; readonly visibleOnFullScreen: boolean } {
+		const parsedFeatures = parseAuxiliaryWindowFeatures(details.features);
+		const state = WindowStateValidator.validateWindowState(this.logService, parsedFeatures.windowState) ?? defaultAuxWindowState();
 
 		this.logService.trace('[aux window] using window state', state);
 
-		return { state, overrides };
+		return {
+			state,
+			overrides: parsedFeatures.overrides,
+			showInactive: parsedFeatures.showInactive,
+			showHidden: parsedFeatures.showHidden,
+			alwaysOnTopLevel: parsedFeatures.alwaysOnTopLevel,
+			focusable: parsedFeatures.focusable,
+			nonActivatingPanel: parsedFeatures.nonActivatingPanel,
+			parentless: parsedFeatures.parentless,
+			skipTaskbar: parsedFeatures.skipTaskbar,
+			visibleOnAllWorkspaces: parsedFeatures.visibleOnAllWorkspaces,
+			visibleOnFullScreen: parsedFeatures.visibleOnFullScreen
+		};
 	}
 
 	registerWindow(webContents: WebContents): void {

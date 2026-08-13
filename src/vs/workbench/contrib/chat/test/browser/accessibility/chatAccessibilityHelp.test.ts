@@ -47,22 +47,37 @@ suite('Chat Accessibility Help', () => {
 
 		assert.deepStrictEqual({
 			keybinding: helpText.includes('<keybinding:editor.action.showContextMenu>'),
-			navigation: helpText.includes('use the up and down arrow keys to choose'),
-			actions: helpText.includes('Go on the Run') && helpText.includes('Grow') && helpText.includes('Shrink') && helpText.includes('Stable Colors') && helpText.includes('Insiders Colors'),
-			petMovement: helpText.includes('Drag it around the chat with the mouse') && helpText.includes('left and right arrows to make it hop'),
-			petHopping: helpText.includes('make it hop along the input until it reaches an edge'),
-			petThrowing: helpText.includes('flick it horizontally to throw it toward a wall') && helpText.includes('Hold Shift with the left or right arrow to throw it toward a wall'),
-			petRevival: helpText.includes('a despawn effect appears at the bottom') && helpText.includes('a respawn effect appears at the top') && helpText.includes('automatically returns to the input'),
-			petScale: helpText.includes('selected size is shared across chats') && helpText.includes('resets when you hide the pet with /vscode-pet'),
+			singleDesktopPet: helpText.includes('one pet moves to the desktop'),
+			desktopMovement: helpText.includes('Drag the desktop pet across monitors') && helpText.includes('without changing application focus'),
+			desktopActions: helpText.includes('dictate in a new or recent chat') && helpText.includes('go to the selected chat') && helpText.includes('hide the pet'),
+			noWorkbenchReveal: helpText.includes('without revealing the main workbench'),
+			chatMovement: helpText.includes('flick it horizontally toward a wall') && helpText.includes('Use the left and right arrows to hop'),
 		}, {
 			keybinding: true,
-			navigation: true,
-			actions: true,
-			petMovement: true,
-			petHopping: true,
-			petThrowing: true,
-			petRevival: true,
-			petScale: true,
+			singleDesktopPet: true,
+			desktopMovement: true,
+			desktopActions: true,
+			noWorkbenchReveal: true,
+			chatMovement: true,
+		});
+	});
+
+	test('describes the pet composer without implying the workbench is revealed', () => {
+		const keybindingService = {
+			lookupKeybindings: () => [],
+		} as unknown as IKeybindingService;
+		const helpText = getAccessibilityHelpText('chatPetInputWindow', keybindingService, false);
+
+		assert.deepStrictEqual({
+			hiddenWorkbench: helpText.includes('without revealing the main VS Code window'),
+			dictation: helpText.includes('Dictation starts when the input opens'),
+			folderPicker: helpText.includes('destination picker appears inside the pet input'),
+			failure: helpText.includes('failed send keeps the draft'),
+		}, {
+			hiddenWorkbench: true,
+			dictation: true,
+			folderPicker: true,
+			failure: true,
 		});
 	});
 

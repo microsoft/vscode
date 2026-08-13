@@ -7,6 +7,17 @@ import { BrowserWindowConstructorOptions, HandlerDetails, WebContents } from 'el
 import { Event } from '../../../base/common/event.js';
 import { IAuxiliaryWindow } from './auxiliaryWindow.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IWindowState } from '../../window/electron-main/window.js';
+
+export interface IAuxiliaryBrowserWindowOptions extends BrowserWindowConstructorOptions {
+	vscodeWindowState?: IWindowState;
+	vscodeShowInactive?: boolean;
+	vscodeShowHidden?: boolean;
+	vscodeAlwaysOnTopLevel?: 'screen-saver';
+	vscodeParentless?: boolean;
+	vscodeVisibleOnAllWorkspaces?: boolean;
+	vscodeVisibleOnFullScreen?: boolean;
+}
 
 export const IAuxiliaryWindowsMainService = createDecorator<IAuxiliaryWindowsMainService>('auxiliaryWindowsMainService');
 
@@ -20,7 +31,7 @@ export interface IAuxiliaryWindowsMainService {
 	readonly onDidChangeAlwaysOnTop: Event<{ window: IAuxiliaryWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: IAuxiliaryWindow; readonly x: number; readonly y: number }>;
 
-	createWindow(details: HandlerDetails): BrowserWindowConstructorOptions;
+	createWindow(details: HandlerDetails): IAuxiliaryBrowserWindowOptions;
 	registerWindow(webContents: WebContents): void;
 
 	getWindowByWebContents(webContents: WebContents): IAuxiliaryWindow | undefined;

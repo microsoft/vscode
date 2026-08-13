@@ -7,6 +7,19 @@
 	position: relative;
 }
 
+.chat-pet-desktop-host {
+	position: relative;
+	background: transparent;
+}
+
+.chat-pet-desktop-platform {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 0;
+	pointer-events: none;
+}
+
 .chat-pet-overlay {
 	position: absolute;
 	inset: 0;
@@ -110,6 +123,11 @@
 
 .monaco-workbench .chat-pet-overlay > .chat-pet-button:focus {
 	outline: none;
+}
+
+.monaco-workbench .chat-pet-desktop-host .chat-pet-overlay > .chat-pet-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .chat-pet-visual {

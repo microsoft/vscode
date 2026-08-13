@@ -19,8 +19,10 @@ import { autorun, IObservable, observableFromEvent, observableValue } from '../.
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IChatModel } from '../../common/model/chatModel.js';
-import { ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatPetVariant, IChatPetActivity, IChatPetService } from '../chatPetService.js';
 
 export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
@@ -127,6 +129,15 @@ interface ChatPetSpriteElement {
 	readonly container: HTMLElement;
 	readonly image: HTMLImageElement;
 	readonly canvas: HTMLCanvasElement;
+}
+
+export interface IChatPetDesktopHost {
+	canMove(): boolean;
+	moveBy(deltaX: number, deltaY: number): void;
+	finishMove(): void;
+	showContextMenu(event: MouseEvent, actions: readonly IAction[], onHide: () => void): void;
+	setInteractiveElements(elements: readonly HTMLElement[]): void;
+	getContextMenuActions(store: DisposableStore): readonly IAction[];
 }
 
 const CHAT_PET_SING_FIXED_ORIENTATION_DECORATIONS: readonly ChatPetFixedOrientationDecoration[] = [
@@ -920,6 +931,8 @@ export class ChatPetWidget extends Disposable {
 	private readonly _resizeObserver: dom.DisposableResizeObserver;
 	private _variant: ChatPetVariant;
 	private _scale = 1;
+	private _completionTokenInitialized = false;
+	private _lastCompletionToken: string | undefined;
 
 	constructor(
 		private readonly parent: HTMLElement,
@@ -927,11 +940,14 @@ export class ChatPetWidget extends Disposable {
 		private readonly movementBounds: HTMLElement,
 		model: IObservable<IChatModel | undefined>,
 		hasInput: IObservable<boolean>,
+		activity: IObservable<IChatPetActivity | undefined> | undefined,
+		private readonly desktopHost: IChatPetDesktopHost | undefined,
 		isLatestFocusedWidget: IObservable<boolean>,
 		inputChanged: (listener: () => void) => IDisposable,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -945,6 +961,14 @@ export class ChatPetWidget extends Disposable {
 			ariaLabel: this._getAriaLabel(false),
 		}));
 		this._button.element.classList.add('chat-pet-button');
+		if (this.desktopHost) {
+			this._button.element.tabIndex = -1;
+		}
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this._button.element));
+		const petFocused = ChatContextKeys.chatPetFocused.bindTo(scopedContextKeyService);
+		const focusTracker = this._register(dom.trackFocus(this._button.element));
+		this._register(focusTracker.onDidFocus(() => petFocused.set(true)));
+		this._register(focusTracker.onDidBlur(() => petFocused.set(false)));
 		this._button.element.dataset.facing = this._facingController.direction;
 		this._visual = dom.append(this._button.element, dom.$('.chat-pet-visual'));
 		const respawnEffectCanvas = dom.append(this._overlay, dom.$('canvas.chat-pet-canvas.chat-pet-respawn-effect.hidden')) as HTMLCanvasElement;
@@ -1016,6 +1040,12 @@ export class ChatPetWidget extends Disposable {
 		speechBubbleImage.setAttribute('aria-hidden', 'true');
 		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas };
 		this._register(dom.addDisposableListener(speechBubbleImage, 'load', () => this._updateSpeechBubble(this._renderedState, true)));
+		this.desktopHost?.setInteractiveElements([
+			this._button.element,
+			...this._sprites.map(sprite => sprite.container),
+			this._speechBubble.container,
+			this._respawnEffect.container,
+		]);
 		this._gazeScheduler = this._register(new dom.AnimationFrameScheduler(this._button.element, () => this._updateGaze()));
 		this._register(dom.addDisposableListener(dom.getWindow(this._button.element).document, dom.EventType.POINTER_MOVE, (event: PointerEvent) => {
 			this._cursorPosition = [event.clientX, event.clientY];
@@ -1050,7 +1080,7 @@ export class ChatPetWidget extends Disposable {
 				return;
 			}
 			dom.EventHelper.stop(event, true);
-			this._showContextMenu(event);
+			void this._showContextMenu(event);
 		}));
 		this._register(inputChanged(() => {
 			if (this._enabled && !this.chatPetService.onTheRun.get()) {
@@ -1133,9 +1163,10 @@ export class ChatPetWidget extends Disposable {
 			const isDead = this._isDead.read(reader);
 			this._button.element.classList.toggle('on-the-run', onTheRun);
 			this._button.setAriaLabel(this._getAriaLabel(onTheRun));
+			const externalActivity = activity?.read(reader);
 			const chatModel = model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
-			const needsInput = !!request?.response?.isPendingConfirmation.read(reader);
+			const needsInput = externalActivity?.needsInput ?? !!request?.response?.isPendingConfirmation.read(reader);
 			let confirmationAttentionExpired = this._confirmationAttentionExpired.read(reader);
 			if (!needsInput) {
 				this._confirmationAttentionScheduler.cancel();
@@ -1146,8 +1177,8 @@ export class ChatPetWidget extends Disposable {
 			} else if (!confirmationAttentionExpired && !this._confirmationAttentionScheduler.isScheduled()) {
 				this._confirmationAttentionScheduler.schedule();
 			}
-			const hasActiveRequest = chatModel?.hasActiveRequest.read(reader) ?? false;
-			const inputHasContent = hasInput.read(reader);
+			const hasActiveRequest = externalActivity?.hasActiveRequest ?? chatModel?.hasActiveRequest.read(reader) ?? false;
+			const inputHasContent = externalActivity?.hasInput ?? hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
@@ -1212,6 +1243,12 @@ export class ChatPetWidget extends Disposable {
 					this._idleExpired.set(false, undefined);
 					transientState = this._beginWakeAnimation() ?? transientState;
 				}
+			} else if (this.desktopHost) {
+				this._idleScheduler.cancel();
+				if (idleExpired) {
+					idleExpired = false;
+					this._idleExpired.set(false, undefined);
+				}
 			} else if (!idleExpired && !this._idleScheduler.isScheduled()) {
 				this._idleScheduler.schedule();
 			}
@@ -1228,18 +1265,34 @@ export class ChatPetWidget extends Disposable {
 			this._renderState(renderedState, variantChanged, isDragging);
 		}));
 
-		this._register(autorun(reader => {
-			const chatModel = model.read(reader);
-			const response = chatModel?.lastRequestObs.read(reader)?.response;
-			if (!response) {
-				return;
-			}
-			reader.store.add(response.onDidChange(e => {
-				if (e.reason === 'completedRequest' && !response.isCanceled) {
+		if (activity) {
+			const petActivity = activity;
+			this._register(autorun(reader => {
+				const completionToken = petActivity.read(reader)?.completionToken;
+				if (!this._completionTokenInitialized) {
+					this._completionTokenInitialized = true;
+					this._lastCompletionToken = completionToken;
+					return;
+				}
+				if (completionToken && completionToken !== this._lastCompletionToken) {
 					this._showTransientState('buttonPress');
 				}
+				this._lastCompletionToken = completionToken;
 			}));
-		}));
+		} else {
+			this._register(autorun(reader => {
+				const chatModel = model.read(reader);
+				const response = chatModel?.lastRequestObs.read(reader)?.response;
+				if (!response) {
+					return;
+				}
+				reader.store.add(response.onDidChange(e => {
+					if (e.reason === 'completedRequest' && !response.isCanceled) {
+						this._showTransientState('buttonPress');
+					}
+				}));
+			}));
+		}
 	}
 
 	setPlatformTopProvider(provider: () => number | undefined): void {
@@ -1261,12 +1314,15 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _startDrag(event: PointerEvent): void {
-		if (!this._enabled || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || event.button !== 0) {
+		if (!this._enabled || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || event.button !== 0 || (this.desktopHost && !this.desktopHost.canMove())) {
+			return;
+		}
+		if (this.desktopHost) {
+			this._startDesktopDrag(event);
 			return;
 		}
 		this._wake();
 		dom.EventHelper.stop(event);
-		this._button.element.focus();
 		const targetWindow = dom.getWindow(this._button.element);
 		const startX = event.clientX;
 		const startY = event.clientY;
@@ -1285,6 +1341,7 @@ export class ChatPetWidget extends Disposable {
 			while (pointerSamples.length > 2 && sampleTime - pointerSamples[0].time > THROW_VELOCITY_SAMPLE_DURATION) {
 				pointerSamples.shift();
 			}
+
 			if (!didDrag && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) {
 				return;
 			}
@@ -1310,6 +1367,42 @@ export class ChatPetWidget extends Disposable {
 				} else {
 					this._beginFall();
 				}
+			}
+		});
+	}
+
+	private _startDesktopDrag(event: PointerEvent): void {
+		this._wake();
+		dom.EventHelper.stop(event);
+		const startX = event.screenX;
+		const startY = event.screenY;
+		let didDrag = false;
+		let lastDeltaX = 0;
+		let lastDeltaY = 0;
+		this._dragMonitor.startMonitoring(this._button.element, event.pointerId, event.buttons, moveEvent => {
+			const deltaX = moveEvent.screenX - startX;
+			const deltaY = moveEvent.screenY - startY;
+			if (!didDrag && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) {
+				return;
+			}
+			if (!didDrag) {
+				didDrag = true;
+				this._button.element.classList.remove('entering');
+				this._button.element.classList.add('dragging');
+				this._isDragging.set(true, undefined);
+			}
+			dom.EventHelper.stop(moveEvent, true);
+			this.desktopHost?.moveBy(deltaX - lastDeltaX, deltaY - lastDeltaY);
+			lastDeltaX = deltaX;
+			lastDeltaY = deltaY;
+		}, () => {
+			this._button.element.classList.remove('dragging');
+			if (didDrag) {
+				this._isDragging.set(false, undefined);
+				this._suppressNextPointerClick = true;
+				this._clickSuppressionScheduler.schedule();
+				this.desktopHost?.finishMove();
+				status(localize('chatPet.movedOnDesktop', "VS Code pet moved on the desktop"));
 			}
 		});
 	}
@@ -1629,23 +1722,33 @@ export class ChatPetWidget extends Disposable {
 		));
 		const interactionSeparator = new Separator();
 		const appearanceSeparator = new Separator();
+		const desktopActions = this.desktopHost?.getContextMenuActions(actions) ?? [];
+		const desktopSeparator = desktopActions.length ? new Separator() : undefined;
+		const menuActions: IAction[] = [
+			...desktopActions,
+			...(desktopSeparator ? [desktopSeparator] : []),
+			onTheRunAction,
+			interactionSeparator,
+			grow,
+			shrink,
+			appearanceSeparator,
+			stable,
+			insiders,
+		];
+		const onHide = () => {
+			this._contextMenuVisible = false;
+			if (this._contextMenuActions.value === actions) {
+				this._contextMenuActions.clear();
+			}
+		};
+		if (this.desktopHost) {
+			this.desktopHost.showContextMenu(event, menuActions, onHide);
+			return;
+		}
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => new StandardMouseEvent(dom.getWindow(this._button.element), event),
-			getActions: (): IAction[] => [
-				onTheRunAction,
-				interactionSeparator,
-				grow,
-				shrink,
-				appearanceSeparator,
-				stable,
-				insiders,
-			],
-			onHide: () => {
-				this._contextMenuVisible = false;
-				if (this._contextMenuActions.value === actions) {
-					this._contextMenuActions.clear();
-				}
-			},
+			getActions: () => menuActions,
+			onHide,
 		});
 	}
 
@@ -1655,6 +1758,29 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		const keyboardEvent = new StandardKeyboardEvent(event);
+		if (this.desktopHost) {
+			let deltaX = 0;
+			let deltaY = 0;
+			const distance = event.shiftKey ? HOP_DISTANCE * 2 : HOP_DISTANCE;
+			if (keyboardEvent.equals(KeyCode.LeftArrow) || keyboardEvent.equals(KeyMod.Shift | KeyCode.LeftArrow)) {
+				deltaX = -distance;
+			} else if (keyboardEvent.equals(KeyCode.RightArrow) || keyboardEvent.equals(KeyMod.Shift | KeyCode.RightArrow)) {
+				deltaX = distance;
+			} else if (keyboardEvent.equals(KeyCode.UpArrow) || keyboardEvent.equals(KeyMod.Shift | KeyCode.UpArrow)) {
+				deltaY = -distance;
+			} else if (keyboardEvent.equals(KeyCode.DownArrow) || keyboardEvent.equals(KeyMod.Shift | KeyCode.DownArrow)) {
+				deltaY = distance;
+			} else {
+				return;
+			}
+			this._wake();
+			keyboardEvent.preventDefault();
+			keyboardEvent.stopPropagation();
+			this.desktopHost.moveBy(deltaX, deltaY);
+			this.desktopHost.finishMove();
+			status(localize('chatPet.movedOnDesktop', "VS Code pet moved on the desktop"));
+			return;
+		}
 		let direction = 0;
 		let throwRequested = false;
 		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.LeftArrow)) {
@@ -1698,7 +1824,9 @@ export class ChatPetWidget extends Disposable {
 	private _getAriaLabel(onTheRun: boolean): string {
 		return onTheRun
 			? localize('chatPet.restore', "Bring back the VS Code pet")
-			: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+			: this.desktopHost
+				? localize('chatPet.interact.desktop', "Interact with the VS Code pet. Drag it around the desktop without changing application focus. Use the context menu for chat and pet actions.")
+				: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
 	}
 
 	private _getCurrentLeft(): number {

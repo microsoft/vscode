@@ -40,6 +40,7 @@ import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSession
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { ChatPetInputTarget } from '../../common/chatInputWindow.js';
 import { withChatInputPickerMotion } from '../widget/input/chatInputPickerActionItem.js';
 import { parseExplicitNewSessionRequest, resolveMentionedWorkspaceFolder, resolveNewSessionWorkspaceFolder, resolveSessionWorkspaceFolder, ROUTE_ENRICH_MAX_CANDIDATES, selectBestSessionRoute, selectRouterShortlist } from './chatSessionRoutingHelpers.js';
 
@@ -84,6 +85,14 @@ interface IDispatchResult {
 }
 
 type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
+
+interface IPreparedChatSubmission {
+	readonly submittedInput: string;
+	readonly submittedAttachmentIds: readonly string[];
+	readonly submittedUtterance: string;
+	readonly requestOptions: IChatSendRequestOptions;
+	readonly cts: CancellationTokenSource;
+}
 
 function statusToString(status: AgentSessionStatus): string {
 	switch (status) {
@@ -216,53 +225,20 @@ export class ChatSessionRoutingController extends Disposable {
 	 * its own scratch session.
 	 */
 	async handleSubmit(query: string, _mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean): Promise<boolean> {
-		const submittedUtterance = query.trim();
-		if (!submittedUtterance) {
+		const prepared = this._prepareSubmission(query, attachedContext, isVoiceModeInput);
+		if (!prepared) {
 			return false;
 		}
+		const { submittedInput, submittedAttachmentIds, submittedUtterance, requestOptions, cts } = prepared;
 		const explicitNewSessionTask = parseExplicitNewSessionRequest(submittedUtterance);
 		const utterance = explicitNewSessionTask ?? submittedUtterance;
 
-		// A new submission supersedes any pending badge from a previous one.
-		this._submitCts.value?.cancel();
-		this._submitDraftListeners.clear();
-		this._pendingSend.clear();
-
-		// Immediately reflect that the request was accepted so the send button
-		// greys out while routing runs (it is intercepted off-model, so the
-		// widget's own submit state never changes). Cleared when the submission
-		// resolves, is cancelled, or the user edits the draft.
-		this._setSubmissionPhase('routing');
 		ariaAlert(localize('chatSessionRouting.checkingIntent', "Checking how to handle your request."));
-
-		// The host cancels the in-flight submission on teardown so we never
-		// dispatch after close.
-		const cts = new CancellationTokenSource();
-		this._submitCts.value = cts;
 		const token = cts.token;
-		const submittedAttachmentIds = this._attachmentIds();
-		const draftListeners = new DisposableStore();
-		const cancelForDraftChange = () => {
-			cts.cancel();
-			if (this._submitCts.value === cts) {
-				this._pendingSend.clear();
-				this._submitDraftListeners.clear();
-				this._setSubmissionPhase('idle');
-			}
-		};
-		draftListeners.add(this.host.widget.inputEditor.onDidChangeModelContent(cancelForDraftChange));
-		draftListeners.add(this.host.widget.attachmentModel.onDidChange(cancelForDraftChange));
-		this._submitDraftListeners.value = draftListeners;
-		const requestOptions: IChatSendRequestOptions = {
-			...this.host.widget.getSelectedModelRequestOptions(),
-			...this.host.widget.getModeRequestOptions(),
-			isVoiceModeInput,
-			attachedContext: attachedContext?.length ? [...attachedContext] : undefined,
-		};
 		if (explicitNewSessionTask) {
 			this.host.onWillRoute?.();
 			const target = this._resolveNewSessionTarget(utterance, attachedContext, [], []);
-			this._dispatchOrReviewNewSession(target, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			this._dispatchOrReviewNewSession(target, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
 		const followupResource = isVoiceModeInput ? this.host.getPendingReplySessionResource?.() : undefined;
@@ -273,7 +249,7 @@ export class ChatSessionRoutingController extends Disposable {
 				label: this.chatService.getSession(followupResource)?.title || localize('chatSessionRouting.currentSession', "Current session"),
 				confidence: 1,
 			};
-			this._dispatchImmediately(followupTarget, query, submittedAttachmentIds, utterance, requestOptions, cts);
+			this._dispatchImmediately(followupTarget, submittedInput, submittedAttachmentIds, utterance, requestOptions, cts);
 			return true;
 		}
 		const commandCandidates = selectCommandIntentCandidates(utterance, this._collectCommandCandidates());
@@ -288,16 +264,79 @@ export class ChatSessionRoutingController extends Disposable {
 				this._setSubmissionPhase('awaitingChoice');
 				this._beginPendingCommand(
 					command,
-					query,
+					submittedInput,
 					submittedAttachmentIds,
 					cts,
-					() => this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts),
+					() => this._routeToChat(submittedInput, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts),
 				);
 				return true;
 			}
 		}
-		await this._routeToChat(query, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts);
+		await this._routeToChat(submittedInput, submittedAttachmentIds, utterance, attachedContext, requestOptions, cts);
 		return true;
+	}
+
+	async handleSubmitTo(target: ChatPetInputTarget, query: string, _mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean): Promise<boolean> {
+		const prepared = this._prepareSubmission(query, attachedContext, isVoiceModeInput);
+		if (!prepared) {
+			return false;
+		}
+		const { submittedInput, submittedAttachmentIds, submittedUtterance, requestOptions, cts } = prepared;
+		ariaAlert(target.kind === 'new'
+			? localize('chatSessionRouting.sendingToNewChat', "Sending to a new chat.")
+			: localize('chatSessionRouting.sendingToRecentChat', "Sending to the most recent chat."));
+		if (target.kind === 'new') {
+			this.host.onWillRoute?.();
+			const newSessionTarget = this._resolveNewSessionTarget(submittedUtterance, attachedContext, [], []);
+			this._dispatchOrReviewNewSession(newSessionTarget, submittedInput, submittedAttachmentIds, submittedUtterance, requestOptions, cts);
+			return true;
+		}
+		this._dispatchImmediately({
+			kind: 'session',
+			sessionId: target.sessionResource.toString(),
+			label: this.chatService.getSessionTitle(target.sessionResource) ?? localize('chatSessionRouting.recentChat', "Most Recent Chat"),
+			confidence: 1,
+		}, submittedInput, submittedAttachmentIds, submittedUtterance, requestOptions, cts);
+		return true;
+	}
+
+	private _prepareSubmission(query: string, attachedContext: readonly IChatRequestVariableEntry[] | undefined, isVoiceModeInput: boolean | undefined): IPreparedChatSubmission | undefined {
+		const submittedUtterance = query.trim();
+		if (!submittedUtterance) {
+			return undefined;
+		}
+		this._submitCts.value?.cancel();
+		this._submitDraftListeners.clear();
+		this._pendingSend.clear();
+		this._setSubmissionPhase('routing');
+
+		const cts = new CancellationTokenSource();
+		this._submitCts.value = cts;
+		const submittedAttachmentIds = this._attachmentIds();
+		const draftListeners = new DisposableStore();
+		const cancelForDraftChange = () => {
+			cts.cancel();
+			if (this._submitCts.value === cts) {
+				this._pendingSend.clear();
+				this._submitDraftListeners.clear();
+				this._setSubmissionPhase('idle');
+			}
+		};
+		draftListeners.add(this.host.widget.inputEditor.onDidChangeModelContent(cancelForDraftChange));
+		draftListeners.add(this.host.widget.attachmentModel.onDidChange(cancelForDraftChange));
+		this._submitDraftListeners.value = draftListeners;
+		return {
+			submittedInput: query,
+			submittedAttachmentIds,
+			submittedUtterance,
+			requestOptions: {
+				...this.host.widget.getSelectedModelRequestOptions(),
+				...this.host.widget.getModeRequestOptions(),
+				isVoiceModeInput,
+				attachedContext: attachedContext?.length ? [...attachedContext] : undefined,
+			},
+			cts,
+		};
 	}
 
 	private async _routeToChat(

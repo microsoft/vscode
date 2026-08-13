@@ -47,8 +47,16 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly compact?: boolean;
 
 	readonly mode?: AuxiliaryWindowMode;
+	readonly show?: 'inactive' | 'hidden';
 	readonly zoomLevel?: number;
 	readonly alwaysOnTop?: boolean;
+	readonly alwaysOnTopLevel?: 'screen-saver';
+	readonly focusable?: boolean;
+	readonly nonActivatingPanel?: boolean;
+	readonly parentless?: boolean;
+	readonly skipTaskbar?: boolean;
+	readonly visibleOnAllWorkspaces?: boolean;
+	readonly visibleOnFullScreen?: boolean;
 
 	readonly nativeTitlebar?: boolean;
 	readonly disableFullscreen?: boolean;
@@ -373,8 +381,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.nativeTitlebar ? 'window-native-titlebar=yes' : undefined,
 			options?.disableFullscreen ? 'window-disable-fullscreen=yes' : undefined,
 			options?.alwaysOnTop ? 'window-always-on-top=yes' : undefined,
+			options?.alwaysOnTopLevel ? `window-always-on-top-level=${options.alwaysOnTopLevel}` : undefined,
+			options?.focusable === false ? 'window-not-focusable=yes' : undefined,
+			options?.nonActivatingPanel ? 'window-nonactivating-panel=yes' : undefined,
+			options?.parentless ? 'window-parentless=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined,
+			options?.show === 'inactive' ? 'window-show-inactive=yes' : undefined,
+			options?.show === 'hidden' ? 'window-show-hidden=yes' : undefined,
+			options?.skipTaskbar ? 'window-skip-taskbar=yes' : undefined,
+			options?.visibleOnAllWorkspaces ? 'window-visible-on-all-workspaces=yes' : undefined,
+			options?.visibleOnFullScreen ? 'window-visible-on-full-screen=yes' : undefined,
 			options?.frameless ? 'window-frameless=yes' : undefined,
 			options?.transparent ? 'window-transparent=yes' : undefined,
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,

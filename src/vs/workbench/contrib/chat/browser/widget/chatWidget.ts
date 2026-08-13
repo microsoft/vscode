@@ -52,6 +52,7 @@ import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -96,8 +97,8 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
-import { ChatPetWidget, isChatPetVisible } from './chatPetWidget.js';
-import { IChatPetService } from '../chatPetService.js';
+import { ChatPetWidget } from './chatPetWidget.js';
+import { IChatPetHostService } from '../chatPetHostService.js';
 import { stopDictationForEditor } from '../speechToText/dictationSession.js';
 
 const $ = dom.$;
@@ -518,7 +519,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
-		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IChatPetHostService private readonly chatPetHostService: IChatPetHostService,
+		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -903,15 +905,51 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const petHost = this.inputPart.element;
 			const inputHasContent = observableFromEvent(this, this.inputEditor.onDidChangeModelContent, () => this.inputEditor.getValue().length > 0);
 			const targetWindow = dom.getWindow(this.container);
+			const hostRendered = observableValue(this, false);
+			const updateHostRendered = () => {
+				const partId = petHost.closest('.part')?.id;
+				const partVisible = partId === Parts.AUXILIARYBAR_PART
+					? this.workbenchLayoutService.isVisible(Parts.AUXILIARYBAR_PART, targetWindow)
+					: partId === Parts.PANEL_PART
+						? this.workbenchLayoutService.isVisible(Parts.PANEL_PART)
+						: partId === Parts.EDITOR_PART
+							? this.workbenchLayoutService.isVisible(Parts.EDITOR_PART, targetWindow)
+							: true;
+				hostRendered.set(partVisible && petHost.isConnected && petHost.offsetWidth > 0 && petHost.offsetHeight > 0, undefined);
+			};
+			const hostVisibilityObserver = this._register(new dom.DisposableResizeObserver('ChatWidget.chatPetHost', updateHostRendered, targetWindow));
+			this._register(hostVisibilityObserver.observe(petHost));
+			this._register(hostVisibilityObserver.observe(this.container));
+			this._register(this.workbenchLayoutService.onDidChangePartVisibility(updateHostRendered));
+			updateHostRendered();
+			const widgetVisible = observableFromEvent(this, Event.any(this.onDidShow, this.onDidHide), () => this.visible);
+			const hostVisible = derived(this, reader => {
+				return widgetVisible.read(reader) && hostRendered.read(reader);
+			});
 			const isLatestFocusedWidgetInWindow = observableValue(this, this.chatWidgetService.lastFocusedWidget === this);
 			this._register(this.chatWidgetService.onDidChangeFocusedWidget(focusedWidget => {
 				if (focusedWidget && dom.getWindow(focusedWidget.domNode) === targetWindow) {
 					isLatestFocusedWidgetInWindow.set(focusedWidget === this, undefined);
 				}
 			}));
-			const petVisible = derived(this, reader => isChatPetVisible(this.chatPetService.enabled.read(reader), isLatestFocusedWidgetInWindow.read(reader)));
+			const petHostRegistration = this._register(this.chatPetHostService.registerHost({
+				hostVisible,
+				hostPreferred: isLatestFocusedWidgetInWindow,
+				model: this._viewModelObs.map(viewModel => viewModel?.model),
+				hasInput: inputHasContent,
+				getScreenBounds: () => {
+					const bounds = petHost.getBoundingClientRect();
+					return {
+						x: targetWindow.screenX + bounds.left,
+						y: targetWindow.screenY + bounds.top,
+						width: bounds.width,
+						height: bounds.height,
+					};
+				},
+			}));
+			const petVisible = petHostRegistration.visible;
 			this._register(autorun(reader => this.container.classList.toggle('chat-pet-enabled', petVisible.read(reader))));
-			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petVisible, this.inputEditor.onDidChangeModelContent));
+			const petWidget = this._register(this.instantiationService.createInstance(ChatPetWidget, petHost, inputContainer ?? petHost, petMovementBounds ?? parent, this._viewModelObs.map(viewModel => viewModel?.model), inputHasContent, petHostRegistration.activity, undefined, petVisible, this.inputEditor.onDidChangeModelContent));
 			petWidget.setPlatformTopProvider(() => this.inputPart.getChatPetPlatformTop());
 		}
 

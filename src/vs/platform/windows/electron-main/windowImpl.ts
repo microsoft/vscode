@@ -263,7 +263,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		super();
 	}
 
-	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0): void {
+	protected applyState(state: IWindowState, hasMultipleDisplays = electron.screen.getAllDisplays().length > 0, initialShowMode: 'active' | 'inactive' | 'hidden' = 'active'): void {
 
 		// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 		// to open the window has a larger resolution than the primary display, the window will not size
@@ -302,7 +302,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			// to reduce flicker from the default window size
 			// to maximize or fullscreen, we only show after
-			this._win?.show();
+			if (initialShowMode === 'hidden') {
+				return;
+			} else if (initialShowMode === 'inactive') {
+				this._win?.showInactive();
+			} else {
+				this._win?.show();
+			}
 		}
 	}
 

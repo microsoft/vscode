@@ -23,6 +23,101 @@ suite('ChatSessionRoutingController', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
+	test('direct recent-chat submission bypasses intent detection and preserves queued routing', async () => {
+		const targetResource = URI.parse('agent-host-copilotcli:/recent');
+		let dispatchedTarget: { readonly kind: string; readonly sessionId?: string } | undefined;
+		const host = {
+			widget: {
+				input: { setSubmitPending: () => { } },
+				inputEditor: { onDidChangeModelContent: Event.None, getValue: () => 'continue' },
+				attachmentModel: { onDidChange: Event.None, attachments: [] },
+				getSelectedModelRequestOptions: () => ({ userSelectedModelId: 'model' }),
+				getModeRequestOptions: () => ({}),
+			},
+		} as unknown as IChatSessionRoutingHost;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			{ getSessionTitle: () => 'Recent' } as never,
+			undefined!,
+			undefined!,
+			{ detectIntent: async () => { throw new Error('must not detect intent'); } } as never,
+			undefined!,
+			{ warn: () => { } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		Reflect.set(controller, '_dispatchImmediately', (target: typeof dispatchedTarget) => {
+			dispatchedTarget = target;
+		});
+
+		const handled = await controller.handleSubmitTo({ kind: 'session', sessionResource: targetResource }, 'continue', ChatModeKind.Agent);
+
+		assert.deepStrictEqual({ handled, dispatchedTarget }, {
+			handled: true,
+			dispatchedTarget: {
+				kind: 'session',
+				sessionId: targetResource.toString(),
+				label: 'Recent',
+				confidence: 1,
+			},
+		});
+		controller.dispose();
+	});
+
+	test('direct new-chat submission uses the existing new-session review path', async () => {
+		const resolvedTarget = { kind: 'new', label: 'New session', folder: URI.file('/workspace') } as const;
+		let dispatched: { readonly target: typeof resolvedTarget; readonly input: string; readonly utterance: string } | undefined;
+		const host = {
+			widget: {
+				input: { setSubmitPending: () => { } },
+				inputEditor: { onDidChangeModelContent: Event.None, getValue: () => 'build it' },
+				attachmentModel: { onDidChange: Event.None, attachments: [] },
+				getSelectedModelRequestOptions: () => ({}),
+				getModeRequestOptions: () => ({}),
+			},
+			onWillRoute: () => { },
+		} as unknown as IChatSessionRoutingHost;
+		const controller = new ChatSessionRoutingController(
+			host,
+			'test',
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ warn: () => { } } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		Reflect.set(controller, '_resolveNewSessionTarget', () => resolvedTarget);
+		Reflect.set(controller, '_dispatchOrReviewNewSession', (target: typeof resolvedTarget, input: string, _attachmentIds: readonly string[], utterance: string) => {
+			dispatched = { target, input, utterance };
+		});
+
+		const handled = await controller.handleSubmitTo({ kind: 'new' }, 'build it', ChatModeKind.Agent);
+
+		assert.deepStrictEqual({ handled, dispatched }, {
+			handled: true,
+			dispatched: {
+				target: resolvedTarget,
+				input: 'build it',
+				utterance: 'build it',
+			},
+		});
+		controller.dispose();
+	});
+
 	test('uses an exact built-in command phrase without model intent detection', async () => {
 		const command = { commandId: 'workbench.action.togglePanel', label: 'View: Toggle Panel Visibility' };
 		let detectIntentCallCount = 0;

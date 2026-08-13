@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, type Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, systemPreferences, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -17,6 +17,7 @@ import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.j
 import { AddFirstParameterToFunctions, hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
+import { getCodeDisplayProtocol, getDisplayProtocol as detectDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
@@ -27,11 +28,12 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeDisplayLayout, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, LinuxDisplayProtocol, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { toNativeDisplayLayout } from '../common/nativeDisplay.js';
 import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
@@ -343,11 +345,52 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.toggleFullScreen();
 	}
 
+	async hideWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowByTarget(windowId, options);
+		window?.win?.hide();
+	}
+
+	async showWindow(windowId: number | undefined, options?: INativeHostOptions & { inactive?: boolean }): Promise<void> {
+		const window = this.windowByTarget(windowId, options);
+		if (!window?.win) {
+			return;
+		}
+
+		if (options?.inactive) {
+			window.win.showInactive();
+		} else {
+			window.win.show();
+		}
+	}
+
+	async setWindowIgnoreMouseEvents(windowId: number | undefined, ignore: boolean, options?: INativeHostOptions & { forward?: boolean }): Promise<void> {
+		this.windowByTarget(windowId, options)?.win?.setIgnoreMouseEvents(ignore, { forward: options?.forward });
+	}
+
+	async setWindowShape(windowId: number | undefined, rectangles: readonly IRectangle[], options?: INativeHostOptions): Promise<void> {
+		if (!isWindows && !isLinux) {
+			return;
+		}
+		this.windowByTarget(windowId, options)?.win?.setShape([...rectangles]);
+	}
+
 	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
 		const point = screen.getCursorScreenPoint();
 		const display = screen.getDisplayNearestPoint(point);
 
 		return { point, display: display.bounds };
+	}
+
+	async getDisplays(_windowId: number | undefined): Promise<readonly INativeDisplayLayout[]> {
+		return screen.getAllDisplays().map(display => toNativeDisplayLayout(display));
+	}
+
+	async getLinuxDisplayProtocol(_windowId: number | undefined): Promise<LinuxDisplayProtocol> {
+		if (!isLinux) {
+			return 'unknown';
+		}
+
+		return getCodeDisplayProtocol(await detectDisplayProtocol(this.logService.error.bind(this.logService)), this.environmentMainService.args['ozone-platform']);
 	}
 
 	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -1472,6 +1515,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
+	}
+
+	private windowByTarget(fallbackCodeWindowId: number | undefined, options?: INativeHostOptions): ICodeWindow | IAuxiliaryWindow | undefined {
+		if (typeof options?.targetWindowId === 'number') {
+			return this.codeWindowById(options.targetWindowId) ?? this.auxiliaryWindowById(options.targetWindowId);
+		}
+		return this.codeWindowById(fallbackCodeWindowId);
 	}
 
 	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {

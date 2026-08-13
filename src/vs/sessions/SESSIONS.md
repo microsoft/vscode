@@ -548,6 +548,21 @@ current drop target lands on the input and a stronger wiggle when it will fall
 off. Falls accelerate with distance; revival returns the pet to its default
 position 32px from the active platform's right edge.
 
+On supported native desktops, pet hosts publish their logical visibility,
+session resource, and focus recency to the application-wide pet coordinator.
+The coordinator renders one pet: a visible host for the most actionable chat
+when available, the most recently focused visible host otherwise, or a
+transparent always-on-top auxiliary window while workbench chat is hidden.
+Confirmation outranks running activity and recency breaks ties. Desktop drag
+moves the native window across displays and persists the dropped position; it
+does not reuse the in-chat gravity/throw behavior. Web and native Wayland keep
+the in-chat fallback.
+
+Desktop pet dictation belongs to a pet-owned auxiliary composer. It targets a
+new or recent chat and sends without focusing or revealing the main workbench;
+only the explicit **Go to Chat** action may reveal it. Do not implement this
+flow by focusing a hidden chat input before starting dictation.
+
 Agent feedback created while the active session is undefined or uncreated uses
 one shared new-session feedback scope, so it follows every undefined/uncreated
 new-session view. The comments belong to the draft's workspace: a draft that has

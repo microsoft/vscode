@@ -115,6 +115,15 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
+export interface INativeDisplayLayout {
+	readonly id: number;
+	readonly bounds: IRectangle;
+	readonly workArea: IRectangle;
+	readonly scaleFactor: number;
+}
+
+export type LinuxDisplayProtocol = 'wayland' | 'xwayland' | 'x11' | 'unknown';
+
 export interface IStartTracingOptions {
 
 	/**
@@ -242,8 +251,14 @@ export interface ICommonNativeHostService {
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
+	hideWindow(options?: INativeHostOptions): Promise<void>;
+	showWindow(options?: INativeHostOptions & { inactive?: boolean }): Promise<void>;
+	setWindowIgnoreMouseEvents(ignore: boolean, options?: INativeHostOptions & { forward?: boolean }): Promise<void>;
+	setWindowShape(rectangles: readonly IRectangle[], options?: INativeHostOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
+	getDisplays(): Promise<readonly INativeDisplayLayout[]>;
+	getLinuxDisplayProtocol(): Promise<LinuxDisplayProtocol>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;
 	maximizeWindow(options?: INativeHostOptions): Promise<void>;

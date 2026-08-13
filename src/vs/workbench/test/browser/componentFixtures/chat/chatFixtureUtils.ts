@@ -46,6 +46,7 @@ import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/brow
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { IChatPetHostService } from '../../../../contrib/chat/browser/chatPetHostService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -189,6 +190,15 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override setVariant() { }
 		override setOnTheRun() { }
 		override setScale(scale: number) { this.scale.set(scale, undefined); }
+	}());
+	reg.defineInstance(IChatPetHostService, new class extends mock<IChatPetHostService>() {
+		override registerHost() {
+			return {
+				visible: constObservable(false),
+				activity: constObservable(undefined),
+				dispose: () => { },
+			};
+		}
 	}());
 	reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 		override readonly lastFocusedWidget = undefined;

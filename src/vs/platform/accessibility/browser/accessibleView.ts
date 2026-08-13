@@ -26,6 +26,8 @@ export const enum AccessibleViewProviderId {
 	AgentChat = 'agentChat',
 	QuickChat = 'quickChat',
 	ChatInputWindow = 'chatInputWindow',
+	ChatPet = 'chatPet',
+	ChatPetInputWindow = 'chatPetInputWindow',
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
