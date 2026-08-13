@@ -7259,25 +7259,26 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing on and no SDK hooks (file-edit tracking is observed off the message stream, not via user-bypassable hooks)', async () => {
+	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
-		// must be on (a startup option, not user-bypassable), and
-		// `Options.hooks` must be absent — file-edit tracking is wired
+		// must be on (a startup option, not user-bypassable). File-edit
+		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop. Hooks were
-		// rejected because they can be disabled via the user's settings,
-		// which would silently break the diff/checkpoint UX.
+		// `_observeUserMessage` in the message-pump loop; the only SDK hook
+		// adds transient host context to a submitted prompt.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
 
 		assert.deepStrictEqual({
 			enableFileCheckpointing: opts.enableFileCheckpointing,
-			hooks: opts.hooks,
+			hookNames: Object.keys(opts.hooks ?? {}),
+			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hooks: undefined,
+			hookNames: ['UserPromptSubmit'],
+			userPromptSubmitHooks: 1,
 		});
 	});
 

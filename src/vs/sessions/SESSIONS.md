@@ -1078,6 +1078,20 @@ vice-versa. Auto-titling from the first message
 titles the _session_ for the default chat and the _chat itself_ (via
 `updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
 
+Agent-host rename tools persist the title and its source in one session-database
+transaction before publishing live state, so a failed write changes neither key
+nor the visible title. Tool schemas and runtime validation reject titles over 200
+Unicode code points. Normalization decodes entities, collapses whitespace, removes
+outer quoting/punctuation, and humanizes no-whitespace slugs without changing
+explicit casing such as GitHub, TypeScript, AppKit, or OAuth.
+
+The active-agent rename reminder travels in transient `IAgentChatContext.hostInstructions`,
+never in the user prompt. Copilot and Claude project it through their user-prompt
+hooks' hidden additional context, while Codex uses `turn/start.additionalContext`;
+provider history, replay, restore, and forks therefore retain only the original
+user message. Destructive deletion and idle eviction clear title-controller state
+for the session and every peer chat after pending session metadata writes settle.
+
 Single-chat providers implement `renameSession` by renaming their single main
 chat. `renameSession` is a mandatory
 `ISessionsProvider` method (no optional methods — see the interface guideline).
