@@ -1328,10 +1328,14 @@ function validateSessionFolderPickerDecision(value: unknown): ISessionFolderPick
 		return undefined;
 	}
 	const primary = raw['primary'];
-	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0)) {
+	// `primary` is only valid on a hidden, pinned decision (see
+	// ISessionFolderPickerDecision); reject the contradictory `{ hidden: false,
+	// primary }` so malformed persisted/remote metadata can't make the client
+	// both reveal the picker and auto-select/recreate the session.
+	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0 || raw['hidden'] !== true)) {
 		return undefined;
 	}
-	return primary !== undefined ? { hidden: raw['hidden'], primary } : { hidden: raw['hidden'] };
+	return primary !== undefined ? { hidden: true, primary } : { hidden: raw['hidden'] };
 }
 
 /** Returns session metadata with the folder-picker decision updated or removed. */

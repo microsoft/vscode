@@ -19,6 +19,7 @@ suite('Session folder-picker meta', () => {
 			hiddenWithPrimary: readSessionFolderPickerDecision({ [SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///wsB' } }),
 			nonBooleanHidden: readSessionFolderPickerDecision({ [SESSION_META_FOLDER_PICKER_KEY]: { hidden: 'yes' } }),
 			emptyPrimary: readSessionFolderPickerDecision({ [SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: '' } }),
+			shownWithPrimary: readSessionFolderPickerDecision({ [SESSION_META_FOLDER_PICKER_KEY]: { hidden: false, primary: 'file:///wsB' } }),
 			notAnObject: readSessionFolderPickerDecision({ [SESSION_META_FOLDER_PICKER_KEY]: 'nope' }),
 		}, {
 			absent: undefined,
@@ -27,6 +28,7 @@ suite('Session folder-picker meta', () => {
 			hiddenWithPrimary: { hidden: true, primary: 'file:///wsB' },
 			nonBooleanHidden: undefined,
 			emptyPrimary: undefined,
+			shownWithPrimary: undefined,
 			notAnObject: undefined,
 		});
 	});
@@ -56,6 +58,7 @@ suite('Session folder-picker meta', () => {
 			absent: parseSessionFolderPickerDecision(undefined),
 			malformedJson: parseSessionFolderPickerDecision('{'),
 			malformedShape: parseSessionFolderPickerDecision(JSON.stringify({ hidden: 'yes' })),
+			shownWithPrimary: parseSessionFolderPickerDecision(JSON.stringify({ hidden: false, primary: 'file:///wsB' })),
 		}, {
 			hidden: { hidden: true },
 			hiddenWithPrimary: { hidden: true, primary: 'file:///wsB' },
@@ -63,6 +66,7 @@ suite('Session folder-picker meta', () => {
 			absent: undefined,
 			malformedJson: undefined,
 			malformedShape: undefined,
+			shownWithPrimary: undefined,
 		});
 	});
 });

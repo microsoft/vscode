@@ -1093,14 +1093,11 @@ export interface IAgent {
 	/**
 	 * Optional provider-owned decision about the multi-root new-session Folder
 	 * picker, computed from the ordered working-directory set (index 0 = the
-	 * currently chosen primary). Returns `undefined` when the provider expresses
-	 * no opinion (the client then shows the picker as usual). The signal is
-	 * provider-specific — e.g. Copilot hides the picker when at most one working
-	 * directory carries hooks (pinning a primary when exactly one does) and shows
-	 * it when several do — so it lives on the agent rather than in shared
-	 * orchestration. The result is seeded into the session's `_meta` at creation
-	 * for the client to consume. The optional {@link token} aborts the (possibly
-	 * filesystem-bound) computation if the caller no longer needs it.
+	 * current primary) and seeded into the session's `_meta` at creation for the
+	 * client. Returns `undefined` when the provider has no opinion: nothing is
+	 * seeded and the client keeps the picker hidden by default, so a provider
+	 * that wants it shown must say so with `{ hidden: false }`. The optional
+	 * {@link token} aborts the (possibly filesystem-bound) computation.
 	 */
 	computeFolderPickerDecision?(workingDirectories: readonly URI[], token?: CancellationToken): Promise<ISessionFolderPickerDecision | undefined>;
 

@@ -2227,8 +2227,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// shows with a single folder — and seeded into `_meta` below.
 			workingDirectories && workingDirectories.length > 1 && !config?.fork && !config?.importConversation && provider.computeFolderPickerDecision
 				? provider.computeFolderPickerDecision(workingDirectories).catch(err => {
+					// Fail open: on an indeterminate scan error, show the picker rather
+					// than silently hiding it and pinning the default (index 0) folder.
 					this._logService.error('[AgentService] createSession: failed to compute folder-picker decision', err);
-					return undefined;
+					return { hidden: false };
 				})
 				: Promise.resolve(undefined),
 		]);
