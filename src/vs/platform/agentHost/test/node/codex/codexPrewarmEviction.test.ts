@@ -198,11 +198,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
-	instantiationService.stub(IAgentSdkDownloader, {
-		_serviceBrand: undefined,
-		isAvailable: () => true,
-		isSdkResolvableWithoutDownload: async () => true,
-	});
+	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => true });
 	instantiationService.stub(IAgentHostCheckpointService, options.checkpointService ?? NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
@@ -342,7 +338,7 @@ suite('CodexAgent prewarm eviction', () => {
 			agent['_fileService'].createFile(vscodeGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{}}\n')),
 		]);
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent.listLegacyChats();
 		const request = await readNextRequest(peer.outbound);
 		peer.push({
 			id: request.id,
@@ -394,7 +390,7 @@ suite('CodexAgent prewarm eviction', () => {
 			return null;
 		};
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent.listLegacyChats();
 		const request = await readNextRequest(peer.outbound);
 		peer.push({
 			id: request.id,

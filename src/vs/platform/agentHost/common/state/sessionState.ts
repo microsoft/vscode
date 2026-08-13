@@ -1189,9 +1189,6 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
-/** Reserved key for whether a session was first discovered in a provider-native catalog. */
-export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
-
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
 
 /** Multi-root workspace provenance attached by the creating client. */
@@ -1707,22 +1704,6 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		next[SESSION_META_WORKSPACELESS_KEY] = true;
 	} else {
 		delete next[SESSION_META_WORKSPACELESS_KEY];
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
-}
-
-/** Whether the session was first discovered in a provider-native catalog. */
-export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
-	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
-}
-
-/** Returns a copy of `meta` with the external-session provenance marker updated. */
-export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
-	const next: { [key: string]: unknown } = { ...meta };
-	if (external) {
-		next[SESSION_META_EXTERNAL_KEY] = true;
-	} else {
-		delete next[SESSION_META_EXTERNAL_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }

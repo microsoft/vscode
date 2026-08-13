@@ -19,7 +19,7 @@ import type { Implementation } from '../../common/state/protocol/common/commands
 import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -860,25 +860,6 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => readSessionWorkspaceless(item._meta)), [true]);
-	});
-
-	test('listSessions carries external provenance on _meta', async () => {
-		agentService.listedSessions.push({
-			session: URI.parse(sessionUri),
-			startTime: 1000,
-			modifiedTime: 2000,
-			summary: 'Native Chat',
-			_meta: withSessionExternal(undefined, true),
-		});
-
-		const transport = connectClient('client-list-external');
-		transport.sent.length = 0;
-		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'listSessions'));
-		const resp = await responsePromise;
-
-		const result = (resp as unknown as { result: ListSessionsResult }).result;
-		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
 	});
 
 	test('listSessions omits _meta when the agent provides none', async () => {
