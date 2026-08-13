@@ -2241,6 +2241,10 @@ suite('AgentService (node dispatcher)', () => {
 				prepareSessionDeletion: async () => undefined,
 				removeSessionWorktree: async () => { removeWorktreeCalls++; },
 			} as unknown as WorktreeIsolation);
+			// Flush the provider backfill before injecting failures: its
+			// registry write is fire-and-forget and would otherwise consume
+			// part of the failure budget intended for the unregistration.
+			await svc.listSessions();
 			db.failRegistryWrites(2);
 
 			await assert.rejects(svc.disposeSession(session), /transient registry write failure/);
