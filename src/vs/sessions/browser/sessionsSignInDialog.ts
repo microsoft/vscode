@@ -29,26 +29,14 @@ export function createSessionsSignInDialogOptions(
 		dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
 		disableCloseButton: !allowContinueWithoutSignIn,
 		dialogExtraClasses: ['sessions-welcome-dialog'],
-		renderDialogFooter: showReturnToVSCodeEditor || allowContinueWithoutSignIn ? (footer: HTMLElement) => {
-			const disposables = new DisposableStore();
-			if (showReturnToVSCodeEditor) {
-				disposables.add(createDialogAction(
-					footer,
-					localize('sessions.returnToVSCodeEditor', "Return to VS Code Editor"),
-					() => {
-						void commandService.executeCommand<void>(RETURN_TO_VSCODE_EDITOR_COMMAND_ID).catch(onUnexpectedError);
-					}
-				));
+		allowContinueWithoutSignIn,
+		renderDialogFooter: showReturnToVSCodeEditor ? (footer: HTMLElement) => createDialogAction(
+			footer,
+			localize('sessions.returnToVSCodeEditor', "Return to VS Code Editor"),
+			() => {
+				void commandService.executeCommand<void>(RETURN_TO_VSCODE_EDITOR_COMMAND_ID).catch(onUnexpectedError);
 			}
-			if (allowContinueWithoutSignIn) {
-				disposables.add(createDialogAction(
-					footer,
-					localize('sessions.continueWithoutSigningIn', "Continue without signing in"),
-					onContinueWithoutSignIn,
-				));
-			}
-			return disposables;
-		} : undefined,
+		) : undefined,
 		onDidDismissDialog: allowContinueWithoutSignIn ? onContinueWithoutSignIn : undefined,
 	};
 }

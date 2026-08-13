@@ -60,7 +60,7 @@ function renderSignInDialog(context: ComponentFixtureContext, enterpriseAuthenti
 		buttons: getChatSetupDialogButtons(ChatEntitlement.Unknown, presentation, enterpriseAuthentication, providers),
 		icon: presentation.dialogIcon,
 		disableCloseButton: presentation.disableCloseButton,
-		footer: getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, 'https://github.com/settings/copilot/features', footerContent),
+		footer: getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, 'https://github.com/settings/copilot/features', footerContent, presentation.allowContinueWithoutSignIn),
 		extraClasses: presentation.dialogExtraClasses,
 		renderFooter: presentation.renderDialogFooter,
 	}));

@@ -11,43 +11,41 @@ import { createSessionsSignInDialogOptions } from '../../browser/sessionsSignInD
 
 suite('Sessions - Sign-In Dialog', () => {
 
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('offers signed-out continuation only when allowed', () => {
 		const commandService = new class extends mock<ICommandService>() { }();
 		let continueCount = 0;
 		const required = createSessionsSignInDialogOptions(commandService, false);
 		const optional = createSessionsSignInDialogOptions(commandService, false, true, () => continueCount++);
-		const footer = document.createElement('div');
-		const footerDisposable = optional.renderDialogFooter?.(footer);
-		if (footerDisposable) {
-			store.add(footerDisposable);
-		}
 
 		optional.onDidDismissDialog?.();
-		(footer.lastElementChild as HTMLElement | null)?.click();
 
 		assert.deepStrictEqual({
 			required: {
 				disableCloseButton: required.disableCloseButton,
+				allowContinueWithoutSignIn: required.allowContinueWithoutSignIn,
 				hasFooter: required.renderDialogFooter !== undefined,
 				hasDismissHandler: required.onDidDismissDialog !== undefined,
 			},
 			optional: {
 				disableCloseButton: optional.disableCloseButton,
-				footerLabels: Array.from(footer.children, child => child.textContent),
+				allowContinueWithoutSignIn: optional.allowContinueWithoutSignIn,
+				hasFooter: optional.renderDialogFooter !== undefined,
 				continueCount,
 			},
 		}, {
 			required: {
 				disableCloseButton: true,
+				allowContinueWithoutSignIn: false,
 				hasFooter: false,
 				hasDismissHandler: false,
 			},
 			optional: {
 				disableCloseButton: false,
-				footerLabels: ['Continue without signing in'],
-				continueCount: 2,
+				allowContinueWithoutSignIn: true,
+				hasFooter: false,
+				continueCount: 1,
 			},
 		});
 	});

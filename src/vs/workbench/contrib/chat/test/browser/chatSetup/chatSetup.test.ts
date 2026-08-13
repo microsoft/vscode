@@ -7,8 +7,10 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ChatEntitlement } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { buildUpgradeUrlWithRedirect, ChatSetupStrategy } from '../../../browser/chatSetup/chatSetup.js';
-import { ChatSetup, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
+import { ChatSetup, getChatSetupDialogButtons, getChatSetupDialogFooter, showChatSetupDialogWithCancellation } from '../../../browser/chatSetup/chatSetupRunner.js';
 
 /**
  * Parses the final URL and extracts the decoded return_to value,
@@ -86,6 +88,40 @@ suite('buildUpgradeUrlWithRedirect', () => {
 		assert.ok(result.startsWith('https://github.example.com/github-copilot/upgrade?utm_source=vscode&return_to='));
 		const { vscodeUri } = parseRedirectUrl(result);
 		assert.strictEqual(vscodeUri, 'vscode://GitHub.copilot-chat/upgrade-success');
+	});
+});
+
+suite('Chat setup dialog presentation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('places signed-out continuation after providers and scopes legal copy to sign-in', () => {
+		const buttons = getChatSetupDialogButtons(ChatEntitlement.Unknown, { allowContinueWithoutSignIn: true }, false, {
+			default: { name: 'GitHub' },
+			enterprise: { name: 'GHE' },
+			google: { name: 'Google' },
+			apple: { name: 'Apple' },
+		});
+		const footer = getChatSetupDialogFooter(undefined, TelemetryLevel.USAGE, 'https://example.com/settings', {
+			providerName: 'GitHub',
+			termsStatementUrl: 'https://example.com/terms',
+			privacyStatementUrl: 'https://example.com/privacy',
+			publicCodeMatchesUrl: 'https://example.com/public-code',
+		}, true);
+
+		assert.deepStrictEqual({
+			buttonLabels: buttons.map(button => button.label),
+			lastButton: buttons.at(-1),
+			footer,
+		}, {
+			buttonLabels: ['Continue with GitHub', 'Continue with Google', 'Continue with Apple', 'Continue with GHE', 'Continue without signing in'],
+			lastButton: {
+				label: 'Continue without signing in',
+				strategy: ChatSetupStrategy.Canceled,
+				classes: ['link-button'],
+			},
+			footer: 'By signing in, you agree to GitHub\'s [Terms](https://example.com/terms) and [Privacy Statement](https://example.com/privacy). GitHub Copilot may show [public code](https://example.com/public-code) suggestions and use your data to improve the product. You can change these [settings](https://example.com/settings) anytime.',
+		});
 	});
 });
 

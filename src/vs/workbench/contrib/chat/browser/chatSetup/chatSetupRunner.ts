@@ -11,8 +11,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -28,7 +29,7 @@ import { IWorkbenchLayoutService } from '../../../../services/layout/browser/lay
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { IChatSetupResult, ChatSetupAnonymous, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
+import { IChatSetupResult, ChatSetupAnonymous, ChatSetupDialogVisibleContext, ChatSetupError, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue, IChatSetupRunOptions } from './chatSetup.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -98,8 +99,13 @@ export class ChatSetupDialog extends Disposable {
 		@ILayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		const dialogVisible = ChatSetupDialogVisibleContext.bindTo(contextKeyService);
+		dialogVisible.set(true);
+		this._register(toDisposable(() => dialogVisible.reset()));
 
 		this.dialog = this._register(new Dialog(
 			container,
@@ -173,9 +179,12 @@ export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options:
 		const googleProviderButton = button(localize('continueWith', "Continue with {0}", providers.google.name), ChatSetupStrategy.SetupWithGoogleProvider, 'continue-button', 'google');
 		const appleProviderButton = button(localize('continueWith', "Continue with {0}", providers.apple.name), ChatSetupStrategy.SetupWithAppleProvider, 'continue-button', 'apple');
 
-		return enterpriseAuthentication
+		const providerButtons = enterpriseAuthentication
 			? [enterpriseProviderButton, googleProviderButton, appleProviderButton, defaultProviderLink]
 			: [defaultProviderButton, googleProviderButton, appleProviderButton, enterpriseProviderLink];
+		return options?.allowContinueWithoutSignIn
+			? [...providerButtons, button(localize('continueWithoutSigningIn', "Continue without signing in"), ChatSetupStrategy.Canceled, 'link-button')]
+			: providerButtons;
 	}
 
 	return [button(localize('setupAIButton', "Use AI Features"), ChatSetupStrategy.DefaultSetup)];
@@ -190,12 +199,19 @@ export function getChatSetupDialogFooter(
 		termsStatementUrl: defaultChat.termsStatementUrl,
 		privacyStatementUrl: defaultChat.privacyStatementUrl,
 		publicCodeMatchesUrl: defaultChat.publicCodeMatchesUrl,
-	}
+	},
+	signingIn = false,
 ): string {
 	if (forceAnonymous || telemetryLevel === TelemetryLevel.NONE) {
+		if (signingIn) {
+			return localize({ key: 'settingsAnonymousSigningIn', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}'] }, "By signing in, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).", content.providerName, content.termsStatementUrl, content.privacyStatementUrl);
+		}
 		return localize({ key: 'settingsAnonymous', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).", content.providerName, content.termsStatementUrl, content.privacyStatementUrl);
 	}
 
+	if (signingIn) {
+		return localize({ key: 'settingsSigningIn', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By signing in, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", content.providerName, content.termsStatementUrl, content.privacyStatementUrl, content.providerName, content.publicCodeMatchesUrl, settingsUrl);
+	}
 	return localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({1})"}', '{Locked="]({2})"}', '{Locked="]({4})"}', '{Locked="]({5})"}'] }, "By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}). {3} Copilot may show [public code]({4}) suggestions and use your data to improve the product. You can change these [settings]({5}) anytime.", content.providerName, content.termsStatementUrl, content.privacyStatementUrl, content.providerName, content.publicCodeMatchesUrl, settingsUrl);
 }
 
@@ -401,7 +417,7 @@ export class ChatSetup {
 			buttons,
 			icon: options?.dialogIcon ?? Codicon.copilotLarge,
 			disableCloseButton: options?.disableCloseButton ?? false,
-			footer: getChatSetupDialogFooter(options?.forceAnonymous, this.telemetryService.telemetryLevel, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings)),
+			footer: getChatSetupDialogFooter(options?.forceAnonymous, this.telemetryService.telemetryLevel, this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings), undefined, options?.allowContinueWithoutSignIn),
 			extraClasses: options?.dialogExtraClasses,
 			renderFooter: options?.renderDialogFooter,
 		});
