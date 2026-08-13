@@ -721,6 +721,28 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('liveness gives createSession bounded time for host initialization', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const lowLoad = { hasHighLoad: () => false };
+			const { client } = createClient(undefined, undefined, lowLoad);
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			const pending = client.createSession({ provider: 'copilotcli' }).catch(error => error);
+
+			// Agent SDK and customization initialization can block the host event
+			// loop for longer than the normal 25-second liveness window.
+			await timeout(60_000);
+			assert.strictEqual(closeCount, 0);
+
+			// The exception is bounded: a genuinely stuck host is still closed.
+			await timeout(65_000);
+			assert.strictEqual(closeCount, 1);
+			assert.ok((await pending) instanceof ProtocolError);
+			client.dispose();
+		});
+	});
+
 	test('liveness keeps the connection open while pings are answered', async () => {
 		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 			const lowLoad = { hasHighLoad: () => false };
@@ -1729,7 +1751,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				return t;
 			};
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(),
+				'test.example:1234', factory, { hasHighLoad: () => false }, undefined, clientInfo, new NullLogService(), permissionService, new TestConfigurationService(),
 			));
 			return { client, transports };
 		}
@@ -1746,6 +1768,36 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		test('recovers when the initial transport endpoint appears later', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connectPromise = client.connect();
+				transports[0].connectDeferred.error(new Error('endpoint not registered'));
+
+				await assert.rejects(() => connectPromise, /endpoint not registered/);
+				await waitForReconnecting(client);
+
+				const retryTransport = await waitForTransport(transports, 1);
+				retryTransport.connectDeferred.complete();
+				const reconnect = await waitForRequest(retryTransport, 'reconnect');
+				retryTransport.fireMessage({
+					jsonrpc: '2.0', id: reconnect.id,
+					error: { code: AhpErrorCodes.NotFound, message: 'Client not initialized' },
+				});
+				const initialize = await waitForRequest(retryTransport, 'initialize');
+				retryTransport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+				});
+
+				while (client.connectionState !== AgentHostClientState.Connected) {
+					await Promise.resolve();
+				}
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+			});
+		});
 
 		test('reuses clientId across transport reconnects', async function () {
 			this.timeout(10_000);
@@ -2483,9 +2535,19 @@ suite('RemoteAgentHostProtocolClient', () => {
 				// path — *not* rely on the transport's onClose firing (it never
 				// will for a silent dead socket, see WebSocketClientTransport.dispose).
 				const pending = client.resourceList(URI.file('/workspace')).catch(err => err);
-				await timeout(30_000);
+				let enteredReconnecting = false;
+				const reconnectListener = client.onDidChangeConnectionState(state => {
+					if (state === AgentHostClientState.Reconnecting) {
+						enteredReconnecting = true;
+						// Stop synchronously at the transition under test. Leaving the
+						// replacement transport unresolved would keep virtual time alive.
+						client.dispose();
+					}
+				});
+				await timeout(25_000);
+				reconnectListener.dispose();
 
-				assert.strictEqual(client.connectionState, AgentHostClientState.Reconnecting,
+				assert.strictEqual(enteredReconnecting, true,
 					'watchdog must drive the client into Reconnecting via soft reconnect rather than firing onDidClose');
 
 				const err = await pending;

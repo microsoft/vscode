@@ -148,6 +148,16 @@ export async function readLocalAgentHostEndpointRegistry(userDataPath: string, l
 	return sortForDeterministicOrder(dedupeAgentHostEndpointMetadata(live));
 }
 
+export function selectLocalStandaloneAgentHostEndpoint(entries: readonly IAgentHostEndpointMetadata[], logService?: ILogService): IAgentHostEndpointMetadata | undefined {
+	const standaloneEndpoints = entries
+		.filter(entry => entry.type === 'standalone' && entry.endpoint.type === 'tcp')
+		.sort((a, b) => a.instanceId < b.instanceId ? -1 : a.instanceId > b.instanceId ? 1 : 0);
+	if (standaloneEndpoints.length > 1) {
+		logService?.warn(`[AgentHost] Multiple live standalone agent hosts are registered; selecting instance ${standaloneEndpoints[0].instanceId} deterministically. Use explicit agent host bridge arguments to target a specific one.`);
+	}
+	return standaloneEndpoints[0];
+}
+
 function getMetadataDirectory(userDataPath: string): string {
 	return join(userDataPath, metadataDirectoryName, endpointDirectoryName);
 }

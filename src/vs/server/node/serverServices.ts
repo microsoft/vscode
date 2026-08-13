@@ -84,6 +84,8 @@ import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHos
 import { ServerAgentHostManager } from './serverAgentHostManager.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
+import { readLocalAgentHostEndpointRegistry, selectLocalStandaloneAgentHostEndpoint } from '../../platform/agentHost/node/localAgentHostMetadata.js';
+import { dialAgentHostHost } from '../../platform/agentHost/node/sshRemoteAgentHostHelpers.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
 import { CSSDevelopmentService, ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
@@ -106,6 +108,7 @@ import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGallery
 import { McpGalleryManifestIPCService } from '../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannel } from '../../platform/sandbox/common/sandboxHelperIpc.js';
 import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
+import { getUserDataPathForProduct } from '../../platform/environment/node/userDataPath.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -286,15 +289,37 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		// AH's readiness line and pass it back as `--agent-host-bridge-port`
 		// on the renderer-serving servers. Explicit `--agent-host-bridge-*`
 		// always wins over the spawn fallback.
-		const spawnPortNumber = spawnPort ? parseInt(spawnPort, 10) : NaN;
-		const hasUsableSpawnPort = Number.isFinite(spawnPortNumber) && spawnPortNumber > 0;
-		const bridgePort = args['agent-host-bridge-port'] ?? (hasUsableSpawnPort ? spawnPort : undefined);
-		const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
-		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
+		const spawnPortNumber = spawnPort ? Number(spawnPort) : NaN;
+		const hasUsableSpawnPort = Number.isSafeInteger(spawnPortNumber) && spawnPortNumber > 0 && spawnPortNumber <= 65535;
+		const explicitBridgePort = args['agent-host-bridge-port'];
+		const explicitBridgePath = args['agent-host-bridge-path'];
+		const hasExplicitBridgeConfiguration = [
+			explicitBridgePort,
+			explicitBridgePath,
+			args['agent-host-bridge-host'],
+			args['agent-host-bridge-connection-token'],
+		].some(value => value !== undefined);
+		const explicitBridgePortNumber = explicitBridgePort ? Number(explicitBridgePort) : NaN;
+		const hasUsableExplicitBridgePort = Number.isSafeInteger(explicitBridgePortNumber) && explicitBridgePortNumber > 0 && explicitBridgePortNumber <= 65535;
+		const bridgePort = hasExplicitBridgeConfiguration
+			? (!explicitBridgePath && hasUsableExplicitBridgePort ? String(explicitBridgePortNumber) : undefined)
+			: (hasUsableSpawnPort ? String(spawnPortNumber) : undefined);
+		const bridgePath = hasExplicitBridgeConfiguration ? explicitBridgePath : spawnPath;
+		const bridgeHost = hasExplicitBridgeConfiguration
+			? (args['agent-host-bridge-host'] ?? 'localhost')
+			: (args.host ?? 'localhost');
 		const bridgeToken = args['agent-host-bridge-connection-token']
-			?? ((bridgePort || bridgePath) && connectionToken.type === ServerConnectionTokenType.Mandatory
+			?? (!hasExplicitBridgeConfiguration && (bridgePort || bridgePath) && spawnAgentHost && connectionToken.type === ServerConnectionTokenType.Mandatory
 				? connectionToken.value
 				: undefined);
+		const hasExplicitAgentHostConfiguration = [
+			args['agent-host-port'],
+			args['agent-host-path'],
+			args['agent-host-bridge-port'],
+			args['agent-host-bridge-path'],
+			args['agent-host-bridge-host'],
+			args['agent-host-bridge-connection-token'],
+		].some(value => value !== undefined);
 		if (bridgePort || bridgePath) {
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
@@ -308,230 +333,209 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			));
 			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
 			logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
-		} else {
-			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
-			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
-		}
-	} else if (args['agent-host-bridge-port'] || args['agent-host-bridge-path'] || args['agent-host-bridge-host'] || args['agent-host-bridge-connection-token']) {
-		const bridgePort = args['agent-host-bridge-port'];
-		const bridgePath = args['agent-host-bridge-path'];
-		const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
-		const bridgeToken = args['agent-host-bridge-connection-token'];
-		if (bridgePort || bridgePath) {
-			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
-				socketServer,
-				{
-					host: bridgeHost,
-					port: bridgePort,
-					socketPath: bridgePath,
-					connectionToken: bridgeToken,
-				},
-				logService,
-			));
-			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
-			logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
-		} else {
-			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
-			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
-		}
-	} else {
-		try {
-			const socketPath = createRandomIPCHandle();
-			const connectionToken = generateUuid();
-			disposables.add(toDisposable(() => {
-				if (process.platform !== 'win32') {
-					void fs.promises.unlink(socketPath).catch(() => undefined);
-				}
-			}));
-
-			const agentHostStarter = instantiationService.createInstance(NodeAgentHostStarter);
-			agentHostStarter.setWebSocketConfig({ socketPath, connectionToken });
-			const agentHostManager = disposables.add(instantiationService.createInstance(
-				ServerAgentHostManager,
-				agentHostStarter,
-				{ startMode: 'lazy' },
-			));
+		} else if (!hasExplicitAgentHostConfiguration) {
+			const agentHostRegistryUserDataPath = getUserDataPathForProduct({ 'user-data-dir': args['agent-host-registry-user-data-dir'] }, productService.nameShort);
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
 				async () => {
-					await agentHostManager.ensureStarted();
-					return { socketPath, connectionToken };
+					const entries = await readLocalAgentHostEndpointRegistry(agentHostRegistryUserDataPath, logService);
+					const selected = selectLocalStandaloneAgentHostEndpoint(entries, logService);
+					if (!selected || selected.endpoint.type !== 'tcp') {
+						throw new Error('Agent host proxy is not available because no live standalone agent host endpoint is registered.');
+					}
+					if (!isLocalAgentHostRegistryHost(selected.endpoint.host)) {
+						throw new Error('Agent host proxy cannot automatically connect to a non-local registered endpoint. Use explicit agent host bridge arguments instead.');
+					}
+					return {
+						host: dialAgentHostHost(selected.endpoint.host),
+						port: String(selected.endpoint.port),
+						connectionToken: selected.connectionToken || undefined,
+					};
 				},
 				logService,
 			));
 			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
-			logService.info(`[AgentHostChannel] Registered lazy IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${socketPath})`);
-		} catch (error) {
+			logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' with lazy standalone endpoint discovery under ${agentHostRegistryUserDataPath}.`);
+		} else {
 			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
-			logService.error(`[AgentHostChannel] Failed to register IPC channel '${AgentHostIpcChannels.RemoteProxy}'`, error);
+			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': explicit agent host configuration did not provide a dialable bridge endpoint.`);
+		}
+
+		services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
+		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
+		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
+		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
+
+		instantiationService.invokeFunction(accessor => {
+			const mcpManagementService = accessor.get(IMcpManagementService);
+			const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
+			const extensionsScannerService = accessor.get(IExtensionsScannerService);
+			const extensionGalleryService = accessor.get(IExtensionGalleryService);
+			const languagePackService = accessor.get(ILanguagePackService);
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionHostStatusService, logService);
+			socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
+
+			const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
+			socketServer.registerChannel('telemetry', telemetryChannel);
+
+			socketServer.registerChannel(SANDBOX_HELPER_CHANNEL_NAME, new SandboxHelperChannel(new SandboxHelperService()));
+
+			socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
+
+			const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, productService.extensionsForceVersionByQuality ?? [], logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService, extensionManagementService);
+			socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+			socketServer.registerChannel(NativeMcpDiscoveryHelperChannelName, instantiationService.createInstance(NativeMcpDiscoveryHelperChannel, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+			socketServer.registerChannel(McpGatewayChannelName, instantiationService.createInstance(McpGatewayChannel<RemoteAgentConnectionContext>, socketServer));
+
+			const remoteFileSystemChannel = disposables.add(new RemoteAgentFileSystemProviderChannel(logService, environmentService, configurationService));
+			socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
+
+			socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
+
+			const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
+			socketServer.registerChannel('extensions', channel);
+
+			socketServer.registerChannel('mcpManagement', new McpManagementChannel(mcpManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+
+			// clean up extensions folder
+			remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());
+
+			disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
+
+			return {
+				telemetryService: accessor.get(ITelemetryService)
+			};
+		});
+
+		return { socketServer, instantiationService };
+	}
+
+	function isLocalAgentHostRegistryHost(host: string): boolean {
+		return host === 'localhost'
+			|| host === '127.0.0.1'
+			|| host === '::1'
+			|| host === '[::1]'
+			|| host === '0.0.0.0'
+			|| host === '::'
+			|| host === '[::]';
+	}
+
+	const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
+
+	function getUriTransformer(remoteAuthority: string): IURITransformer {
+		if (!_uriTransformerCache[remoteAuthority]) {
+			_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
+		}
+		return _uriTransformerCache[remoteAuthority];
+	}
+
+	export class SocketServer<TContext = string> extends IPCServer<TContext> {
+
+		private _onDidConnectEmitter: Emitter<ClientConnectionEvent>;
+
+		constructor() {
+			const emitter = new Emitter<ClientConnectionEvent>();
+			super(emitter.event);
+			this._onDidConnectEmitter = emitter;
+		}
+
+		public acceptConnection(protocol: IMessagePassingProtocol, onDidClientDisconnect: Event<void>): void {
+			this._onDidConnectEmitter.fire({ protocol, onDidClientDisconnect });
 		}
 	}
 
-	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));
-	services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService));
-	services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService));
-	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
+	class ServerLogger extends AbstractLogger {
+		private useColors: boolean;
 
-	instantiationService.invokeFunction(accessor => {
-		const mcpManagementService = accessor.get(IMcpManagementService);
-		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
-		const extensionsScannerService = accessor.get(IExtensionsScannerService);
-		const extensionGalleryService = accessor.get(IExtensionGalleryService);
-		const languagePackService = accessor.get(ILanguagePackService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionHostStatusService, logService);
-		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
+		constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+			super();
+			this.setLevel(logLevel);
+			this.useColors = Boolean(process.stdout.isTTY);
+		}
 
-		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);
-		socketServer.registerChannel('telemetry', telemetryChannel);
-
-		socketServer.registerChannel(SANDBOX_HELPER_CHANNEL_NAME, new SandboxHelperChannel(new SandboxHelperService()));
-
-		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
-
-		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, productService.extensionsForceVersionByQuality ?? [], logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService, extensionManagementService);
-		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
-
-		socketServer.registerChannel(NativeMcpDiscoveryHelperChannelName, instantiationService.createInstance(NativeMcpDiscoveryHelperChannel, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
-		socketServer.registerChannel(McpGatewayChannelName, instantiationService.createInstance(McpGatewayChannel<RemoteAgentConnectionContext>, socketServer));
-
-		const remoteFileSystemChannel = disposables.add(new RemoteAgentFileSystemProviderChannel(logService, environmentService, configurationService));
-		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
-
-		socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
-
-		const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
-		socketServer.registerChannel('extensions', channel);
-
-		socketServer.registerChannel('mcpManagement', new McpManagementChannel(mcpManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
-
-		// clean up extensions folder
-		remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());
-
-		disposables.add(new ErrorTelemetry(accessor.get(ITelemetryService)));
-
-		return {
-			telemetryService: accessor.get(ITelemetryService)
-		};
-	});
-
-	return { socketServer, instantiationService };
-}
-
-const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
-
-function getUriTransformer(remoteAuthority: string): IURITransformer {
-	if (!_uriTransformerCache[remoteAuthority]) {
-		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
-	}
-	return _uriTransformerCache[remoteAuthority];
-}
-
-export class SocketServer<TContext = string> extends IPCServer<TContext> {
-
-	private _onDidConnectEmitter: Emitter<ClientConnectionEvent>;
-
-	constructor() {
-		const emitter = new Emitter<ClientConnectionEvent>();
-		super(emitter.event);
-		this._onDidConnectEmitter = emitter;
-	}
-
-	public acceptConnection(protocol: IMessagePassingProtocol, onDidClientDisconnect: Event<void>): void {
-		this._onDidConnectEmitter.fire({ protocol, onDidClientDisconnect });
-	}
-}
-
-class ServerLogger extends AbstractLogger {
-	private useColors: boolean;
-
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super();
-		this.setLevel(logLevel);
-		this.useColors = Boolean(process.stdout.isTTY);
-	}
-
-	trace(message: string, ...args: unknown[]): void {
-		if (this.canLog(LogLevel.Trace)) {
-			if (this.useColors) {
-				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.log(`[${now()}]`, message, ...args);
+		trace(message: string, ...args: unknown[]): void {
+			if (this.canLog(LogLevel.Trace)) {
+				if (this.useColors) {
+					console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+				} else {
+					console.log(`[${now()}]`, message, ...args);
+				}
 			}
 		}
-	}
 
-	debug(message: string, ...args: unknown[]): void {
-		if (this.canLog(LogLevel.Debug)) {
-			if (this.useColors) {
-				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.log(`[${now()}]`, message, ...args);
+		debug(message: string, ...args: unknown[]): void {
+			if (this.canLog(LogLevel.Debug)) {
+				if (this.useColors) {
+					console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+				} else {
+					console.log(`[${now()}]`, message, ...args);
+				}
 			}
+		}
+
+		info(message: string, ...args: unknown[]): void {
+			if (this.canLog(LogLevel.Info)) {
+				if (this.useColors) {
+					console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
+				} else {
+					console.log(`[${now()}]`, message, ...args);
+				}
+			}
+		}
+
+		warn(message: string | Error, ...args: unknown[]): void {
+			if (this.canLog(LogLevel.Warning)) {
+				if (this.useColors) {
+					console.warn(`\x1b[93m[${now()}]\x1b[0m`, message, ...args);
+				} else {
+					console.warn(`[${now()}]`, message, ...args);
+				}
+			}
+		}
+
+		error(message: string, ...args: unknown[]): void {
+			if (this.canLog(LogLevel.Error)) {
+				if (this.useColors) {
+					console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
+				} else {
+					console.error(`[${now()}]`, message, ...args);
+				}
+			}
+		}
+
+		flush(): void {
+			// noop
 		}
 	}
 
-	info(message: string, ...args: unknown[]): void {
-		if (this.canLog(LogLevel.Info)) {
-			if (this.useColors) {
-				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.log(`[${now()}]`, message, ...args);
-			}
+	function now(): string {
+		const date = new Date();
+		return `${twodigits(date.getHours())}:${twodigits(date.getMinutes())}:${twodigits(date.getSeconds())}`;
+	}
+
+	function twodigits(n: number): string {
+		if (n < 10) {
+			return `0${n}`;
 		}
+		return String(n);
 	}
 
-	warn(message: string | Error, ...args: unknown[]): void {
-		if (this.canLog(LogLevel.Warning)) {
-			if (this.useColors) {
-				console.warn(`\x1b[93m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.warn(`[${now()}]`, message, ...args);
-			}
+	/**
+	 * Cleans up older logs, while keeping the 10 most recent ones.
+	 */
+	async function cleanupOlderLogs(logsPath: string): Promise<void> {
+		const currentLog = path.basename(logsPath);
+		const logsRoot = path.dirname(logsPath);
+
+		if (!await Promises.exists(logsRoot)) {
+			return; // Logs root doesn't exist yet, nothing to clean up
 		}
+
+		const children = await Promises.readdir(logsRoot);
+		const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
+		const oldSessions = allSessions.sort().filter((d) => d !== currentLog);
+		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
+
+		await Promise.all(toDelete.map(name => Promises.rm(path.join(logsRoot, name))));
 	}
-
-	error(message: string, ...args: unknown[]): void {
-		if (this.canLog(LogLevel.Error)) {
-			if (this.useColors) {
-				console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
-			} else {
-				console.error(`[${now()}]`, message, ...args);
-			}
-		}
-	}
-
-	flush(): void {
-		// noop
-	}
-}
-
-function now(): string {
-	const date = new Date();
-	return `${twodigits(date.getHours())}:${twodigits(date.getMinutes())}:${twodigits(date.getSeconds())}`;
-}
-
-function twodigits(n: number): string {
-	if (n < 10) {
-		return `0${n}`;
-	}
-	return String(n);
-}
-
-/**
- * Cleans up older logs, while keeping the 10 most recent ones.
- */
-async function cleanupOlderLogs(logsPath: string): Promise<void> {
-	const currentLog = path.basename(logsPath);
-	const logsRoot = path.dirname(logsPath);
-
-	if (!await Promises.exists(logsRoot)) {
-		return; // Logs root doesn't exist yet, nothing to clean up
-	}
-
-	const children = await Promises.readdir(logsRoot);
-	const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
-	const oldSessions = allSessions.sort().filter((d) => d !== currentLog);
-	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
-
-	await Promise.all(toDelete.map(name => Promises.rm(path.join(logsRoot, name))));
-}

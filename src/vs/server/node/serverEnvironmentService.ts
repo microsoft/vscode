@@ -91,6 +91,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'agent-host-bridge-path': { type: 'string', cat: 'o', args: 'path', description: nls.localize('agent-host-bridge-path', "Bridge renderer agent-host traffic to an already-running agent host listening on this socket path. Does not spawn an agent host.") },
 	'agent-host-bridge-host': { type: 'string', cat: 'o', args: 'host', description: nls.localize('agent-host-bridge-host', "Host the externally-running agent host is reachable at when used with --agent-host-bridge-port. Defaults to localhost.") },
 	'agent-host-bridge-connection-token': { type: 'string', cat: 'o', args: 'token', description: nls.localize('agent-host-bridge-connection-token', "Connection token required by the externally-running agent host when used with --agent-host-bridge-port.") },
+	'agent-host-registry-user-data-dir': { type: 'string' },
 
 	'use-host-proxy': { type: 'boolean' },
 	'without-browser-env-var': { type: 'boolean' },
@@ -228,6 +229,7 @@ export interface ServerParsedArgs {
 	'agent-host-bridge-path'?: string;
 	'agent-host-bridge-host'?: string;
 	'agent-host-bridge-connection-token'?: string;
+	'agent-host-registry-user-data-dir'?: string;
 
 	'use-host-proxy'?: boolean;
 	'without-browser-env-var'?: boolean;

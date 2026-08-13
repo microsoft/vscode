@@ -11,7 +11,7 @@ import * as os from 'os';
 import { dirname, join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostEndpointIdentity, IAgentHostEndpointMetadata, getAgentHostEndpointIdentityHashInput } from '../../common/agentHostEndpointRegistry.js';
-import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry } from '../../node/localAgentHostMetadata.js';
+import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry, selectLocalStandaloneAgentHostEndpoint } from '../../node/localAgentHostMetadata.js';
 
 suite('Local Agent Host Endpoint Metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -151,6 +151,25 @@ suite('Local Agent Host Endpoint Metadata', () => {
 			registered: new Set(writers.map(writer => writer.instanceId)),
 			files: 5,
 		});
+	});
+
+	test('selects the lowest standalone TCP instance and ignores editor and socket entries', () => {
+		const editor = makeEntry({ type: 'editor', pid: process.pid, instanceId: 'editor-a' }, 'editor-token');
+		const standaloneZ = makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'standalone-z' }, 'z-token');
+		const standaloneA = makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'standalone-a' }, 'a-token');
+		const standaloneSocket: IAgentHostEndpointMetadata = {
+			...makeEntry({ type: 'standalone', pid: process.pid, instanceId: 'standalone-socket' }, 'socket-token'),
+			endpoint: { type: 'socket', path: join(userDataPath, 'standalone.sock') },
+		};
+
+		const selected = selectLocalStandaloneAgentHostEndpoint([
+			editor,
+			standaloneZ,
+			standaloneSocket,
+			standaloneA,
+		]);
+
+		assert.strictEqual(selected, standaloneA);
 	});
 
 	test('never creates a .lock artifact', async () => {

@@ -6,14 +6,14 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -86,6 +86,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			clientId: 'test-client',
 			connect: async () => { connectCalls++; },
 			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
 			onDidNotification: Event.None,
 			onDidAction: Event.None,
 			onMcpNotification: Event.None,
@@ -127,5 +128,53 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
 		});
+	});
+
+	test('fires start once when an initially unavailable host eventually connects', async () => {
+		const channel: IChannel = {
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		};
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
+		const connectionState = disposables.add(new Emitter<AgentHostClientState>());
+		const protocolClient = {
+			clientId: 'test-client',
+			connect: async () => { throw new Error('endpoint not registered'); },
+			onDidClose: Event.None,
+			onDidChangeConnectionState: connectionState.event,
+			onDidNotification: Event.None,
+			onDidAction: Event.None,
+			onMcpNotification: Event.None,
+			initializeResult: constObservable(undefined),
+			rootState: {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onDidError: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			},
+			dispose: () => { },
+		};
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+		)));
+		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
+		instantiationService.set(IInstantiationService, instantiationService);
+
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		let startCount = 0;
+		disposables.add(service.onAgentHostStart(() => startCount++));
+		remoteAgentService.environmentReady.complete(null);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		connectionState.fire(AgentHostClientState.Connected);
+		connectionState.fire(AgentHostClientState.Connected);
+
+		assert.strictEqual(startCount, 1);
 	});
 });
