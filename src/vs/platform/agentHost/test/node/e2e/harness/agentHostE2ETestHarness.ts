@@ -371,6 +371,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsPlanMode: boolean;
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
+	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;
 	/** Whether provider-backed fork context can be tested end-to-end. */
 	readonly supportsChatForkE2E: boolean;

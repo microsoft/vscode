@@ -29,7 +29,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
-import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -62,6 +62,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
@@ -270,6 +271,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.dispatchedActions.filter(d => d.action.type === 'chat/turnStarted');
 	}
 	public sessionStates = new Map<string, SeededSessionState>();
+
+	hasLiveSubscription(resource: string): boolean {
+		return this._liveSubscriptions.has(resource);
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
@@ -1304,7 +1310,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		});
 
-		test('sends paste variables as paste simple attachments', async () => {
+		test('sends paste variables as embedded text attachments', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'continue',
@@ -1325,9 +1331,10 @@ suite('AgentHostChatContribution', () => {
 
 			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnStarted.message.attachments, [{
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.EmbeddedResource,
 				label: 'Previous conversation',
-				modelRepresentation: 'Transcript text',
+				data: encodeBase64(VSBuffer.fromString('Transcript text')),
+				contentType: 'text/plain',
 			}]);
 
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
@@ -6076,6 +6083,53 @@ suite('AgentHostChatContribution', () => {
 			}
 		});
 
+		test('restores SDK-replayed agent feedback blobs as one request variable', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/feedback-sdk-history' });
+			const sessionUri = AgentSession.uri('copilot', 'feedback-sdk-history');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: '/act-on-feedback',
+						origin: { kind: MessageKind.User },
+						attachments: [{
+							type: MessageAttachmentKind.Simple,
+							label: '2 comments',
+							displayKind: AgentFeedbackAttachmentDisplayKind,
+							modelRepresentation: 'Feedback comment 1',
+						}, {
+							type: MessageAttachmentKind.Simple,
+							label: '2 comments',
+							displayKind: AgentFeedbackAttachmentDisplayKind,
+							modelRepresentation: 'Feedback comment 2',
+						}],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.ok(request.variableData);
+				assert.deepStrictEqual(request.variableData.variables.map(variable => ({
+					kind: variable.kind,
+					name: variable.name,
+				})), [{
+					kind: 'generic',
+					name: '2 comments',
+				}]);
+			}
+		});
+
 		test('restores agent host completion attachments as hidden request variables', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/completion-history' });
@@ -6886,6 +6940,68 @@ suite('AgentHostChatContribution', () => {
 			}, {
 				isActive: false,
 				activeToolState: IChatToolInvocation.StateKind.Completed,
+			});
+		});
+
+		test('preserves reconstructed task descriptions over generic migrated subagent titles', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionUri = AgentSession.uri('copilot', 'migrated-subagent-history');
+			const defaultChatUri = buildDefaultChatUri(sessionUri.toString());
+			const childChatUri = buildSubagentChatUri(sessionUri.toString(), 'tc-subagent');
+			const summary = { resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() };
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: defaultChatUri,
+				chats: [{
+					resource: childChatUri,
+					title: 'Subagent',
+					status: SessionStatus.Idle,
+					modifiedAt: new Date().toISOString(),
+					origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri, toolCallId: 'tc-subagent' },
+					interactivity: ChatInteractivity.ReadOnly,
+				}],
+				turns: [{
+					id: 'turn-1',
+					message: { text: 'summarize the service', origin: { kind: MessageKind.User } },
+					state: TurnState.Complete,
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							status: ToolCallStatus.Completed,
+							toolCallId: 'tc-subagent',
+							toolName: 'task',
+							displayName: 'Delegate Task',
+							invocationMessage: 'Delegating task',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							success: true,
+							content: [],
+							_meta: { toolKind: 'subagent', subagentDescription: 'Summarize agent service', subagentAgentName: 'explore' },
+						},
+					}],
+					usage: undefined,
+				}],
+			} as SessionState);
+			agentHostService.sessionStates.set(childChatUri, {
+				...createSessionState({ ...summary, resource: childChatUri, title: 'Subagent' }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			} as SessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/migrated-subagent-history' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+			const response = chatSession.history.find(item => item.type === 'response');
+			const toolPart = response?.type === 'response'
+				? response.parts.find((part): part is IChatToolInvocationSerialized => part.kind === 'toolInvocationSerialized' && part.toolCallId === 'tc-subagent')
+				: undefined;
+
+			assert.deepStrictEqual(toolPart?.toolSpecificData?.kind === 'subagent' ? {
+				description: toolPart.toolSpecificData.description,
+				chatResource: toolPart.toolSpecificData.chatResource,
+			} : undefined, {
+				description: 'Summarize agent service',
+				chatResource: childChatUri,
 			});
 		});
 
@@ -10987,6 +11103,42 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('failed subagent tool calls release child chat subscriptions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentSession = parseDefaultChatUri(session);
+			assert.ok(parentSession);
+			const toolCallId = 'tc-failed-task';
+			const childChatUri = buildSubagentChatUri(parentSession, toolCallId);
+
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId, toolName: 'task', displayName: 'Delegate Task',
+				_meta: { toolKind: 'subagent', subagentChatUri: childChatUri },
+			} as ChatAction);
+			fire({
+				type: 'chat/toolCallReady', session, turnId,
+				toolCallId, invocationMessage: 'Delegating task',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			await timeout(0);
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), true);
+
+			fire({
+				type: 'chat/toolCallComplete', session, turnId, toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: '"Delegate Task" failed',
+					error: { message: 'Maximum sub-agent depth reached', code: 'failure' },
+				},
+			} as ChatAction);
+			await timeout(0);
+			assert.strictEqual(agentHostService.hasLiveSubscription(childChatUri), false);
+
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('inner subagent tool calls fired AFTER parent observation are also grouped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -11167,19 +11319,28 @@ suite('AgentHostChatContribution', () => {
 
 	suite('auth dedupe', () => {
 
+		const protectedResource = (): ProtectedResourceMetadata => ({
+			resource: 'https://api.github.com',
+			resource_name: 'GitHub',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['read:user'],
+			required: true,
+		});
+
 		const protectedAgents = (): AgentInfo[] => [{
 			provider: 'copilot',
 			displayName: 'Agent Host - Copilot',
 			description: 'test',
 			models: [],
-			protectedResources: [{
-				resource: 'https://api.github.com',
-				resource_name: 'GitHub',
-				authorization_servers: ['https://github.com/login/oauth'],
-				scopes_supported: ['read:user'],
-				required: true,
-			}],
+			protectedResources: [protectedResource()],
 		}];
+
+		const authRequiredNotification = (resource: ProtectedResourceMetadata, reason?: AuthRequiredReason): INotification => ({
+			type: 'auth/required',
+			channel: 'ahp-root://',
+			resource,
+			...(reason !== undefined ? { reason } : {}),
+		});
 
 		function tokenAuthService(tokenRef: { current: string }): Partial<IAuthenticationService> {
 			// Always returns whatever token is in tokenRef.current. Returning a session
@@ -11243,11 +11404,7 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
-			agentHostService.fireNotification({
-				type: 'auth/required',
-				channel: 'ahp-root://',
-				resource: 'https://api.github.com',
-			});
+			agentHostService.fireNotification(authRequiredNotification(protectedResource()));
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, [
@@ -11256,7 +11413,248 @@ suite('AgentHostChatContribution', () => {
 			]);
 		});
 
-		test('skips authenticate when no token is resolvable', async () => {
+		test('authenticates an exact required resource that is not advertised by root agents', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.example.com/session',
+				authorization_servers: ['https://auth.example.com'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.authenticateCalls.length = 0;
+			agentHostService.fireNotification(authRequiredNotification(sessionResource));
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{
+				resource: 'https://api.example.com/session',
+				scopes: ['session:read'],
+				token: 'tok-1',
+			}]);
+		});
+
+		test('resends the current token once for duplicate expired authentication notifications without prompting', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.authenticateCalls.length = 0;
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [{
+					resource: 'https://api.github.com/session',
+					scopes: ['session:read'],
+					token: 'tok-1',
+				}],
+			});
+		});
+
+		test('prompts once and forwards after a second completed same-token challenge', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			commandService.result = { success: true, dialogSkipped: false };
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 1,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+				],
+			});
+		});
+
+		test('forwards and records the post-sign-in token when authentication repopulates the cache during setup', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+			let promptCount = 0;
+			commandService.executeCommand = async <R>() => {
+				promptCount++;
+				tokenRef.current = 'tok-2';
+				await (contribution as unknown as { readonly _authTokenCache: AgentHostAuthTokenCache })._authTokenCache.authenticate(
+					sessionResource.resource,
+					sessionResource.scopes_supported,
+					tokenRef.current,
+					() => agentHostService.authenticate({ resource: sessionResource.resource, scopes: sessionResource.scopes_supported, token: tokenRef.current }),
+				);
+				return { success: true, dialogSkipped: false } as R;
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				promptCount,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				promptCount: 1,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-2' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-2' },
+				],
+			});
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			assert.strictEqual(promptCount, 2);
+		});
+
+		test('does not prompt after a silently rotated token on a second challenge', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			tokenRef.current = 'tok-2';
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-2' },
+				],
+			});
+		});
+
+		test('does not claim or retry a canceled interactive authentication until a later challenge', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			commandService.result = undefined;
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 1,
+				authenticateCalls: [{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' }],
+			});
+		});
+
+		test('sends a silently rotated current token for an expired authentication notification', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.authenticateCalls.length = 0;
+			tokenRef.current = 'tok-2';
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [{
+					resource: 'https://api.github.com/session',
+					scopes: ['session:read'],
+					token: 'tok-2',
+				}],
+			});
+		});
+
+		test('does not conflate authentication challenges with the same resource and distinct scopes', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			commandService.calls.length = 0;
+			agentHostService.authenticateCalls.length = 0;
+
+			const readResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+			const writeResource: ProtectedResourceMetadata = {
+				...readResource,
+				scopes_supported: ['session:write'],
+			};
+			agentHostService.fireNotification(authRequiredNotification(readResource, AuthRequiredReason.Expired));
+			agentHostService.fireNotification(authRequiredNotification(writeResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:write'], token: 'tok-1' },
+				],
+			});
+		});
+
+		test('forwards missing-token state once when no token is resolvable', async () => {
 			const noTokenService: Partial<IAuthenticationService> = {
 				onDidChangeSessions: Event.None,
 				getOrActivateProviderIdForServer: async () => undefined,
@@ -11269,7 +11667,9 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
 
-			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: '' },
+			]);
 		});
 
 		test('propagates interactive authentication errors for eager-created sessions', async () => {

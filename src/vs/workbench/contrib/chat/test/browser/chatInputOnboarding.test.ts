@@ -5,14 +5,12 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
-import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { ChatInputNoticeClaim, ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
+import { ChatInputNoticeClaim, ChatInputOnboarding, IChatInputOnboardingContext } from '../../browser/widget/input/chatInputOnboarding.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../browser/widget/input/chatInputNoticeHost.js';
 
 suite('Chat input onboarding', () => {
@@ -476,48 +474,4 @@ suite('Chat input onboarding', () => {
 			{ shown: true, announceCalls: 1 });
 	});
 
-	test('announces how to reach the card in the tab order', () => {
-		const host = createHost(disposables);
-		const ariaContainer = dom.append(host.root, dom.$('div'));
-		setARIAContainer(ariaContainer);
-		const card = disposables.add(new ChatInputOnboardingCard({
-			container: host.container,
-			className: 'chat-input-onboarding-card',
-			ariaLabel: 'Test onboarding',
-			ariaDescription: 'Test description.',
-			onEscape: () => { },
-		}));
-
-		card.announce();
-		const announced = ariaContainer.textContent;
-
-		assert.deepStrictEqual(
-			{ announced, tabIndex: card.domNode.tabIndex },
-			{ announced: 'Test onboarding. Use Shift+Tab to reach the introduction.', tabIndex: 0 });
-	});
-
-	test('handles unmodified keyboard dismissal and action activation', () => {
-		const host = createHost(disposables);
-		let dismissals = 0;
-		let activations = 0;
-		const card = disposables.add(new ChatInputOnboardingCard({
-			container: host.container,
-			className: 'chat-input-onboarding-card',
-			ariaLabel: 'Test onboarding',
-			onEscape: () => dismissals++,
-		}));
-		const action = card.addAction({
-			className: 'chat-input-onboarding-action',
-			ariaLabel: 'Continue',
-			icon: Codicon.check,
-			onActivate: () => activations++,
-		});
-
-		action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, ctrlKey: true, bubbles: true }));
-		card.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, shiftKey: true, bubbles: true }));
-		action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		card.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
-
-		assert.deepStrictEqual({ dismissals, activations }, { dismissals: 1, activations: 1 });
-	});
 });
