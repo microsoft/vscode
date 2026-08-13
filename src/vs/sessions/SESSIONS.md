@@ -358,21 +358,16 @@ Every `ISession` wrapper must delegate optional provider-owned observables such 
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
   → ChatView clears the embedded ChatWidget before loading a different chat,
-    while its session-target picker keeps the destination chat's exact type
-    (including extension-host Copilot CLI); before any chat is assigned it
-    defaults to Agent Host Copilot. Chat input context keys also derive model
-    targeting from that delegated type while the model resource is absent, so
-    the model picker remains mounted during loading. Before clearing the old
-    model, the view locks to the destination contributed chat session type (for
-    example agent-host-codex), keeping the Agent Host mode and permission
-    pickers mounted too; follow-up turns therefore route to the owning provider
+    then locks it to the contributed chat session type (for example
+    agent-host-codex) before setting the model, so follow-up turns keep routing
+    to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
    → isNewChatSession context → false
 ```
 
-The repository section's **Create Session from Pull Request** action calls `ISessionsManagementService.createAndSendNewChatRequest` with worktree isolation, the checkoutable GitHub `refs/pull/<number>/head` ref, `worktreeBranchTrack: true`, and initial GitHub session metadata containing the selected PR URL and source branch. Using the pull ref makes fork PRs resolve to the selected PR commit instead of an unrelated same-named branch on the base repository. Agent Host carries the metadata through eager `createSession`, publishes it as the session's standard GitHub state, and persists it when the session becomes ready; this drives the PR icon and actions without waiting for branch-based lookup. Headless provider resolution skips session types that do not advertise worktree configuration. Before invoking the synchronous `onSessionCreated` hook, the management service calls the provider's optional `startNewSessionRequest` hook so an untitled draft enters its preparing state and renders the real chat shell. `onSessionCreated` then activates that provisional session and closes the picker before worktree configuration starts. The transcript readiness status uses the same provider-agnostic session status message as the sessions-list row (for example, **Creating isolated worktree (42%)**), falling back to **Getting ready...** before activity arrives; it remains visible while the model is loading, has no request, or is running only the hidden bootstrap, and disappears when that bootstrap completes or any visible request appears.
+The repository section's **Create Session from Pull Request** action calls `ISessionsManagementService.createAndSendNewChatRequest` with worktree isolation, the checkoutable GitHub `refs/pull/<number>/head` ref, `worktreeBranchTrack: true`, and initial GitHub session metadata containing the selected PR URL and source branch. Using the pull ref makes fork PRs resolve to the selected PR commit instead of an unrelated same-named branch on the base repository. Agent Host carries the metadata through eager `createSession`, publishes it as the session's standard GitHub state, and persists it when the session becomes ready; this drives the PR icon and actions without waiting for branch-based lookup. Headless provider resolution skips session types that do not advertise worktree configuration. Before invoking the synchronous `onSessionCreated` hook, the management service calls the provider's optional `startNewSessionRequest` hook so an untitled draft enters its preparing state and publishes **Fetching pull request...** through the same session-description activity shown in the sessions list. The management service owns that activity in a `MutableDisposable`: request-option resolution clears it at the intended boundary, while method-level disposal also covers callbacks, failures, and cancellation before resolution starts. `onSessionCreated` then activates that provisional session and closes the picker before worktree configuration starts. The pre-request overlay mirrors `getSessionStatusMessage(session.status, session.description)`, including the standard **Working...** fallback, and renders it as a normal left-aligned `ChatProgressSubPart` with the standard shimmer and reduced-motion behavior. The absolute `.chat-transcript-progress` host contains an `.interactive-item-container`; the item class cannot be placed on the host because the Sessions message-column rule would override its absolute positioning and clip it below the list. `ChatWidget` also lets an active transcript overlay reveal the list before its chat view model is attached. After the draft commits, the same source carries Agent Host activity such as **Creating isolated worktree (42%)**. This bridge is required because the bootstrap response is hidden from the transcript, including its normal `progressMessage` rows. Progress disappears once visible transcript content exists or the hidden bootstrap completes.
 
 Before creation, GitHub supplies one JSON snapshot containing the PR title/description, all paged file patches, and all paged issue-level and review comments in chronological order. The snapshot uses the first-class transcript-context attachment kind on the hidden bootstrap and is represented by a PR context pill at the top of the empty transcript. On the first visible submit, `ChatWidget` synchronously adds the same attachment before it captures request context (including programmatic `preserveInput` sends); the standalone pill disappears and the normal request context row owns it from then on. A rejected/failed send restores the standalone pill for retry. Agent Host preserves the kind, PR URL, icon, and tooltip through its simple-attachment round trip.
 
@@ -393,17 +388,17 @@ an existing chat (`false`, `false`). The shared chat submit event carries the
 submitted attachment context so mirrored follow-up telemetry retains the same
 attachment counts and kinds as requests sent through the sessions service.
 
-When fixing transient picker state during chat loading, keep the fallback in
-`ChatView`'s reactive session-type delegate; it announces the destination as
-soon as `setChat` assigns it, and the rendered target picker and chat input
-context keys react before the model loads. Changing the shared picker's defaults
-or visibility would alter intentional behavior outside that transition.
-All chat-input context derived from the session type must use the same effective
-type (the scoped delegate when provided, otherwise the model resource), or
-individual picker slots can disappear during the handoff.
-Likewise, update the widget's coding-agent lock from the destination type before
-clearing the old model; waiting for the new model to load transiently hides
-Agent Host-only mode and permission actions.
+`ChatView` must **not** pass a `sessionTypePickerDelegate` to its `ChatWidget`.
+That option means "the user picks the session type here" (the welcome view and
+the automations dialog, which have no chat model of their own). `ChatInputPart`
+listens to `onDidChangeActiveSessionProvider` and reconciles the model and mode
+for the newly picked type, so a delegate that merely announces the displayed
+chat makes every navigation re-apply the remembered per-session-type model —
+while the input is still bound to the outgoing chat, which persists the wrong
+model into that chat's input state. A previous attempt to reduce picker flicker
+during loading did exactly this and desynchronized the model picker from the
+session; see the revert of #329889. Fix transient picker state during loading
+some other way.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
@@ -575,6 +570,10 @@ The editor feedback toolbar's visual widget is shared with workbench plan review
 through `AgentEditorCommentsOverlayWidget`. Each host keeps its own menu actions
 and state adapter, while the toolbar layout, count presentation, action rendering,
 keyboard labels, and styling have one workbench-owned implementation.
+In the Agents window, **Ctrl/Cmd+Enter** submits feedback only while editor text
+has focus and the focused editor group's active file or diff contains accepted
+feedback. Multi-diff panes may qualify through any of their resources, while the
+submission itself remains session-scoped.
 Plan review binds the plan resource to its owning session while that review is
 active. Only accepted comments created after the active review registration are
 included in plan submission, so pre-existing or already-submitted session feedback
@@ -882,7 +881,14 @@ Each invocation creates a **fresh** side chat (there is no "reuse the last side
 chat" behavior). After creating the chat, it activates that peer chat through
 the normal `ISessionsService.openChat(session, sideChat.resource)` flow so the
 standard session/chat focus behavior applies, then sends the prompt on that
-chat through the normal foreground send path. When the slash command has
+chat through the normal foreground send path. Its first request preserves
+explicitly attached context from the originating composer, including pasted
+text attachments. Agent Host sends pasted text as an embedded textual resource,
+then snapshots it into the session attachment directory before reducing the
+turn so synchronized state and later replay retain only the resource reference.
+Every chat in that Agent Host session may read the shared attachment directory
+without an additional permission confirmation; other sessions remain excluded.
+When the slash command has
 already been selected in the input UI, the remaining prompt is only the
 question text; `/btw` must not be inserted a second time.
 
@@ -1075,6 +1081,20 @@ independent — renaming the session no longer moves the default chat tab and
 vice-versa. Auto-titling from the first message
 titles the _session_ for the default chat and the _chat itself_ (via
 `updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
+
+Agent-host rename tools persist the title and its source in one session-database
+transaction before publishing live state, so a failed write changes neither key
+nor the visible title. Tool schemas and runtime validation reject titles over 200
+Unicode code points. Normalization decodes entities, collapses whitespace, removes
+outer quoting/punctuation, and humanizes no-whitespace slugs without changing
+explicit casing such as GitHub, TypeScript, AppKit, or OAuth.
+
+The active-agent rename reminder travels in transient `IAgentChatContext.hostInstructions`,
+never in the user prompt. Copilot and Claude project it through their user-prompt
+hooks' hidden additional context, while Codex uses `turn/start.additionalContext`;
+provider history, replay, restore, and forks therefore retain only the original
+user message. Destructive deletion and idle eviction clear title-controller state
+for the session and every peer chat after pending session metadata writes settle.
 
 Single-chat providers implement `renameSession` by renaming their single main
 chat. `renameSession` is a mandatory

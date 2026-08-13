@@ -51,6 +51,7 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -75,6 +76,9 @@ class MockCopilotSession {
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionAllowAllMode[] = [];
 	permissionModeSetSuccess = true;
+	readonly gitHubCredentialUpdates: Array<{ credentials?: { type: 'token'; host: string; token: string } }> = [];
+	gitHubCredentialUpdateResult = { success: true, copilotUserResolved: true };
+	gitHubCredentialUpdateError: Error | undefined;
 	readonly experimentalModeUpdates: boolean[] = [];
 	experimentalModeUpdateSuccess = true;
 	sandboxConfigUpdateSuccess = true;
@@ -235,6 +239,15 @@ class MockCopilotSession {
 				const mode = params.mode ?? 'off';
 				this.permissionModeSetCalls.push(mode);
 				return { success: this.permissionModeSetSuccess, enabled: mode === 'on', mode };
+			},
+		},
+		gitHubAuth: {
+			setCredentials: async (params: { credentials?: { type: 'token'; host: string; token: string } }) => {
+				this.gitHubCredentialUpdates.push(params);
+				if (this.gitHubCredentialUpdateError) {
+					throw this.gitHubCredentialUpdateError;
+				}
+				return this.gitHubCredentialUpdateResult;
 			},
 		},
 		plan: {
@@ -558,8 +571,9 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 	}
 }
 
-type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest'> & {
+type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
 	handlePermissionRequest(request: TestPermissionRequest): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
+	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
 async function createAgentSession(disposables: DisposableStore, options?: {
@@ -837,6 +851,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const runtime: TestCopilotSessionRuntime = {
 		...sdkRuntime,
 		handlePermissionRequest: request => sdkRuntime.handlePermissionRequest(toPermissionRequest(request)),
+		createClientSdkTools: toolSearchActive => sdkRuntime.createClientSdkTools(toolSearchActive ?? false),
 	};
 
 	return {
@@ -863,6 +878,18 @@ suite('CopilotAgentSession', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('updates GitHub credentials through the SDK session RPC', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		await session.initializeSession();
+
+		const result = await session.updateGitHubCredentials('github.com', 'updated-token');
+
+		assert.deepStrictEqual({ result, updates: mockSession.gitHubCredentialUpdates }, {
+			result: { success: true, copilotUserResolved: true },
+			updates: [{ credentials: { type: 'token', host: 'github.com', token: 'updated-token' } }],
+		});
+	});
 
 	suite('CopilotSessionWrapper', () => {
 		test('fires unhandled events when no wrapped listener is registered', () => {
@@ -5796,6 +5823,41 @@ suite('CopilotAgentSession', () => {
 				toolId: 'grep', confirmKind: 'confirmationNotNeeded', confirmationNotNeededReason: undefined,
 			}]);
 		});
+
+		test('tool-search approval telemetry classifies the override as a client tool', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { runtime, mockSession } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: {
+					tools: [{ name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, description: 'Search tools', inputSchema: { type: 'object', properties: {} } }],
+					plugins: [],
+					mcpServers: {},
+				},
+			});
+			runtime.createClientSdkTools(true);
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-tool-search-telemetry',
+				toolName: RUNTIME_TOOL_SEARCH_TOOL_NAME,
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-tool-search-telemetry',
+				success: true,
+				result: { content: 'done' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			assert.deepStrictEqual(telemetryService.events
+				.filter(event => event.eventName === 'chat.toolApproval')
+				.map(event => {
+					const data = event.data as Record<string, unknown>;
+					return { toolId: data.toolId, toolSourceKind: data.toolSourceKind };
+				}), [{
+					toolId: RUNTIME_TOOL_SEARCH_TOOL_NAME,
+					toolSourceKind: 'client',
+				}]);
+		});
+
 		test('idle event without an active turn is ignored', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
@@ -5916,6 +5978,24 @@ suite('CopilotAgentSession', () => {
 			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
 			assert.strictEqual(completions.length, 1);
 			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-next');
+		});
+
+		test('emits auth-required only for Copilot auth rejections', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			let authRequiredCount = 0;
+			disposables.add(session.onDidRequireAuth(() => authRequiredCount++));
+
+			for (const data of [
+				{ errorType: 'authentication', message: 'expired', statusCode: 401 },
+				{ errorType: 'authorization', message: 'unauthorized', statusCode: 401 },
+				{ errorType: 'authentication', message: 'forbidden', statusCode: 403 },
+				{ errorType: 'quota', message: 'quota exceeded', statusCode: 401 },
+				{ errorType: 'rate_limit', message: 'too many requests', statusCode: 429 },
+			]) {
+				mockSession.fire('session.error', data as SessionEventPayload<'session.error'>['data']);
+			}
+
+			assert.strictEqual(authRequiredCount, 2);
 		});
 
 		test('error event is forwarded', async () => {
@@ -7258,7 +7338,7 @@ suite('CopilotAgentSession', () => {
 
 		async function runToolSearch(clientResultText: string, availableTools: CurrentToolMetadata[], query = 'search tools', success = true): Promise<ToolResultObject> {
 			const { session, runtime, mockSession } = await createToolSearchSession(false);
-			const [override] = runtime.createClientSdkTools();
+			const [override] = runtime.createClientSdkTools(true);
 			const toolCallId = 'tc-tool-search-result';
 			const args = query ? { query } : {};
 
@@ -7281,7 +7361,7 @@ suite('CopilotAgentSession', () => {
 		test('tool-search override routes to the client and injects deferred candidates', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(false);
 
-			const [override] = runtime.createClientSdkTools();
+			const [override] = runtime.createClientSdkTools(true);
 			assert.strictEqual(override.name, 'tool_search_tool');
 			assert.strictEqual(override.overridesBuiltInTool, true);
 			assert.strictEqual(override.defer, 'never');
@@ -7404,7 +7484,7 @@ suite('CopilotAgentSession', () => {
 
 		test('auto-approved tool search defers its only ready until candidates are available', async () => {
 			const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(true);
-			const [override] = runtime.createClientSdkTools();
+			const [override] = runtime.createClientSdkTools(true);
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-tool-search',
@@ -7441,7 +7521,7 @@ suite('CopilotAgentSession', () => {
 			await handlerPromise;
 		});
 
-		test('toolSearch is omitted when the flag is off or the model is unsupported', async () => {
+		test('tool-search override follows the launch-time decision', async () => {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
 				tools: [
 					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: {} } },
@@ -7451,50 +7531,17 @@ suite('CopilotAgentSession', () => {
 				mcpServers: {},
 			};
 
-			const flagOff = await createAgentSession(disposables, {
+			const { runtime } = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-opus-4.8',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: false },
 			});
-			assert.deepStrictEqual(flagOff.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
 
-			const unsupported = await createAgentSession(disposables, {
-				clientSnapshot: toolSearchSnapshot,
-				modelId: 'claude-3-opus',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
+			assert.deepStrictEqual({
+				inactive: runtime.createClientSdkTools(false).map(tool => tool.name),
+				active: runtime.createClientSdkTools(true).map(tool => tool.name),
+			}, {
+				inactive: ['my_tool'],
+				active: ['tool_search_tool', 'my_tool'],
 			});
-			assert.deepStrictEqual(unsupported.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
-		});
-
-		test('toolSearch honors a model-family alias so an aliased preview model is treated as supported', async () => {
-			const toolSearchSnapshot: IActiveClientSnapshot = {
-				tools: [
-					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: {} } },
-					{ name: 'my_tool', description: 'Regular tool', inputSchema: { type: 'object', properties: {} } },
-				],
-				plugins: [],
-				mcpServers: {},
-			};
-
-			// The raw preview id is unsupported on its own, so tool search stays off.
-			const withoutAlias = await createAgentSession(disposables, {
-				clientSnapshot: toolSearchSnapshot,
-				modelId: 'preview-model-x',
-				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
-			});
-			assert.deepStrictEqual(withoutAlias.runtime.createClientSdkTools().map(tool => tool.name), ['my_tool']);
-
-			// Aliasing it to a tool-search-capable family enables tool search, matching
-			// the prompt/capability routing the launcher applies from the same override.
-			const withAlias = await createAgentSession(disposables, {
-				clientSnapshot: toolSearchSnapshot,
-				modelId: 'preview-model-x',
-				rootValues: {
-					[CopilotCliConfigKey.ToolSearchEnabled]: true,
-					[CopilotCliConfigKey.ModelCapabilityOverrides]: { 'preview-model-x': { family: 'claude-opus-4.8' } },
-				},
-			});
-			assert.deepStrictEqual(withAlias.runtime.createClientSdkTools().map(tool => tool.name), ['tool_search_tool', 'my_tool']);
 		});
 
 		test('agent-coordination client tools auto-ready with a tailored invocation message', async () => {

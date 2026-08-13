@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -2359,13 +2360,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('startNewSessionRequest transitions a pending session to in progress', () => {
+	test('startNewSessionRequest exposes session activity until disposed', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/my-project'), provider.sessionTypes[0].id);
 
-		provider.startNewSessionRequest(session.sessionId);
+		const activity = 'Fetching pull request...';
+		const preparation = provider.startNewSessionRequest(session.sessionId, activity);
+		const duringDescription = session.description.get();
+		const during = duringDescription ? renderAsPlaintext(duringDescription) : undefined;
+		preparation.dispose();
 
-		assert.strictEqual(session.status.get(), SessionStatus.InProgress);
+		assert.deepStrictEqual({
+			status: session.status.get(),
+			during,
+			after: session.description.get()?.value,
+		}, {
+			status: SessionStatus.InProgress,
+			during: activity,
+			after: undefined,
+		});
 	});
 
 	test('createNewSession forwards initial metadata to the agent host', async () => {

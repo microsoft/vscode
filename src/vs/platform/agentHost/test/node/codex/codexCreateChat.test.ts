@@ -46,6 +46,8 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly numTurns?: number;
+		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
+		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 	};
 }
 
@@ -756,10 +758,18 @@ suite('CodexAgent createChat', () => {
 			const entry = agent['_sessions'].get('session-prewarm')!;
 			await entry.materializePromise;
 
-			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1');
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, {
+				configurationResource: sessionUri,
+				resource: chat,
+				hostInstructions: ['Rename with exact casing'],
+			});
 			const turn = await readNextRequest(peer.outbound);
 			assert.strictEqual(turn.method, 'turn/start');
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
+			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
+			assert.deepStrictEqual(turn.params.additionalContext, {
+				'vscode.agentHost': { kind: 'application', value: 'Rename with exact casing' },
+			});
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 		} finally {
