@@ -4416,27 +4416,25 @@ export function getWorkingProgressRelevantParts(parts: readonly IChatRendererCon
 }
 
 export function endsWithActiveSubagentContent(parts: readonly IChatRendererContent[]): boolean {
-	const lastPart = findLastMeaningfulPart(parts);
-	if (!lastPart) {
+	const lastPart = findLastMeaningfulPart(parts.filter(part => !isNestedSubagentContent(part)));
+	if (!lastPart || (lastPart.kind !== 'toolInvocation' && lastPart.kind !== 'toolInvocationSerialized')) {
 		return false;
 	}
-	const subagentId = lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized'
-		? getSubagentId(lastPart)
-		: lastPart.kind === 'hook'
-			? lastPart.subAgentInvocationId
-			: lastPart.kind === 'markdownContent'
-				? extractSubAgentInvocationIdFromText(lastPart.content.value)
-				: undefined;
-	if (!subagentId) {
+	if (!isParentSubagentTool(lastPart)) {
 		return false;
 	}
-	const parentSubagent = parts.find((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
-		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
-		&& isParentSubagentTool(part)
-		&& part.toolCallId === subagentId
-	);
-	return parentSubagent?.toolSpecificData?.kind === 'subagent'
-		&& (parentSubagent.toolSpecificData.isActive ?? !IChatToolInvocation.isComplete(parentSubagent));
+	return lastPart.toolSpecificData?.kind === 'subagent'
+		&& (lastPart.toolSpecificData.isActive ?? !IChatToolInvocation.isComplete(lastPart));
+}
+
+function isNestedSubagentContent(part: IChatRendererContent): boolean {
+	if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+		return !!part.subAgentInvocationId;
+	}
+	if (part.kind === 'hook') {
+		return !!part.subAgentInvocationId;
+	}
+	return part.kind === 'markdownContent' && !!extractSubAgentInvocationIdFromText(part.content.value);
 }
 
 export function endsWithCompletedQuestionInteraction(parts: readonly IChatRendererContent[]): boolean {
