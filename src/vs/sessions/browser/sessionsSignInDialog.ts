@@ -17,13 +17,19 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../workbench/services/layout/browser/layoutService.js';
 import { RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
 
-export function createSessionsSignInDialogOptions(commandService: ICommandService, showReturnToVSCodeEditor: boolean) {
+export function createSessionsSignInDialogOptions(
+	commandService: ICommandService,
+	showReturnToVSCodeEditor: boolean,
+	allowContinueWithoutSignIn = false,
+	onContinueWithoutSignIn: () => void = () => { },
+) {
 	return {
 		forceSignInDialog: true,
 		dialogIcon: Codicon.agent,
 		dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-		disableCloseButton: true,
+		disableCloseButton: !allowContinueWithoutSignIn,
 		dialogExtraClasses: ['sessions-welcome-dialog'],
+		allowContinueWithoutSignIn,
 		renderDialogFooter: showReturnToVSCodeEditor ? (footer: HTMLElement) => createDialogAction(
 			footer,
 			localize('sessions.returnToVSCodeEditor', "Return to VS Code Editor"),
@@ -31,6 +37,7 @@ export function createSessionsSignInDialogOptions(commandService: ICommandServic
 				void commandService.executeCommand<void>(RETURN_TO_VSCODE_EDITOR_COMMAND_ID).catch(onUnexpectedError);
 			}
 		) : undefined,
+		onDidDismissDialog: allowContinueWithoutSignIn ? onContinueWithoutSignIn : undefined,
 	};
 }
 

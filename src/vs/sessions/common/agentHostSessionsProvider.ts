@@ -10,7 +10,8 @@ import { URI } from '../../base/common/uri.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -31,6 +32,11 @@ export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
 	readonly enabled: boolean;
+	readonly enablement?: readonly CustomizationEnablement[];
+	readonly isPluginProvided?: boolean;
+	readonly isClientBundled?: boolean;
+	readonly owningPluginClientId?: string;
+	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
 	readonly state: McpServerState;
 	readonly logOutputChannelId?: string;
@@ -183,8 +189,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session
-	 * (index 0 = primary), or an empty array when none are known. Used as the
-	 * workspace identity for durable MCP-server enablement.
+	 * (index 0 = primary), or an empty array when none are known.
 	 */
 	getWorkingDirectories(sessionId: string): readonly string[];
 
@@ -195,6 +200,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * servers.
 	 */
 	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
+	/** Replaces an agent-host customization's explicit enablement decisions. */
+	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void;
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

@@ -28,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -262,7 +263,7 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessi
 			: undefined)
 		.filter(id => id !== undefined));
 	return servers
-		.filter(server => server.enabled && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
+		.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.AuthRequired && !toolAuthServerIds.has(server.id))
 		.map((server): IChatMcpAuthenticationRequiredServer => {
 			const state = server.state as McpServerAuthRequiredState;
 			return {
@@ -2813,8 +2814,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		this._customizationService.prepareMcpServersForTurn(request.sessionResource);
-
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction: ChatTurnStartedAction = {
@@ -2999,7 +2998,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
 			return servers
-				.filter(server => server.enabled && server.state.kind === McpServerStatus.Starting)
+				.filter(server => isCustomizationEnabled(server) && server.state.kind === McpServerStatus.Starting)
 				.map((server): IChatMcpStartingServer => ({
 					id: opts.sessionResource.authority + '/' + server.id,
 					name: server.name,

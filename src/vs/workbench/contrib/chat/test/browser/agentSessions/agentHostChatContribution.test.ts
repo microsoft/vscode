@@ -31,7 +31,7 @@ import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } fr
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -10455,7 +10455,7 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 
@@ -10509,7 +10509,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
 
 			customizations.set([
-				{ type: CustomizationType.Plugin, id: 'file:///initial-plugin', uri: 'file:///initial-plugin', name: 'Initial Plugin', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///initial-plugin', uri: 'file:///initial-plugin', name: 'Initial Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 			], undefined);
 			isResolved.set(true, undefined);
 			initialResolution.complete();
@@ -10553,7 +10553,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Update customizations
 			customizations.set([
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-b', uri: 'file:///plugin-b', name: 'Plugin B', },
 			], undefined);
 			await timeout(10);
 
@@ -10569,7 +10569,7 @@ suite('AgentHostChatContribution', () => {
 		test('reasserts a claimed active client after session state loses it', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<readonly ClientPluginCustomization[]>('driftCustomizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///drift-plugin', uri: 'file:///drift-plugin', name: 'Drift Plugin', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///drift-plugin', uri: 'file:///drift-plugin', name: 'Drift Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 			]);
 			const tools = observableValue<readonly ToolDefinition[]>('driftTools', [{ name: 'drift_tool' }]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations, tools }));
@@ -10585,7 +10585,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			customizations.set([
-				{ type: CustomizationType.Plugin, id: 'file:///drift-plugin-updated', uri: 'file:///drift-plugin-updated', name: 'Updated Drift Plugin', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///drift-plugin-updated', uri: 'file:///drift-plugin-updated', name: 'Updated Drift Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 			], undefined);
 			await timeout(10);
 			const initial = agentHostService.dispatchedActions.find(action => action.action.type === ActionType.SessionActiveClientSet)!;
@@ -10614,7 +10614,7 @@ suite('AgentHostChatContribution', () => {
 				[{
 					clientId: agentHostService.clientId,
 					tools: [{ name: 'drift_tool' }],
-					customizations: [{ type: CustomizationType.Plugin, id: 'file:///drift-plugin-updated', uri: 'file:///drift-plugin-updated', name: 'Updated Drift Plugin', enabled: true }],
+					customizations: [{ type: CustomizationType.Plugin, id: 'file:///drift-plugin-updated', uri: 'file:///drift-plugin-updated', name: 'Updated Drift Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }],
 				}],
 			);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -10637,7 +10637,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			customizations.set([
-				{ type: CustomizationType.Plugin, id: 'file:///non-converging-plugin', uri: 'file:///non-converging-plugin', name: 'Non-converging Plugin', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///non-converging-plugin', uri: 'file:///non-converging-plugin', name: 'Non-converging Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 			], undefined);
 			await timeout(10);
 			const published = agentHostService.dispatchedActions.find(action => action.action.type === ActionType.SessionActiveClientSet)!;
@@ -10698,7 +10698,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			agentHostService.dispatchedActions.length = 0;
 
-			customizations.set([{ type: CustomizationType.Plugin, id: 'file:///burst-plugin', uri: 'file:///burst-plugin', name: 'Burst Plugin', enabled: true }], undefined);
+			customizations.set([{ type: CustomizationType.Plugin, id: 'file:///burst-plugin', uri: 'file:///burst-plugin', name: 'Burst Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }], undefined);
 			customAgents.set([{ type: CustomizationType.Agent, id: 'burst-agent', uri: 'file:///burst-agent.agent.md', name: 'Burst Agent' }], undefined);
 			tools.set([{ name: 'burst_tool' }], undefined);
 			await timeout(10);
@@ -10710,7 +10710,7 @@ suite('AgentHostChatContribution', () => {
 				[{
 					clientId: agentHostService.clientId,
 					tools: [{ name: 'burst_tool' }],
-					customizations: [{ type: CustomizationType.Plugin, id: 'file:///burst-plugin', uri: 'file:///burst-plugin', name: 'Burst Plugin', enabled: true }],
+					customizations: [{ type: CustomizationType.Plugin, id: 'file:///burst-plugin', uri: 'file:///burst-plugin', name: 'Burst Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }],
 				}],
 			);
 		});
@@ -10749,7 +10749,7 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.dispatchedActions.length = 0;
 			customizationsA.set([
-				{ type: CustomizationType.Plugin, id: 'file:///scope-a-plugin', uri: 'file:///scope-a-plugin', name: 'Scope A Plugin', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///scope-a-plugin', uri: 'file:///scope-a-plugin', name: 'Scope A Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 			], undefined);
 			await timeout(10);
 
@@ -10807,7 +10807,7 @@ suite('AgentHostChatContribution', () => {
 		test('publishes only resolved customizations when restoring a session', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const sessionResource = AgentSession.uri('copilot', 'resolved-customizations');
-			const customization: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'file:///resolved-plugin', uri: 'file:///resolved-plugin', name: 'Resolved Plugin', enabled: true };
+			const customization: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'file:///resolved-plugin', uri: 'file:///resolved-plugin', name: 'Resolved Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] };
 			const summary: SessionSummary = {
 				resource: sessionResource.toString(),
 				provider: 'copilot',
@@ -10939,7 +10939,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
-			customizations.set([{ type: CustomizationType.Plugin, id: 'file:///other-client-plugin', uri: 'file:///other-client-plugin', name: 'Other Client Plugin', enabled: true }], undefined);
+			customizations.set([{ type: CustomizationType.Plugin, id: 'file:///other-client-plugin', uri: 'file:///other-client-plugin', name: 'Other Client Plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] }], undefined);
 			await timeout(10);
 
 			assert.deepStrictEqual(agentHostService.dispatchedActions.filter(action => action.action.type === ActionType.SessionActiveClientSet), []);
@@ -10948,7 +10948,7 @@ suite('AgentHostChatContribution', () => {
 		test('refreshes stale customizations on open when the current client is already active', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
@@ -10966,7 +10966,7 @@ suite('AgentHostChatContribution', () => {
 				activeClients: [{
 					clientId: agentHostService.clientId,
 					tools: [],
-					customizations: [{ type: CustomizationType.Plugin, id: 'file:///plugin-old', uri: 'file:///plugin-old', name: 'Plugin Old', enabled: true }],
+					customizations: [{ type: CustomizationType.Plugin, id: 'file:///plugin-old', uri: 'file:///plugin-old', name: 'Plugin Old', }],
 				}],
 			});
 
@@ -10991,14 +10991,14 @@ suite('AgentHostChatContribution', () => {
 			const activeClientAction = activeClientActions[0].action as { type: string; activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.strictEqual(activeClientAction.type, 'session/activeClientSet');
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New' },
 			]);
 		});
 
 		test('refreshes customizations once when the current active client hydrates after open', async () => {
 			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true, version: undefined },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], version: undefined },
 			]);
 			disposables.add(seedActiveClient('agent-host-copilot', { customizations }));
 			const sessionResource = AgentSession.uri('copilot', 'late-active-client');
@@ -11052,7 +11052,7 @@ suite('AgentHostChatContribution', () => {
 						clientId: agentHostService.clientId,
 						tools: [],
 						customizations: [
-							{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
+							{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 						],
 					},
 				},
@@ -11066,7 +11066,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(activeClientActions.length, 1);
 			const activeClientAction = activeClientActions[0].action as { activeClient: { customizations?: ClientPluginCustomization[] } };
 			assert.deepStrictEqual(activeClientAction.activeClient.customizations, [
-				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true, version: undefined },
+				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }], version: undefined },
 			]);
 		});
 	});
@@ -11788,19 +11788,14 @@ suite('AgentHostChatContribution', () => {
 	suite('mcp auth prompt', () => {
 
 		// A customization service whose MCP server statuses and change events the
-		// test drives directly, so the handler's reconcile pass — which prunes a
-		// server from the per-conversation surfaced set once it reaches Ready —
-		// can be exercised deterministically.
+		// test drives directly, so the handler's auth prompt behavior can be
+		// exercised deterministically.
 		class TestMcpCustomizationService extends NullAgentHostCustomizationService {
 			private readonly _onDidChange = new Emitter<void>();
 			override readonly onDidChangeCustomizations = this._onDidChange.event;
 			mcpServers: readonly IAgentHostMcpServer[] = [];
 			override getMcpServers(): readonly IAgentHostMcpServer[] {
 				return this.mcpServers;
-			}
-			onPrepare: (() => void) | undefined;
-			override prepareMcpServersForTurn(): void {
-				this.onPrepare?.();
 			}
 			fireChange(): void {
 				this._onDidChange.fire();
@@ -11817,7 +11812,6 @@ suite('AgentHostChatContribution', () => {
 			type: CustomizationType.McpServer,
 			id: 'mcp-1',
 			name: 'GitHub MCP',
-			enabled: true,
 			uri: URI.parse('https://example.com/mcp'),
 			state: {
 				kind: McpServerStatus.AuthRequired,
@@ -11875,32 +11869,6 @@ suite('AgentHostChatContribution', () => {
 			return promptParts;
 		}
 
-		test('prepares MCP enablement immediately before dispatching the turn', async () => {
-			const customizationService = disposables.add(new TestMcpCustomizationService());
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: customizationService });
-			let prepareCount = 0;
-			customizationService.onPrepare = () => {
-				assert.strictEqual(agentHostService.turnActions.length, 0);
-				prepareCount++;
-			};
-
-			await runTurn(
-				sessionHandler,
-				agentHostService,
-				chatAgentService,
-				URI.from({ scheme: 'agent-host-copilot', path: '/mcp-prepare' }),
-				{ v: 1 },
-			);
-
-			assert.deepStrictEqual({
-				prepareCount,
-				turnCount: agentHostService.turnActions.length,
-			}, {
-				prepareCount: 1,
-				turnCount: 1,
-			});
-		});
-
 		test('silently authenticates an existing session without an active turn', async () => {
 			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, {
 				authServiceOverride: {
@@ -11939,7 +11907,6 @@ suite('AgentHostChatContribution', () => {
 					type: CustomizationType.McpServer,
 					id: 'notion',
 					name: 'notion',
-					enabled: true,
 					uri: 'https://mcp.notion.com/mcp',
 					state: {
 						kind: McpServerStatus.AuthRequired,
@@ -12014,7 +11981,6 @@ suite('AgentHostChatContribution', () => {
 						type: CustomizationType.McpServer,
 						id: `notion-${id}`,
 						name: 'notion',
-						enabled: true,
 						uri: 'https://mcp.notion.com/mcp',
 						state: {
 							kind: McpServerStatus.AuthRequired,

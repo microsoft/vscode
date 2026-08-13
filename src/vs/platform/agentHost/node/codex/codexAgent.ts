@@ -35,13 +35,16 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, withSessionWorkspaceless, type ClientPluginCustomization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
-import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers } from './codexCustomizations.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfigFromPlugins, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents } from './codexCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
+import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -642,6 +645,12 @@ interface ICodexSession {
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
+	/**
+	 * Set when launch-only settings changed on a subscribed live thread. Codex
+	 * ignores `thread/resume` overrides for such a thread, so release the live
+	 * subscription before resuming its persisted history with the new settings.
+	 */
+	unsubscribeBeforeResume: boolean;
 	/** In-flight resume shared by history loading and the first send. */
 	resumePromise: Promise<void> | undefined;
 	/** Most recent user prompt sent on this session — used as fallback userMessage text in `turn/started`. */
@@ -1048,6 +1057,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
+		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		@IAgentHostSessionTitleSignal sessionTitleSignal: IAgentHostSessionTitleSignal,
 	) {
 		super();
@@ -1279,7 +1289,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			} else {
 				// A thread with history is resumed (with the current config) on
 				// its next turn rather than restarted, so nothing is lost.
-				session.needsResume = true;
+				this._markSessionForReload(session);
 			}
 		}
 	}
@@ -1481,10 +1491,12 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
+	private _workingDirectories(session: ICodexSession): readonly URI[] {
+		return session.workingDirectories ?? (session.workingDirectory ? [session.workingDirectory] : []);
+	}
+
 	private _runtimeWorkspaceRoots(session: ICodexSession): string[] {
-		const workingDirectories = session.workingDirectories
-			?? (session.workingDirectory ? [session.workingDirectory] : []);
-		return distinctAbsolutePaths(workingDirectories.map(directory => directory.fsPath));
+		return distinctAbsolutePaths(this._workingDirectories(session).map(directory => directory.fsPath));
 	}
 
 	private _isMultiRootActive(session: ICodexSession): boolean {
@@ -1514,8 +1526,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		readonly selectedCapabilityRoots: SelectedCapabilityRoot[];
 		readonly signature: string;
 	}> {
-		const plugins = session.clientCustomizations.enabledPlugins();
-		const customization = await codexCustomizationConfigFromPlugins(plugins, session.agent, this._fileService);
+		const plugins = this._enabledClientPlugins(session);
+		const workspaceAgents = await discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService);
+		const customization = await codexCustomizationConfig(workspaceAgents.agents, plugins, session.agent, this._fileService);
 		const config: Record<string, JsonValue> = {};
 		if (customization.agentRoles.length > 0) {
 			const root = session.customizationDirectory?.fsPath
@@ -1548,6 +1561,44 @@ export class CodexAgent extends Disposable implements IAgent {
 			selectedCapabilityRoots,
 			signature,
 		};
+	}
+
+	private _enabledClientPlugins(session: ICodexSession): readonly ICodexClientPlugin[] {
+		const plugins = session.clientCustomizations.plugins();
+		const candidates = plugins.map(plugin => ({
+			...plugin.synced.customization,
+			...(plugin.parsed ? { children: parsedPluginChildren(plugin.parsed) } : {}),
+		}));
+		const clientPlugins = new Map<string, ClientPluginCustomization>();
+		const childEnablement = new Map<string, NonNullable<ClientPluginCustomization['childEnablement']>>();
+		for (const plugin of plugins) {
+			if (plugin.input !== undefined) {
+				clientPlugins.set(plugin.input.uri, plugin.input);
+				if (plugin.input.childEnablement !== undefined) {
+					childEnablement.set(plugin.input.uri, plugin.input.childEnablement);
+				}
+			}
+		}
+		const resolution = resolveCustomizationEnablement(
+			this._customizationEnablementService,
+			session.sessionUri,
+			candidates,
+			childEnablement,
+			clientPlugins,
+		);
+		const enabled: ICodexClientPlugin[] = [];
+		for (const [index, plugin] of plugins.entries()) {
+			const customization = resolution.customizations[index];
+			if (plugin.parsed !== undefined
+				&& customization.type === CustomizationType.Plugin
+				&& isCustomizationSdkEligible(resolution, candidates[index])) {
+				const resolved = { ...plugin, customization };
+				if (session.clientCustomizations.isEnabled(resolved)) {
+					enabled.push(resolved);
+				}
+			}
+		}
+		return enabled;
 	}
 
 	private async _refreshModels(): Promise<void> {
@@ -1944,9 +1995,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * header so codex connects authenticated.
 	 */
 	private _buildSessionMcpServers(session: ICodexSession): Record<string, ICodexMcpServerConfigJson> {
-		const root = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
-		const clientPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
+		const root = Object.fromEntries(
+			Object.entries(codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey)))
+				.filter(([name]) => this._isMcpServerEnabledForSdk(session, name)),
+		);
+		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session));
 		return injectCodexMcpAuthTokens({ ...root, ...clientPlugins }, this._mcpAuthTokens);
+	}
+
+	private _isMcpServerEnabledForSdk(session: ICodexSession, name: string): boolean {
+		const resolution = this._customizationEnablementService?.resolve(session.sessionUri.toString(), targetForUnownedMcpServer(name));
+		return resolution?.kind === 'resolved' && resolution.enabled;
 	}
 
 	/**
@@ -1958,7 +2017,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _httpMcpServerUrls(session: ICodexSession): Map<string, string> {
 		const root = codexMcpServersFromConfig(this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey));
-		const clientPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
+		const clientPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session));
 		const urls = new Map<string, string>();
 		for (const [name, server] of Object.entries({ ...root, ...clientPlugins })) {
 			const normalized = server.url !== undefined ? normalizeCodexMcpResourceUrl(server.url) : undefined;
@@ -1976,7 +2035,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return root[name].url;
 		}
 		for (const session of this._sessions.values()) {
-			const fromPlugins = codexMcpServersFromPlugins(session.clientCustomizations.enabledPlugins());
+			const fromPlugins = codexMcpServersFromPlugins(this._enabledClientPlugins(session));
 			if (fromPlugins[name]?.url !== undefined) {
 				return fromPlugins[name].url;
 			}
@@ -2658,6 +2717,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
+			unsubscribeBeforeResume: false,
 			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
@@ -3274,7 +3334,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._restartThreadWithCurrentTools(session);
 			this._persistMaterializedSession(session);
 		} else {
-			session.needsResume = true;
+			this._markSessionForReload(session);
 		}
 	}
 
@@ -3531,6 +3591,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: false,
+			unsubscribeBeforeResume: false,
 			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
@@ -3767,6 +3828,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			hostTurnIdByAppTurnId: new Map<string, string>(),
 			codexTurnIdByHostTurnId: new Map<string, string>(),
 			needsResume: true,
+			unsubscribeBeforeResume: false,
 			resumePromise: undefined,
 			lastPromptText: '',
 			disposed: false,
@@ -4068,6 +4130,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed || !session.chatChannel) {
 			return;
 		}
+		await this._customizationEnablementService?.initializeSession(session.sessionUri.toString());
 		if (!session.workingDirectory) {
 			// No working directory was supplied (e.g. an editor window with no
 			// workspace folder open). Codex requires one, so create a managed
@@ -4084,6 +4147,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// them for this thread only): the workbench's root `mcpServers` config
 		// merged with this session's enabled client-plugin servers. Passing them
 		// per-thread means a new session always reflects the current root config.
+		// Mid-session MCP enablement changes apply only when Codex starts or resumes a thread.
 		const mcpServers = this._buildSessionMcpServers(session);
 		const customizationLaunch = await this._buildCustomizationLaunch(session);
 		const resolvedModel = parseCodexModelSelection(model);
@@ -4144,9 +4208,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.serverToolsAdvertised = true;
 			this._serverToolHost.advertise(configResource.toString());
 		}
-		// Surface the skills/hooks codex loaded for this working directory (from
-		// `.agents`/`.codex`) in the Customizations view now that the connection
-		// is ready and the cwd is known. Best-effort and fire-and-forget.
+		// Surface workspace agents and the skills/hooks codex loaded for this
+		// working directory in the Customizations view now that the connection is
+		// ready and the cwd is known. Best-effort and fire-and-forget.
 		void this._refreshSkillHookCustomizations(session);
 		// Re-apply the client-plugin skill roots against the now-ready
 		// connection (they may have been synced before it came up).
@@ -4449,6 +4513,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._fire(sessionUri, { type: ActionType.ChatTurnComplete, turnId: effectiveTurnId, duration });
 				return;
 			}
+		} else if (session.firstTurnSent && !session.needsResume && customizationsChanged) {
+			// Workspace agents have no client-push event to reconcile them. A
+			// send-time signature change must resume the existing thread so Codex
+			// reloads its roles and developer instructions without losing history.
+			this._markSessionForReload(session);
 		}
 		if (session.needsResume) {
 			try {
@@ -4960,6 +5029,12 @@ export class CodexAgent extends Disposable implements IAgent {
 					throw new Error(`Cannot resume Codex session ${session.sessionId}: no backing thread`);
 				}
 				const conn = connection ?? await this._ensureConnection();
+				if (session.unsubscribeBeforeResume) {
+					// `thread/resume` deliberately rejoins a loaded subscribed thread and
+					// ignores conflicting overrides. Unsubscribe first so app-server
+					// reloads the persisted history with the current launch-only config.
+					await conn.client.request<'thread/unsubscribe'>('thread/unsubscribe', { threadId });
+				}
 				const mcpServers = this._buildSessionMcpServers(session);
 				const customizationLaunch = await this._buildCustomizationLaunch(session);
 				const multiRootActive = this._isMultiRootActive(session);
@@ -4985,11 +5060,17 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.materializedMcpSig = mcpServersSignature(mcpServers);
 				session.materializedCustomizationsSig = customizationLaunch.signature;
 				session.needsResume = false;
+				session.unsubscribeBeforeResume = false;
 			})().finally(() => {
 				session.resumePromise = undefined;
 			});
 		}
 		await session.resumePromise;
+	}
+
+	private _markSessionForReload(session: ICodexSession): void {
+		session.unsubscribeBeforeResume = true;
+		session.needsResume = true;
 	}
 
 	/**
@@ -5366,6 +5447,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session) {
 			return;
 		}
+		await this._customizationEnablementService?.initializeSession(sessionUri.toString());
 		const synced = await this._pluginManager.syncCustomizations(
 			clientId,
 			[...customizations],
@@ -5378,7 +5460,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (session.disposed) {
 			return;
 		}
-		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, item)));
+		const inputs = new Map(customizations.map(customization => [customization.uri, customization]));
+		const plugins = await Promise.all(synced.map(item => this._parseClientPlugin(session, item, inputs.get(item.customization.uri))));
 		if (session.disposed) {
 			return;
 		}
@@ -5402,21 +5485,30 @@ export class CodexAgent extends Disposable implements IAgent {
 			await this._restartThreadWithCurrentTools(session);
 			this._persistMaterializedSession(session);
 		} else {
-			session.needsResume = true;
+			this._markSessionForReload(session);
 		}
 	}
 
 	/** Parse one synced plugin directory into its components (best-effort). */
-	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization): Promise<ICodexClientPlugin> {
+	private async _parseClientPlugin(session: ICodexSession, synced: ISyncedCustomization, input: ClientPluginCustomization | undefined): Promise<ICodexClientPlugin> {
 		if (!synced.pluginDir) {
-			return { synced, parsed: undefined };
+			return { synced, parsed: undefined, input };
 		}
 		try {
 			const parsed = await parsePlugin(synced.pluginDir, this._fileService, session.workingDirectory, this._environmentService.userHome, synced.pluginDir);
-			return { synced, parsed };
+			const candidate = { ...synced.customization, children: parsedPluginChildren(parsed) };
+			const clientPlugins = input ? new Map([[input.uri, input]]) : undefined;
+			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, session.sessionUri, [candidate], input?.childEnablement ? new Map([[input.uri, input.childEnablement]]) : undefined, clientPlugins);
+			const resolved = resolution.customizations[0];
+			return {
+				synced,
+				parsed,
+				input,
+				customization: resolved.type === CustomizationType.Plugin ? resolved : candidate,
+			};
 		} catch (err) {
 			this._logService.warn(`[Codex] failed to parse client plugin ${synced.customization.uri}: ${err instanceof Error ? err.message : String(err)}`);
-			return { synced, parsed: undefined };
+			return { synced, parsed: undefined, input };
 		}
 	}
 
@@ -5442,7 +5534,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const plugins: ICodexClientPlugin[] = [];
 		for (const session of this._sessions.values()) {
 			if (!session.disposed) {
-				plugins.push(...session.clientCustomizations.enabledPlugins());
+				plugins.push(...this._enabledClientPlugins(session));
 			}
 		}
 		const roots = codexSkillRootsFromPlugins(plugins);
@@ -5478,14 +5570,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		const controller = this._getOrCreateMcpController(session);
 		controller.applyAll(inventoryToSdkServers(this._mcpInventory));
 		this._refreshMcpCustomizationIds(session, controller);
-		// Append the skills/hooks codex loaded for this session's working
-		// directory (best-effort; empty until the app-server connection is
-		// ready, after which `_refreshSkillHookCustomizations` pushes updates).
-		const skillHookContainers = await this._fetchSkillHookContainers(session);
-		// Client-pushed ("Open Plugin") customizations first (they carry the
-		// user's enablement overlay), then codex's discovered MCP servers and
-		// the `.agents`/`.codex` skills/hooks.
+		const [workspaceAgents, skillHookContainers] = await Promise.all([
+			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
+			this._fetchSkillHookContainers(session),
+		]);
+		// Workspace custom agents come from the Agent Host's session-scoped
+		// scan. Client-pushed customizations remain for plugins/extensions, then
+		// codex's own MCP, skill, and hook catalogs complete the surface.
 		return [
+			...workspaceAgents.containers,
 			...session.clientCustomizations.toCustomizations(),
 			...controller.topLevelCustomizations(),
 			...skillHookContainers,
@@ -5515,22 +5608,26 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Re-fetches this session's skill/hook customizations and upserts each
+	 * Re-fetches this session's workspace agent, skill, and hook customizations and upserts each
 	 * container into session state via {@link ActionType.SessionCustomizationUpdated}.
 	 * Called after materialization (when the connection is ready and the cwd is
-	 * known) so the workbench Customizations surface reflects what codex loaded
-	 * from the working directory's `.agents`/`.codex` folders. Upserts (keyed by
-	 * customization id) leave the MCP customizations untouched.
+	 * known) so the workbench Customizations surface reflects workspace agents
+	 * and what codex loaded from the working directory's `.agents`/`.codex`
+	 * folders. Upserts (keyed by customization id) leave MCP customizations
+	 * untouched.
 	 */
 	private async _refreshSkillHookCustomizations(session: ICodexSession): Promise<void> {
 		if (session.disposed) {
 			return;
 		}
-		const containers = await this._fetchSkillHookContainers(session);
+		const [workspaceAgents, skillHookContainers] = await Promise.all([
+			discoverCodexWorkspaceAgents(this._workingDirectories(session), this._fileService),
+			this._fetchSkillHookContainers(session),
+		]);
 		if (session.disposed) {
 			return;
 		}
-		for (const container of containers) {
+		for (const container of [...workspaceAgents.containers, ...skillHookContainers]) {
 			this._fire(session.sessionUri, { type: ActionType.SessionCustomizationUpdated, customization: container });
 		}
 	}
@@ -5631,7 +5728,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				providerId: this.id,
 				sessionId: session.sessionId,
 				sessionUri: session.sessionUri,
-				resolveChildId: () => undefined,
 				emit: action => this._fire(session.sessionUri, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
 			});
@@ -5778,6 +5874,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * without the authorization server, which is logged.
 	 */
 	private async _surfaceMcpAuthRequired(client: ICodexAppServerClient, name: string, url: string, error: string | null): Promise<void> {
+		const configuredChildren = [...this._sessions.values()]
+			.flatMap(session => session.clientCustomizations.toCustomizations())
+			.flatMap(plugin => plugin.children ?? [])
+			.filter((child): child is McpServerCustomization => child.type === CustomizationType.McpServer && child.name === name);
+		if (configuredChildren.length > 0 && configuredChildren.every(child => !isCustomizationEnabled(child))) {
+			this._logService.info(`[Codex] Suppressed authentication request from disabled MCP server '${name}'`);
+			return;
+		}
 		let resource: ProtectedResourceMetadata = { resource: url, resource_name: name };
 		let requiredScopes: string[] | undefined;
 		try {
