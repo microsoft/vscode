@@ -28,6 +28,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -36,12 +37,13 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -1081,7 +1083,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(await predicate(), message);
 		}
 
-		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: MockAgent; session: URI; db: TestSessionDatabase }> {
+		async function setupTitleGeneration(copilotApiService: TestCopilotApiService, activeAgentTitleGeneration = false): Promise<{ svc: AgentService; agent: MockAgent; session: URI; db: TestSessionDatabase }> {
 			const db = new TestSessionDatabase();
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(new AgentService(
@@ -1095,6 +1097,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				copilotApiService,
 			));
+			svc.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration });
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			svc.registerProvider(agent);
@@ -1545,6 +1548,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('active-agent title generation skips the utility model and persists auto provenance', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			const { svc, session, db } = await setupTitleGeneration(copilotApiService, true);
+			const prompt = `Explain ${'active agent title generation '.repeat(4)}`;
+
+			svc.dispatchAction(
+				buildDefaultChatUri(session.toString()),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: prompt, origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+
+			const title = svc.stateManager.getSessionState(session.toString())?.title;
+			assert.strictEqual(title, 'Explain active agent title generation active...');
+			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'active-agent fallback provenance should be persisted');
+
+			svc.dispatchAction(
+				buildDefaultChatUri(session.toString()),
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
+				'test-client', 2,
+			);
+			const forked = await svc.createSession({
+				provider: 'copilot',
+				fork: { session, chat: URI.parse(buildDefaultChatUri(session)), turnIndex: 0, turnId: 'turn-1' },
+			});
+			assert.strictEqual(svc.stateManager.getSessionState(forked.toString())?.title, `Forked: ${title}`);
+			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		});
+
 		test('leaves fallback title when AI title generation fails', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.error = new Error('title failed');
@@ -1670,6 +1702,48 @@ suite('AgentService (node dispatcher)', () => {
 				includesForkedChat: true,
 			});
 		});
+
+		test('generates a utility title for imported conversations when active-agent naming is disabled', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'Imported conversation title';
+			const { svc } = await setupTitleGeneration(copilotApiService);
+			const imported = await svc.createSession({
+				provider: 'copilot',
+				importConversation: {
+					turns: [{
+						id: 'imported-turn',
+						message: { text: 'Investigate imported conversation', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'imported-response', content: 'Found the import path.' }],
+						state: TurnState.Complete,
+						usage: undefined,
+					}],
+				},
+			});
+
+			await waitForCondition(() => svc.stateManager.getSessionState(imported.toString())?.title === 'Imported conversation title', 'imported title should be generated');
+			assert.strictEqual(copilotApiService.utilityCalls.length, 1);
+		});
+
+		test('keeps a deterministic imported title without utility generation in active-agent mode', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			const { svc, db } = await setupTitleGeneration(copilotApiService, true);
+			const imported = await svc.createSession({
+				provider: 'copilot',
+				importConversation: {
+					turns: [{
+						id: 'imported-turn',
+						message: { text: 'Investigate imported conversation', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						state: TurnState.Complete,
+						usage: undefined,
+					}],
+				},
+			});
+
+			assert.strictEqual(svc.stateManager.getSessionState(imported.toString())?.title, 'Investigate imported conversation');
+			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'imported fallback provenance should be persisted');
+		});
 	});
 
 	// ---- attachment rewriting ------------------------------------------
@@ -1708,14 +1782,14 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, attachmentsRoot, warnings };
 		}
 
-		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
+		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageAttachment[]): Promise<void> {
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
 				{
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments },
 				},
 				'test-client', 1,
 			);
@@ -1751,6 +1825,45 @@ suite('AgentService (node dispatcher)', () => {
 			// File on disk holds exactly the original bytes
 			const written = await fileService.readFile(URI.parse(a.uri));
 			assert.deepStrictEqual([...written.value.buffer], [...png]);
+		});
+
+		test('snapshots embedded text attachments as text files without retaining the payload in state', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			const metadata = { kind: 'paste' };
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'Pasted text #1',
+				data: encodeBase64(VSBuffer.fromString('large pasted text')),
+				contentType: 'text/plain',
+				_meta: metadata,
+			}]);
+
+			const rewritten = agent.sendMessageCalls[0].attachments?.[0];
+			assert.ok(rewritten);
+			assert.strictEqual(rewritten.type, MessageAttachmentKind.Resource);
+			if (rewritten.type !== MessageAttachmentKind.Resource) {
+				return;
+			}
+			const stateAttachment = svc.stateManager.getSessionState(session.toString())?.activeTurn?.message.attachments?.[0];
+			assert.deepStrictEqual(stateAttachment, rewritten);
+			const resource = URI.parse(rewritten.uri);
+			const contents = await fileService.readFile(resource);
+			assert.deepStrictEqual({
+				label: rewritten.label,
+				displayKind: rewritten.displayKind,
+				metadata: rewritten._meta,
+				isSessionAttachment: resource.toString().startsWith(`${attachmentsRoot.toString()}/`),
+				fileName: resource.path.split('/').at(-1),
+				contents: contents.value.toString(),
+			}, {
+				label: 'Pasted text #1',
+				displayKind: undefined,
+				metadata,
+				isSessionAttachment: true,
+				fileName: 'Pasted text #1.txt',
+				contents: 'large pasted text',
+			});
 		});
 
 		test('preserves existing displayKind / range / selection / _meta on rewrite', async () => {
@@ -2241,6 +2354,10 @@ suite('AgentService (node dispatcher)', () => {
 				prepareSessionDeletion: async () => undefined,
 				removeSessionWorktree: async () => { removeWorktreeCalls++; },
 			} as unknown as WorktreeIsolation);
+			// Flush the provider backfill before injecting failures: its
+			// registry write is fire-and-forget and would otherwise consume
+			// part of the failure budget intended for the unregistration.
+			await svc.listSessions();
 			db.failRegistryWrites(2);
 
 			await assert.rejects(svc.disposeSession(session), /transient registry write failure/);
@@ -8265,6 +8382,122 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				catalogAfterFailedWrite: undefined,
 				catalogIds: ['legacy-a', 'legacy-b'],
+			});
+		});
+	});
+
+	suite('rename server tools', () => {
+		test('rename session and chat replace live and persisted titles', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peerChat = buildChatUri(sessionUri, 'peer-rename');
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
+			await db.setMetadata('customTitle', 'Previous user title');
+			await db.setMetadata('customTitleSource', 'user');
+			await db.setMetadata(`customChatTitle:${peerChat}`, 'Previous peer title');
+			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
+
+			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameSession, {
+				title: 'Complete replacement session title',
+			});
+			const chatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
+				title: 'Complete replacement peer chat title',
+			});
+
+			assert.deepStrictEqual({
+				sessionResult,
+				chatResult,
+				liveSessionTitle: localService.stateManager.getSessionState(sessionUri)?.title,
+				liveChatTitle: localService.stateManager.getChatState(peerChat)?.title,
+				persistedSessionTitle: await db.getMetadata('customTitle'),
+				persistedSessionSource: await db.getMetadata('customTitleSource'),
+				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
+				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+			}, {
+				sessionResult: 'Renamed session to "Complete replacement session title".',
+				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
+				liveSessionTitle: 'Complete replacement session title',
+				liveChatTitle: 'Complete replacement peer chat title',
+				persistedSessionTitle: 'Complete replacement session title',
+				persistedSessionSource: 'agent',
+				persistedChatTitle: 'Complete replacement peer chat title',
+				persistedChatSource: 'agent',
+			});
+		});
+
+		test('rename failures preserve live state and both persisted metadata values', async () => {
+			class FailingTitleDatabase extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (Object.keys(values).some(key => key.startsWith('customTitle') || key.startsWith('customChatTitle'))) {
+						throw new Error('title persistence failed');
+					}
+					return super.setMetadataValues(values);
+				}
+			}
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const db = new FailingTitleDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const peerChat = buildChatUri(sessionUri, 'peer-failure');
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Original session' });
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
+			await db.setMetadata('customTitle', 'Original session');
+			await db.setMetadata('customTitleSource', 'user');
+			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
+			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
+
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Will fail' }),
+				/title persistence failed/,
+			);
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
+					chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
+					title: 'Chat will fail',
+				}),
+				/title persistence failed/,
+			);
+			assert.deepStrictEqual({
+				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
+				sessionTitle: await db.getMetadata('customTitle'),
+				sessionSource: await db.getMetadata('customTitleSource'),
+				liveChat: localService.stateManager.getChatState(peerChat)?.title,
+				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
+				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+			}, {
+				liveSession: 'Original session',
+				sessionTitle: 'Original session',
+				sessionSource: 'user',
+				liveChat: 'Original chat',
+				chatTitle: 'Original chat',
+				chatSource: 'user',
 			});
 		});
 	});

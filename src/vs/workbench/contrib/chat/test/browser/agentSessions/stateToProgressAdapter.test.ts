@@ -20,7 +20,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -1475,6 +1475,28 @@ suite('stateToProgressAdapter', () => {
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				assert.strictEqual(invocation.toolSpecificData.chatResource, buildSubagentChatUri(URI.file('/').toString(), 'tc-1'));
 			}
+		});
+
+		test('observes only failed subagent tools that produced a child chat', () => {
+			const subagentContent: ToolResultContent = {
+				type: ToolResultContentType.Subagent,
+				resource: 'ahp-chat://subagent/session/tc-1',
+				title: 'Explore',
+				agentName: 'explore',
+				description: 'Explores the codebase',
+			};
+
+			assert.deepStrictEqual({
+				running: shouldObserveSubagentChat(createToolCallState({ toolName: 'task' })),
+				completed: shouldObserveSubagentChat(createCompletedToolCall({ toolName: 'task' })),
+				failedWithoutChild: shouldObserveSubagentChat(createCompletedToolCall({ toolName: 'task', success: false })),
+				failedWithChild: shouldObserveSubagentChat(createCompletedToolCall({ toolName: 'task', success: false, content: [subagentContent] })),
+			}, {
+				running: true,
+				completed: true,
+				failedWithoutChild: false,
+				failedWithChild: true,
+			});
 		});
 
 		test('prefers the host-stamped _meta.subagentChatUri over a discovery content block resource', () => {

@@ -464,6 +464,17 @@ export function isSubagentTool(tc: ToolCallState): boolean {
 	return getToolKind(tc) === 'subagent' || isSubagentToolName(tc.toolName);
 }
 
+/** Returns whether the tool call can have a child chat worth observing. */
+export function shouldObserveSubagentChat(tc: ToolCallState): boolean {
+	const hasSubagentContent = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
+		&& getToolSubagentContent(tc) !== undefined;
+	if (tc.status === ToolCallStatus.Running) {
+		return isSubagentTool(tc) || hasSubagentContent;
+	}
+	return tc.status === ToolCallStatus.Completed
+		&& (hasSubagentContent || (tc.success && isSubagentTool(tc)));
+}
+
 /**
  * Finds a terminal content block in a tool call's content array.
  * Returns the terminal URI if found.

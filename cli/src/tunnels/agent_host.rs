@@ -1420,11 +1420,11 @@ pub enum AgentHostReuseDecision {
 /// Code windows and must remain invisible to (and unkillable by) the
 /// standalone CLI's discovery/`--replace` path. See
 /// [`agent_host_registry::select_live_standalone_endpoint`].
-pub fn classify_agent_host(
+pub async fn classify_agent_host(
 	log: &log::Logger,
 	user_data_path: &std::path::Path,
 ) -> AgentHostReuseDecision {
-	match agent_host_registry::select_live_standalone_endpoint(log, user_data_path) {
+	match agent_host_registry::select_live_standalone_endpoint(log, user_data_path).await {
 		Some(selected) => AgentHostReuseDecision::Reuse {
 			pid: selected.pid,
 			host: Some(selected.host),
@@ -1470,13 +1470,16 @@ pub fn classify_agent_host(
 /// caller's own supervisor is actually using -- this must match the
 /// directory [`AgentHostSidecar::bind_tcp`] published its registry entry
 /// under, or the selection gateway's inventory would look at the wrong
-/// registry file.
+/// registry file. When `delegate_to_editor` is set, protocol-v6 serves only
+/// the live editor endpoint and protocol-v5 requests are rejected so they
+/// cannot spawn or reuse an unrelated standalone supervisor.
 pub async fn serve_agent_host_tunnel_connection<RW>(
 	log: log::Logger,
 	rw: RW,
 	active_agent_host: super::control_server::SharedActiveAgentHost,
 	launcher_paths: LauncherPaths,
 	user_data_path: PathBuf,
+	delegate_to_editor: bool,
 ) where
 	RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
@@ -1493,8 +1496,23 @@ pub async fn serve_agent_host_tunnel_connection<RW>(
 					log,
 					"Agent-host tunnel: dispatching {} to protocol-v6 selection gateway", path
 				);
-				return handle_gateway_select_request(log, launcher_paths, user_data_path, req)
-					.await;
+				return handle_gateway_select_request(
+					log,
+					launcher_paths,
+					user_data_path,
+					delegate_to_editor,
+					req,
+				)
+				.await;
+			}
+
+			if delegate_to_editor {
+				return Ok(Response::builder()
+					.status(503)
+					.body(full_body(
+						"This tunnel serves a specific agent host; upgrade required".to_string(),
+					))
+					.unwrap());
 			}
 
 			let active = match active_agent_host.await {
@@ -1683,6 +1701,10 @@ impl From<&AgentHostEndpointMetadata> for AgentHostGatewayEndpoint {
 struct GatewayInventory {
 	user_data_path: String,
 	endpoints: Vec<AgentHostGatewayEndpoint>,
+	/// Set when this tunnel is bound to one specific agent host instance:
+	/// the inventory lists only that endpoint and no dedicated host can be spawned.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	delegated_instance_id: Option<String>,
 }
 
 /// The client's one-time selection message: either an existing live
@@ -1773,6 +1795,7 @@ async fn handle_gateway_select_request(
 	log: log::Logger,
 	launcher_paths: LauncherPaths,
 	user_data_path: PathBuf,
+	delegate_to_editor: bool,
 	mut req: Request<Incoming>,
 ) -> Result<Response<HyperBody>, Infallible> {
 	let key = match req.headers().get(::http::header::SEC_WEBSOCKET_KEY) {
@@ -1802,7 +1825,14 @@ async fn handle_gateway_select_request(
 			Ok(upgraded) => {
 				let io = TokioIo::new(upgraded);
 				let ws = WebSocketStream::from_raw_socket(io, Role::Server, None).await;
-				run_gateway_session(svc_log, launcher_paths, user_data_path, ws).await;
+				run_gateway_session(
+					svc_log,
+					launcher_paths,
+					user_data_path,
+					delegate_to_editor,
+					ws,
+				)
+				.await;
 			}
 			Err(e) => {
 				warning!(
@@ -1832,16 +1862,55 @@ async fn run_gateway_session<S>(
 	log: log::Logger,
 	launcher_paths: LauncherPaths,
 	user_data_path: PathBuf,
+	delegate_to_editor: bool,
 	mut client: WebSocketStream<S>,
 ) where
 	S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
+	let live_endpoints = agent_host_registry::list_live_endpoints(&log, &user_data_path).await;
+	let (endpoints, delegated_instance_id) = if delegate_to_editor {
+		// `list_live_endpoints` returns newest-first entries, so prefer the
+		// editor that most recently published its endpoint.
+		let mut editor_endpoints: Vec<_> = live_endpoints
+			.into_iter()
+			.filter(|endpoint| endpoint.server_type == AgentHostServerType::Editor)
+			.collect();
+		if editor_endpoints.is_empty() {
+			send_gateway_error(
+				&log,
+				&mut client,
+				"This tunnel serves the editor's agent host, but no live editor agent host was found"
+					.to_string(),
+			)
+			.await;
+			return;
+		}
+		if editor_endpoints.len() > 1 {
+			warning!(
+				log,
+				"Multiple live editor agent host endpoints were found; selecting instance {}",
+				editor_endpoints[0].instance_id
+			);
+		}
+		let endpoint = editor_endpoints.remove(0);
+		let delegated_instance_id = endpoint.instance_id.clone();
+		(
+			vec![AgentHostGatewayEndpoint::from(&endpoint)],
+			Some(delegated_instance_id),
+		)
+	} else {
+		(
+			live_endpoints
+				.iter()
+				.map(AgentHostGatewayEndpoint::from)
+				.collect(),
+			None,
+		)
+	};
 	let inventory = GatewayInventory {
 		user_data_path: user_data_path.to_string_lossy().to_string(),
-		endpoints: agent_host_registry::list_live_endpoints(&log, &user_data_path)
-			.iter()
-			.map(AgentHostGatewayEndpoint::from)
-			.collect(),
+		endpoints,
+		delegated_instance_id: delegated_instance_id.clone(),
 	};
 	let inventory_json = match serde_json::to_string(&inventory) {
 		Ok(j) => j,
@@ -1901,6 +1970,35 @@ async fn run_gateway_session<S>(
 		}
 	};
 
+	// A delegated tunnel serves exactly one agent host, so resolve whatever
+	// the client asked for to that endpoint instead of failing. Clients that
+	// do not understand `delegatedInstanceId` -- including any editor older
+	// than this one on the far side of the tunnel -- legitimately ask for a
+	// dedicated host, and every background reconnect does so unconditionally.
+	// Rejecting them would break cross-version connections for no benefit:
+	// there is only one endpoint to hand out either way, and the ready
+	// acknowledgement reports the endpoint's real `type` and `instanceId`, so
+	// the client is never misled about what it got.
+	let selection = match &delegated_instance_id {
+		Some(delegated) => {
+			let already_bound = matches!(
+				&selection,
+				GatewaySelection::Existing { instance_id } if instance_id == delegated
+			);
+			if !already_bound {
+				debug!(
+					log,
+					"Delegated tunnel: resolving client selection to the bound agent host {}",
+					delegated
+				);
+			}
+			GatewaySelection::Existing {
+				instance_id: delegated.clone(),
+			}
+		}
+		None => selection,
+	};
+
 	let (endpoint, lifecycle) = match selection {
 		GatewaySelection::Existing { instance_id } => {
 			// Reread the registry fresh here -- never reuse the inventory
@@ -1908,6 +2006,7 @@ async fn run_gateway_session<S>(
 			// If it disappeared, fail clearly instead of silently
 			// switching to a different one.
 			match agent_host_registry::list_live_endpoints(&log, &user_data_path)
+				.await
 				.into_iter()
 				.find(|e| e.instance_id == instance_id)
 			{
@@ -1982,8 +2081,8 @@ async fn run_gateway_session<S>(
 	}
 
 	match target {
-		GatewayTargetWs::Tcp(t) => proxy_gateway_frames(&log, client, t).await,
-		GatewayTargetWs::Socket(t) => proxy_gateway_frames(&log, client, t).await,
+		GatewayTargetWs::Tcp(t) => proxy_gateway_frames(&log, client, *t).await,
+		GatewayTargetWs::Socket(t) => proxy_gateway_frames(&log, client, *t).await,
 	}
 }
 
@@ -2012,8 +2111,11 @@ where
 /// `Socket`; [`proxy_gateway_frames`] is generic so each variant is
 /// proxied via its own monomorphization.
 enum GatewayTargetWs {
-	Tcp(WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>),
-	Socket(WebSocketStream<AsyncPipe>),
+	// Both variants are boxed: these streams carry large inline buffers (and a
+	// TLS state for TCP), so leaving either unboxed makes every value of this
+	// enum as large as the biggest one.
+	Tcp(Box<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>),
+	Socket(Box<WebSocketStream<AsyncPipe>>),
 }
 
 /// Opens a raw WebSocket connection to a selected registry endpoint,
@@ -2040,7 +2142,7 @@ async fn dial_gateway_target(
 			let (ws, _) = tokio_tungstenite::connect_async(url)
 				.await
 				.map_err(|e| wrap(e, "Failed to connect to selected agent host"))?;
-			Ok(GatewayTargetWs::Tcp(ws))
+			Ok(GatewayTargetWs::Tcp(Box::new(ws)))
 		}
 		AgentHostEndpointAddress::Socket { path } => {
 			let pipe = get_socket_rw_stream(std::path::Path::new(path))
@@ -2062,7 +2164,7 @@ async fn dial_gateway_target(
 						),
 					)
 				})?;
-			Ok(GatewayTargetWs::Socket(ws))
+			Ok(GatewayTargetWs::Socket(Box::new(ws)))
 		}
 	}
 }
@@ -2475,27 +2577,29 @@ mod tests {
 		assert_eq!(entries[0].instance_id, "instance-shutdown-then-drop");
 	}
 
-	#[test]
-	fn classify_agent_host_returns_spawn_fresh_when_registry_empty() {
+	#[tokio::test]
+	async fn classify_agent_host_returns_spawn_fresh_when_registry_empty() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 
-		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
+		let decision = classify_agent_host(&log::Logger::test(), &user_data_path).await;
 
 		assert_eq!(decision, AgentHostReuseDecision::SpawnFresh);
 	}
 
-	#[test]
-	fn classify_agent_host_prefers_live_registry_standalone_entry() {
+	#[tokio::test]
+	async fn classify_agent_host_prefers_live_registry_standalone_entry() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let pid = std::process::id();
+		let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+		let port = listener.local_addr().unwrap().port();
 
 		let entry = AgentHostEndpointMetadata::new_standalone(
 			pid,
 			"instance-registry".to_string(),
 			"127.0.0.1".to_string(),
-			4321,
+			port,
 			"registry-tok".to_string(),
 			AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			None,
@@ -2508,14 +2612,14 @@ mod tests {
 		)
 		.unwrap();
 
-		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
+		let decision = classify_agent_host(&log::Logger::test(), &user_data_path).await;
 
 		assert_eq!(
 			decision,
 			AgentHostReuseDecision::Reuse {
 				pid,
 				host: Some("127.0.0.1".to_string()),
-				port: 4321,
+				port,
 				token: Some("registry-tok".to_string()),
 				tunnel_name: None,
 				instance_id: "instance-registry".to_string(),
@@ -2523,8 +2627,8 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn classify_agent_host_never_selects_an_editor_registry_entry() {
+	#[tokio::test]
+	async fn classify_agent_host_never_selects_an_editor_registry_entry() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 
@@ -2552,7 +2656,7 @@ mod tests {
 		// With only an (ignored) editor entry present, the caller must be
 		// told to spawn a fresh standalone supervisor rather than ever
 		// touching the editor entry.
-		let decision = classify_agent_host(&log::Logger::test(), &user_data_path);
+		let decision = classify_agent_host(&log::Logger::test(), &user_data_path).await;
 
 		assert_eq!(decision, AgentHostReuseDecision::SpawnFresh);
 	}
@@ -2626,6 +2730,54 @@ mod tests {
 			Some("stable".to_string()),
 			Some("my-tunnel".to_string()),
 		)
+	}
+
+	async fn spawn_fake_editor_endpoint(instance_id: &str) -> AgentHostEndpointMetadata {
+		let socket_path = get_socket_name();
+		let mut listener = listen_socket_rw_stream(&socket_path).await.unwrap();
+		tokio::spawn(async move {
+			loop {
+				let _connection = listener.accept().await.unwrap();
+			}
+		});
+
+		AgentHostEndpointMetadata {
+			schema_version:
+				crate::tunnels::agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			server_type: AgentHostServerType::Editor,
+			pid: std::process::id(),
+			instance_id: instance_id.to_string(),
+			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			connection_token: "editor-token".to_string(),
+			endpoint: AgentHostEndpointAddress::Socket {
+				path: socket_path.to_string_lossy().to_string(),
+			},
+			quality: Some("stable".to_string()),
+			tunnel_name: None,
+		}
+	}
+
+	/// Publishes an `editor` endpoint backed by a TCP listener that completes a
+	/// real WebSocket handshake, so the gateway's dial path can be exercised.
+	/// [`spawn_fake_editor_endpoint`] only accepts raw connections and is for
+	/// tests that never get as far as dialing.
+	async fn spawn_dialable_editor_endpoint(instance_id: &str) -> AgentHostEndpointMetadata {
+		let port = spawn_fake_target_endpoint().await;
+		AgentHostEndpointMetadata {
+			schema_version:
+				crate::tunnels::agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
+			server_type: AgentHostServerType::Editor,
+			pid: std::process::id(),
+			instance_id: instance_id.to_string(),
+			protocol_version: AGENT_HOST_PROTOCOL_VERSION.to_string(),
+			connection_token: "editor-token".to_string(),
+			endpoint: AgentHostEndpointAddress::Tcp {
+				host: "127.0.0.1".to_string(),
+				port,
+			},
+			quality: Some("stable".to_string()),
+			tunnel_name: None,
+		}
 	}
 
 	#[test]
@@ -2739,12 +2891,17 @@ mod tests {
 		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
 		let port = listener.local_addr().unwrap().port();
 		tokio::spawn(async move {
-			let (stream, _) = listener.accept().await.unwrap();
-			let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
-			if let Some(Ok(msg)) = ws.next().await {
-				let _ = ws.send(msg).await;
+			loop {
+				let (stream, _) = listener.accept().await.unwrap();
+				tokio::spawn(async move {
+					if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
+						if let Some(Ok(msg)) = ws.next().await {
+							let _ = ws.send(msg).await;
+						}
+						let _ = ws.close(None).await;
+					}
+				});
 			}
-			let _ = ws.close(None).await;
 		});
 		port
 	}
@@ -2758,6 +2915,7 @@ mod tests {
 	async fn start_gateway_session_with_registry(
 		user_data_path: PathBuf,
 		launcher_paths: LauncherPaths,
+		delegate_to_editor: bool,
 	) -> (WebSocketStream<tokio::io::DuplexStream>, serde_json::Value) {
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -2766,6 +2924,7 @@ mod tests {
 				log::Logger::test(),
 				launcher_paths,
 				user_data_path,
+				delegate_to_editor,
 				server_ws,
 			)
 			.await;
@@ -2794,10 +2953,11 @@ mod tests {
 		.unwrap();
 
 		let (mut client_ws, inventory) =
-			start_gateway_session_with_registry(user_data_path, launcher_paths).await;
+			start_gateway_session_with_registry(user_data_path, launcher_paths, false).await;
 		let endpoints = inventory["endpoints"].as_array().unwrap();
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0]["instanceId"], "instance-existing");
+		assert!(inventory.get("delegatedInstanceId").is_none());
 
 		client_ws
 			.send(Message::Text(
@@ -2827,6 +2987,129 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn delegate_to_editor_gateway_inventory_contains_only_the_editor_endpoint() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let delegated = spawn_fake_editor_endpoint("editor-instance").await;
+		let other = make_tcp_endpoint("other-instance", 12346, "");
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&delegated,
+		)
+		.unwrap();
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&other,
+		)
+		.unwrap();
+
+		let (_client_ws, inventory) =
+			start_gateway_session_with_registry(user_data_path, launcher_paths, true).await;
+		assert_eq!(inventory["delegatedInstanceId"], "editor-instance");
+		assert_eq!(
+			inventory["endpoints"],
+			serde_json::json!([{
+				"type": "editor",
+				"pid": std::process::id(),
+				"instanceId": "editor-instance",
+				"quality": "stable",
+				"endpointKind": "socket",
+				"endpointLabel": delegated.address_label(),
+			}])
+		);
+	}
+
+	#[tokio::test]
+	async fn delegated_gateway_serves_bound_host_for_new_dedicated_selection() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let delegated = spawn_dialable_editor_endpoint("editor-instance").await;
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&delegated,
+		)
+		.unwrap();
+
+		let (mut client_ws, _inventory) =
+			start_gateway_session_with_registry(user_data_path, launcher_paths, true).await;
+		client_ws
+			.send(Message::Text(r#"{"newDedicated":true}"#.into()))
+			.await
+			.unwrap();
+		let response = match client_ws.next().await {
+			Some(Ok(Message::Text(text))) => text,
+			other => panic!("expected ready acknowledgement, got {other:?}"),
+		};
+		// Clients that predate `delegatedInstanceId` -- and every background
+		// reconnect -- ask for a dedicated host unconditionally. A delegated
+		// tunnel must serve them its bound endpoint rather than failing, or
+		// cross-version connections break.
+		assert!(response.contains(r#""ok":true"#), "got: {response}");
+		assert!(response.contains("editor-instance"), "got: {response}");
+	}
+
+	#[tokio::test]
+	async fn delegated_gateway_serves_bound_host_for_a_different_instance_selection() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let delegated = spawn_dialable_editor_endpoint("editor-instance").await;
+		agent_host_registry::publish_agent_host_endpoint(
+			&log::Logger::test(),
+			&user_data_path,
+			&delegated,
+		)
+		.unwrap();
+
+		let (mut client_ws, _inventory) =
+			start_gateway_session_with_registry(user_data_path, launcher_paths, true).await;
+		client_ws
+			.send(Message::Text(r#"{"instanceId":"other-instance"}"#.into()))
+			.await
+			.unwrap();
+		let response = match client_ws.next().await {
+			Some(Ok(Message::Text(text))) => text,
+			other => panic!("expected ready acknowledgement, got {other:?}"),
+		};
+		assert!(response.contains(r#""ok":true"#), "got: {response}");
+		assert!(response.contains("editor-instance"), "got: {response}");
+	}
+
+	#[tokio::test]
+	async fn delegate_to_editor_gateway_errors_without_a_live_editor_endpoint() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			let server_ws = WebSocketStream::from_raw_socket(server_io, Role::Server, None).await;
+			run_gateway_session(
+				log::Logger::test(),
+				launcher_paths,
+				user_data_path,
+				true,
+				server_ws,
+			)
+			.await;
+		});
+		let mut client_ws = WebSocketStream::from_raw_socket(client_io, Role::Client, None).await;
+		let response = match client_ws.next().await {
+			Some(Ok(Message::Text(text))) => text,
+			other => panic!("expected error response, got {other:?}"),
+		};
+		assert!(response.contains(r#""ok":false"#), "got: {response}");
+		assert!(
+			response.contains("no live editor agent host was found"),
+			"got: {response}"
+		);
+	}
+
+	#[tokio::test]
 	async fn gateway_session_errors_clearly_when_selected_instance_disappeared() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
@@ -2836,7 +3119,7 @@ mod tests {
 		// must fail with a clear error rather than silently switching to a
 		// different (nonexistent) target.
 		let (mut client_ws, inventory) =
-			start_gateway_session_with_registry(user_data_path, launcher_paths).await;
+			start_gateway_session_with_registry(user_data_path, launcher_paths, false).await;
 		assert!(inventory["endpoints"].as_array().unwrap().is_empty());
 
 		client_ws
@@ -2858,7 +3141,7 @@ mod tests {
 		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
 
 		let (mut client_ws, _inventory) =
-			start_gateway_session_with_registry(user_data_path, launcher_paths).await;
+			start_gateway_session_with_registry(user_data_path, launcher_paths, false).await;
 
 		client_ws
 			.send(Message::Text("not json".into()))
@@ -2954,6 +3237,7 @@ mod tests {
 				active_agent_host,
 				launcher_paths,
 				user_data_path,
+				false,
 			)
 			.await;
 		});
@@ -2972,6 +3256,52 @@ mod tests {
 		assert_eq!(res.status(), 200);
 		let body = res.into_body().collect().await.unwrap().to_bytes();
 		assert_eq!(&body[..], b"current-sidecar-ok" as &[u8]);
+	}
+
+	#[tokio::test]
+	async fn delegated_tunnel_rejects_legacy_root_route_without_starting_a_supervisor() {
+		let dir = tempfile::tempdir().unwrap();
+		let user_data_path = dir.path().join("user-data");
+		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
+			crate::commands::agent_host::ActiveAgentHost {
+				pid: 0,
+				host: Some("127.0.0.1".to_string()),
+				port: 1,
+				token: None,
+			},
+		);
+
+		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+		tokio::spawn(async move {
+			serve_agent_host_tunnel_connection(
+				log::Logger::test(),
+				server_io,
+				active_agent_host,
+				launcher_paths,
+				user_data_path,
+				true,
+			)
+			.await;
+		});
+
+		let io = TokioIo::new(client_io);
+		let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+		tokio::spawn(async move {
+			let _ = conn.await;
+		});
+		let req = Request::builder()
+			.method("GET")
+			.uri("/")
+			.body(http_body_util::Empty::<bytes::Bytes>::new())
+			.unwrap();
+		let res = sender.send_request(req).await.expect("send request");
+		assert_eq!(res.status(), 503);
+		let body = res.into_body().collect().await.unwrap().to_bytes();
+		assert_eq!(
+			&body[..],
+			b"This tunnel serves a specific agent host; upgrade required" as &[u8]
+		);
 	}
 
 	/// End-to-end regression test for the reported tunnel inventory
@@ -2996,10 +3326,12 @@ mod tests {
 	/// `AGENT_HOST_GATEWAY_SELECT_PATH`.
 	#[tokio::test]
 	async fn direct_tunnel_select_route_dispatches_gateway_and_returns_inventory() {
-		assert!(
-			crate::constants::PROTOCOL_VERSION >= 6,
-			"the gateway selection route requires protocol v6+"
-		);
+		const {
+			assert!(
+				crate::constants::PROTOCOL_VERSION >= 6,
+				"the gateway selection route requires protocol v6+"
+			);
+		};
 
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
@@ -3034,6 +3366,7 @@ mod tests {
 				active_agent_host,
 				launcher_paths,
 				user_data_path,
+				false,
 			)
 			.await;
 		});

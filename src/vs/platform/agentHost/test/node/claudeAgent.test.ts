@@ -45,11 +45,11 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
-import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -1544,24 +1544,19 @@ suite('ClaudeAgent', () => {
 				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 				userHome,
 			});
-			const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-			disposables.add(agent.onDidRequireAuth(e => events.push(e)));
-
 			await agent.authenticate('https://api.github.com', 'tok');
 			await tick();
 
-			assert.deepStrictEqual(events, []);
+			assert.strictEqual((agent as IAgent).authenticationRequired, undefined);
 		});
 	});
 
 	test('construction in proxy mode does not emit auth/required', async () => {
 		const { agent } = createTestContext(disposables);
-		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
 
 		await tick();
 
-		assert.deepStrictEqual(events, []);
+		assert.strictEqual((agent as IAgent).authenticationRequired, undefined);
 	});
 
 	test('re-authenticating an unchanged token starts the proxy when a prior start left no handle', async () => {
@@ -7264,25 +7259,26 @@ suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () 
 		return { ctx, sessionId, sessionUri: created.session };
 	}
 
-	test('Options carries enableFileCheckpointing on and no SDK hooks (file-edit tracking is observed off the message stream, not via user-bypassable hooks)', async () => {
+	test('Options carries enableFileCheckpointing and only the transient host-context hook', async () => {
 		// Phase 8 refactor. Pins the Options shape that
 		// `_materializeProvisional` ships to the SDK: file checkpointing
-		// must be on (a startup option, not user-bypassable), and
-		// `Options.hooks` must be absent — file-edit tracking is wired
+		// must be on (a startup option, not user-bypassable). File-edit
+		// tracking remains wired
 		// through `ClaudeAgentSession._observeAssistantMessage` /
-		// `_observeUserMessage` in the message-pump loop. Hooks were
-		// rejected because they can be disabled via the user's settings,
-		// which would silently break the diff/checkpoint UX.
+		// `_observeUserMessage` in the message-pump loop; the only SDK hook
+		// adds transient host context to a submitted prompt.
 		const { ctx } = await materialize();
 		const opts = ctx.sdk.capturedStartupOptions[0];
 		assert.ok(opts, 'Options captured');
 
 		assert.deepStrictEqual({
 			enableFileCheckpointing: opts.enableFileCheckpointing,
-			hooks: opts.hooks,
+			hookNames: Object.keys(opts.hooks ?? {}),
+			userPromptSubmitHooks: opts.hooks?.UserPromptSubmit?.[0].hooks.length,
 		}, {
 			enableFileCheckpointing: true,
-			hooks: undefined,
+			hookNames: ['UserPromptSubmit'],
+			userPromptSubmitHooks: 1,
 		});
 	});
 
