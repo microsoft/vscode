@@ -310,10 +310,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sessionsUsedByAgentHost = new Set<string>();
 	private readonly _sessionUsePersistence = new Map<string, Promise<void>>();
 	private readonly _discoveredSessionMetadata = new Map<string, IAgentSessionMetadata>();
-	private readonly _broadcastExternalSessions = new Set<string>();
-	private readonly _broadcastExternalSessionMetadata = new Map<string, IAgentSessionMetadata>();
-	private readonly _externalSessionExpiry = this._register(new MutableDisposable());
-	private _externalSessionExpiryAt: number | undefined;
+	private readonly _broadcastExternalSessions = new Map<string, IAgentSessionMetadata>();
 	private _externalSessionReconciliation = Promise.resolve();
 	private _externalSessionsMode = AgentHostExternalSessionsMode.Last7Days;
 
@@ -1665,26 +1662,24 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
-		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
-		const previousMetadata = new Map(this._broadcastExternalSessionMetadata);
+		const previouslyBroadcast = new Map(this._broadcastExternalSessions);
 		if (previouslyBroadcast.size === 0 && previousMode !== undefined) {
 			for (const session of await this.listSessions(previousMode, true, true)) {
 				if (readSessionExternal(session._meta)) {
 					const key = session.session.toString();
-					previouslyBroadcast.add(key);
-					previousMetadata.set(key, session);
+					previouslyBroadcast.set(key, session);
 				}
 			}
 		}
 
 		const listed = await this.listSessions(this._externalSessionsMode, true, true);
+		const listedKeys = new Set(listed.map(session => session.session.toString()));
 		const visible = new Map<string, IAgentSessionMetadata>();
 		for (const session of listed) {
 			if (readSessionExternal(session._meta)) {
 				visible.set(session.session.toString(), session);
 			}
 		}
-		this._scheduleExternalSessionExpiry(listed, this._externalSessionsMode);
 
 		for (const [key, metadata] of visible) {
 			if (!previouslyBroadcast.has(key)) {
@@ -1700,79 +1695,25 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		for (const key of previouslyBroadcast) {
-			if (!visible.has(key) && !this._stateManager.getSessionState(key)) {
+		for (const [key, metadata] of previouslyBroadcast) {
+			if (visible.has(key)) {
+				continue;
+			}
+			if (listedKeys.has(key)) {
+				continue;
+			}
+			if (previousMode !== undefined && !this._stateManager.getSessionState(key)) {
 				this._stateManager.retractSurfacedSession(key);
 				this._announcedSurfacedKeys.delete(key);
-			} else if (!visible.has(key)) {
-				const metadata = previousMetadata.get(key);
-				if (metadata) {
-					visible.set(key, metadata);
-				}
+			} else {
+				visible.set(key, metadata);
 			}
 		}
 
 		this._broadcastExternalSessions.clear();
-		this._broadcastExternalSessionMetadata.clear();
 		for (const [key, metadata] of visible) {
-			this._broadcastExternalSessions.add(key);
-			this._broadcastExternalSessionMetadata.set(key, metadata);
+			this._broadcastExternalSessions.set(key, metadata);
 		}
-	}
-
-	private _scheduleExternalSessionExpiry(sessions: readonly IAgentSessionMetadata[], mode: AgentHostExternalSessionsMode): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		const window = mode === AgentHostExternalSessionsMode.Last24Hours
-			? 24 * 60 * 60 * 1000
-			: mode === AgentHostExternalSessionsMode.Last7Days
-				? 7 * 24 * 60 * 60 * 1000
-				: undefined;
-		if (window === undefined) {
-			this._externalSessionExpiry.clear();
-			this._externalSessionExpiryAt = undefined;
-			return;
-		}
-
-		let nextExpiry: number | undefined;
-		for (const session of sessions) {
-			const key = session.session.toString();
-			if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta) || this._sessionsUsedByAgentHost.has(key) || this._stateManager.getSessionState(key)) {
-				continue;
-			}
-			const expiresAt = session.modifiedTime + window + 1;
-			nextExpiry = nextExpiry === undefined ? expiresAt : Math.min(nextExpiry, expiresAt);
-		}
-		this._scheduleExternalSessionExpiryAt(nextExpiry);
-	}
-
-	private _scheduleAdditionalExternalSessionExpiry(session: IAgentSessionMetadata): void {
-		const window = this._externalSessionsMode === AgentHostExternalSessionsMode.Last24Hours
-			? 24 * 60 * 60 * 1000
-			: this._externalSessionsMode === AgentHostExternalSessionsMode.Last7Days
-				? 7 * 24 * 60 * 60 * 1000
-				: undefined;
-		if (window === undefined || readSessionEhcliAdoptable(session._meta) || this._sessionsUsedByAgentHost.has(session.session.toString())) {
-			return;
-		}
-		const expiresAt = session.modifiedTime + window + 1;
-		if (this._externalSessionExpiryAt === undefined || expiresAt < this._externalSessionExpiryAt) {
-			this._scheduleExternalSessionExpiryAt(expiresAt);
-		}
-	}
-
-	private _scheduleExternalSessionExpiryAt(expiresAt: number | undefined): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		this._externalSessionExpiryAt = expiresAt;
-		this._externalSessionExpiry.value = expiresAt === undefined
-			? undefined
-			: disposableTimeout(() => {
-				this._externalSessionExpiryAt = undefined;
-				this._queueExternalSessionReconciliation();
-			}, Math.max(0, expiresAt - this._now()));
 	}
 
 	/**
@@ -3065,6 +3006,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.clearInputRequestsForSession(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
+		this._broadcastExternalSessions.delete(session.toString());
+		this._discoveredSessionMetadata.delete(session.toString());
+		this._sessionsUsedByAgentHost.delete(session.toString());
+		this._announcedSurfacedKeys.delete(session.toString());
 		this._stateManager.deleteSession(session.toString());
 	}
 
@@ -3406,19 +3351,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._sideEffects.clearSessionTitleState(evictionTargetKey, settledState.chats.map(chat => chat.resource));
-		const evictedSummary = this._stateManager.getSessionSummary(evictionTargetKey);
-		const evictedMetadata: IAgentSessionMetadata | undefined = evictedSummary ? {
-			session: evictionTarget,
-			startTime: Date.parse(evictedSummary.createdAt),
-			modifiedTime: Date.parse(evictedSummary.modifiedAt),
-			...(evictedSummary._meta !== undefined ? { _meta: evictedSummary._meta } : {}),
-		} : undefined;
 		this._stateManager.removeSession(evictionTargetKey);
-		if (evictedMetadata && !this._shouldIncludeSession(evictedMetadata, this._externalSessionsMode)) {
-			this._queueExternalSessionReconciliation();
-		} else if (evictedMetadata && readSessionExternal(evictedMetadata._meta)) {
-			this._scheduleAdditionalExternalSessionExpiry(evictedMetadata);
-		}
 		// Release the provider's in-memory SDK session in lockstep with the
 		// cached state. Non-destructive: durable data is preserved so the
 		// session resumes transparently on the next access. Fire-and-forget —

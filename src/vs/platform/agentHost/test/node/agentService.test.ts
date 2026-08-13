@@ -2663,7 +2663,7 @@ suite('AgentService (node dispatcher)', () => {
 			]);
 		});
 
-		test('reconciles exactly after a visible external session crosses the inclusive cutoff', async () => {
+		test('applies the time window on list without expiry notifications', async () => {
 			const day = 24 * 60 * 60 * 1000;
 			let now = Date.now();
 			const svc = createExternalSessionService(() => now);
@@ -2686,17 +2686,22 @@ suite('AgentService (node dispatcher)', () => {
 			now += 50;
 			const atBoundary = (await svc.listSessions()).map(entry => entry.session.toString());
 			now += 1;
-			await timeout(60);
+			await timeout(20);
+			agent.fireCatalog();
 			await waitForExternalReconciliation(svc);
+			const removedBeforeList = [...removed];
+			const afterExpiry = await svc.listSessions();
 
 			assert.deepStrictEqual({
 				atBoundary,
-				afterExpiry: await svc.listSessions(),
+				afterExpiry,
+				removedBeforeList,
 				removed,
 			}, {
 				atBoundary: [session.toString()],
 				afterExpiry: [],
-				removed: [session.toString()],
+				removedBeforeList: [],
+				removed: [],
 			});
 		});
 
@@ -2737,45 +2742,6 @@ suite('AgentService (node dispatcher)', () => {
 				listRead: true,
 				stateExternal: true,
 				stateRead: true,
-			});
-		});
-
-		test('failed used-state persistence does not reschedule expired sessions', async () => {
-			const day = 24 * 60 * 60 * 1000;
-			let now = Date.now();
-			const database = new TransientRegistryWriteDatabase();
-			const svc = createExternalSessionService(() => now, database);
-			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
-			const session = agent.addSession('failed-use-persistence', now - day);
-			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last24Hours);
-			await waitForExternalReconciliation(svc);
-			svc.registerProvider(agent);
-			await svc.listSessions();
-			agent.fireCatalog();
-			await waitForRegisteredSessions(svc, 1);
-			await waitForExternalReconciliation(svc);
-			await svc.restoreSession(session);
-			await waitForExternalReconciliation(svc);
-
-			database.failRegistryWrites(2);
-			svc.dispatchAction(buildDefaultChatUri(session.toString()), {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-1',
-				startedAt: new Date(now).toISOString(),
-				message: { text: 'hello', origin: { kind: MessageKind.User } },
-			}, 'failed-use-test', 1);
-			now += 1;
-			await timeout(10);
-			await waitForExternalReconciliation(svc);
-
-			assert.deepStrictEqual({
-				writeAttempts: database.registryWriteAttempts,
-				external: readSessionExternal(svc.stateManager.getSessionState(session.toString())?._meta),
-				expiryAt: (svc as unknown as { _externalSessionExpiryAt: number | undefined })._externalSessionExpiryAt,
-			}, {
-				writeAttempts: 2,
-				external: true,
-				expiryAt: undefined,
 			});
 		});
 
