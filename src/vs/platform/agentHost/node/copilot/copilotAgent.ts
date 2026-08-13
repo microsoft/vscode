@@ -68,7 +68,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession } from './copilotAgentSession.js';
-import { createCopilotCliEnvironment, ICopilotCliClientInfo } from './copilotCliEnvironment.js';
+import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder } from './copilotGitHubTelemetryForwarder.js';
@@ -1502,19 +1502,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- client lifecycle ---------------------------------------------------
 
 	/**
-	 * Identity stamped on the GitHub telemetry the spawned CLI emits.
-	 *
-	 * Without this the CLI describes itself: `common_extname` falls back to
-	 * `copilot-cli` and the version fields report the CLI's own build, so
-	 * sessions VS Code drove are indistinguishable from someone running the CLI
-	 * in a terminal. `vscode` is the editor name the usage-metrics pipeline
-	 * already understands, and the surface reuses the same name we report as our
-	 * SDK client, so the pair keeps the editor rollup intact while still
-	 * separating the agent host from other VS Code Copilot traffic. The agent
-	 * host ships with VS Code rather than as an extension, so the product
-	 * version is its version.
+	 * Identity VS Code declares to the Copilot CLI so the GitHub telemetry the
+	 * CLI emits on our behalf is attributed to VS Code rather than to the CLI's
+	 * own build. Without it, a CLI session VS Code drove is indistinguishable
+	 * from one a user ran directly in a terminal. The agent host ships with
+	 * VS Code rather than as a separate extension, so the product version is
+	 * used for both the editor and the surface version.
 	 */
-	private _copilotCliClientInfo(): ICopilotCliClientInfo {
+	private _copilotCliClientInfo(): NonNullable<CopilotClientOptions['clientInfo']> {
 		return {
 			editorName: 'vscode',
 			editorVersion: this._productService.version,
@@ -1552,7 +1547,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
-			const env = createCopilotCliEnvironment(process.env, this._copilotCliClientInfo());
+			const env = createCopilotCliEnvironment();
 			await this._configureProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
@@ -1644,6 +1639,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
+				clientInfo: this._copilotCliClientInfo(),
 				env,
 				telemetry,
 				logLevel: copilotSdkLogLevelAtStartup,
