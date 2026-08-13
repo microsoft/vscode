@@ -918,8 +918,6 @@
 	justify-content: center;
 	width: 16px;
 	height: 16px;
-	/* Line up optically with the first line of the title. */
-	margin-top: var(--vscode-spacing-size20);
 	color: var(--vscode-list-warningForeground, var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)));
 }
 
