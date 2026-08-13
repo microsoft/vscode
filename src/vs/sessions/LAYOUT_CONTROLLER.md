@@ -85,7 +85,12 @@ Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-ex
 > (via `SinglePaneVisibilityProfileStore`) under `sessions.singlePane.sidePaneVisibility`.
 > New Sessions do not apply or capture an Editor
 > profile; submitting preserves Editor visibility and seeds the Existing profile. `SinglePaneQuickChatStrategy`
-> hides the whole side pane once when Quick Chat becomes active without changing either profile.
+> shares the Existing profile's overall side-pane visibility when Quick Chat has a saved editor
+> working set, mapping any visible composition to Editor-only because Quick Chat has no Details.
+> Opening the first editor or changing visibility in an editor-bearing Quick Chat updates that
+> shared profile, even before the chat has a saved working set. A Quick Chat
+> without editors hides the side pane transiently without changing the profile, so navigating away
+> restores the shared visibility.
 > The per-session rules below apply
 > to the classic layout only.
 > The docked detail panel opens at a 300px preferred width unless the user explicitly resized it; cached editor
