@@ -91,6 +91,10 @@ function responsePreview(response: string | undefined): string | undefined {
 		: firstLine;
 }
 
+function lowercaseFirstLetter(value: string): string {
+	return value.replace(/\p{L}/u, letter => letter.toLocaleLowerCase());
+}
+
 function statusToString(status: AgentSessionStatus): string {
 	switch (status) {
 		case AgentSessionStatus.Failed: return 'failed';
@@ -1288,7 +1292,7 @@ export class ChatSessionRoutingController extends Disposable {
 				icon = Codicon.error;
 				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", sessionLabel);
 			} else if (observedActivity && (sessionStatus === AgentSessionStatus.Completed || model?.hasRequests)) {
-				statusLabel = localize('chatSessionRouting.completed', "Completed {0}", sessionLabel);
+				statusLabel = localize('chatSessionRouting.completed', "Completed {0}", lowercaseFirstLetter(sessionLabel));
 				isCompleted = true;
 			}
 			setCompleted(isCompleted);
@@ -1300,8 +1304,8 @@ export class ChatSessionRoutingController extends Disposable {
 				const markdown = new MarkdownString(localize(
 					'chatSessionRouting.completedInWithResponse',
 					"Completed {0}: {1}",
-					escapeMarkdownSyntaxTokens(sessionLabel),
-					preview
+					escapeMarkdownSyntaxTokens(lowercaseFirstLetter(sessionLabel)),
+					lowercaseFirstLetter(preview)
 				));
 				const rendered = renderMarkdown(markdown);
 				rendered.element.classList.add('chat-routing-badge-response');
@@ -1387,7 +1391,7 @@ export class ChatSessionRoutingController extends Disposable {
 				icon = Codicon.error;
 				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", session.label);
 			} else if (observedActivity && session.status === 'idle') {
-				statusLabel = localize('chatSessionRouting.completed', "Completed {0}", session.label);
+				statusLabel = localize('chatSessionRouting.completed', "Completed {0}", lowercaseFirstLetter(session.label));
 				isCompleted = true;
 			}
 			setCompleted(isCompleted);
@@ -1397,8 +1401,8 @@ export class ChatSessionRoutingController extends Disposable {
 				const markdown = new MarkdownString(localize(
 					'chatSessionRouting.completedInWithResponse',
 					"Completed {0}: {1}",
-					escapeMarkdownSyntaxTokens(session.label),
-					preview
+					escapeMarkdownSyntaxTokens(lowercaseFirstLetter(session.label)),
+					lowercaseFirstLetter(preview)
 				));
 				const rendered = renderMarkdown(markdown);
 				rendered.element.classList.add('chat-routing-badge-response');
