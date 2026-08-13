@@ -7,7 +7,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PassThrough } from 'stream';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -179,7 +179,14 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
-	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined, isSdkResolvableWithoutDownload: async () => options.sdkResolvableWithoutDownload ?? false });
+	instantiationService.stub(IAgentSdkDownloader, {
+		_serviceBrand: undefined,
+		onDidDownloadProgress: Event.None,
+		acquireDownloadProgressInterest: () => toDisposable(() => { }),
+		loadSdkRoot: async () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
+		isAvailable: () => true,
+		isSdkResolvableWithoutDownload: async () => options.sdkResolvableWithoutDownload ?? false,
+	});
 	instantiationService.stub(IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE);
 	instantiationService.stub(IAgentHostOTelService, {
 		_serviceBrand: undefined,
@@ -1318,7 +1325,11 @@ suite('CodexAgent chat backing durability', () => {
 			disposables.add(second.onDidChatProgress(signal => signals.push(signal)));
 
 			const restoring = second.getChatMetadata(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
+			const originalProbe = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(originalProbe.params.threadId, 'host-session');
+			secondPeer.push({ id: originalProbe.id, error: { code: -32000, message: 'thread not found' } });
 			const read = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(read.params.threadId, 'codex-thread');
 			secondPeer.push({ id: read.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await restoring;
 			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
