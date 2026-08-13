@@ -1,0 +1,62 @@
+parameters:
+  - name: target
+    type: string
+  - name: sourceRef
+    type: string
+
+jobs:
+  - job: Runtime_${{ replace(parameters.target, '-', '_') }}
+    displayName: ${{ parameters.target }}
+    timeoutInMinutes: 60
+    ${{ if startsWith(parameters.target, 'win32') }}:
+      pool:
+        name: 1es-windows-2022-x64
+        os: windows
+    ${{ elseif startsWith(parameters.target, 'darwin') }}:
+      pool:
+        name: AcesShared
+        os: macOS
+        demands:
+          - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+    ${{ else }}:
+      pool:
+        name: 1es-ubuntu-22.04-x64
+        os: linux
+    variables:
+      VSCODE_COPILOT_TARGET: ${{ parameters.target }}
+      COPILOT_RUNTIME_STAGING: $(Build.ArtifactStagingDirectory)/copilot-runtime
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(COPILOT_RUNTIME_STAGING)
+          artifactName: copilot_runtime_${{ replace(parameters.target, '-', '_') }}
+          displayName: Publish ${{ parameters.target }} runtime artifact
+          sbomPackageName: "@github/copilot ${{ parameters.target }} (source build)"
+          sbomPackageVersion: $(COPILOT_SOURCE_VERSION)
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - task: AzureKeyVault@2
+        displayName: Get Copilot runtime GitHub App key
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: copilot-agent-runtime-gh-app
+
+      - script: node build/azure-pipelines/common/prepare-copilot-runtime-source.ts
+        env:
+          COPILOT_RUNTIME_SOURCE_REF: ${{ parameters.sourceRef }}
+          GITHUB_APP_ID: "4297675"
+          GITHUB_APP_PRIVATE_KEY: $(copilot-agent-runtime-gh-app)
+        displayName: Prepare Copilot runtime source
+
+      - script: node build/azure-pipelines/common/install-runtime-build-toolchain.ts
+        displayName: Install runtime build toolchain
+
+      - script: node build/azure-pipelines/common/build-copilot-runtime-target.ts --target=$(VSCODE_COPILOT_TARGET) --out=$(COPILOT_RUNTIME_STAGING)
+        displayName: Build ${{ parameters.target }} from source

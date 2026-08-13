@@ -1,0 +1,178 @@
+pr: none
+
+trigger: none
+
+parameters:
+  - name: COPILOT_SDK_SOURCE_REF
+    displayName: Copilot SDK Commit
+    type: string
+  - name: COPILOT_RUNTIME_SOURCE_REF
+    displayName: Copilot Runtime Commit
+    type: string
+  - name: VSCODE_PRODUCT_SOURCE_BRANCH
+    displayName: VS Code Branch for Product Build
+    type: string
+    default: main
+  - name: VSCODE_QUALITY
+    displayName: Product Build Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: VSCODE_PUBLISH
+    displayName: Publish Product Build
+    type: boolean
+    default: false
+  - name: VSCODE_RELEASE
+    displayName: Release Product Build
+    type: boolean
+    default: false
+  - name: VSCODE_WAIT_FOR_PRODUCT_BUILD
+    displayName: Wait for Product Build
+    type: boolean
+    default: true
+  - name: NPM_REGISTRY
+    displayName: Internal NPM Registry
+    type: string
+    default: https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/
+  - name: VSCODE_PRODUCT_BUILD_DEFINITION_ID
+    displayName: Product Build Definition
+    type: number
+    default: 111
+
+variables:
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: COPILOT_SOURCE_VERSION
+    value: 0.0.0-vscode.$(Build.BuildId)
+
+name: "$(Date:yyyyMMdd).$(Rev:r) (Copilot source)"
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: false
+      codeql:
+        compiled:
+          enabled: false
+          justificationForDisabling: The pipeline builds external Copilot sources and does not compile VS Code.
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: false
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    stages:
+      - stage: Build
+        displayName: Build Copilot Runtime
+        jobs:
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: win32-x64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: win32-arm64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: linux-x64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: linux-arm64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: linuxmusl-x64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: linuxmusl-arm64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: darwin-x64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+          - template: build/azure-pipelines/copilot/source-publish-runtime-job.yml@self
+            parameters:
+              target: darwin-arm64
+              sourceRef: ${{ parameters.COPILOT_RUNTIME_SOURCE_REF }}
+
+      - stage: Publish
+        displayName: Publish and Queue Product Build
+        dependsOn: Build
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - job: Publish
+            timeoutInMinutes: 600
+            steps:
+              - template: build/azure-pipelines/common/checkout.yml@self
+
+              - task: NodeTool@0
+                inputs:
+                  versionSource: fromFile
+                  versionFilePath: .nvmrc
+
+              - download: current
+                patterns: copilot_runtime_*/**
+                displayName: Download runtime artifacts
+
+              - script: |
+                  set -e
+                  printf 'registry=%s\nalways-auth=true\n' "$NPM_REGISTRY" > "$(Agent.TempDirectory)/copilot-source.npmrc"
+                displayName: Configure internal NPM feed
+
+              - task: npmAuthenticate@0
+                inputs:
+                  workingFile: $(Agent.TempDirectory)/copilot-source.npmrc
+                displayName: Authenticate internal NPM feed
+
+              - script: node build/azure-pipelines/common/publish-copilot-runtime.ts
+                env:
+                  COPILOT_RUNTIME_ARTIFACTS_DIR: $(Pipeline.Workspace)
+                  COPILOT_RUNTIME_PACKAGES_DIR: $(Build.ArtifactStagingDirectory)/copilot-runtime-packages
+                  COPILOT_SOURCE_VERSION: $(COPILOT_SOURCE_VERSION)
+                  COPILOT_SOURCE_REGISTRY: $(NPM_REGISTRY)
+                  NPM_CONFIG_USERCONFIG: $(Agent.TempDirectory)/copilot-source.npmrc
+                displayName: Publish Copilot runtime packages
+
+              - script: node build/azure-pipelines/common/publish-copilot-sdk.ts
+                env:
+                  COPILOT_SDK_SOURCE_REF: ${{ parameters.COPILOT_SDK_SOURCE_REF }}
+                  COPILOT_SOURCE_VERSION: $(COPILOT_SOURCE_VERSION)
+                  COPILOT_RUNTIME_SOURCE_VERSION: $(COPILOT_SOURCE_VERSION)
+                  COPILOT_SOURCE_REGISTRY: $(NPM_REGISTRY)
+                  NPM_CONFIG_USERCONFIG: $(Agent.TempDirectory)/copilot-source.npmrc
+                displayName: Build and publish Copilot SDK
+
+              - script: node build/azure-pipelines/common/queue-copilot-product-build.ts
+                env:
+                  SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+                  VSCODE_PRODUCT_BUILD_DEFINITION_ID: ${{ parameters.VSCODE_PRODUCT_BUILD_DEFINITION_ID }}
+                  VSCODE_PRODUCT_SOURCE_BRANCH: ${{ parameters.VSCODE_PRODUCT_SOURCE_BRANCH }}
+                  VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+                  NPM_REGISTRY: $(NPM_REGISTRY)
+                  COPILOT_SDK_SOURCE_VERSION: $(COPILOT_SOURCE_VERSION)
+                  COPILOT_RUNTIME_SOURCE_VERSION: $(COPILOT_SOURCE_VERSION)
+                  VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+                  VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+                  VSCODE_WAIT_FOR_PRODUCT_BUILD: ${{ parameters.VSCODE_WAIT_FOR_PRODUCT_BUILD }}
+                displayName: Queue product build
