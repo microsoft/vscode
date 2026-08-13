@@ -405,10 +405,20 @@ some other way.
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
 when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
-confirmation does not end the active turn. Opening the changes pill labels its
-multi-diff editor **Current Turn Changes** while the turn is active, including
-`NeedsInput`, and updates the open editor to **Last Turn Changes** as soon as the
-turn completes. Each `lastTurnChanges` entry carries
+confirmation does not end the active turn. Opening the changes pill activates
+the owning session, selects its **Last Turn Changes** changeset, and explicitly
+reveals the canonical session Changes editor. Only the changes pill beneath the
+chat's latest completed response delegates to the same moving changeset. Historical
+response pills open the same Changes editor with a transient **Turn Changes**
+selection backed by that request's exact per-turn changes and frozen after-snapshot;
+selecting a provider changeset or switching sessions clears the transient selection.
+Environment-specific opening uses separate implementations of
+`IChatResponseFileChangesService` over a shared provider-registry base: the Editor
+workbench registers an implementation that opens a standalone multi-diff, while
+the Sessions entry point registers an Agents-specific implementation that opens
+the canonical Changes editor. Do not register an implementation from the shared
+chat contribution or add an extensible open-handler registry for this split.
+Each `lastTurnChanges` entry carries
 `isOutsideWorkspace`, derived from the owning session's workspace folder,
 working directory, and worktree roots. `AgentHostSessionAdapter` caches that
 classification in its generic session-output cache under

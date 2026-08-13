@@ -1,0 +1,110 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { AbstractChatResponseFileChangesService, IChatResponseFileChangesOpenContext } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
+import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
+
+interface ISessionHistoricalTurnChanges {
+	readonly requestId: string;
+	readonly changes: IObservable<readonly IEditSessionEntryDiff[]>;
+}
+
+/** Opens response changes in the canonical Agents Changes editor. */
+export class SessionsChatResponseFileChangesService extends AbstractChatResponseFileChangesService {
+	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
+		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
+	) {
+		super();
+	}
+
+	override openChangesForRequest(chatResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void {
+		const session = this._sessionsManagementService.getSessionForChatResource(chatResource)?.session;
+		if (!session) {
+			this._openStandaloneChanges(chatResource, requestId);
+			return;
+		}
+		if (context.isLastTurn) {
+			void this._openSessionTurnChanges(session);
+			return;
+		}
+
+		if (requestId === undefined) {
+			return;
+		}
+		const changes = this.getChangesForRequest(chatResource, requestId);
+		if (!changes) {
+			this._openStandaloneChanges(chatResource, requestId);
+			return;
+		}
+		void this._openSessionTurnChanges(session, { requestId, changes });
+	}
+
+	private _openStandaloneChanges(chatResource: URI, requestId: string | undefined): void {
+		if (requestId === undefined) {
+			return;
+		}
+		const diffs = this.getChangesForRequest(chatResource, requestId)?.get();
+		if (!diffs?.length) {
+			return;
+		}
+		const source = URI.parse(`multi-diff-editor:${Date.now().toString()}-${Math.random().toString(36).slice(2)}`);
+		this._editorService.openEditor({
+			multiDiffSource: source,
+			label: localize('chatTurnPills.changes.title', "Turn File Changes"),
+			resources: diffs.map(diff => ({
+				original: { resource: diff.originalURI },
+				modified: { resource: diff.modifiedURI },
+			})),
+		});
+	}
+
+	private async _openSessionTurnChanges(session: ISession, historicalTurn?: ISessionHistoricalTurnChanges): Promise<void> {
+		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+			this._sessionsService.showSession(session.resource, { preserveFocus: true });
+		}
+		this._layoutService.revealEditorPartExplicitly();
+		const changesetSelection: ISessionChangesEditorOptions['changesetSelection'] = historicalTurn
+			? {
+				kind: 'transient',
+				changeset: {
+					id: `${TURN_CHANGES_CHANGESET_ID}:${historicalTurn.requestId}`,
+					label: localize('historicalTurnChanges.label', "Turn Changes"),
+					description: localize('historicalTurnChanges.description', "Changes from the selected chat turn."),
+					isEnabled: constObservable(true),
+					isDefault: constObservable(false),
+					isLoadingChanges: constObservable(false),
+					changes: derived(reader => historicalTurn.changes.read(reader).map((diff): ISessionFileChange => ({
+						uri: diff.modifiedURI,
+						originalUri: isEqual(diff.originalURI, diff.modifiedURI) ? undefined : diff.originalURI,
+						modifiedUri: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
+						insertions: diff.added,
+						deletions: diff.removed,
+					}))),
+					operations: constObservable([]),
+					originalCheckpointRef: constObservable(undefined),
+					modifiedCheckpointRef: constObservable(undefined),
+					async invokeOperation(operationId: string): Promise<void> {
+						throw new Error(`Historical turn changes do not support operation '${operationId}'`);
+					},
+				} satisfies ISessionChangeset,
+			}
+			: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID };
+		await this._sessionChangesService.openChangesEditor(session.resource, { changesetSelection });
+	}
+}

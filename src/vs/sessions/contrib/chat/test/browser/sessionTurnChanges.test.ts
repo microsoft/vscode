@@ -1,0 +1,246 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IChat, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
+
+suite('SessionTurnChanges', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('activates the session and opens its last-turn changeset', () => {
+		const session = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host:session') });
+		const chatResource = URI.parse('chat:session');
+		const calls: object[] = [];
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessionForChatResource() {
+				return { session, chat: upcastPartial<IChat>({ resource: chatResource }) };
+			}
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
+			override showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
+				calls.push({ showSession: sessionResource.toString(), preserveFocus: options?.preserveFocus });
+			}
+		}();
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
+				const selection = options?.changesetSelection;
+				calls.push({
+					openChangesEditor: sessionResource.toString(),
+					changesetId: selection?.kind === 'id' ? selection.id : undefined,
+				});
+				return undefined;
+			}
+		}();
+		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			override revealEditorPartExplicitly(): void {
+				calls.push({ revealEditorPartExplicitly: true });
+			}
+		}();
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			sessionsManagementService,
+			sessionsService,
+			sessionChangesService,
+			layoutService,
+		));
+
+		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
+
+		assert.deepStrictEqual(calls, [
+			{ showSession: session.resource.toString(), preserveFocus: true },
+			{ revealEditorPartExplicitly: true },
+			{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
+		]);
+	});
+
+	test('opens exact historical request changes as a transient changeset', () => {
+		const session = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host:session') });
+		const chatResource = URI.parse('chat:session');
+		const calls: object[] = [];
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessionForChatResource() {
+				return { session, chat: upcastPartial<IChat>({ resource: chatResource }) };
+			}
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+		}();
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override async openChangesEditor(sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
+				const selection = options?.changesetSelection;
+				if (selection?.kind === 'transient') {
+					calls.push({
+						sessionResource: sessionResource.toString(),
+						changeset: {
+							id: selection.changeset.id,
+							label: selection.changeset.label,
+							changes: selection.changeset.changes.get().map(change => ({
+								uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+								originalUri: change.originalUri?.toString(),
+								modifiedUri: change.modifiedUri?.toString(),
+								insertions: change.insertions,
+								deletions: change.deletions,
+							})),
+							operations: selection.changeset.operations.get(),
+						},
+					});
+				}
+				return undefined;
+			}
+		}();
+		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			override revealEditorPartExplicitly(): void {
+				calls.push({ revealEditorPartExplicitly: true });
+			}
+		}();
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			sessionsManagementService,
+			sessionsService,
+			sessionChangesService,
+			layoutService,
+		));
+		disposables.add(service.registerProvider('chat', {
+			getChangesForRequest: () => constObservable([{
+				originalURI: URI.parse('agenthost:/snapshots/before'),
+				modifiedURI: URI.file('/workspace/file.ts'),
+				modifiedSnapshotURI: URI.parse('agenthost:/snapshots/after'),
+				added: 4,
+				removed: 2,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			}, {
+				originalURI: URI.parse('agenthost:/snapshots/deleted-before'),
+				modifiedURI: URI.file('/workspace/deleted.ts'),
+				isDeleted: true,
+				added: 0,
+				removed: 3,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			}]),
+		}));
+
+		service.openChangesForRequest(chatResource, 'request', { isLastTurn: false });
+
+		assert.deepStrictEqual(calls, [
+			{ revealEditorPartExplicitly: true },
+			{
+				sessionResource: 'agent-host:session',
+				changeset: {
+					id: 'turn:request',
+					label: 'Turn Changes',
+					changes: [{
+						uri: 'file:///workspace/file.ts',
+						originalUri: 'agenthost:/snapshots/before',
+						modifiedUri: 'agenthost:/snapshots/after',
+						insertions: 4,
+						deletions: 2,
+					}, {
+						uri: 'file:///workspace/deleted.ts',
+						originalUri: 'agenthost:/snapshots/deleted-before',
+						modifiedUri: undefined,
+						insertions: 0,
+						deletions: 3,
+					}],
+					operations: [],
+				},
+			},
+		]);
+	});
+
+	test('routes latest and historical response changes to their respective selections', () => {
+		const session = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host:session') });
+		const chatResource = URI.parse('chat:session');
+		const selections: string[] = [];
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessionForChatResource() {
+				return { session, chat: upcastPartial<IChat>({ resource: chatResource }) };
+			}
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(session);
+		}();
+		const sessionChangesService = new class extends mock<ISessionChangesService>() {
+			override async openChangesEditor(_sessionResource: URI, options?: ISessionChangesEditorOptions): Promise<undefined> {
+				const selection = options?.changesetSelection;
+				if (selection) {
+					selections.push(selection.kind === 'transient' ? selection.changeset.id : selection.id ?? '');
+				}
+				return undefined;
+			}
+		}();
+		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			override revealEditorPartExplicitly(): void { }
+		}();
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			new class extends mock<IEditorService>() { }(),
+			sessionsManagementService,
+			sessionsService,
+			sessionChangesService,
+			layoutService,
+		));
+		disposables.add(service.registerProvider('chat', {
+			getChangesForRequest: () => constObservable([]),
+		}));
+
+		service.openChangesForRequest(chatResource, 'historical', { isLastTurn: false });
+		service.openChangesForRequest(chatResource, 'latest', { isLastTurn: true });
+
+		assert.deepStrictEqual(selections, ['turn:historical', TURN_CHANGES_CHANGESET_ID]);
+	});
+
+	test('falls back to a standalone multi-diff for non-Agents sessions', () => {
+		let openCount = 0;
+		const editorService = new class extends mock<IEditorService>() {
+			override async openEditor(): Promise<undefined> {
+				openCount++;
+				return undefined;
+			}
+		}();
+		const service = disposables.add(new SessionsChatResponseFileChangesService(
+			editorService,
+			new class extends mock<ISessionsManagementService>() {
+				override getSessionForChatResource() {
+					return undefined;
+				}
+			}(),
+			new class extends mock<ISessionsService>() { }(),
+			new class extends mock<ISessionChangesService>() { }(),
+			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
+		));
+		disposables.add(service.registerProvider('test', {
+			getChangesForRequest: () => constObservable([{
+				originalURI: URI.file('/before.ts'),
+				modifiedURI: URI.file('/after.ts'),
+				added: 1,
+				removed: 0,
+				quitEarly: false,
+				identical: false,
+				isFinal: true,
+				isBusy: false,
+			}]),
+		}));
+
+		service.openChangesForRequest(URI.parse('test:session'), 'request', { isLastTurn: false });
+
+		assert.strictEqual(openCount, 1);
+	});
+});
