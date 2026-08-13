@@ -358,14 +358,9 @@ Every `ISession` wrapper must delegate optional provider-owned observables such 
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
   → ChatView clears the embedded ChatWidget before loading a different chat,
-    while its session-target picker keeps the destination chat's exact type
-    (including extension-host Copilot CLI); before any chat is assigned it
-    defaults to Agent Host Copilot. Chat input context keys also derive model
-    targeting from that delegated type while the model resource is absent, so
-    the model picker remains mounted during loading. Before clearing the old
-    model, the view locks to the destination contributed chat session type (for
-    example agent-host-codex), keeping the Agent Host mode and permission
-    pickers mounted too; follow-up turns therefore route to the owning provider
+    then locks it to the contributed chat session type (for example
+    agent-host-codex) before setting the model, so follow-up turns keep routing
+    to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
@@ -393,17 +388,17 @@ an existing chat (`false`, `false`). The shared chat submit event carries the
 submitted attachment context so mirrored follow-up telemetry retains the same
 attachment counts and kinds as requests sent through the sessions service.
 
-When fixing transient picker state during chat loading, keep the fallback in
-`ChatView`'s reactive session-type delegate; it announces the destination as
-soon as `setChat` assigns it, and the rendered target picker and chat input
-context keys react before the model loads. Changing the shared picker's defaults
-or visibility would alter intentional behavior outside that transition.
-All chat-input context derived from the session type must use the same effective
-type (the scoped delegate when provided, otherwise the model resource), or
-individual picker slots can disappear during the handoff.
-Likewise, update the widget's coding-agent lock from the destination type before
-clearing the old model; waiting for the new model to load transiently hides
-Agent Host-only mode and permission actions.
+`ChatView` must **not** pass a `sessionTypePickerDelegate` to its `ChatWidget`.
+That option means "the user picks the session type here" (the welcome view and
+the automations dialog, which have no chat model of their own). `ChatInputPart`
+listens to `onDidChangeActiveSessionProvider` and reconciles the model and mode
+for the newly picked type, so a delegate that merely announces the displayed
+chat makes every navigation re-apply the remembered per-session-type model —
+while the input is still bound to the outgoing chat, which persists the wrong
+model into that chat's input state. A previous attempt to reduce picker flicker
+during loading did exactly this and desynchronized the model picker from the
+session; see the revert of #329889. Fix transient picker state during loading
+some other way.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
