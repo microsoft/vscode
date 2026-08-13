@@ -31,6 +31,9 @@ Use **Clear Policy Cache** when the runtime's fresh managed-settings cache
 prevents a network request. The live request log confirms whether the client
 reached the server.
 
+Other Copilot clients share the default cache. For deterministic testing, start
+both Code OSS and the mock server with the same isolated `COPILOT_CACHE_HOME`.
+
 The managed-settings schema is auto-detected from a sibling
 `copilot-agent-runtime` checkout, including when VS Code runs from a Git
 worktree. Use `--schema` or `MANAGED_SETTINGS_SCHEMA` at server startup to

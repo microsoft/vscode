@@ -19,11 +19,20 @@ Point a client at the server with either:
 - **Code OSS from sources:** select **Apply Overrides**, reload, sign in, and run
   **Developer: Sync Account Policy**.
 - **Stable, Insiders, CLI, or another client:** configure the system proxy
-  mapping shown in the GUI.
+  mapping and copy the VS Code `http.proxy` setting shown in the GUI.
 
 If no request appears in **Live Requests**, use **Clear Policy Cache**. A fresh
 managed-settings cache entry can prevent the client from making a request for up
-to one hour.
+to one hour. Then run **Developer: Restart Local Agent Host** to force a new SDK
+policy resolution.
+
+Other Copilot clients share that cache. For an isolated run, start both the
+server and Code OSS with the same temporary cache home:
+
+```sh
+COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" npm run mock-policy-server
+COPILOT_CACHE_HOME="$PWD/.build/mock-policy-cache" ./scripts/code.sh
+```
 
 ## HTTP API
 

@@ -97,7 +97,7 @@
 					<h2>System Proxy</h2>
 					<button type="button" class="info-button"
 						aria-label="About system proxy setup"
-						data-tooltip="Redirects policy requests for VS Code, the Copilot CLI, and Agent Runtime Resolution. Clear the policy cache after changing responses.">&#9432;</button>
+						data-tooltip="Redirects policy requests for VS Code, Copilot SDK sessions, and Agent Runtime Resolution. After clearing the policy cache, run Developer: Restart Local Agent Host.">&#9432;</button>
 				</div>
 				<div class="kv">
 					<span class="label-small">Map from</span>
@@ -108,6 +108,11 @@
 					<code id="map-to" class="block"></code>
 				</div>
 				<button id="copy-map" type="button" class="btn-secondary btn-full">Copy Mapping</button>
+				<div class="kv">
+					<span class="label-small">VS Code settings.json</span>
+					<code id="proxy-settings" class="block settings-json"></code>
+				</div>
+				<button id="copy-proxy-settings" type="button" class="btn-secondary btn-full">Copy VS Code Setting</button>
 			</div>
 		</aside>
 	</main>

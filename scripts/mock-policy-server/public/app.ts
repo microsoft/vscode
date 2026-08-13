@@ -11,29 +11,18 @@
  * Relies on `MOCK_POLICY_ENDPOINTS` being defined as a global by
  * `endpoints.ts` (loaded via an earlier `<script>` tag).
  */
-declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
+type EndpointDef = import('../endpoints').EndpointDef;
+
+declare const MOCK_POLICY_ENDPOINTS: EndpointDef[];
 
 (function () {
 	'use strict';
 
-	interface Preset {
-		id: string;
-		label: string;
-		status?: number;
-		body: unknown;
-	}
-
-	interface Endpoint {
-		id: string;
-		label: string;
-		path: string;
-		productKey: string;
-		schema?: boolean;
+	interface Endpoint extends EndpointDef {
 		url?: string;
 		status?: number;
 		body?: unknown;
 		active?: boolean;
-		presets: Preset[];
 	}
 
 	interface ServerState {
@@ -96,13 +85,11 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	const editorStatus = $('editor-status');
 	const saveStateEl = $('save-state');
 	const wiredStatusEl = $('wired-status');
+	const vscodeProxySettings = '{\n\t"http.proxy": "http://localhost:9090"\n}';
 
 	let endpoints: Endpoint[] = [];
-	/** Currently selected endpoint id. */
 	let activeId = '';
-	/** Working copy of each endpoint body as edited in the GUI (string). */
 	const drafts: Record<string, string> = {};
-	/** Loaded managed-settings schema (or null if unavailable). */
 	let schema: JsonSchema | null = null;
 	let overridesWired = false;
 
@@ -120,6 +107,10 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		saveStateEl.dataset.kind = kind;
 	}
 
+	function setLiveSaveState(): void {
+		setSaveState('live', activeEndpoint()?.active ? 'Serving' : 'Saved');
+	}
+
 	function parseResponseStatus(): number | undefined {
 		const raw = responseStatusInput.value.trim();
 		const status = Number(raw);
@@ -132,7 +123,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		return valid ? status : undefined;
 	}
 
-	/** Validate the editor content as JSON. Returns parsed value or undefined. */
 	function parseEditor(): unknown | undefined {
 		const responseStatus = parseResponseStatus() ?? activeEndpoint()?.status ?? 200;
 		const raw = editor.value.trim();
@@ -181,7 +171,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			return '';
 		}
 		const unknown = validationRows(schema, parsed).filter(row => row.inBody && !row.inSchema).map(row => row.path);
-		return unknown.length ? `Keys not in schema (will be dropped): ${unknown.join(', ')}.` : '';
+		return unknown.length ? `Keys not in schema: ${unknown.join(', ')}.` : '';
 	}
 
 	function validationRows(schemaNode: JsonSchema, body: unknown, path: readonly string[] = [], depth = 0): ValidationRow[] {
@@ -208,38 +198,6 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			return rows;
 		}
 
-		function resolvedSchema(schemaNode: JsonSchema, body: unknown): JsonSchema {
-			const bodyObject = isPlainObject(body) ? body : undefined;
-			const alternatives = [...(schemaNode.oneOf ?? []), ...(schemaNode.anyOf ?? [])];
-			const matchingAlternatives = bodyObject
-				? alternatives.filter(alternative => schemaMatchesValue(alternative, bodyObject))
-				: [];
-			const selectedAlternatives = matchingAlternatives.length ? matchingAlternatives : alternatives;
-			return mergeSchemas(schemaNode, ...(schemaNode.allOf ?? []), ...selectedAlternatives);
-		}
-
-		function schemaMatchesValue(schemaNode: JsonSchema, value: Record<string, unknown>): boolean {
-			const constants = Object.entries(schemaNode.properties ?? {}).filter(([, property]) => property.const !== undefined);
-			return constants.length > 0 && constants.every(([key, property]) => value[key] === property.const);
-		}
-
-		function mergeSchemas(...schemas: JsonSchema[]): JsonSchema {
-			const merged: JsonSchema = {};
-			for (const schemaNode of schemas) {
-				const previousProperties = merged.properties;
-				Object.assign(merged, schemaNode);
-				if (schemaNode.properties) {
-					merged.properties = { ...previousProperties };
-					for (const [key, property] of Object.entries(schemaNode.properties)) {
-						merged.properties[key] = merged.properties[key]
-							? mergeSchemas(merged.properties[key], property)
-							: property;
-					}
-				}
-			}
-			return merged;
-		}
-
 		for (const key of keys) {
 			const explicitSchema = properties[key];
 			const additionalSchema = !explicitSchema && typeof schemaNode.additionalProperties === 'object'
@@ -257,12 +215,55 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 				inBody,
 				dynamic: additionalSchema !== undefined
 			});
-			if (childSchema && (childSchema.properties || typeof childSchema.additionalProperties === 'object')) {
+			if (childSchema && hasNestedSchema(childSchema)) {
 				rows.push(...validationRows(childSchema, inBody ? bodyObject[key] : undefined, childPath, depth + 1));
 			}
 		}
 
 		return rows;
+	}
+
+	function resolvedSchema(schemaNode: JsonSchema, body: unknown): JsonSchema {
+		const bodyObject = isPlainObject(body) ? body : undefined;
+		const alternatives = [...(schemaNode.oneOf ?? []), ...(schemaNode.anyOf ?? [])];
+		const matchingAlternatives = bodyObject
+			? alternatives.filter(alternative => schemaMatchesValue(alternative, bodyObject))
+			: [];
+		const selectedAlternatives = matchingAlternatives.length ? matchingAlternatives : alternatives;
+		return mergeSchemas(schemaNode, ...(schemaNode.allOf ?? []), ...selectedAlternatives);
+	}
+
+	function schemaMatchesValue(schemaNode: JsonSchema, value: Record<string, unknown>): boolean {
+		const constants = Object.entries(schemaNode.properties ?? {}).filter(([, property]) => property.const !== undefined);
+		return constants.length > 0 && constants.every(([key, property]) => value[key] === property.const);
+	}
+
+	function mergeSchemas(...schemas: JsonSchema[]): JsonSchema {
+		const merged: JsonSchema = {};
+		for (const schemaNode of schemas) {
+			const previousProperties = merged.properties;
+			Object.assign(merged, schemaNode);
+			if (schemaNode.properties) {
+				merged.properties = { ...previousProperties };
+				for (const [key, property] of Object.entries(schemaNode.properties)) {
+					merged.properties[key] = merged.properties[key]
+						? mergeSchemas(merged.properties[key], property)
+						: property;
+				}
+			}
+		}
+		delete merged.allOf;
+		delete merged.anyOf;
+		delete merged.oneOf;
+		return merged;
+	}
+
+	function hasNestedSchema(schemaNode: JsonSchema): boolean {
+		return schemaNode.properties !== undefined
+			|| typeof schemaNode.additionalProperties === 'object'
+			|| schemaNode.allOf !== undefined
+			|| schemaNode.anyOf !== undefined
+			|| schemaNode.oneOf !== undefined;
 	}
 
 	/**
@@ -384,7 +385,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		$('schema-section').hidden = endpoint.schema !== true;
 		$('validation-results').hidden = true;
 		parseEditor();
-		setSaveState('live', 'Serving');
+		setLiveSaveState();
 	}
 
 	function renderPresets(): void {
@@ -451,6 +452,9 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 				body: JSON.stringify({ endpoint: endpoint.id, active })
 			});
 			applyState(state);
+			if (endpoint.id === activeId) {
+				setLiveSaveState();
+			}
 			toast(active ? `Mocking ${endpoint.label}` : `Proxying ${endpoint.label}`);
 		} catch (e) {
 			endpoint.active = previousActive;
@@ -482,7 +486,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 			});
 			applyState(state);
 			drafts[activeId] = editor.value;
-			setSaveState('live', 'Serving');
+			setLiveSaveState();
 		} catch (e) {
 			setSaveState('error', 'Not saved');
 			toast(`Save failed: ${e instanceof Error ? e.message : String(e)}`, true);
@@ -673,6 +677,8 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 	}
 
 	async function init(): Promise<void> {
+		$('proxy-settings').textContent = vscodeProxySettings;
+
 		editor.addEventListener('input', () => {
 			drafts[activeId] = editor.value;
 			parseEditor();
@@ -688,6 +694,9 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 		$('overrides-action').addEventListener('click', () => wire(!overridesWired));
 		$('copy-map').addEventListener('click', e => {
 			copy(`${$('map-from').textContent}\n${$('map-to').textContent}`, e.currentTarget as HTMLElement);
+		});
+		$('copy-proxy-settings').addEventListener('click', e => {
+			copy(vscodeProxySettings, e.currentTarget as HTMLElement);
 		});
 		$('schema-toggle').addEventListener('click', toggleSchemaSection);
 		$('hydrate-schema').addEventListener('click', () => {
@@ -713,7 +722,7 @@ declare const MOCK_POLICY_ENDPOINTS: import('../endpoints').EndpointDef[];
 				const count = result.cleared.reduce((total, item) => total + item.files, 0);
 				toast(result.cleared.length === 0
 					? 'No managed-settings cache found — nothing to clear'
-					: `Cleared ${count} cached ${count === 1 ? 'entry' : 'entries'}`);
+					: `Cleared ${count} cached ${count === 1 ? 'entry' : 'entries'} — restart Local Agent Host to refetch`);
 			} catch (e) {
 				toast(`Could not clear cache: ${e instanceof Error ? e.message : String(e)}`, true);
 			}

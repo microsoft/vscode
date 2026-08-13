@@ -746,6 +746,10 @@ code.block {
 	border-radius: 4px;
 }
 
+.settings-json {
+	white-space: pre;
+}
+
 /* --- Toast ----------------------------------------------------------------- */
 
 .toast {

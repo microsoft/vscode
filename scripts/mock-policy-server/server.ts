@@ -3,31 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/**
- * Standalone dev tool: a local mock of the Copilot "policy" endpoints that
- * `DefaultAccountService` calls (entitlements, token, MCP registry, managed
- * settings), plus a small web GUI to author each response.
- *
- * The server sits *in front of* the real API: requests for endpoints you have
- * not switched to "Mock" are proxied upstream and streamed back untouched. That
- * is what makes a blanket system-proxy rule safe — you can redirect a whole URL
- * prefix and still only fake the endpoints you deliberately enabled.
- *
- * Two ways to point a client here:
- *
- *   1. `product.overrides.json` (default; Code OSS from sources only)
- *   2. A system HTTP proxy rule (Proxyman/Charles/mitmproxy), which also works
- *      for stable/Insiders builds and the CLI, and needs no reload.
- *
- * This tool is NOT part of the shipped product. Run it from sources with:
- *
- *     npm run mock-policy-server
- *
- * Then open the printed URL, pick an endpoint, edit the status and JSON, and
- * either apply the overrides or add the proxy rule shown in the GUI. See
- * README.md — in particular the managed-settings disk cache section, which is
- * the most common reason an override appears to do nothing.
- */
+/** Local mock and passthrough proxy for the Copilot policy endpoints. */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { EndpointDef } from './endpoints';
@@ -60,22 +36,12 @@ const HOST = args.host || '127.0.0.1';
 const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFAULT_SCHEMA_SOURCE;
 const UPSTREAM = stripTrailingSlash(args.upstream || process.env.MOCK_POLICY_UPSTREAM || DEFAULT_UPSTREAM);
 
-if (args.help === 'true' || args.h === 'true') {
+if (args.help) {
 	printHelp();
 	process.exit(0);
 }
 
-/**
- * Endpoint routes, longest path first so a shorter path can never shadow a
- * longer sibling.
- */
-const routes = [...endpoints].sort((a, b) => b.path.length - a.path.length);
-
-/**
- * URL path -> file on disk for the GUI. An explicit allowlist rather than a
- * "does this look like a file" probe of `public/`, so a static read can never
- * intercept a real API path we are meant to proxy upstream.
- */
+/** Explicit assets ensure GUI routing cannot shadow proxied API paths. */
 const GUI_ASSETS = new Map<string, string>([
 	['/', path.join(PUBLIC_DIR, 'index.html')],
 	['/index.html', path.join(PUBLIC_DIR, 'index.html')],
@@ -142,7 +108,7 @@ const server = http.createServer((req, res) => {
 
 		// Mocked Copilot endpoints. Only these get permissive CORS, so the web
 		// build (browser) of Code OSS can call them cross-origin.
-		const endpoint = routes.find(route => pathname === route.path);
+		const endpoint = endpoints.find(endpoint => pathname === endpoint.path);
 		if (endpoint && state.get(endpoint.id)?.active) {
 			const entry = state.get(endpoint.id)!;
 			res.setHeader('Access-Control-Allow-Origin', '*');
@@ -529,7 +495,7 @@ function record(req: IncomingMessage, pathname: string, outcome: LogEntry['outco
 	}
 }
 
-/** The URL Code OSS should call for a given endpoint. */
+/** Local URL for an endpoint. */
 function endpointUrl(endpoint: EndpointDef): string {
 	return `http://${HOST}:${PORT}${endpoint.path}`;
 }
@@ -836,25 +802,44 @@ function stripTrailingSlash(value: string): string {
 	return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
-function parseArgs(argv: string[]): Record<string, string> {
-	const out: Record<string, string> = {};
+interface ServerArgs {
+	host?: string;
+	schema?: string;
+	upstream?: string;
+	help: boolean;
+}
+
+function parseArgs(argv: string[]): ServerArgs {
+	const out: ServerArgs = { help: false };
 	for (let i = 0; i < argv.length; i++) {
-		const a = argv[i];
-		if (!a.startsWith('--')) {
+		const argument = argv[i];
+		if (argument === '--help') {
+			out.help = true;
 			continue;
 		}
-		const [key, inline] = a.slice(2).split('=', 2);
-		if (inline !== undefined) {
-			out[key] = inline;
-			continue;
+		if (!argument.startsWith('--')) {
+			failArgument(`Unexpected argument "${argument}".`);
 		}
+
+		const [key, inline] = argument.slice(2).split('=', 2);
+		if (key !== 'host' && key !== 'schema' && key !== 'upstream') {
+			failArgument(`Unknown option "--${key}".`);
+		}
+
 		const next = argv[i + 1];
-		if (next && !next.startsWith('--')) {
-			out[key] = next;
+		const value = inline ?? (next && !next.startsWith('--') ? next : undefined);
+		if (!value) {
+			failArgument(`Option "--${key}" requires a value.`);
+		}
+		out[key] = value;
+		if (inline === undefined) {
 			i++;
-		} else {
-			out[key] = 'true';
 		}
 	}
 	return out;
+}
+
+function failArgument(message: string): never {
+	console.error(`\n  Error: ${message} Run with --help for usage.\n`);
+	process.exit(1);
 }
