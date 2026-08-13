@@ -67,10 +67,12 @@ export type IAgentHostDebugLogFile =
 /**
  * How long to wait for host-side log collection before giving up and falling
  * back to client-side discovery. Generous enough for a real collection (which
- * zips the host's logs), short enough that an unreachable host does not make
- * the command appear to do nothing.
+ * zips the host's logs), short enough that an unresponsive host does not make
+ * the command appear to do nothing. Observed in practice: a host whose
+ * management channel is wedged never answers at all, so without a bound the
+ * export waits forever.
  */
-const AGENT_HOST_COLLECTION_TIMEOUT_MS = 20_000;
+const AGENT_HOST_COLLECTION_TIMEOUT_MS = 30_000;
 
 export interface IAgentHostDebugLogsExport {
 	readonly files: IAgentHostDebugLogFile[];
