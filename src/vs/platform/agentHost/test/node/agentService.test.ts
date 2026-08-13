@@ -2524,6 +2524,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				[],
 				AgentHostLaunchKind.Unknown,
+				undefined,
 				database,
 				now,
 			));
