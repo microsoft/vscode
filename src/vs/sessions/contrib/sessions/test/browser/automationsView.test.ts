@@ -500,6 +500,33 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('persistent history groups survive updates and dispose on removal', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+
+		// Create a run in "today" bucket
+		const todayRun = run({ id: 'run-today', startedAt: new Date().toISOString() });
+		automationService.setRuns([todayRun]);
+
+		const todayGroup = widget.element.querySelector('.automations-history-group');
+		const todayList = todayGroup?.querySelector('.automations-run-session-list');
+		assert.ok(todayGroup, 'today group should exist');
+		assert.ok(todayList, 'today group should have a session list');
+
+		// Add a second run in same bucket — group identity should be preserved
+		const todayRun2 = run({ id: 'run-today-2', startedAt: new Date().toISOString(), sessionResource: URI.parse('vscode-sessions-dev:/sessions/run2') });
+		automationService.setRuns([todayRun, todayRun2]);
+
+		const todayGroupAfter = widget.element.querySelector('.automations-history-group');
+		assert.strictEqual(todayGroupAfter, todayGroup, 'group DOM element should be reused');
+		assert.strictEqual(todayGroupAfter?.querySelector('.automations-run-session-list'), todayList, 'session list should be reused');
+
+		// Remove all runs — group should be disposed and removed from DOM
+		automationService.setRuns([]);
+		const remainingGroups = widget.element.querySelectorAll('.automations-history-group');
+		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
+	});
+
 	test('running automation replaces the run button with running text', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
