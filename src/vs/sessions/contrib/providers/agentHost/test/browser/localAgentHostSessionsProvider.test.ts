@@ -245,11 +245,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public sessionUnsubscribeCounts = new Map<string, number>();
 	public inflightCreates = new Map<string, Promise<unknown>>();
 
-	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+	override getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
 		return this.inflightCreates.get(resource.toString());
 	}
 
-	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+	override trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
 		this.inflightCreates.set(resource.toString(), promise);
 		void promise.finally(() => {
 			if (this.inflightCreates.get(resource.toString()) === promise) {

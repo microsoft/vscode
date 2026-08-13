@@ -2001,6 +2001,13 @@ class NewSession extends Disposable {
 		this._backendUri = backendUri;
 		this._connection = connection;
 
+		// Snapshot seeded config before awaiting trust/customizations.
+		// `resolveConfig` runs in parallel and replaces `_config` when it
+		// lands; createSession must still forward the values applied at draft
+		// construction (e.g. `chat.defaultConfiguration` → autoApprove).
+		const config = this._config?.values;
+		const selectedAgent = this._selectedAgent;
+
 		// Register before workspace-trust / customization awaits so
 		// `getSubscription` waits for create instead of subscribing first.
 		const created = new DeferredPromise<void>();
@@ -2024,7 +2031,7 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
-					config: this._config?.values,
+					config,
 					_meta: this._initialMetadata,
 					// MCP-style opt-in: offer to receive `progress` for any
 					// long-running bring-up (chiefly the lazy first-use SDK
@@ -2032,7 +2039,7 @@ class NewSession extends Disposable {
 					// materialization). The host echoes this token on each
 					// `progress` frame so `_handleProgress` can correlate it.
 					progressToken: generateUuid(),
-					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
+					...(selectedAgent ? { agent: { uri: selectedAgent.uri } } : {}),
 					...(activeClient ? { activeClient } : {}),
 				});
 			} catch (err) {

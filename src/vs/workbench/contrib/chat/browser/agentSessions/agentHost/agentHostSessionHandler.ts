@@ -1313,98 +1313,98 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							throw sub.value;
 						}
 					} else {
-					const rawState = this._getRawSessionState(resolvedSession.toString());
-					if (!rawState) {
-						throw new Error(`Session state did not hydrate for ${resolvedSession.toString()}`);
-					}
-					chatURI = this._resolveChatUriFromState(sessionResource, rawState);
-					this._setChatURI(sessionResource, chatURI);
-					const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatURI);
-					chatSubscription = chatSub;
-					await this._whenSubscriptionHydrated(chatSub, token);
-					const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
-					if (sessionState) {
-						sessionTitle = sessionState.title;
-						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
-						draftInputState = this._draftToInputState(sessionResource, draft);
-						if (!sessionState.draft && draft) {
-							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
+						const rawState = this._getRawSessionState(resolvedSession.toString());
+						if (!rawState) {
+							throw new Error(`Session state did not hydrate for ${resolvedSession.toString()}`);
 						}
-						const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
-						const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
-						history.push(...turnsToHistory(
-							resolvedSession,
-							sessionState.turns,
-							this._config.agentId,
-							this._config.connectionAuthority,
-							lookup,
-							this._chatErrorContext(),
-							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
-						));
-
-						// Enrich history with inner tool calls from subagent
-						// child sessions. Subscribes to each child session so
-						// its tool calls appear grouped under the parent widget.
-						await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState, historySubagentObservations);
-
-						// Store historical turns so the editing session can seed a
-						// request-level checkpoint for each turn (with file edits
-						// folded in) when the controller is created lazily. We seed
-						// for every turn — not just those with edits — so "Restore
-						// Checkpoint" on any historical request can find a boundary
-						// to navigate to.
-						if (sessionState.turns.length > 0) {
-							this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
-						}
-
-						// If there's an active turn, include its request in history
-						// with an empty response so the chat service creates a
-						// pending request, then provide accumulated progress via
-						// progressObs for live streaming.
-						if (sessionState.activeTurn) {
-							activeTurnId = sessionState.activeTurn.id;
-							const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
-							history.push({
-								id: sessionState.activeTurn.id,
-								type: 'request',
-								prompt: sessionState.activeTurn.message.text,
-								participant: this._config.agentId,
-								modelId: lookup.toLanguageModelId(activeRawModelId),
-								timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
-								variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
-								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
-								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId),
-							});
-							history.push({
-								type: 'response',
-								parts: [],
-								participant: this._config.agentId,
-								details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
-							});
-							initialProgress = activeTurnToProgress(
+						chatURI = this._resolveChatUriFromState(sessionResource, rawState);
+						this._setChatURI(sessionResource, chatURI);
+						const chatSub = this._ensureChatSubscription(resolvedSession.toString(), chatURI);
+						chatSubscription = chatSub;
+						await this._whenSubscriptionHydrated(chatSub, token);
+						const sessionState = this._getSessionState(resolvedSession.toString(), chatURI);
+						if (sessionState) {
+							sessionTitle = sessionState.title;
+							const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
+							draftInputState = this._draftToInputState(sessionResource, draft);
+							if (!sessionState.draft && draft) {
+								this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
+							}
+							const fallbackRawModelId = lastTurnModelSelection(sessionState)?.id;
+							const lookup = this._createTurnModelLookup(sessionResource, fallbackRawModelId);
+							history.push(...turnsToHistory(
 								resolvedSession,
-								sessionState.activeTurn,
+								sessionState.turns,
+								this._config.agentId,
 								this._config.connectionAuthority,
-								sessionResource.authority,
-								this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
 								lookup,
-							);
-							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
-							// Enrich usage entries with the actual model so the
-							// context-usage widget resolves the right context window
-							// on reconnection (same enrichment as _observeTurn).
-							const actualModelId = this._toLanguageModelId(sessionResource, sessionState.activeTurn.usage?.model);
-							if (actualModelId) {
-								for (const p of initialProgress) {
-									if (p.kind === 'usage') {
-										p.actualModelId = actualModelId;
+								this._chatErrorContext(),
+								this._config.connection.initializeResult.get()?.terminalCommandPrefix,
+							));
+
+							// Enrich history with inner tool calls from subagent
+							// child sessions. Subscribes to each child session so
+							// its tool calls appear grouped under the parent widget.
+							await this._enrichHistoryWithSubagentCalls(history, resolvedSession, sessionResource, sessionState, historySubagentObservations);
+
+							// Store historical turns so the editing session can seed a
+							// request-level checkpoint for each turn (with file edits
+							// folded in) when the controller is created lazily. We seed
+							// for every turn — not just those with edits — so "Restore
+							// Checkpoint" on any historical request can find a boundary
+							// to navigate to.
+							if (sessionState.turns.length > 0) {
+								this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+							}
+
+							// If there's an active turn, include its request in history
+							// with an empty response so the chat service creates a
+							// pending request, then provide accumulated progress via
+							// progressObs for live streaming.
+							if (sessionState.activeTurn) {
+								activeTurnId = sessionState.activeTurn.id;
+								const activeRawModelId = sessionState.activeTurn.usage?.model ?? fallbackRawModelId;
+								history.push({
+									id: sessionState.activeTurn.id,
+									type: 'request',
+									prompt: sessionState.activeTurn.message.text,
+									participant: this._config.agentId,
+									modelId: lookup.toLanguageModelId(activeRawModelId),
+									timestamp: parseTimestamp(sessionState.activeTurn.startedAt),
+									variableData: messageToVariableData(sessionState.activeTurn.message, this._config.connectionAuthority),
+									isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
+									origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId),
+								});
+								history.push({
+									type: 'response',
+									parts: [],
+									participant: this._config.agentId,
+									details: lookup.toResponseDetails(activeRawModelId, sessionState.activeTurn.usage),
+								});
+								initialProgress = activeTurnToProgress(
+									resolvedSession,
+									sessionState.activeTurn,
+									this._config.connectionAuthority,
+									sessionResource.authority,
+									this._otherClientToolInvocationOptions(resolvedSession, chatURI, sessionState.activeTurn.id),
+									lookup,
+								);
+								initialResponsePartCount = sessionState.activeTurn.responseParts.length;
+								// Enrich usage entries with the actual model so the
+								// context-usage widget resolves the right context window
+								// on reconnection (same enrichment as _observeTurn).
+								const actualModelId = this._toLanguageModelId(sessionResource, sessionState.activeTurn.usage?.model);
+								if (actualModelId) {
+									for (const p of initialProgress) {
+										if (p.kind === 'usage') {
+											p.actualModelId = actualModelId;
+										}
 									}
 								}
+								this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 							}
-							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 						}
-					}
-					existingSessionHydrated = true;
+						existingSessionHydrated = true;
 					}
 				} catch (err) {
 					if (isSessionNotFoundError(err)) {
@@ -1412,30 +1412,30 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						sessionSubscription = undefined;
 					} else {
 						this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
-					// Surface a hard load failure as a visible chat error instead of
-					// a silently empty session. Only when nothing else rendered, so a
-					// partially-hydrated history isn't clobbered. A bare response is
-					// dropped without a preceding request, so anchor it with a
-					// system-initiated request (renders as a compact notice, not a
-					// user bubble) and attach the error to its response. Prefer the
-					// underlying error message (e.g. the git worktree-recreation
-					// failure) so the user sees the actual cause, falling back to a
-					// generic message.
-					if (history.length === 0) {
-						history.push({
-							type: 'request',
-							prompt: '',
-							participant: this._config.agentId,
-							isSystemInitiated: true,
-							systemInitiatedLabel: localize('agentHost.sessionLoadFailedLabel', "Couldn't open session"),
-						});
-						history.push({
-							type: 'response',
-							parts: [],
-							participant: this._config.agentId,
-							errorDetails: { message: unwrapSessionLoadErrorMessage(err) ?? localize('agentHost.sessionLoadFailed', "This session couldn't be loaded.") },
-						});
-					}
+						// Surface a hard load failure as a visible chat error instead of
+						// a silently empty session. Only when nothing else rendered, so a
+						// partially-hydrated history isn't clobbered. A bare response is
+						// dropped without a preceding request, so anchor it with a
+						// system-initiated request (renders as a compact notice, not a
+						// user bubble) and attach the error to its response. Prefer the
+						// underlying error message (e.g. the git worktree-recreation
+						// failure) so the user sees the actual cause, falling back to a
+						// generic message.
+						if (history.length === 0) {
+							history.push({
+								type: 'request',
+								prompt: '',
+								participant: this._config.agentId,
+								isSystemInitiated: true,
+								systemInitiatedLabel: localize('agentHost.sessionLoadFailedLabel', "Couldn't open session"),
+							});
+							history.push({
+								type: 'response',
+								parts: [],
+								participant: this._config.agentId,
+								errorDetails: { message: unwrapSessionLoadErrorMessage(err) ?? localize('agentHost.sessionLoadFailed', "This session couldn't be loaded.") },
+							});
+						}
 					}
 				}
 			}
