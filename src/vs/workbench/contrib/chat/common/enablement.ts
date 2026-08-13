@@ -23,6 +23,32 @@ export function isContributionDisabled(state: ContributionEnablementState): bool
 	return !isContributionEnabled(state);
 }
 
+/**
+ * Flips a contribution on or off without changing which layer decided it.
+ *
+ * A server turned off for this workspace comes back on *for this workspace*, and one turned off
+ * everywhere comes back on everywhere. Promoting or demoting the scope behind the user's back
+ * would silently rewrite a choice they made deliberately, so a plain on/off control never does it.
+ * Changing scope stays an explicit act, available from the context menu.
+ */
+export function toggleContributionEnablement(state: ContributionEnablementState): ContributionEnablementState {
+	switch (state) {
+		case ContributionEnablementState.EnabledWorkspace:
+			return ContributionEnablementState.DisabledWorkspace;
+		case ContributionEnablementState.DisabledWorkspace:
+			return ContributionEnablementState.EnabledWorkspace;
+		case ContributionEnablementState.EnabledProfile:
+			return ContributionEnablementState.DisabledProfile;
+		case ContributionEnablementState.DisabledProfile:
+			return ContributionEnablementState.EnabledProfile;
+	}
+}
+
+/** Whether the workspace layer, rather than the profile, is deciding this state. */
+export function isWorkspaceScopedEnablement(state: ContributionEnablementState): boolean {
+	return state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+}
+
 export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
