@@ -44,7 +44,7 @@ import { Action2, MenuItemAction, MenuRegistry, registerAction2 } from '../../..
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
+import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionSupportsDeleteContext } from '../../../../common/contextkeys.js';
 import { SessionsFlatList } from './sessionsList.js';
 import { SessionItemStatusContext } from '../../../../common/contextkeys.js';
 
@@ -970,9 +970,12 @@ function registerAutomationHistoryItemActions(): void {
 		},
 		group: 'navigation',
 		order: 1,
-		when: ContextKeyExpr.or(
-			SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
-			SessionItemStatusContext.isEqualTo(SessionStatus.Error),
+		when: ContextKeyExpr.and(
+			SessionSupportsDeleteContext,
+			ContextKeyExpr.or(
+				SessionItemStatusContext.isEqualTo(SessionStatus.Completed),
+				SessionItemStatusContext.isEqualTo(SessionStatus.Error),
+			),
 		),
 	});
 }
