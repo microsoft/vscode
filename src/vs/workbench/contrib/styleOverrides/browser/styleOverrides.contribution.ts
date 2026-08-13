@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Color } from '../../../../base/common/color.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchLayoutService, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { DEFAULT_SCROLLBAR_SIZE, setGlobalDefaultScrollbarSize } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { DEFAULT_NOTIFICATION_ROW_HEIGHT, setNotificationRowHeight } from '../../../browser/parts/notifications/notificationsViewer.js';
 import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
-import { ColorIdentifier, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { IWorkbenchColorTheme } from '../../../services/themes/common/workbenchThemeService.js';
-import { MODERN_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_ACTION_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, TAB_UNFOCUSED_HOVER_FOREGROUND, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND } from '../../../common/theme.js';
 
 /** Reduced scrollbar size (px) applied when the style-override experiment is on. */
 const SCROLLBAR_OVERRIDE_SIZE = 8;
@@ -42,6 +37,7 @@ import './media/shadows.css';
 import './media/statusBar.css';
 import './media/tabs.css';
 import './media/titlebar.css';
+import '../../../services/themes/browser/modernTabColorCustomizations.js';
 
 interface IStyleOverrideModule {
 	readonly id: string;
@@ -61,23 +57,6 @@ interface IStyleOverrideModule {
 const STYLE_OVERRIDE_CLASS = 'style-override';
 const MODERN_UI_TABS_CLASS = 'modern-ui-tabs';
 const MODERN_UI_UPPERCASE_VIEW_HEADERS_CLASS = 'modern-ui-uppercase-view-headers';
-
-function isWorkbenchColorTheme(theme: IColorTheme): theme is IWorkbenchColorTheme {
-	return 'getColorCustomization' in theme;
-}
-
-function getLegacyColorCustomization(theme: IWorkbenchColorTheme, legacyColorId: ColorIdentifier, modernColorId?: ColorIdentifier): Color | undefined {
-	if (modernColorId && theme.getColorCustomization(modernColorId)) {
-		return undefined;
-	}
-	return theme.getColorCustomization(legacyColorId);
-}
-
-function addColorVariable(declarations: string[], name: string, color: Color | undefined): void {
-	if (color) {
-		declarations.push(`${name}: ${color};`);
-	}
-}
 
 /**
  * The fixed catalog of built-in style-override modules. The CSS for each module
@@ -207,56 +186,5 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	if (!isWorkbenchColorTheme(theme)) {
-		return;
-	}
-
-	const declarations: string[] = [];
-	const activeBackground = getLegacyColorCustomization(theme, TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND);
-	const unfocusedActiveBackground = getLegacyColorCustomization(theme, TAB_UNFOCUSED_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND);
-	const hoverBackground = getLegacyColorCustomization(theme, TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND);
-	const unfocusedHoverBackground = getLegacyColorCustomization(theme, TAB_UNFOCUSED_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND);
-	const editorBackgroundColor = theme.getColor(editorBackground);
-
-	addColorVariable(declarations, '--modern-ui-editor-tab-active-background', activeBackground);
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-background', unfocusedActiveBackground);
-	addColorVariable(declarations, '--modern-ui-editor-tab-inactive-background', getLegacyColorCustomization(theme, TAB_INACTIVE_BACKGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-inactive-background', getLegacyColorCustomization(theme, TAB_UNFOCUSED_INACTIVE_BACKGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-hover-background', hoverBackground);
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-background', unfocusedHoverBackground);
-	addColorVariable(declarations, '--modern-ui-editor-tab-active-foreground', getLegacyColorCustomization(theme, TAB_ACTIVE_FOREGROUND, MODERN_TAB_ACTIVE_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-foreground', getLegacyColorCustomization(theme, TAB_UNFOCUSED_ACTIVE_FOREGROUND, MODERN_TAB_ACTIVE_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-inactive-foreground', getLegacyColorCustomization(theme, TAB_INACTIVE_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-inactive-foreground', getLegacyColorCustomization(theme, TAB_UNFOCUSED_INACTIVE_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-hover-foreground', getLegacyColorCustomization(theme, TAB_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-foreground', getLegacyColorCustomization(theme, TAB_UNFOCUSED_HOVER_FOREGROUND, MODERN_TAB_HOVER_FOREGROUND));
-	addColorVariable(declarations, '--modern-ui-editor-tab-border', getLegacyColorCustomization(theme, TAB_BORDER));
-	addColorVariable(declarations, '--modern-ui-editor-tab-last-pinned-border', getLegacyColorCustomization(theme, TAB_LAST_PINNED_BORDER));
-	addColorVariable(declarations, '--modern-ui-editor-tab-active-border', getLegacyColorCustomization(theme, TAB_ACTIVE_BORDER));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-border', getLegacyColorCustomization(theme, TAB_UNFOCUSED_ACTIVE_BORDER));
-	addColorVariable(declarations, '--modern-ui-editor-tab-active-border-top', getLegacyColorCustomization(theme, TAB_ACTIVE_BORDER_TOP));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-active-border-top', getLegacyColorCustomization(theme, TAB_UNFOCUSED_ACTIVE_BORDER_TOP));
-	addColorVariable(declarations, '--modern-ui-editor-tab-hover-border', getLegacyColorCustomization(theme, TAB_HOVER_BORDER));
-	addColorVariable(declarations, '--modern-ui-editor-tab-unfocused-hover-border', getLegacyColorCustomization(theme, TAB_UNFOCUSED_HOVER_BORDER));
-
-	if (activeBackground && !theme.getColorCustomization(MODERN_TAB_ACTIVE_ACTION_BACKGROUND)) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-active-background', editorBackgroundColor ? activeBackground.makeOpaque(editorBackgroundColor) : activeBackground);
-	}
-	if (unfocusedActiveBackground && !theme.getColorCustomization(MODERN_TAB_ACTIVE_ACTION_BACKGROUND)) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-active-background', editorBackgroundColor ? unfocusedActiveBackground.makeOpaque(editorBackgroundColor) : unfocusedActiveBackground);
-	}
-	if (hoverBackground && !theme.getColorCustomization(MODERN_TAB_HOVER_ACTION_BACKGROUND)) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-hover-background', editorBackgroundColor ? hoverBackground.makeOpaque(editorBackgroundColor) : hoverBackground);
-	}
-	if (unfocusedHoverBackground && !theme.getColorCustomization(MODERN_TAB_HOVER_ACTION_BACKGROUND)) {
-		addColorVariable(declarations, '--modern-ui-editor-tab-action-unfocused-hover-background', editorBackgroundColor ? unfocusedHoverBackground.makeOpaque(editorBackgroundColor) : unfocusedHoverBackground);
-	}
-
-	if (declarations.length > 0) {
-		collector.addRule(`.modern-ui-tabs.monaco-workbench { ${declarations.join('\n')} }`);
-	}
-});
 
 registerWorkbenchContribution2(StyleOverridesContribution.ID, StyleOverridesContribution, WorkbenchPhase.BlockRestore);

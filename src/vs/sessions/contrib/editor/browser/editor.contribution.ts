@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../../../workbench/contrib/styleOverrides/browser/media/tabs.css';
+import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
 import './diffEditor.sessions.contribution.js';

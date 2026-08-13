@@ -15,7 +15,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { editorBackground, Extensions as ColorRegistryExtensions, IColorRegistry, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, oneOf, opaque } from '../../../../../platform/theme/common/colorRegistry.js';
 import { foreground } from '../../../../../platform/theme/common/colors/baseColors.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_ACTION_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_TAB_SELECTED_ACTION_BACKGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from '../../../../common/theme.js';
+import { EDITOR_BORDER, MODERN_ACTIVITY_BAR_ACTIVE_BACKGROUND, MODERN_ACTIVITY_BAR_ACTIVE_FOREGROUND, MODERN_ACTIVITY_BAR_HOVER_BACKGROUND, MODERN_ACTIVITY_BAR_HOVER_FOREGROUND, MODERN_TAB_ACTIVE_ACTION_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_ACTION_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, MODERN_TAB_SELECTED_ACTION_BACKGROUND, SURFACE_BORDER, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_ACTIVE_FOREGROUND, TAB_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_HOVER_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TAB_LAST_PINNED_BORDER, TAB_SELECTED_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND } from '../../../../common/theme.js';
 import { TestEnvironmentService, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
@@ -524,6 +524,7 @@ suite('StyleOverridesContribution', () => {
 			[MODERN_TAB_HOVER_ACTION_BACKGROUND]: '#020304',
 			[MODERN_TAB_HOVER_BACKGROUND]: '#020304',
 			[MODERN_TAB_HOVER_FOREGROUND]: '#B0C0D0',
+			[TAB_UNFOCUSED_HOVER_BACKGROUND]: '#0A0B0C',
 		});
 		theme.setCustomColors({
 			[TAB_ACTIVE_BACKGROUND]: '#123456',
@@ -532,12 +533,11 @@ suite('StyleOverridesContribution', () => {
 			[TAB_ACTIVE_FOREGROUND]: '#FEDCBA',
 			[TAB_BORDER]: '#778899',
 			[TAB_HOVER_BACKGROUND]: '#456789',
+			[TAB_HOVER_BORDER]: '#112233',
 			[TAB_HOVER_FOREGROUND]: '#DDEEFF',
 			[TAB_INACTIVE_BACKGROUND]: '#345678',
 			[TAB_INACTIVE_FOREGROUND]: '#CCDDEE',
 			[TAB_LAST_PINNED_BORDER]: '#8899AA',
-			[TAB_UNFOCUSED_ACTIVE_BACKGROUND]: '#234567',
-			[TAB_UNFOCUSED_ACTIVE_FOREGROUND]: '#BBDDEE',
 		});
 
 		const style = document.createElement('style');
@@ -547,6 +547,7 @@ suite('StyleOverridesContribution', () => {
 
 		const root = document.createElement('div');
 		root.className = 'legacy-tab-customization-theme monaco-workbench modern-ui-tabs';
+		root.style.setProperty('--vscode-strokeThickness', '1px');
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
@@ -556,11 +557,14 @@ suite('StyleOverridesContribution', () => {
 		const activeGroup = appendElement(content, 'editor-group-container active');
 		const activeTitle = appendElement(activeGroup, 'title');
 		const activeTabs = appendElement(activeTitle, 'tabs-container');
-		const activeTab = appendElement(activeTabs, 'tab active');
+		const activeTab = appendElement(activeTabs, 'tab active tab-border-bottom tab-border-top');
 		const activeFill = appendElement(activeTab, 'tab-fill');
 		const activeLabel = appendElement(activeTab, 'tab-label');
 		const activeLabelAnchor = document.createElement('a');
 		activeLabel.appendChild(activeLabelAnchor);
+		const activeTabActions = appendElement(activeTab, 'tab-actions');
+		const activeTabAction = appendElement(activeTabActions, 'action-label');
+		activeTabAction.tabIndex = 0;
 		const inactiveTab = appendElement(activeTabs, 'tab');
 		const inactiveFill = appendElement(inactiveTab, 'tab-fill');
 		const inactiveLabel = appendElement(inactiveTab, 'tab-label');
@@ -574,14 +578,31 @@ suite('StyleOverridesContribution', () => {
 		const unfocusedLabel = appendElement(unfocusedTab, 'tab-label');
 		const unfocusedLabelAnchor = document.createElement('a');
 		unfocusedLabel.appendChild(unfocusedLabelAnchor);
+		const unfocusedInactiveTab = appendElement(unfocusedTabs, 'tab');
+		const unfocusedInactiveFill = appendElement(unfocusedInactiveTab, 'tab-fill');
+		const unfocusedInactiveLabel = appendElement(unfocusedInactiveTab, 'tab-label');
+		const unfocusedInactiveLabelAnchor = document.createElement('a');
+		unfocusedInactiveLabel.appendChild(unfocusedInactiveLabelAnchor);
 		const hoverProbe = appendElement(root, 'hover-probe');
 		hoverProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-hover-background)';
 		hoverProbe.style.color = 'var(--modern-ui-editor-tab-hover-foreground)';
-		const actionProbe = appendElement(root, 'action-probe');
-		actionProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-action-active-background)';
+		const unfocusedHoverProbe = appendElement(root, 'unfocused-hover-probe');
+		unfocusedHoverProbe.style.backgroundColor = 'var(--modern-ui-editor-tab-unfocused-hover-background)';
+		unfocusedHoverProbe.style.color = 'var(--modern-ui-editor-tab-unfocused-hover-foreground)';
+		const unfocusedBorderProbe = appendElement(root, 'unfocused-border-probe');
+		unfocusedBorderProbe.style.color = 'var(--modern-ui-editor-tab-unfocused-active-border)';
+		unfocusedBorderProbe.style.borderTopColor = 'var(--modern-ui-editor-tab-unfocused-active-border-top)';
+		unfocusedBorderProbe.style.borderBottomColor = 'var(--modern-ui-editor-tab-unfocused-hover-border)';
 		const separatorProbe = appendElement(root, 'separator-probe');
 		separatorProbe.style.color = 'var(--modern-ui-editor-tab-border)';
 		separatorProbe.style.borderColor = 'var(--modern-ui-editor-tab-last-pinned-border)';
+		const twoRowTitle = appendElement(activeGroup, 'title two-tab-bars');
+		const pinnedRow = appendElement(twoRowTitle, 'tabs-and-actions-container');
+		appendElement(twoRowTitle, 'tabs-and-actions-container');
+		activeTabAction.focus();
+		const activeTabActionStyle = getWindow(activeTabActions).getComputedStyle(activeTabActions);
+		const activeTabActionFadeStyle = getWindow(activeTabActions).getComputedStyle(activeTabActions, '::before');
+		const pinnedRowStyle = getWindow(pinnedRow).getComputedStyle(pinnedRow);
 
 		assert.deepStrictEqual({
 			paneBackground: getWindow(paneAction.indicator).getComputedStyle(paneAction.indicator).backgroundColor,
@@ -594,11 +615,24 @@ suite('StyleOverridesContribution', () => {
 			inactiveForeground: getWindow(inactiveLabelAnchor).getComputedStyle(inactiveLabelAnchor).color,
 			unfocusedActiveBackground: getWindow(unfocusedFill).getComputedStyle(unfocusedFill).backgroundColor,
 			unfocusedActiveForeground: getWindow(unfocusedLabelAnchor).getComputedStyle(unfocusedLabelAnchor).color,
+			unfocusedInactiveBackground: getWindow(unfocusedInactiveFill).getComputedStyle(unfocusedInactiveFill).backgroundColor,
+			unfocusedInactiveForeground: getWindow(unfocusedInactiveLabelAnchor).getComputedStyle(unfocusedInactiveLabelAnchor).color,
 			hoverBackground: getWindow(hoverProbe).getComputedStyle(hoverProbe).backgroundColor,
 			hoverForeground: getWindow(hoverProbe).getComputedStyle(hoverProbe).color,
-			actionBackground: getWindow(actionProbe).getComputedStyle(actionProbe).backgroundColor,
+			unfocusedHoverBackground: getWindow(unfocusedHoverProbe).getComputedStyle(unfocusedHoverProbe).backgroundColor,
+			unfocusedHoverForeground: getWindow(unfocusedHoverProbe).getComputedStyle(unfocusedHoverProbe).color,
+			unfocusedActiveBorder: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).color,
+			unfocusedActiveBorderTop: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).borderTopColor,
+			unfocusedHoverBorder: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).borderBottomColor,
+			actionBackground: activeTabActionStyle.backgroundColor,
+			actionBackgroundClip: activeTabActionStyle.backgroundClip,
+			actionBorderBlockWidth: [activeTabActionStyle.borderTopWidth, activeTabActionStyle.borderBottomWidth],
+			actionInlineEndBorderColor: activeTabActionStyle.borderRightColor,
+			actionFadeBackgroundClip: activeTabActionFadeStyle.backgroundClip,
+			actionFadeBorderBlockWidth: [activeTabActionFadeStyle.borderTopWidth, activeTabActionFadeStyle.borderBottomWidth],
 			separatorColor: getWindow(separatorProbe).getComputedStyle(separatorProbe).color,
 			lastPinnedBorder: getWindow(separatorProbe).getComputedStyle(separatorProbe).borderTopColor,
+			pinnedRowUsesLastPinnedBorder: pinnedRowStyle.boxShadow.includes('rgb(136, 153, 170)'),
 		}, {
 			paneBackground: 'rgb(1, 2, 3)',
 			paneForeground: 'rgb(160, 176, 192)',
@@ -608,13 +642,26 @@ suite('StyleOverridesContribution', () => {
 			activeBorderBottom: 'rgb(85, 102, 119)',
 			inactiveBackground: 'rgb(52, 86, 120)',
 			inactiveForeground: 'rgb(204, 221, 238)',
-			unfocusedActiveBackground: 'rgb(35, 69, 103)',
-			unfocusedActiveForeground: 'rgb(187, 221, 238)',
+			unfocusedActiveBackground: 'rgb(18, 52, 86)',
+			unfocusedActiveForeground: 'rgba(254, 220, 186, 0.5)',
+			unfocusedInactiveBackground: 'rgb(52, 86, 120)',
+			unfocusedInactiveForeground: 'rgba(204, 221, 238, 0.5)',
 			hoverBackground: 'rgb(69, 103, 137)',
 			hoverForeground: 'rgb(221, 238, 255)',
+			unfocusedHoverBackground: 'rgb(10, 11, 12)',
+			unfocusedHoverForeground: 'rgba(221, 238, 255, 0.5)',
+			unfocusedActiveBorder: 'rgba(85, 102, 119, 0.5)',
+			unfocusedActiveBorderTop: 'rgba(51, 68, 85, 0.5)',
+			unfocusedHoverBorder: 'rgba(17, 34, 51, 0.5)',
 			actionBackground: 'rgb(18, 52, 86)',
+			actionBackgroundClip: 'padding-box',
+			actionBorderBlockWidth: ['1px', '1px'],
+			actionInlineEndBorderColor: 'rgba(0, 0, 0, 0)',
+			actionFadeBackgroundClip: 'padding-box',
+			actionFadeBorderBlockWidth: ['1px', '1px'],
 			separatorColor: 'rgb(119, 136, 153)',
 			lastPinnedBorder: 'rgb(136, 153, 170)',
+			pinnedRowUsesLastPinnedBorder: true,
 		});
 	});
 
