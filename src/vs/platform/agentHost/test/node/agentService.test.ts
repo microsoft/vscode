@@ -5118,6 +5118,19 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
 		});
 
+		test('advertises server tools after restoring the session state', async () => {
+			service.registerProvider(copilotAgent);
+			await createAgentSession(copilotAgent);
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+
+			await service.restoreSession(sessionResource);
+
+			assert.strictEqual(
+				service.stateManager.getSessionState(sessionResource.toString())?.serverTools?.some(tool => tool.name === SessionServerToolName.ListSessions),
+				true,
+			);
+		});
+
 		test('re-attaches persisted turn usage on restore', async () => {
 			// Providers don't durably record token/credit usage (the Copilot
 			// SDK's `assistant.usage` event is explicitly ephemeral), so without
