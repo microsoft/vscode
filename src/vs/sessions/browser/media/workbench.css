@@ -90,7 +90,8 @@
 	bottom: 15px;
 }
 
-.monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible > .notifications-toasts {
+.monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible > .notifications-toasts,
+.monaco-workbench.agent-sessions-workbench.sessions-signing-in-dialog-visible .quick-input-widget {
 	z-index: 2580; /* above the dialog modal block (2575), below workbench overlays (2600) */
 }
 

@@ -44,7 +44,7 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 
 The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. Sessions-owned styles define only the part surface and inset; action geometry, active/hover/focus states, and badge placement remain owned by the shared pane-tab stylesheet so the Editor and Agents windows stay aligned.
 
-Standard dialogs retain their full-window modal blocker. While the Agents sign-in dialog is visible, notification toasts are raised above the blocker so authentication progress and its actions remain readable and pointer-interactive; other dialogs keep all notifications blocked.
+Standard dialogs retain their full-window modal blocker. While the Agents sign-in dialog is visible, notification toasts and Quick Input surfaces are raised above the blocker so authentication progress, its actions, and PAT input remain pointer-interactive. The sign-in dialog also allows Quick Input focus and keybindings through its focus trap; other dialogs keep these surfaces blocked.
 
 ### 2.2 Grid Tree
 

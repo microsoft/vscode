@@ -61,7 +61,8 @@ export class SessionsSigningInDialog extends Disposable {
 				cancelId: 0,
 				disableCloseButton: true,
 				disableDefaultAction: true,
-			}, keybindingService, layoutService, hostService)
+				isExternalFocusAllowed: target => !!target.closest('.quick-input-widget'),
+			}, keybindingService, layoutService, hostService, undefined, commandId => commandId.startsWith('quickInput.'))
 		));
 
 		const activeContainer = layoutService.activeContainer;
