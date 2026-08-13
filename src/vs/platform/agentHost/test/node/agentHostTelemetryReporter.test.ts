@@ -17,6 +17,7 @@ import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAge
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -45,7 +46,9 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	publicLog2(eventName: string, data?: ITelemetryData): void {
 		this.standardEvents.push({ eventName, data });
 	}
-	publicLogError2(): void { }
+	publicLogError2(eventName: string, data?: ITelemetryData): void {
+		this.standardEvents.push({ eventName, data });
+	}
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 
@@ -72,7 +75,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 }
 
 suite('AgentHostTelemetryReporter', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
@@ -160,7 +163,16 @@ suite('AgentHostTelemetryReporter', () => {
 
 	test('toolCallDetails emits standard and restricted aggregates whenever tools were available, and no-ops when none were', async () => {
 		const service = new TestRestrictedTelemetryService();
-		const reporter = new AgentHostTelemetryReporter(service);
+		const telemetryService = store.add(new AgentHostTelemetryService(service, service));
+		telemetryService.setCopilotSku('copilot_for_business_seat');
+		telemetryService.setRestrictedTelemetryEnabled(true);
+		telemetryService.setInternalTelemetryContext({
+			isInternal: true,
+			trackingId: undefined,
+			userName: undefined,
+			isVscodeTeamMember: false,
+		});
+		const reporter = new AgentHostTelemetryReporter(telemetryService);
 
 		await reporter.toolCallDetails({
 			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.Unknown, model: 'gpt-x', responseType: 'success',
@@ -185,6 +197,7 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'toolCallDetails',
 			data: {
 				provider: 'copilot',
+				copilotSku: 'copilot_for_business_seat',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				conversationId: AgentSession.id(session),
@@ -205,6 +218,7 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'toolCallDetails',
 			data: {
 				provider: 'copilot',
+				copilotSku: 'copilot_for_business_seat',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				conversationId: AgentSession.id(session),
@@ -231,6 +245,7 @@ suite('AgentHostTelemetryReporter', () => {
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				initiatorClientType: 'editor_window',
 				responseType: 'success',
+				copilotSku: 'copilot_for_business_seat',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({}),
 				availableTools: JSON.stringify(['grep', 'edit']),
@@ -243,6 +258,7 @@ suite('AgentHostTelemetryReporter', () => {
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				initiatorClientType: 'agents_window',
 				responseType: 'cancelled',
+				copilotSku: 'copilot_for_business_seat',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
 				availableTools: JSON.stringify(['grep', 'edit']),
@@ -251,6 +267,45 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.internalEvents.length, 2);
 		assert.strictEqual(service.internalEvents[0].eventName, 'toolCallDetailsInternal');
 		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
+	});
+
+	test('turn telemetry includes Copilot SKU only for the Copilot provider', () => {
+		const service = new TestRestrictedTelemetryService();
+		const telemetryService = store.add(new AgentHostTelemetryService(service, service));
+		telemetryService.setCopilotSku('copilot_for_business_seat');
+		const reporter = new AgentHostTelemetryReporter(telemetryService);
+		const common = {
+			session,
+			turnId: 'turn-1',
+			timeToFirstProgress: 10,
+			totalTime: 20,
+			result: 'error' as const,
+			model: 'gpt-x',
+			modelTelemetryKind: 'trusted' as const,
+			modelSelectionKind: 'explicit' as const,
+			permissionLevel: 'default',
+			interactionMode: 'interactive' as const,
+			failure: {
+				stage: 'provider' as const,
+				error: { errorType: 'providerError', message: 'failed' },
+			},
+			isMultiRoot: false,
+			folderCount: 1,
+		};
+
+		reporter.turnCompleted({ provider: 'copilot', ...common });
+		reporter.turnCompleted({ provider: 'claude', ...common });
+
+		assert.deepStrictEqual(service.standardEvents.map(event => ({
+			eventName: event.eventName,
+			provider: event.data?.provider,
+			copilotSku: event.data?.copilotSku,
+		})), [
+			{ eventName: 'agentHost.turnCompleted', provider: 'copilot', copilotSku: 'copilot_for_business_seat' },
+			{ eventName: 'agentHost.turnFailed', provider: 'copilot', copilotSku: 'copilot_for_business_seat' },
+			{ eventName: 'agentHost.turnCompleted', provider: 'claude', copilotSku: undefined },
+			{ eventName: 'agentHost.turnFailed', provider: 'claude', copilotSku: undefined },
+		]);
 	});
 
 	test('toolApproval emits chat.toolApproval with AH discriminators and reason mapping', () => {
