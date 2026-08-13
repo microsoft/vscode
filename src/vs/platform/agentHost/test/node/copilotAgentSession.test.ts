@@ -879,6 +879,20 @@ suite('CopilotAgentSession', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('retains transient host instructions until the delayed prompt hook consumes them', async () => {
+		const { session, runtime } = await createAgentSession(disposables);
+
+		await session.send('Inspect the request', undefined, 'turn-1', undefined, undefined, AgentHostClientType.Unknown, ['Rename before working']);
+
+		assert.deepStrictEqual({
+			firstHook: runtime.handleUserPromptSubmitted(),
+			secondHook: runtime.handleUserPromptSubmitted(),
+		}, {
+			firstHook: { additionalContext: 'Rename before working' },
+			secondHook: undefined,
+		});
+	});
+
 	test('updates GitHub credentials through the SDK session RPC', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		await session.initializeSession();
