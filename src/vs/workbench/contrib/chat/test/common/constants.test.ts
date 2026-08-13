@@ -63,17 +63,19 @@ suite('ChatConfiguration defaults', () => {
 		return resolveDefaultNewChatSessionType(accessor, options);
 	}
 
-	test('default permission configuration maps Allow All to the Agent Host value', () => {
+	test('default permission configuration maps setting values to Agent Host values', () => {
 		assert.deepStrictEqual({
-			default: getChatPermissionLevelFromDefaultConfiguration('default'),
+			manual: getChatPermissionLevelFromDefaultConfiguration('manual'),
 			assisted: getChatPermissionLevelFromDefaultConfiguration('assisted'),
 			allowAll: getChatPermissionLevelFromDefaultConfiguration('allowAll'),
+			legacyDefault: getChatPermissionLevelFromDefaultConfiguration('default'),
 			legacyAutoApprove: getChatPermissionLevelFromDefaultConfiguration('autoApprove'),
 			invalid: getChatPermissionLevelFromDefaultConfiguration('invalid'),
 		}, {
-			default: ChatPermissionLevel.Default,
+			manual: ChatPermissionLevel.Default,
 			assisted: ChatPermissionLevel.Assisted,
 			allowAll: ChatPermissionLevel.AutoApprove,
+			legacyDefault: ChatPermissionLevel.Default,
 			legacyAutoApprove: ChatPermissionLevel.AutoApprove,
 			invalid: undefined,
 		});
