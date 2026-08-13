@@ -35,14 +35,14 @@ const TOOL_USE_ID_META_KEY = 'claudecode/toolUseId';
  */
 export async function buildClientToolMcpServer(
 	snapshot: readonly ToolDefinition[],
-	awaitResult: (toolUseId: string) => Promise<CallToolResult>,
+	awaitResult: (toolUseId: string, toolName: string, args: unknown) => Promise<CallToolResult>,
 	sdk: IClaudeAgentSdkService
 ): Promise<McpSdkServerConfigWithInstance> {
 	const tools = await Promise.all(snapshot.map(def => sdk.tool(
 		def.name,
 		def.description ?? '',
 		jsonSchemaToZodRawShape(def.inputSchema),
-		async (_args, extra) => {
+		async (args, extra) => {
 			const toolUseId = extractToolUseId(extra);
 			if (toolUseId === undefined) {
 				return {
@@ -53,7 +53,7 @@ export async function buildClientToolMcpServer(
 					isError: true,
 				};
 			}
-			return awaitResult(toolUseId);
+			return awaitResult(toolUseId, def.name, args);
 		}
 	)));
 	return sdk.createSdkMcpServer({ name: CLAUDE_CLIENT_MCP_SERVER_NAME, tools });
