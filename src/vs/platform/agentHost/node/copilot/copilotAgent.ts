@@ -759,6 +759,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 		}));
+		if (this._lastMigrateLegacyEnabled) {
+			void this._emitExtHostChats();
+		}
 
 		// Surface renderer BYOK models in the picker: republish them whenever the
 		// set of connected renderer bridges, or any renderer's models, change.

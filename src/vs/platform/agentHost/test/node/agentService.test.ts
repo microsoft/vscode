@@ -6710,7 +6710,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				adoptionCalls: agent.adoptionCalls,
 				recoveryCalls: agent.recoveryCalls,
-				hasExternalContext: agent.materializeContexts.map(context => hasKey(context, { external: true })),
+				hasExternalContext: agent.materializeContexts.map(context => Object.keys(context).includes('external')),
 				persisted: await db.getMetadata('defaultChatProviderData'),
 			}, {
 				adoptionCalls: 0,
