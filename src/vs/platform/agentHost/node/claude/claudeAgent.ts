@@ -1612,11 +1612,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * it waits for any in-flight {@link _resolveOrResumeChatSessionLocked} or
 	 * {@link sendMessage} to finish before tearing down — prevents
 	 * use-after-dispose if a send is concurrently in progress. The durable
-	 * chat catalog is owned by the orchestrator now, so this only drops the
-	 * live session and its provider backing data. There is no separate
-	 * session-level finalization hook: the trace context keyed on the chat's
-	 * own `resource` (the configuration scope, for a session's primary chat)
-	 * is released right here, once, when that exact chat is disposed.
+	 * chat catalog is owned by the orchestrator now, so this drops the live
+	 * session, its provider backing data and the SDK transcript. There is no
+	 * separate session-level finalization hook: the trace context keyed on the
+	 * chat's own `resource` (the configuration scope, for a session's primary
+	 * chat) is released right here, once, when that exact chat is disposed.
+	 *
+	 * Deleting the transcript is safe because every caller means to destroy the
+	 * chat; teardown that must resume later goes through {@link _releaseChat}.
 	 */
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
@@ -1626,14 +1629,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (target) {
 				await this._disposeLiveSession(target);
 			}
+			const sdkSessionId = this._chatBackings.get(chatKey)?.sdkSessionId;
 			this._chatBackings.delete(chatKey);
 			this._chatConfigScopes.delete(chatKey);
 			this._pruneActiveClientHandlesForChat(chat);
 			this._otelService.releaseSessionTraceContext(initialContext.resource.toString());
+			if (sdkSessionId !== undefined) {
+				try {
+					await this._sdkService.deleteSession(sdkSessionId);
+				} catch (err) {
+					// Best-effort: the chat is already gone from the catalog, so a
+					// stranded transcript must not fail the dispose.
+					this._logService.warn(`[Claude:${sdkSessionId}] Failed to delete the transcript on dispose`, err);
+				}
+			}
 		});
-		// The Claude SDK exposes no delete-chat RPC, so the forked /
-		// fresh transcript is left on disk; without a catalog entry it is never
-		// resumed again.
 	}
 
 	private async _releaseChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
