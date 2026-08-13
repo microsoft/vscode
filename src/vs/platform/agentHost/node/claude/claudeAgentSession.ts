@@ -1158,10 +1158,20 @@ export class ClaudeAgentSession extends Disposable {
 	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
 	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
 	 * here too and must NOT throw.
+	 *
+	 * Buffers instead of dropping when nothing is parked yet: the workbench
+	 * starts a client tool from the streamed tool call and can finish it before
+	 * the SDK has invoked that tool and registered its handler. Discarding the
+	 * result there strands the turn, because the handler registers moments
+	 * later and then waits for a result that no longer exists.
 	 */
 	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
 		const converted = convertToolCallResult(result, toolCallId);
-		return this._pendingClientToolCalls.respond(toolCallId, converted);
+		const settled = this._pendingClientToolCalls.respond(toolCallId, converted);
+		if (!settled) {
+			this._pendingClientToolCalls.respondOrBuffer(toolCallId, converted);
+		}
+		return settled;
 	}
 
 	/**
