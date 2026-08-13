@@ -119,8 +119,18 @@ export function getBrowserPagesContext(
 
 /**
  * Creates a markdown link to a browser page.
+ *
+ * `pageId` may be missing when a tool call is invoked with empty parameters,
+ * which happens when the agent host synthesises a `ChatToolCallReady` without
+ * `toolInput` after the owning client disconnects mid-turn. Throwing here would
+ * escape `prepareToolInvocation` and leave the tool call stuck awaiting a
+ * completion that never arrives, so fall back to the plain (unlinked) label and
+ * let the tool's own `invoke` report the missing page id as a normal error.
  */
-export function createBrowserPageLink(pageId: string | URI): string {
+export function createBrowserPageLink(pageId: string | URI | undefined): string {
+	if (pageId === undefined || pageId === '') {
+		return BrowserEditorInput.DEFAULT_LABEL;
+	}
 	if (typeof pageId === 'string') {
 		pageId = BrowserViewUri.forId(pageId);
 	}
