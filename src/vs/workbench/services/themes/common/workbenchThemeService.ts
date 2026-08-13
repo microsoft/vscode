@@ -374,6 +374,9 @@ export interface IWorkbenchTheme {
 export interface IWorkbenchColorTheme extends IWorkbenchTheme, IColorTheme {
 	readonly settingsId: string;
 	readonly tokenColors: ITextMateThemingRule[];
+
+	/** Returns the resolved user customization for a color, excluding theme and default values. */
+	getColorCustomization(colorId: string): Color | undefined;
 }
 
 export interface IColorMap {
