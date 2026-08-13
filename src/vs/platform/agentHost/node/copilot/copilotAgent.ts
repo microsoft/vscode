@@ -3721,6 +3721,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
+				// Keep the session-scope metadata in step for resumes that fall back
+				// to it; chat leaves persist through their backing instead.
+				if (current.resource.toString() === current.configurationResource.toString()) {
+					await this._storeSessionMetadata(current.resource, model, undefined, undefined, undefined, undefined);
+				}
 			}
 			const backing = this._chatBackings.get(current.chatKey);
 			if (backing) {

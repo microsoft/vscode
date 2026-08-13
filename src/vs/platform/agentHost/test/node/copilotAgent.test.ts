@@ -7422,6 +7422,32 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('changeModel persists the model for metadata-fallback resumes', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }, { id: 'model-b', name: 'Model B' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, m => m.length > 0);
+				const session = AgentSession.uri('copilotcli', 'model-persist-session');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, {
+					session,
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'model-a' },
+				});
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, chat, result.session));
+
+				await agent.chats.changeModel(chat, { id: 'model-b' }, exactChatContext(result.session, chat, result.session));
+
+				const stored = await sessionDataService.openDatabase(session).object.getMetadata('copilot.model');
+				assert.deepStrictEqual(JSON.parse(stored ?? 'null'), { id: 'model-b' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('changeAgent resolves and applies the agent to the targeted chat, and clears it with undefined', async () => {
 			const agent = createTestAgent(disposables);
 			try {
