@@ -545,7 +545,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// agents (the URI is host-level config).
 		this._register(this._gitHubEndpointService.onDidChange(() => {
 			this._stateManager.emitAuthRequired({
-				resource: this._gitHubEndpointService.getCopilotResource().resource,
+				resource: this._gitHubEndpointService.getCopilotResource(),
 				reason: AuthRequiredReason.Required,
 			});
 		}));
@@ -1742,9 +1742,6 @@ export class AgentService extends Disposable implements IAgentService {
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, sourceTurns);
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
-			if (initialCustomizations && initialCustomizations.length > 0) {
-				state.customizations = [...initialCustomizations];
-			}
 
 			// Refine the forked session's placeholder `Forked: …` title into one
 			// derived from the inherited chat. Forks seed pre-existing
@@ -1766,9 +1763,6 @@ export class AgentService extends Disposable implements IAgentService {
 			state.config = sessionConfig;
 			this._stateManager.seedDefaultChatTurns(summary.resource, importedTurns);
 			state.activeClients = config.activeClient ? [config.activeClient] : [];
-			if (initialCustomizations && initialCustomizations.length > 0) {
-				state.customizations = [...initialCustomizations];
-			}
 
 			// Refine the placeholder title into one generated from the imported
 			// conversation, mirroring forks. Imports seed pre-existing turns, so
@@ -1789,9 +1783,10 @@ export class AgentService extends Disposable implements IAgentService {
 				state.config = sessionConfig;
 				state.activeClients = config?.activeClient ? [config.activeClient] : [];
 			}
-			if (initialCustomizations && initialCustomizations.length > 0) {
-				state.customizations = [...initialCustomizations];
-			}
+		}
+		// Discovery is asynchronous, so publish the result for clients that subscribed while it was in flight.
+		if (initialCustomizations && initialCustomizations.length > 0) {
+			this._stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [...initialCustomizations] });
 		}
 		this._serverToolHost.advertise(session.toString());
 		// Persist resolved config values for restore. Mid-session updates are
@@ -3332,11 +3327,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _needsAsyncRewrite(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
+	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
 		}
-		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
+		const attachmentsRootStr = this._attachmentsRoot(sessionURI).toString();
 		return !!action.message.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
@@ -3357,15 +3352,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
-	private _attachmentsRoot(session: string): URI {
-		return joinPath(this._sessionDataService.getSessionDataDir(URI.parse(session)), SESSION_ATTACHMENTS_DIRNAME);
+	private _attachmentsRoot(sessionURI: string): URI {
+		return joinPath(this._sessionDataService.getSessionDataDir(URI.parse(sessionURI)), SESSION_ATTACHMENTS_DIRNAME);
 	}
 
 	/**
 	 * Snapshot inline / client-resident attachment payloads onto disk
 	 * under the session's data directory and rewrite the action to
 	 * reference them via local `file:` URIs. Keeps potentially large
-	 * blobs (e.g. pasted images) out of the in-memory state tree while
+	 * blobs (e.g. pasted text or images) out of the in-memory state tree while
 	 * letting the agent consume them via the standard {@link IFileService}
 	 * surface — no special URI scheme or blob round-tripping needed.
 	 *

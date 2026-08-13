@@ -45,11 +45,11 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { IActiveClient, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AgentHostClaudeMultiRootEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
-import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -1544,24 +1544,19 @@ suite('ClaudeAgent', () => {
 				rootConfig: { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true },
 				userHome,
 			});
-			const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-			disposables.add(agent.onDidRequireAuth(e => events.push(e)));
-
 			await agent.authenticate('https://api.github.com', 'tok');
 			await tick();
 
-			assert.deepStrictEqual(events, []);
+			assert.strictEqual((agent as IAgent).authenticationRequired, undefined);
 		});
 	});
 
 	test('construction in proxy mode does not emit auth/required', async () => {
 		const { agent } = createTestContext(disposables);
-		const events: Omit<AuthRequiredParams, 'channel'>[] = [];
-		disposables.add(agent.onDidRequireAuth(e => events.push(e)));
 
 		await tick();
 
-		assert.deepStrictEqual(events, []);
+		assert.strictEqual((agent as IAgent).authenticationRequired, undefined);
 	});
 
 	test('re-authenticating an unchanged token starts the proxy when a prior start left no handle', async () => {
@@ -1829,6 +1824,32 @@ suite('ClaudeAgent', () => {
 		}, {
 			startTokens: ['tokA', 'tokB'],
 			disposeCount: 1,
+		});
+	});
+
+	test('revoking authentication disposes the Copilot proxy and clears its models', async () => {
+		const { agent, proxy } = createTestContext(disposables);
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		assert.ok(agent.models.get().length > 0);
+
+		const accepted = await agent.authenticate('https://api.github.com', '');
+		await tick();
+
+		assert.deepStrictEqual({
+			accepted,
+			githubToken: agent['_githubToken'],
+			proxyHandle: agent['_proxyHandle'],
+			startTokens: proxy.startCalls.map(call => call.token),
+			disposeCount: proxy.disposeCount,
+			models: agent.models.get(),
+		}, {
+			accepted: true,
+			githubToken: undefined,
+			proxyHandle: undefined,
+			startTokens: ['tok'],
+			disposeCount: 1,
+			models: [],
 		});
 	});
 

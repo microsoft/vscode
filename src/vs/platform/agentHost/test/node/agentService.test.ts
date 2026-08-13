@@ -35,8 +35,8 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
@@ -1708,14 +1708,14 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, agent, session, attachmentsRoot, warnings };
 		}
 
-		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
+		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageAttachment[]): Promise<void> {
 			svc.dispatchAction(
 				buildDefaultChatUri(session.toString()),
 				{
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments: attachments as never },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, attachments },
 				},
 				'test-client', 1,
 			);
@@ -1751,6 +1751,45 @@ suite('AgentService (node dispatcher)', () => {
 			// File on disk holds exactly the original bytes
 			const written = await fileService.readFile(URI.parse(a.uri));
 			assert.deepStrictEqual([...written.value.buffer], [...png]);
+		});
+
+		test('snapshots embedded text attachments as text files without retaining the payload in state', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			const metadata = { kind: 'paste' };
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'Pasted text #1',
+				data: encodeBase64(VSBuffer.fromString('large pasted text')),
+				contentType: 'text/plain',
+				_meta: metadata,
+			}]);
+
+			const rewritten = agent.sendMessageCalls[0].attachments?.[0];
+			assert.ok(rewritten);
+			assert.strictEqual(rewritten.type, MessageAttachmentKind.Resource);
+			if (rewritten.type !== MessageAttachmentKind.Resource) {
+				return;
+			}
+			const stateAttachment = svc.stateManager.getSessionState(session.toString())?.activeTurn?.message.attachments?.[0];
+			assert.deepStrictEqual(stateAttachment, rewritten);
+			const resource = URI.parse(rewritten.uri);
+			const contents = await fileService.readFile(resource);
+			assert.deepStrictEqual({
+				label: rewritten.label,
+				displayKind: rewritten.displayKind,
+				metadata: rewritten._meta,
+				isSessionAttachment: resource.toString().startsWith(`${attachmentsRoot.toString()}/`),
+				fileName: resource.path.split('/').at(-1),
+				contents: contents.value.toString(),
+			}, {
+				label: 'Pasted text #1',
+				displayKind: undefined,
+				metadata,
+				isSessionAttachment: true,
+				fileName: 'Pasted text #1.txt',
+				contents: 'large pasted text',
+			});
 		});
 
 		test('preserves existing displayKind / range / selection / _meta on rewrite', async () => {
@@ -1934,6 +1973,58 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: agent.id });
 
 			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.customizations, [customization]);
+		});
+
+		test('publishes initial customizations to a client subscribed during discovery', async () => {
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			class MaterializingCustomizationAgent extends MockAgent {
+				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+				readonly customizationReadStarted = new DeferredPromise<URI>();
+				readonly releaseCustomizationRead = new DeferredPromise<void>();
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+				}));
+
+				override getSessionCustomizations = async (session: URI) => {
+					this.customizationReadStarted.complete(session);
+					await this.releaseCustomizationRead.p;
+					return [customization];
+				};
+
+				materialize(session: URI): void {
+					this._onDidMaterializeChat.fire({ chat: URI.parse(buildDefaultChatUri(session)), workingDirectories: undefined, project: undefined });
+				}
+
+				override dispose(): void {
+					this._onDidMaterializeChat.dispose();
+					super.dispose();
+				}
+			}
+
+			const agent = new MaterializingCustomizationAgent('codex');
+			disposables.add(toDisposable(() => agent.dispose()));
+			service.registerProvider(agent);
+
+			const creation = service.createSession({ provider: agent.id });
+			const session = await agent.customizationReadStarted.p;
+			agent.materialize(session);
+			const initialSnapshot = await service.subscribe(session, 'client');
+			const initialSnapshotCustomizations = (initialSnapshot.state as SessionState).customizations;
+			const customizationChanged = Event.toPromise(Event.filter(service.onDidAction, envelope =>
+				envelope.channel === session.toString() && envelope.action.type === ActionType.SessionCustomizationsChanged));
+			agent.releaseCustomizationRead.complete();
+			const [, envelope] = await Promise.all([creation, customizationChanged]);
+
+			assert.deepStrictEqual({
+				initialSnapshotCustomizations,
+				action: envelope.action,
+				currentSnapshotCustomizations: (service.stateManager.getSnapshot(session.toString())?.state as SessionState | undefined)?.customizations,
+			}, {
+				initialSnapshotCustomizations: undefined,
+				action: { type: ActionType.SessionCustomizationsChanged, customizations: [customization] },
+				currentSnapshotCustomizations: [customization],
+			});
 		});
 
 		test('truncates working directories for a provider without multipleWorkingDirectories', async () => {
@@ -2189,6 +2280,10 @@ suite('AgentService (node dispatcher)', () => {
 				prepareSessionDeletion: async () => undefined,
 				removeSessionWorktree: async () => { removeWorktreeCalls++; },
 			} as unknown as WorktreeIsolation);
+			// Flush the provider backfill before injecting failures: its
+			// registry write is fire-and-forget and would otherwise consume
+			// part of the failure budget intended for the unregistration.
+			await svc.listSessions();
 			db.failRegistryWrites(2);
 
 			await assert.rejects(svc.disposeSession(session), /transient registry write failure/);
@@ -4154,6 +4249,49 @@ suite('AgentService (node dispatcher)', () => {
 				result: { authenticated: true },
 				token: 'copilot-token',
 				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
+			});
+		});
+
+		test('removes a stored token when authentication is revoked', async () => {
+			service.registerProvider(copilotAgent);
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
+
+			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' });
+
+			assert.deepStrictEqual({
+				result,
+				token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+				authenticateCalls: copilotAgent.authenticateCalls,
+			}, {
+				result: { authenticated: true },
+				token: undefined,
+				authenticateCalls: [
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' },
+				],
+			});
+		});
+
+		test('does not replay a stored token after a failed revocation', async () => {
+			service.registerProvider(copilotAgent);
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
+			copilotAgent.authenticate = async () => { throw new Error('clear failed'); };
+
+			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: '' });
+			const lateAgent = new MockAgent('codex');
+			lateAgent.getProtectedResources = () => [GITHUB_COPILOT_PROTECTED_RESOURCE];
+			disposables.add(toDisposable(() => lateAgent.dispose()));
+			service.registerProvider(lateAgent);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				result,
+				token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
+				lateAuthenticateCalls: lateAgent.authenticateCalls,
+			}, {
+				result: { authenticated: false },
+				token: undefined,
+				lateAuthenticateCalls: [],
 			});
 		});
 
