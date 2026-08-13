@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../base/common/observable.js';
+import { derived, IObservable } from '../../../base/common/observable.js';
 import { isWeb } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
-import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { bindContextKey, observableConfigValue } from '../../observable/common/platformObservableUtils.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../common/agentHostEnablementService.js';
 
 export class AgentHostEnablementService extends Disposable implements IAgentHostEnablementService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _enabledContextKey: IContextKey<boolean>;
-	private readonly _enabled;
 	readonly enabled: IObservable<boolean>;
 
 	constructor(
@@ -26,31 +25,9 @@ export class AgentHostEnablementService extends Disposable implements IAgentHost
 		contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._enabled = observableValue(this, this._readEnabled(configurationService));
-		this.enabled = this._enabled;
-		this._enabledContextKey = AGENT_HOST_ENABLED_CONTEXT_KEY.bindTo(contextKeyService);
-		this._enabledContextKey.set(this.enabled.get());
-
-		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatAIDisabledSettingId)) {
-				this._updateEnabled(configurationService);
-			}
-		}));
-	}
-
-	private _readEnabled(configurationService: IConfigurationService): boolean {
-		return this._isAgentHostRuntimeAvailable
-			&& configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true;
-	}
-
-	private _updateEnabled(configurationService: IConfigurationService): void {
-		const enabled = this._readEnabled(configurationService);
-		if (this._enabled.get() || !enabled) {
-			return;
-		}
-
-		this._enabled.set(true, undefined);
-		this._enabledContextKey.set(true);
+		const aiFeaturesDisabled = observableConfigValue(ChatAIDisabledSettingId, false, configurationService);
+		this.enabled = derived(this, reader => this._isAgentHostRuntimeAvailable && !aiFeaturesDisabled.read(reader));
+		this._register(bindContextKey(AGENT_HOST_ENABLED_CONTEXT_KEY, contextKeyService, reader => this.enabled.read(reader)));
 	}
 }
 
