@@ -46,7 +46,8 @@ pub async fn agent_ps(ctx: CommandContext, args: AgentPsArgs) -> Result<i32, Any
 	}
 
 	let endpoints =
-		agent_discovery::discover_live_endpoints(&ctx, args.discovery.user_data_dir.as_deref());
+		agent_discovery::discover_live_endpoints(&ctx, args.discovery.user_data_dir.as_deref())
+			.await;
 	if endpoints.is_empty() {
 		return Err(CodeError::NoRunningAgentHost.into());
 	}

@@ -14,10 +14,11 @@ import { ISessionsManagementService } from '../../sessions/common/sessionsManage
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../sessions/common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ISession } from '../../sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IAgentHostActiveClientService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
@@ -28,12 +29,11 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
-		@IStorageService storageService: IStorageService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
-		super(instantiationService, logService, storageService);
+		super(instantiationService, logService);
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
-				this._clearMcpServerTracking(session.resource);
 				this._disposeMcpDiagnostics(session.resource);
 			}
 			this._fireCustomAgentsChanged();
@@ -67,21 +67,21 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		if (!provider) {
 			return undefined;
 		}
-		const servers = provider.getMcpServers(session.sessionId);
 		return {
 			customizations: provider.getCustomizations(session.sessionId),
 			workingDirectory: provider.getWorkingDirectory(session.sessionId),
 			workingDirectories: provider.getWorkingDirectories(session.sessionId),
 			rootConfig: provider.getRootConfig(),
+			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => provider.authenticate(request),
-			setCustomizationEnabled: (rawId, enabled) => {
-				servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.setEnabled(enabled);
+			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
+				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
 			},
 			startMcpServer: rawId => {
-				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
 			},
 			stopMcpServer: rawId => {
-				return servers.find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
 			},
 			setRootConfigValue: (property, value) => {
 				void provider.setRootConfigValue(property, value);

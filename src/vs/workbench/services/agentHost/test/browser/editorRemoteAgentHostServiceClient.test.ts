@@ -6,14 +6,14 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -75,17 +75,22 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('waits for the remote environment before connecting to Agent Host', async () => {
+	test('waits for enablement and the remote environment before connecting to Agent Host', async () => {
 		const channel: IChannel = {
 			call: <T>() => Promise.resolve(undefined as T),
 			listen: () => Event.None,
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
 		let connectCalls = 0;
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const protocolClient = {
 			clientId: 'test-client',
-			connect: async () => { connectCalls++; },
+			connect: async () => {
+				connectCalls++;
+				throw new Error('Initial connection failed');
+			},
 			onDidClose: Event.None,
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidNotification: Event.None,
 			onDidAction: Event.None,
 			onMcpNotification: Event.None,
@@ -100,9 +105,10 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			},
 			dispose: () => { },
 		};
+		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
-			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) }],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
 		)));
@@ -112,9 +118,14 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 
 		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
 		const started = Event.toPromise(service.onAgentHostStart);
+		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
 
 		remoteAgentService.environmentReady.complete(null);
+		while (connectCalls === 0) {
+			await Promise.resolve();
+		}
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
 		await started;
 
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === RemoteAgentHostProtocolClient);

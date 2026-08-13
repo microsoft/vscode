@@ -17,6 +17,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { ChangesViewService } from '../../browser/changesViewService.js';
+import { ChangesViewMode } from '../../common/changes.js';
 
 suite('ChangesViewService', () => {
 
@@ -51,6 +52,7 @@ suite('ChangesViewService', () => {
 	function createChangeset(operations: readonly ISessionChangesetOperation[]): ISessionChangeset {
 		return upcastPartial<ISessionChangeset>({
 			id: 'branch',
+			label: 'Branch Changes',
 			isDefault: constObservable(true),
 			isEnabled: constObservable(true),
 			isLoadingChanges: constObservable(false),
@@ -59,7 +61,19 @@ suite('ChangesViewService', () => {
 		});
 	}
 
-	function createHarness(initialSession: IActiveSession) {
+	function createTransientChangeset(): ISessionChangeset {
+		return upcastPartial<ISessionChangeset>({
+			id: 'turn:request',
+			label: 'Turn Changes',
+			isDefault: constObservable(false),
+			isEnabled: constObservable(true),
+			isLoadingChanges: constObservable(false),
+			operations: constObservable([]),
+			changes: constObservable([]),
+		});
+	}
+
+	function createHarness(initialSession: IActiveSession, storageService = disposables.add(new TestStorageService())) {
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', initialSession);
 		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const onDidDeleteSession = disposables.add(new Emitter<ISession>());
@@ -89,11 +103,11 @@ suite('ChangesViewService', () => {
 			codeReviewService,
 			disposables.add(new MockContextKeyService()),
 			sessionsService,
-			disposables.add(new TestStorageService()),
+			storageService,
 			sessionsManagementService,
 		));
 
-		return { activeSession, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service };
+		return { activeSession, onDidDeleteSession, onDidDiscardNewSession, onDidReplaceNewDraftSession, onDidReplaceSession, service, storageService };
 	}
 
 	test('restores section collapse state independently per session', () => {
@@ -125,17 +139,30 @@ suite('ChangesViewService', () => {
 		const draft = createSession('draft');
 		const committed = createSession('committed');
 		const { activeSession, onDidDeleteSession, onDidReplaceSession, service } = createHarness(draft);
+		const detailsViewState = {
+			focus: [],
+			selection: [],
+			expanded: {},
+			scrollTop: 40,
+		};
 
 		service.setSectionCollapsed(draft.resource, 'otherFiles', true);
+		service.setDetailsViewState(draft.resource, ChangesViewMode.List, detailsViewState);
 		activeSession.set(committed, undefined);
 		onDidReplaceSession.fire({ from: draft, to: committed });
 		const afterReplacement = service.activeSessionSectionCollapseStateObs.get();
+		const detailsAfterReplacement = service.getDetailsViewState(committed.resource, ChangesViewMode.List);
+		const detailsViewStateTransfer = service.detailsViewStateTransferObs.get();
 		onDidDeleteSession.fire(committed);
 		const afterDeletion = service.activeSessionSectionCollapseStateObs.get();
+		const detailsAfterDeletion = service.getDetailsViewState(committed.resource, ChangesViewMode.List);
 
-		assert.deepStrictEqual({ afterReplacement, afterDeletion }, {
+		assert.deepStrictEqual({ afterReplacement, detailsAfterReplacement, detailsViewStateTransfer, afterDeletion, detailsAfterDeletion }, {
 			afterReplacement: { otherFiles: true, checks: true },
+			detailsAfterReplacement: detailsViewState,
+			detailsViewStateTransfer: { from: draft.resource, to: committed.resource },
 			afterDeletion: { otherFiles: false, checks: true },
+			detailsAfterDeletion: undefined,
 		});
 	});
 
@@ -155,6 +182,126 @@ suite('ChangesViewService', () => {
 		assert.deepStrictEqual({ afterReplacement, afterDiscard }, {
 			afterReplacement: { otherFiles: false, checks: true },
 			afterDiscard: { otherFiles: false, checks: true },
+		});
+	});
+
+	test('restores details view state independently per session and view mode', () => {
+		const sessionA = createSession('a');
+		const sessionB = createSession('b');
+		const { service } = createHarness(sessionA);
+		const listState = {
+			focus: ['file:///repo/a.ts'],
+			selection: ['file:///repo/a.ts'],
+			expanded: {},
+			scrollTop: 80,
+		};
+		const treeState = {
+			focus: [],
+			selection: [],
+			expanded: { 'file:///repo/src': 0 as const },
+			scrollTop: 120,
+		};
+
+		service.setDetailsViewState(sessionA.resource, ChangesViewMode.List, listState);
+		service.setDetailsViewState(sessionA.resource, ChangesViewMode.Tree, treeState);
+
+		assert.deepStrictEqual({
+			sessionAList: service.getDetailsViewState(sessionA.resource, ChangesViewMode.List),
+			sessionATree: service.getDetailsViewState(sessionA.resource, ChangesViewMode.Tree),
+			sessionBList: service.getDetailsViewState(sessionB.resource, ChangesViewMode.List),
+		}, {
+			sessionAList: listState,
+			sessionATree: treeState,
+			sessionBList: undefined,
+		});
+	});
+
+	test('retains details view state for the 100 most recently used sessions', () => {
+		const firstSession = createSession('0');
+		const { service } = createHarness(firstSession);
+		const state = {
+			focus: [],
+			selection: [],
+			expanded: {},
+			scrollTop: 0,
+		};
+
+		for (let i = 0; i <= 100; i++) {
+			service.setDetailsViewState(createSession(`${i}`).resource, ChangesViewMode.List, state);
+		}
+
+		assert.deepStrictEqual({
+			first: service.getDetailsViewState(firstSession.resource, ChangesViewMode.List),
+			last: service.getDetailsViewState(createSession('100').resource, ChangesViewMode.List),
+		}, {
+			first: undefined,
+			last: state,
+		});
+	});
+
+	test('persists Changes view state mutations immediately', () => {
+		const draft = createSession('draft');
+		const committed = createSession('committed');
+		const storageService = disposables.add(new TestStorageService());
+		const firstHarness = createHarness(draft, storageService);
+		const detailsViewState = {
+			focus: ['file:///repo/a.ts'],
+			selection: ['file:///repo/a.ts'],
+			expanded: { 'file:///repo/src': 0 as const },
+			scrollTop: 64,
+		};
+
+		firstHarness.service.setDetailsViewState(draft.resource, ChangesViewMode.Tree, detailsViewState);
+		firstHarness.onDidReplaceSession.fire({ from: draft, to: committed });
+		firstHarness.service.dispose();
+
+		const restoredService = createHarness(committed, storageService).service;
+		assert.deepStrictEqual({
+			detailsViewState: restoredService.getDetailsViewState(committed.resource, ChangesViewMode.Tree),
+			draftDetailsViewState: restoredService.getDetailsViewState(draft.resource, ChangesViewMode.Tree),
+		}, {
+			detailsViewState,
+			draftDetailsViewState: undefined,
+		});
+	});
+
+	test('scopes a transient changeset to its session and clears it on provider selection', () => {
+		const branchChangeset = createChangeset([]);
+		const transientChangeset = createTransientChangeset();
+		const sessionA = createSession('a', { changesets: [branchChangeset] });
+		const sessionB = createSession('b', { changesets: [branchChangeset] });
+		const { activeSession, service } = createHarness(sessionA);
+
+		service.showChangeset(transientChangeset);
+		const transientSelection = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+		service.setChangesetId(branchChangeset.id);
+		const providerSelection = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+		service.showChangeset(transientChangeset);
+		activeSession.set(sessionB, undefined);
+		const afterSessionSwitch = {
+			changesets: service.activeSessionChangesetsObs.get()?.map(changeset => changeset.id),
+			selected: service.activeSessionChangesetObs.get()?.id,
+		};
+
+		assert.deepStrictEqual({ transientSelection, providerSelection, afterSessionSwitch }, {
+			transientSelection: {
+				changesets: ['branch', 'turn:request'],
+				selected: 'turn:request',
+			},
+			providerSelection: {
+				changesets: ['branch'],
+				selected: 'branch',
+			},
+			afterSessionSwitch: {
+				changesets: ['branch'],
+				selected: 'branch',
+			},
 		});
 	});
 
