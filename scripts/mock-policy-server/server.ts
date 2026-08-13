@@ -13,7 +13,7 @@
  *
  *     npm run mock-policy-server
  *
- * Then open the printed URL, pick an endpoint, edit the JSON, Save, and Wire.
+ * Then open the printed URL, pick an endpoint, edit the status and JSON, and Wire.
  * Reload Code OSS and run "Developer: Sync Account Policy" +
  * "Developer: Policy Diagnostics".
  */
@@ -54,8 +54,10 @@ const SCHEMA_SOURCE = args.schema || process.env.MANAGED_SETTINGS_SCHEMA || DEFA
 const endpointByPath = new Map(endpoints.map(e => [e.path, e]));
 
 const currentBodies: Record<string, unknown> = {};
+const currentStatuses: Record<string, number> = {};
 for (const endpoint of endpoints) {
 	currentBodies[endpoint.id] = endpoint.presets[0] ? clone(endpoint.presets[0].body) : {};
+	currentStatuses[endpoint.id] = endpoint.presets[0]?.status ?? 200;
 }
 
 const server = http.createServer((req, res) => {
@@ -72,14 +74,14 @@ const server = http.createServer((req, res) => {
 		if (endpoint) {
 			res.setHeader('Access-Control-Allow-Origin', '*');
 			res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+			res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Editor-Version, Copilot-Runtime-Version');
 			if (req.method === 'OPTIONS') {
 				res.writeHead(204);
 				res.end();
 				return;
 			}
 			if (req.method === 'GET') {
-				return sendJson(res, 200, currentBodies[endpoint.id]);
+				return sendJson(res, currentStatuses[endpoint.id], currentBodies[endpoint.id]);
 			}
 		}
 
@@ -111,7 +113,11 @@ const server = http.createServer((req, res) => {
 				if (!def) {
 					return sendJson(res, 400, { error: `Unknown endpoint "${payload?.endpoint}".` });
 				}
+				if (!Number.isInteger(payload.status) || payload.status < 200 || payload.status > 599) {
+					return sendJson(res, 400, { error: 'Status must be an integer from 200 to 599.' });
+				}
 				currentBodies[def.id] = payload.body;
+				currentStatuses[def.id] = payload.status;
 				return sendJson(res, 200, getState());
 			});
 		}
@@ -156,7 +162,7 @@ server.listen(PORT, HOST, () => {
 	console.log('');
 	console.log(`  Managed-settings schema source: ${SCHEMA_SOURCE}`);
 	console.log('');
-	console.log('  Open the GUI, edit the responses, Save, then Wire product.overrides.json.');
+	console.log('  Open the GUI, edit the response status and body, then Wire product.overrides.json.');
 	console.log('  Reload Code OSS and run "Developer: Sync Account Policy".');
 	console.log('');
 });
@@ -213,6 +219,7 @@ function getState() {
 			description: e.description,
 			url: endpointUrl(e),
 			presets: e.presets,
+			status: currentStatuses[e.id],
 			body: currentBodies[e.id]
 		})),
 		wired: isWired(),
