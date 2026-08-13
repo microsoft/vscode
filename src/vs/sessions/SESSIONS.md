@@ -280,6 +280,11 @@ user selects workspace and session type
 The view service owns presentation and focus. The management service owns the
 draft lifecycle and provider selection. The provider owns backend preparation.
 
+The new-session input keeps nonessential notices out of the first-use flow.
+Notifications marked `deferForNewUsers` remain hidden until the existing
+Agents-window usage threshold is reached; the input derives this eligibility
+directly from the persisted usage counter rather than a context-key mirror.
+
 ### First send and commit
 
 ```text

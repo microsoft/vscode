@@ -45,7 +45,7 @@ const DEFAULT_PROMPT_TEMPLATE = localize('sessions.onboarding.newSessionViewV3.p
 const PROMPT_OPTION_COUNT = 3;
 
 export type NewSessionViewV3ConfiguredVariation = 'prompt' | 'githubPrompt' | 'options' | 'unknown';
-export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
+export type NewSessionViewV3EffectiveStrategy = 'prompt' | 'options' | 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments' | 'githubIssue';
 export type NewSessionViewV3FallbackReason = 'none' | 'unsupportedVariation' | 'noRepository' | 'noAuthentication' | 'timeout' | 'requestFailed' | 'noCandidate';
 
 interface INewSessionViewV3PromptPlan {
@@ -398,34 +398,29 @@ export class NewSessionViewV3PromptRunner {
 		}
 
 		const pullRequests = [...summary.value].sort(compareUpdatedAtDescending);
-		const failingPullRequests = pullRequests.filter(isFailingPullRequest);
-		const candidates = failingPullRequests.slice(0, 2).map(pullRequest => toCandidate(pullRequest, 'githubCiFailure'));
-		reportCandidates(candidates);
-		if (candidates.length === 2) {
-			return { candidates, failures: [] };
+		const directCandidates = pullRequests
+			.map((pullRequest, index) => ({ index, candidate: toDirectPullRequestCandidate(pullRequest) }))
+			.filter((entry): entry is { readonly index: number; readonly candidate: INewSessionViewV3GitHubCandidate } => entry.candidate !== undefined);
+		const secondDirectCandidateIndex = directCandidates[1]?.index ?? pullRequests.length;
+		const reviewPullRequests = pullRequests
+			.slice(0, secondDirectCandidateIndex)
+			.filter(pullRequest => !toDirectPullRequestCandidate(pullRequest));
+		const stableCandidates = getCandidatesInPullRequestOrder(
+			pullRequests.slice(0, reviewPullRequests[0] ? pullRequests.indexOf(reviewPullRequests[0]) : secondDirectCandidateIndex),
+			directCandidates.map(entry => entry.candidate),
+		).slice(0, 2);
+		if (stableCandidates.length > 0) {
+			reportCandidates(stableCandidates);
 		}
 
-		const failingPullRequestNumbers = new Set(failingPullRequests.map(pullRequest => pullRequest.number));
-		const reviewPullRequests = pullRequests.filter(pullRequest => !failingPullRequestNumbers.has(pullRequest.number));
-		const completedReviewCandidates = new Map<number, INewSessionViewV3GitHubCandidate>();
-		const publishCandidates = () => {
-			const orderedReviewCandidates = reviewPullRequests
-				.map(pullRequest => completedReviewCandidates.get(pullRequest.number))
-				.filter(candidate => candidate !== undefined);
-			reportCandidates([...candidates, ...orderedReviewCandidates].slice(0, 2));
-		};
-		const reviewLookup = await this._resolveReviewCandidates(
-			owner,
-			repo,
-			reviewPullRequests,
-			token,
-			candidate => {
-				completedReviewCandidates.set(candidate.number, candidate);
-				publishCandidates();
-			},
-		);
+		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token);
+		const candidates = getCandidatesInPullRequestOrder(
+			pullRequests,
+			[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
+		).slice(0, 2);
+		reportCandidates(candidates);
 		return {
-			candidates: [...candidates, ...reviewLookup.candidates].slice(0, 2),
+			candidates,
 			failures: reviewLookup.failures,
 		};
 	}
@@ -502,20 +497,30 @@ export class NewSessionViewV3PromptRunner {
 				const failures: GitHubLookupFailureReason[] = [];
 				if (pullRequestsLookup.kind === 'success') {
 					const pullRequests = [...pullRequestsLookup.value].sort(compareUpdatedAtDescending);
-					const failingPullRequest = pullRequests.find(isFailingPullRequest);
-					this._logService.info(`${LOG_PREFIX} Pull request summary lookup returned ${pullRequests.length} open authored pull request(s), including ${pullRequests.filter(isFailingPullRequest).length} with failing CI.`);
-					if (failingPullRequest) {
-						return { kind: 'candidate', candidate: toCandidate(failingPullRequest, 'githubCiFailure') };
+					const directCandidates = pullRequests
+						.map((pullRequest, index) => ({ index, candidate: toDirectPullRequestCandidate(pullRequest) }))
+						.filter((entry): entry is { readonly index: number; readonly candidate: INewSessionViewV3GitHubCandidate } => entry.candidate !== undefined);
+					this._logService.info(`${LOG_PREFIX} Pull request summary lookup returned ${pullRequests.length} open authored pull request(s), including ${pullRequests.filter(pullRequest => pullRequest.hasMergeConflicts).length} with merge conflicts and ${pullRequests.filter(isFailingPullRequest).length} with failing CI.`);
+					if (directCandidates[0]?.index === 0) {
+						return { kind: 'candidate', candidate: directCandidates[0].candidate };
 					}
 
-					const reviewLookup = await this._resolveReviewCandidates(owner, repo, pullRequests, lookupCts.token);
+					const firstDirectCandidateIndex = directCandidates[0]?.index ?? pullRequests.length;
+					const reviewPullRequests = pullRequests
+						.slice(0, firstDirectCandidateIndex)
+						.filter(pullRequest => !toDirectPullRequestCandidate(pullRequest));
+					const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, lookupCts.token);
 					failures.push(...reviewLookup.failures);
 					if (!this._isCurrentRepositoryContext(context)) {
 						this._logService.info(`${LOG_PREFIX} The selected workspace changed during review lookup; retrying for the current workspace.`);
 						continue;
 					}
-					if (reviewLookup.candidates[0]) {
-						return { kind: 'candidate', candidate: reviewLookup.candidates[0] };
+					const candidate = getCandidatesInPullRequestOrder(
+						pullRequests,
+						[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
+					)[0];
+					if (candidate) {
+						return { kind: 'candidate', candidate };
 					}
 				} else {
 					failures.push(pullRequestsLookup.reason);
@@ -581,7 +586,6 @@ export class NewSessionViewV3PromptRunner {
 		repo: string,
 		pullRequests: readonly IGitHubRecentPullRequest[],
 		token: CancellationToken,
-		reportCandidate: (candidate: INewSessionViewV3GitHubCandidate) => void = () => undefined,
 	): Promise<IGitHubReviewLookupResult> {
 		const eligiblePullRequests = pullRequests.filter(pullRequest => !!pullRequest.latestCommitAt);
 		if (eligiblePullRequests.length === 0) {
@@ -599,9 +603,7 @@ export class NewSessionViewV3PromptRunner {
 			);
 			if (outcome.kind === 'success') {
 				const completedPullRequest = { ...pullRequest, reviewThreads: outcome.value };
-				if (hasUnaddressedReviewComments(completedPullRequest)) {
-					reportCandidate(toCandidate(completedPullRequest, 'githubReviewComments'));
-				}
+				return { pullRequest: completedPullRequest, outcome };
 			}
 			return { pullRequest, outcome };
 		}));
@@ -609,7 +611,7 @@ export class NewSessionViewV3PromptRunner {
 		const failures: GitHubLookupFailureReason[] = [];
 		for (const result of results) {
 			if (result.outcome.kind === 'success') {
-				completedPullRequests.push({ ...result.pullRequest, reviewThreads: result.outcome.value });
+				completedPullRequests.push(result.pullRequest);
 			} else {
 				failures.push(result.outcome.reason);
 			}
@@ -845,12 +847,15 @@ export class NewSessionViewV3PromptRunner {
 		const plan = this._createGitHubPrompt(candidate);
 		const title = candidate.strategy === 'githubIssue'
 			? localize('sessions.onboarding.newSessionViewV3.options.githubIssue.title', "Tackle issue")
+			: candidate.strategy === 'githubMergeConflict'
+				? localize('sessions.onboarding.newSessionViewV3.options.githubConflicts.title', "Resolve conflicts")
 			: candidate.strategy === 'githubCiFailure'
 				? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI")
 				: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments");
 		const icon = candidate.strategy === 'githubIssue'
 			? computeIssueIcon(GitHubIssueState.Open, undefined)
 			: computePullRequestIcon(GitHubPullRequestState.Open, {
+				hasMergeConflicts: candidate.strategy === 'githubMergeConflict',
 				hasFailingChecks: candidate.strategy === 'githubCiFailure',
 				hasUnresolvedComments: candidate.strategy === 'githubReviewComments',
 			});
@@ -898,8 +903,10 @@ export class NewSessionViewV3PromptRunner {
 	}
 
 	private _createGitHubPrompt(candidate: INewSessionViewV3GitHubCandidate): INewSessionViewV3PromptPlan {
-		const prompt = candidate.strategy === 'githubCiFailure'
-			? localize('sessions.onboarding.newSessionViewV3.githubPrompt.ciFailure', "The following pull request has failing CI checks: \"{0}\" ({1}). Investigate the failures and resolve them.", candidate.title, candidate.url)
+		const prompt = candidate.strategy === 'githubMergeConflict'
+			? localize('sessions.onboarding.newSessionViewV3.githubPrompt.mergeConflict', "The following pull request has merge conflicts: \"{0}\" ({1}). Resolve the conflicts and update the pull request.", candidate.title, candidate.url)
+			: candidate.strategy === 'githubCiFailure'
+				? localize('sessions.onboarding.newSessionViewV3.githubPrompt.ciFailure', "The following pull request has failing CI checks: \"{0}\" ({1}). Investigate the failures and resolve them.", candidate.title, candidate.url)
 			: candidate.strategy === 'githubReviewComments'
 				? localize('sessions.onboarding.newSessionViewV3.githubPrompt.reviewComments', "The following pull request has unresolved review comments that have not been addressed by a newer commit: \"{0}\" ({1}). Address the review comments and update the pull request.", candidate.title, candidate.url)
 				: localize('sessions.onboarding.newSessionViewV3.githubPrompt.issue', "Tackle the following issue and create a pull request for it: \"{0}\" ({1}).", candidate.title, candidate.url);
@@ -975,14 +982,9 @@ export class NewSessionViewV3PromptRunner {
 
 export function selectNewSessionViewV3GitHubCandidate(recentWork: IGitHubRecentUserWork): INewSessionViewV3GitHubCandidate | undefined {
 	const pullRequests = [...recentWork.pullRequests].sort(compareUpdatedAtDescending);
-	const failingPullRequest = pullRequests.find(isFailingPullRequest);
-	if (failingPullRequest) {
-		return toCandidate(failingPullRequest, 'githubCiFailure');
-	}
-
-	const reviewPullRequest = pullRequests.find(hasUnaddressedReviewComments);
-	if (reviewPullRequest) {
-		return toCandidate(reviewPullRequest, 'githubReviewComments');
+	const pullRequestCandidate = pullRequests.map(toPullRequestCandidate).find(candidate => candidate !== undefined);
+	if (pullRequestCandidate) {
+		return pullRequestCandidate;
 	}
 
 	const issue = [...recentWork.issues].sort(compareUpdatedAtDescending)[0];
@@ -991,6 +993,21 @@ export function selectNewSessionViewV3GitHubCandidate(recentWork: IGitHubRecentU
 
 function isFailingPullRequest(pullRequest: IGitHubRecentPullRequest): boolean {
 	return pullRequest.statusCheckRollupState === 'FAILURE' || pullRequest.statusCheckRollupState === 'ERROR';
+}
+
+function toDirectPullRequestCandidate(pullRequest: IGitHubRecentPullRequest): INewSessionViewV3GitHubCandidate | undefined {
+	if (pullRequest.hasMergeConflicts) {
+		return toCandidate(pullRequest, 'githubMergeConflict');
+	}
+	if (isFailingPullRequest(pullRequest)) {
+		return toCandidate(pullRequest, 'githubCiFailure');
+	}
+	return undefined;
+}
+
+function toPullRequestCandidate(pullRequest: IGitHubRecentPullRequest): INewSessionViewV3GitHubCandidate | undefined {
+	return toDirectPullRequestCandidate(pullRequest)
+		?? (hasUnaddressedReviewComments(pullRequest) ? toCandidate(pullRequest, 'githubReviewComments') : undefined);
 }
 
 function hasUnaddressedReviewComments(pullRequest: IGitHubRecentPullRequest): boolean {
@@ -1021,11 +1038,19 @@ function compareUpdatedAtDescending(a: { readonly updatedAt: string }, b: { read
 	return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
 }
 
-function toCandidate(pullRequest: IGitHubRecentPullRequest, strategy: 'githubCiFailure' | 'githubReviewComments'): INewSessionViewV3GitHubCandidate {
+function getCandidatesInPullRequestOrder(
+	pullRequests: readonly IGitHubRecentPullRequest[],
+	candidates: readonly INewSessionViewV3GitHubCandidate[],
+): INewSessionViewV3GitHubCandidate[] {
+	const candidatesByNumber = new Map(candidates.map(candidate => [candidate.number, candidate]));
+	return pullRequests.map(pullRequest => candidatesByNumber.get(pullRequest.number)).filter(candidate => candidate !== undefined);
+}
+
+function toCandidate(pullRequest: IGitHubRecentPullRequest, strategy: 'githubMergeConflict' | 'githubCiFailure' | 'githubReviewComments'): INewSessionViewV3GitHubCandidate {
 	return { number: pullRequest.number, title: pullRequest.title, url: pullRequest.url, strategy };
 }
 
-function getPromptOptionTelemetryKind(option: INewSessionPromptOption): 'implementFeature' | 'fixBug' | 'fixCI' | 'githubIssue' | 'githubPRCI' | 'githubPRComments' | 'unknown' {
+function getPromptOptionTelemetryKind(option: INewSessionPromptOption): 'implementFeature' | 'fixBug' | 'fixCI' | 'githubIssue' | 'githubPRConflicts' | 'githubPRCI' | 'githubPRComments' | 'unknown' {
 	switch (option.id.split(':', 1)[0]) {
 		case 'standard':
 			switch (option.id) {
@@ -1040,6 +1065,8 @@ function getPromptOptionTelemetryKind(option: INewSessionPromptOption): 'impleme
 			}
 		case 'githubIssue':
 			return 'githubIssue';
+		case 'githubMergeConflict':
+			return 'githubPRConflicts';
 		case 'githubCiFailure':
 			return 'githubPRCI';
 		case 'githubReviewComments':
