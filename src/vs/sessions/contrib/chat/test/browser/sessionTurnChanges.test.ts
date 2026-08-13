@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -12,7 +12,7 @@ import { isIChatSessionFileChange2 } from '../../../../../workbench/contrib/chat
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionFileChange, ISessionTurnFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
@@ -20,11 +20,20 @@ import { SessionsChatResponseFileChangesService } from '../../browser/sessionTur
 suite('SessionTurnChanges', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('activates the session and opens its last-turn changeset', () => {
+	test('activates the session and opens live input-pill changes', () => {
 		const chatResource = URI.parse('chat:session');
+		const lastTurnChanges = observableValue<readonly ISessionTurnFileChange[]>('lastTurnChanges', [{
+			uri: URI.file('/workspace/first.ts'),
+			originalUri: URI.parse('agenthost:/snapshots/first-before'),
+			modifiedUri: URI.file('/workspace/first.ts'),
+			insertions: 1,
+			deletions: 0,
+			isOutsideWorkspace: false,
+		}]);
 		const chat = upcastPartial<IChat>({
 			resource: chatResource,
 			updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')),
+			lastTurnChanges,
 		});
 		const session = upcastPartial<IActiveSession>({
 			resource: URI.parse('agent-host:session'),
@@ -32,6 +41,7 @@ suite('SessionTurnChanges', () => {
 			mainChat: constObservable(chat),
 		});
 		const calls: object[] = [];
+		let selectedChanges: IObservable<readonly ISessionFileChange[]> | undefined;
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessionForChatResource() {
 				return { session, chat };
@@ -48,8 +58,9 @@ suite('SessionTurnChanges', () => {
 				const selection = options?.changesetSelection;
 				calls.push({
 					openChangesEditor: sessionResource.toString(),
-					changesetId: selection?.kind === 'id' ? selection.id : undefined,
+					changesetId: selection?.kind === 'transient' ? selection.changeset.id : selection?.id,
 				});
+				selectedChanges = selection?.kind === 'transient' ? selection.changeset.changes : undefined;
 				return undefined;
 			}
 		}();
@@ -67,12 +78,25 @@ suite('SessionTurnChanges', () => {
 		));
 
 		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
+		lastTurnChanges.set([{
+			uri: URI.file('/workspace/second.ts'),
+			modifiedUri: URI.file('/workspace/second.ts'),
+			insertions: 2,
+			deletions: 1,
+			isOutsideWorkspace: false,
+		}], undefined);
 
-		assert.deepStrictEqual(calls, [
-			{ showSession: session.resource.toString(), preserveFocus: true },
-			{ revealEditorPartExplicitly: true },
-			{ openChangesEditor: session.resource.toString(), changesetId: TURN_CHANGES_CHANGESET_ID },
-		]);
+		assert.deepStrictEqual({
+			calls,
+			selectedChanges: selectedChanges?.get().map(change => isIChatSessionFileChange2(change) ? change.uri.toString() : undefined),
+		}, {
+			calls: [
+				{ showSession: session.resource.toString(), preserveFocus: true },
+				{ revealEditorPartExplicitly: true },
+				{ openChangesEditor: session.resource.toString(), changesetId: 'turn:chat:session' },
+			],
+			selectedChanges: ['file:///workspace/second.ts'],
+		});
 	});
 
 	test('opens exact historical request changes as a transient changeset', () => {
