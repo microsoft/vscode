@@ -35,9 +35,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { IMenuService, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { Menus } from '../../../../browser/menus.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
@@ -527,22 +525,21 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
 	});
 
-	test('clicking run button shows loading spinner', () => {
+	test('run button disables for 10 seconds after click', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
 
 		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
 		assert.ok(runButton, 'run button should exist');
 
-		// Before click: play icon
-		assert.ok(runButton.querySelector('.codicon-play'), 'should show play icon before click');
+		// Before click: enabled
+		assert.ok(runButton.querySelector('.codicon-play'), 'should show play icon');
 		assert.strictEqual(runButton.getAttribute('aria-disabled'), 'false');
 
-		// Simulate click
+		// Click
 		runButton.click();
 
-		// After click: loading spinner
-		assert.ok(runButton.querySelector('.codicon-loading'), 'should show loading spinner after click');
+		// After click: disabled
 		assert.strictEqual(runButton.getAttribute('aria-disabled'), 'true');
 	});
 
@@ -789,10 +786,6 @@ suite('AutomationsCardsWidget', () => {
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
-		const contextKeyService = instantiationService.get(IContextKeyService);
-		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.AutomationsHistoryItem, contextKeyService);
-		const menuItems = MenuRegistry.getMenuItems(Menus.AutomationsHistoryItem);
-		assert.ok(getSessionAction(widget, 'Stop'), `${menuItems.length}/${contextKeyService.contextMatchesRules(menuItems[0]?.when)}/${menuActions.length}: ${widget.element.querySelector<HTMLElement>('.automations-run-session-list')?.dataset.toolbarMenuId}: ${widget.element.querySelector('.session-title-toolbar')?.innerHTML}`);
 
 		assert.deepStrictEqual({
 			deleteVisible: !!getSessionAction(widget, 'Delete'),

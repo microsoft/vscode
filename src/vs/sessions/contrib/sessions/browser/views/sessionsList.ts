@@ -3690,8 +3690,6 @@ export interface ISessionsFlatListOptions {
 	readonly toolbarMenuId?: MenuId | null;
 	/** Allows focused list surfaces to handle actions from their custom toolbar menu. */
 	readonly onToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
-	/** Whether opening a row marks the session as read before invoking the consumer. */
-	readonly markReadOnOpen?: boolean;
 	/**
 	 * When `false` wheel events bubble to the parent scroller instead of being
 	 * consumed by the embedded tree. Defaults to `true` (standard list behavior).
@@ -3798,9 +3796,7 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			if (this.options.markReadOnOpen !== false) {
-				this._sessionsManagementService.markRead(element);
-			}
+			this._sessionsManagementService.markRead(element);
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
 			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);

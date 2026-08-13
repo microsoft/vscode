@@ -10,7 +10,7 @@ import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/butto
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -135,8 +135,23 @@ class AutomationCardsSection extends Disposable {
 
 	private readonly container: HTMLElement;
 	private readonly emptyContainer: HTMLElement;
-	private readonly disposables = this._register(new DisposableStore());
-	private readonly startingAutomations = new Map<string, number>();
+	private readonly persistentCards = new Map<string, {
+		readonly element: HTMLElement;
+		readonly card: HTMLElement;
+		readonly main: HTMLElement;
+		readonly actions: HTMLElement;
+		readonly runBtn: IButton;
+		readonly nameText: HTMLElement;
+		readonly metaEl: HTMLElement;
+		readonly scheduleEl: HTMLElement;
+		readonly folderEl: HTMLElement;
+		readonly folderHover: MutableDisposable;
+		readonly promptEl: HTMLElement;
+		readonly nameRow: HTMLElement;
+		readonly disposables: DisposableStore;
+	}>();
+	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
+	private readonly emptyStateDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
@@ -152,11 +167,44 @@ class AutomationCardsSection extends Disposable {
 		this.container = DOM.append(parent, $('.automations-cards-grid'));
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
+		this._register(toDisposable(() => {
+			for (const card of this.persistentCards.values()) {
+				card.disposables.dispose();
+				card.element.remove();
+			}
+			this.persistentCards.clear();
+			this.latestAutomations.clear();
+		}));
 	}
 
 	render(automations: readonly IAutomationDescriptor[]): void {
-		this.disposables.clear();
-		DOM.clearNode(this.container);
+		const activeAutomationIds = new Set<string>();
+
+		for (const automation of automations) {
+			activeAutomationIds.add(automation.id);
+			const prev = this.latestAutomations.get(automation.id);
+			this.latestAutomations.set(automation.id, automation);
+
+			let card = this.persistentCards.get(automation.id);
+			if (!card) {
+				card = this.renderCard(automation);
+				this.persistentCards.set(automation.id, card);
+			} else if (this.automationChanged(prev, automation)) {
+				this.updateCard(card, automation);
+			}
+
+			this.container.appendChild(card.element);
+		}
+
+		for (const [automationId, card] of this.persistentCards) {
+			if (activeAutomationIds.has(automationId)) {
+				continue;
+			}
+			card.disposables.dispose();
+			card.element.remove();
+			this.persistentCards.delete(automationId);
+			this.latestAutomations.delete(automationId);
+		}
 
 		if (automations.length === 0) {
 			this.container.style.display = 'none';
@@ -168,106 +216,162 @@ class AutomationCardsSection extends Disposable {
 		this.container.style.display = '';
 		this.emptyContainer.style.display = 'none';
 
-		for (const automation of automations) {
-			this.renderCard(automation);
-		}
 	}
 
-	private renderCard(automation: IAutomationDescriptor): void {
-		const wrapper = DOM.append(this.container, $('.automations-card-wrapper'));
+	private renderCard(automation: IAutomationDescriptor): {
+		readonly element: HTMLElement;
+		readonly card: HTMLElement;
+		readonly main: HTMLElement;
+		readonly actions: HTMLElement;
+		readonly runBtn: IButton;
+		readonly nameText: HTMLElement;
+		readonly metaEl: HTMLElement;
+		readonly scheduleEl: HTMLElement;
+		readonly folderEl: HTMLElement;
+		readonly folderHover: MutableDisposable;
+		readonly promptEl: HTMLElement;
+		readonly nameRow: HTMLElement;
+		readonly disposables: DisposableStore;
+	} {
+		const disposables = new DisposableStore();
+		const wrapper = $('.automations-card-wrapper');
 		const card = DOM.append(wrapper, $('.automations-card'));
 		card.setAttribute('role', 'group');
-		card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, formatSchedule(automation)));
-		this.disposables.add(Gesture.addTarget(card));
+		disposables.add(Gesture.addTarget(card));
 
 		const main = DOM.append(card, $('button.automations-card-main', {
 			type: 'button',
-			'aria-label': localize('editAutomationNamed', "Edit automation {0}", automation.name),
 		}));
 
 		// Name row with disabled badge
 		const nameRow = DOM.append(main, $('.automations-card-name'));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
-		nameTextEl.textContent = automation.name;
-
-		if (!automation.enabled) {
-			const badge = DOM.append(nameRow, $('span.automations-card-disabled-badge'));
-			badge.textContent = localize('disabled', "Disabled");
-		}
 
 		// Metadata row (schedule · folder · last run)
 		const metaEl = DOM.append(main, $('.automations-card-meta'));
-		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item'));
-		scheduleEl.textContent = formatSchedule(automation);
-
+		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
-		const folderLabel = getAutomationTargetLabel(automation.target);
-		folderEl.textContent = folderLabel;
-		this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), folderEl, folderLabel));
+		const folderHover = disposables.add(new MutableDisposable());
 
-		// Prompt preview (truncated)
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
-		const maxLength = 120;
-		promptEl.textContent = automation.prompt.length > maxLength
-			? automation.prompt.slice(0, maxLength) + '…'
-			: automation.prompt;
 
 		const actions = DOM.append(card, $('.automations-card-actions'));
 		actions.setAttribute('role', 'group');
-		actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
-		const runningLabel = DOM.append(actions, $('span.automations-card-running-label'));
-		runningLabel.textContent = localize('running', "Running");
-		runningLabel.style.display = 'none';
-		const buttonBar = this.disposables.add(new ButtonBar(actions));
+		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runBtn = this.createIconButton(buttonBar, Codicon.play, localize('runNow', "Run now"), false);
 		runBtn.element.classList.add('automations-card-run-button');
-		// Restore spinner state if a run was recently started (survives re-renders)
-		const startedAt = this.startingAutomations.get(automation.id);
-		if (startedAt !== undefined) {
-			const remaining = 5000 - (Date.now() - startedAt);
-			if (remaining > 0) {
-				runBtn.label = `$(${Codicon.loading.id}~spin)`;
-				runBtn.enabled = false;
-				const restoreTimer = setTimeout(() => {
-					this.startingAutomations.delete(automation.id);
-					runBtn.label = `$(${Codicon.play.id})`;
-					runBtn.enabled = true;
-				}, remaining);
-				this.disposables.add(toDisposable(() => clearTimeout(restoreTimer)));
-			} else {
-				this.startingAutomations.delete(automation.id);
-			}
-		}
-
-		this.disposables.add(runBtn.onDidClick((e) => {
+		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
-			this.startingAutomations.set(automation.id, Date.now());
-			runBtn.label = `$(${Codicon.loading.id}~spin)`;
+			const currentAutomation = this.latestAutomations.get(automation.id);
+			if (!currentAutomation) {
+				return;
+			}
 			runBtn.enabled = false;
+			runBtn.element.setAttribute('aria-label', localize('running', "Running"));
 			const timer = setTimeout(() => {
-				this.startingAutomations.delete(automation.id);
-				runBtn.label = `$(${Codicon.play.id})`;
 				runBtn.enabled = true;
-			}, 5000);
-			this.disposables.add(toDisposable(() => clearTimeout(timer)));
-			void this.runNow(automation);
+				runBtn.element.setAttribute('aria-label', localize('runNow', "Run now"));
+			}, 10_000);
+			disposables.add(toDisposable(() => clearTimeout(timer)));
+			void this.runNow(currentAutomation);
 		}));
 
 		const deleteBtn = this.createIconButton(buttonBar, Codicon.trash, localize('deleteAutomation', "Delete"), false);
-		deleteBtn.element.classList.add('automations-card-secondary-action');
-		this.disposables.add(deleteBtn.onDidClick(() => {
-			void this.confirmDelete(automation);
+		disposables.add(deleteBtn.onDidClick(() => {
+			const currentAutomation = this.latestAutomations.get(automation.id);
+			if (!currentAutomation) {
+				return;
+			}
+			void this.confirmDelete(currentAutomation);
 		}));
 
 		for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
-			this.disposables.add(DOM.addDisposableListener(card, eventType, event => {
+			disposables.add(DOM.addDisposableListener(card, eventType, event => {
 				const target = (event as GestureEvent).initialTarget ?? event.target;
 				if (target instanceof Node && DOM.isAncestor(target, actions)) {
 					return;
 				}
-				void this.openEditDialog(automation);
+				const currentAutomation = this.latestAutomations.get(automation.id);
+				if (!currentAutomation) {
+					return;
+				}
+				void this.openEditDialog(currentAutomation);
 			}));
 		}
+
+		const entry = {
+			element: wrapper,
+			card,
+			main,
+			actions,
+			runBtn,
+			nameText: nameTextEl,
+			metaEl,
+			scheduleEl,
+			folderEl,
+			folderHover,
+			promptEl,
+			nameRow,
+			disposables,
+		};
+		this.updateCard(entry, automation);
+		return entry;
+	}
+
+	private updateCard(card: {
+		readonly element: HTMLElement;
+		readonly card: HTMLElement;
+		readonly main: HTMLElement;
+		readonly actions: HTMLElement;
+		readonly runBtn: IButton;
+		readonly nameText: HTMLElement;
+		readonly metaEl: HTMLElement;
+		readonly scheduleEl: HTMLElement;
+		readonly folderEl: HTMLElement;
+		readonly folderHover: MutableDisposable;
+		readonly promptEl: HTMLElement;
+		readonly nameRow: HTMLElement;
+		readonly disposables: DisposableStore;
+	}, automation: IAutomationDescriptor): void {
+		card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, formatSchedule(automation)));
+		card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
+		card.actions.setAttribute('aria-label', localize('automationActions', "Actions for {0}", automation.name));
+		card.nameText.textContent = automation.name;
+		this.updateDisabledBadge(card.nameRow, automation.enabled);
+		card.scheduleEl.textContent = formatSchedule(automation);
+
+		const folderLabel = getAutomationTargetLabel(automation.target);
+		card.folderEl.textContent = folderLabel;
+		card.folderHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel);
+
+		const maxLength = 120;
+		card.promptEl.textContent = automation.prompt.length > maxLength
+			? automation.prompt.slice(0, maxLength) + '…'
+			: automation.prompt;
+	}
+
+	private updateDisabledBadge(nameRow: HTMLElement, enabled: boolean): void {
+		const badge = nameRow.querySelector<HTMLElement>('.automations-card-disabled-badge');
+		if (enabled) {
+			badge?.remove();
+			return;
+		}
+		if (badge) {
+			return;
+		}
+		const newBadge = DOM.append(nameRow, $('span.automations-card-disabled-badge'));
+		newBadge.textContent = localize('disabled', "Disabled");
+	}
+
+	private automationChanged(prev: IAutomationDescriptor | undefined, next: IAutomationDescriptor): boolean {
+		if (!prev) {
+			return true;
+		}
+		return prev.name !== next.name
+			|| prev.prompt !== next.prompt
+			|| prev.enabled !== next.enabled
+			|| formatSchedule(prev) !== formatSchedule(next)
+			|| getAutomationTargetLabel(prev.target) !== getAutomationTargetLabel(next.target);
 	}
 
 	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
@@ -311,6 +415,7 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private renderEmptyState(): void {
+		this.emptyStateDisposables.clear();
 		DOM.clearNode(this.emptyContainer);
 
 		const title = DOM.append(this.emptyContainer, $('h3.automations-cards-empty-title'));
@@ -318,13 +423,13 @@ class AutomationCardsSection extends Disposable {
 		const desc = DOM.append(this.emptyContainer, $('p.automations-cards-empty-description'));
 		desc.textContent = localize('noAutomationsDesc', "Create an automation to schedule an agent session to run on a cadence you choose.");
 
-		const createButton = this.disposables.add(new Button(this.emptyContainer, {
+		const createButton = this.emptyStateDisposables.add(new Button(this.emptyContainer, {
 			...defaultButtonStyles,
 			title: localize('createAutomation', "Create Automation"),
 		}));
 		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
-		this.disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		this.emptyStateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
 	}
 
 	private async openCreateDialog(): Promise<void> {
@@ -429,13 +534,8 @@ class AutomationCardsSection extends Disposable {
 //#region AutomationHistorySection
 
 /**
- * Renders the run history list grouped by date.
- *
- * Groups and their SessionsFlatList instances are persistent across renders.
- * Only structural changes (groups added/removed, sessions added/removed within
- * a group) mutate the DOM. Status changes within an existing session row are
- * handled reactively by the tree's own autoruns, avoiding the context-key
- * default-value flash that a full tear-down/rebuild would cause.
+ * Renders the run history list grouped by date. Groups are persistent to avoid
+ * the context-key default-value flash that a full tear-down/rebuild would cause.
  */
 class AutomationHistorySection extends Disposable {
 
@@ -535,7 +635,6 @@ class AutomationHistorySection extends Disposable {
 			}
 		}
 
-		this.updateMarkAllReadState();
 		this.layout();
 		this.restoreFocusAfterRender();
 	}
@@ -576,11 +675,6 @@ class AutomationHistorySection extends Disposable {
 		}));
 	}
 
-	private updateMarkAllReadState(): void {
-		// The autorun in ensureHeader handles reactive updates via session.isRead observables.
-		// This method is a no-op placeholder for any imperative updates needed in the future.
-	}
-
 	private resolveSessionItems(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): { readonly run: IAutomationRun; readonly session: ISession }[] {
 		const items: { readonly run: IAutomationRun; readonly session: ISession }[] = [];
 		for (const run of runs) {
@@ -605,7 +699,6 @@ class AutomationHistorySection extends Disposable {
 			showSessionHover: false,
 			alwaysConsumeMouseWheel: false,
 			toolbarMenuId: Menus.AutomationsHistoryItem,
-			markReadOnOpen: false,
 			onSessionOpen: resource => void this.openRunSession(resource),
 			onToolbarAction: (action, session) => this.handleSessionToolbarAction(action, session, runsBySession),
 		}));
