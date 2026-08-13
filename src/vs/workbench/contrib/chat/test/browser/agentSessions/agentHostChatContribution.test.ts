@@ -3526,7 +3526,7 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(rebindCalls, [{ workingDirectory: folderB }]);
 		}));
 
-		test('folder picker is visible only in multi-root agent-host editor windows', () => {
+		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
 				.find((i): i is IMenuItem => isIMenuItem(i) && i.command.id === OpenAgentHostFolderPickerAction.ID);
 			assert.ok(item, 'folder picker menu item is registered');
@@ -3537,6 +3537,7 @@ suite('AgentHostChatContribution', () => {
 			const agentHost = {
 				[ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot',
 				[ChatContextKeys.chatIsAgentHostSession.key]: true,
+				[ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.key]: true,
 			};
 
 			assert.deepStrictEqual({
@@ -3544,11 +3545,13 @@ suite('AgentHostChatContribution', () => {
 				singleFolder: evalWhen({ ...agentHost, workspaceFolderCount: 1, isSessionsWindow: false }),
 				sessionsWindow: evalWhen({ ...agentHost, workspaceFolderCount: 2, isSessionsWindow: true }),
 				nonAgentHost: evalWhen({ [ChatContextKeys.lockedCodingAgentId.key]: 'copilot', [ChatContextKeys.chatIsAgentHostSession.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
+				noImmutablePrimary: evalWhen({ ...agentHost, [ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.key]: false, workspaceFolderCount: 2, isSessionsWindow: false }),
 			}, {
 				multiRootEditor: true,
 				singleFolder: false,
 				sessionsWindow: false,
 				nonAgentHost: false,
+				noImmutablePrimary: false,
 			});
 		});
 	});
