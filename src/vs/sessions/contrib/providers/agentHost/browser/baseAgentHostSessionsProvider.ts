@@ -1602,6 +1602,7 @@ class NewSession extends Disposable {
 	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
+	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isActiveSessionObs: IObservable<boolean>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private readonly _mainChat: ISettableObservable<IChat>;
@@ -1715,7 +1716,7 @@ class NewSession extends Disposable {
 		this._mode = mode;
 		const isArchived = observableValue(this, false);
 		const isRead = observableValue(this, true);
-		const description = observableValue<IMarkdownString | undefined>(this, undefined);
+		this._description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
 		this._loading = observableValue(this, true);
 		this._isResolvingConfig = observableValue(this, false);
@@ -1729,7 +1730,7 @@ class NewSession extends Disposable {
 			modelId: this._modelId,
 			mode, isArchived, isRead,
 			interactivity: constObservable(ChatInteractivity.Full),
-			description, lastTurnEnd,
+			description: this._description, lastTurnEnd,
 		};
 		this._mainChat = observableValue<IChat>(this, mainChat);
 		const authPending = ctx.authenticationPending;
@@ -1755,7 +1756,7 @@ class NewSession extends Disposable {
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
 			isArchived,
 			isRead,
-			description,
+			description: this._description,
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
@@ -1800,6 +1801,9 @@ class NewSession extends Disposable {
 	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
+	setActivity(activity: string | undefined): void {
+		this._description.set(activity ? new MarkdownString().appendText(activity) : undefined, undefined);
+	}
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
 	setTitle(title: string): void { this._title.set(title, undefined); }
 
@@ -2793,12 +2797,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._createDraftSession(sessionType, workspace, false, options?.metadata);
 	}
 
-	startNewSessionRequest(sessionId: string): void {
+	startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {
 			throw new Error('Cannot start a session that is no longer pending.');
 		}
 		newSession.setStatus(SessionStatus.InProgress);
+		newSession.setActivity(activity);
+		return toDisposable(() => newSession.setActivity(undefined));
 	}
 
 	createQuickChat(sessionTypeId: string): ISession {

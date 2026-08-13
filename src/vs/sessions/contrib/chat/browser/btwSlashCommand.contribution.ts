@@ -57,7 +57,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				SessionIsArchivedContext.negate(),
 				SessionSupportsSideChatContext,
 			),
-		}, async (prompt, _progress, _history, _location, sessionResource) => {
+		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
 			const remainder = prompt.trim();
 			if (!remainder) {
 				notificationService.warn(localize('btw.missingPrompt', "Enter a question after `/btw`."));
@@ -91,7 +91,7 @@ export class BtwSlashCommandContribution extends Disposable implements IWorkbenc
 				return;
 			}
 
-			await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, remainder);
+			await openAndSendSideChat(sessionsManagementService, sessionsService, session, sideChat, { query: remainder, attachedContext: options?.attachedContext });
 		}));
 	}
 }
