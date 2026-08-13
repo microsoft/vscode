@@ -5,7 +5,7 @@
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import product from '../../../../platform/product/common/product.js';
@@ -15,6 +15,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 const CHAT_PET_ENABLED_STORAGE_KEY = 'chat.vscodePet.enabled';
 const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
 const CHAT_PET_ON_THE_RUN_STORAGE_KEY = 'chat.vscodePet.onTheRun';
+const CHAT_PET_DEFAULT_SCALE = 1;
 
 export type ChatPetVariant = 'stable' | 'insiders';
 
@@ -44,9 +45,11 @@ export interface IChatPetService {
 	readonly enabled: IObservable<boolean>;
 	readonly variant: IObservable<ChatPetVariant>;
 	readonly onTheRun: IObservable<boolean>;
+	readonly scale: IObservable<number>;
 	toggle(): boolean;
 	setVariant(variant: ChatPetVariant): void;
 	setOnTheRun(onTheRun: boolean): void;
+	setScale(scale: number): void;
 }
 
 export class ChatPetService extends Disposable implements IChatPetService {
@@ -59,6 +62,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	readonly variant: IObservable<ChatPetVariant>;
 	private readonly _onTheRun;
 	readonly onTheRun: IObservable<boolean>;
+	private readonly _scale;
+	readonly scale: IObservable<number>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -72,6 +77,8 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.variant = this._variant;
 		this._onTheRun = observableValue(this, this.storageService.getBoolean(CHAT_PET_ON_THE_RUN_STORAGE_KEY, StorageScope.APPLICATION, false));
 		this.onTheRun = this._onTheRun;
+		this._scale = observableValue(this, CHAT_PET_DEFAULT_SCALE);
+		this.scale = this._scale;
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_ENABLED_STORAGE_KEY, this._store)(() => {
 			this._setEnabled(this.storageService.getBoolean(CHAT_PET_ENABLED_STORAGE_KEY, StorageScope.APPLICATION, false));
@@ -99,7 +106,12 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		if (enabled === this._enabled.get()) {
 			return;
 		}
-		this._enabled.set(enabled, undefined);
+		transaction(tx => {
+			this._enabled.set(enabled, tx);
+			if (!enabled) {
+				this._scale.set(CHAT_PET_DEFAULT_SCALE, tx);
+			}
+		});
 		this._logEnablement(enabled, 'change');
 	}
 
@@ -121,5 +133,9 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		status(onTheRun
 			? localize('chatPet.onTheRun', "The VS Code pet is on the run. Click the pet to bring it back.")
 			: localize('chatPet.restored', "The VS Code pet is back"));
+	}
+
+	setScale(scale: number): void {
+		this._scale.set(scale, undefined);
 	}
 }

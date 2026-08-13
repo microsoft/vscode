@@ -11,6 +11,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { constObservable, observableValue, autorun } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -36,6 +37,7 @@ import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTy
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol, UNOBSERVED_CLIENT_TOOL_GRACE_MS } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
@@ -63,6 +65,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -74,6 +77,80 @@ suite('AgentHostClientTools', () => {
 
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shares a customization scope for equivalent root sets', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, TestFileService);
+		instantiationService.stub(IAgentHostFileSystemService, {
+			ensureSyncedCustomizationProvider: () => { },
+		});
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IConfigurationService, {
+			getValue: () => false,
+			onDidChangeConfiguration: Event.None,
+		} as Partial<IConfigurationService> as IConfigurationService);
+		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
+		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
+			override readonly onDidChangeCustomAgents = Event.None;
+			override readonly onDidChangeSlashCommands = Event.None;
+			override readonly onDidChangeSkills = Event.None;
+			override readonly onDidChangeInstructions = Event.None;
+			override getDisabledPromptFiles() { return new ResourceSet(); }
+			override async listPromptFilesForStorage() {
+				return [];
+			}
+		}());
+		instantiationService.stub(IAgentPluginService, {
+			plugins: observableValue('plugins', []),
+		});
+		instantiationService.stub(IMcpService, {
+			servers: observableValue('mcpServers', []),
+		});
+		instantiationService.stub(ILanguageModelToolsService, {
+			observeTools: () => constObservable([]),
+			toolSets: constObservable([]),
+		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
+		instantiationService.stub(IAgentHostToolSetEnablementService, {
+			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
+			getState: () => ({ toolSets: new Map(), tools: new Map() }),
+			setToolSetEnabled: () => { },
+			setToolEnabled: () => { },
+		});
+
+		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
+		const registration = disposables.add(service.registerForAgent('agent-host-claude'));
+		const rootA = URI.file('/Workspace-A');
+		const rootB = URI.file('/Workspace-B');
+		const unregisteredScope = service.acquireScope('unregistered-agent', []);
+		const unresolvedScope = registration.acquireScope([URI.file('/unresolved-workspace')]);
+		const unresolved = unresolvedScope.whenResolved();
+		unresolvedScope.dispose();
+		assert.strictEqual(await unresolved, undefined);
+		const first = registration.acquireScope([rootB, rootA, rootA]);
+		const second = registration.acquireScope([rootA, rootB]);
+		await first.whenResolved();
+
+		const sharedScopeState = {
+			customizations: first.customizations === second.customizations,
+			customAgents: first.customAgents === second.customAgents,
+		};
+		first.dispose();
+		second.dispose();
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			unregisteredScope,
+			sharedScopeState,
+			scopeAfterRegistrationDisposal: service.acquireScope('agent-host-claude', []),
+		}, {
+			unregisteredScope: undefined,
+			sharedScopeState: {
+				customizations: true,
+				customAgents: true,
+			},
+			scopeAfterRegistrationDisposal: undefined,
+		});
+	});
 
 	// ── toolDataToDefinition ─────────────────────────────────────────────
 

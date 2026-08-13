@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { readAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { createCodexSessionMapState, extractUserInputText, finalizeCodexTurnMapState, mapAgentMessageDelta, mapCommandExecutionOutputDelta, mapFileChangePatchUpdated, mapItemCompleted, mapItemStarted, mapMcpToolCallProgress, mapReasoningSummaryPartAdded, mapReasoningSummaryTextDelta, mapReasoningTextDelta, mapTokenUsageUpdated, mapTurnCompleted, mapTurnStarted, resetCodexTurnMapState, turnStateFromStatus } from '../../../node/codex/codexMapAppServerEvents.js';
 import { ActionType, type ChatAction, type SessionAction } from '../../../common/state/sessionActions.js';
 import { chatReducer } from '../../../common/state/protocol/reducers.js';
@@ -67,6 +68,43 @@ suite('codexMapAppServerEvents', () => {
 			},
 		}, 'the prompt');
 		assert.strictEqual((actions[0] as { message: { text: string } }).message.text, 'the prompt');
+	});
+
+	test('turn/started exposes a delegated prompt without its private envelope', () => {
+		const actions = mapTurnStarted(createCodexSessionMapState(), {
+			threadId: 'thr_1',
+			turn: {
+				id: 'turn_delegated',
+				items: [{
+					type: 'userMessage',
+					id: 'item_user',
+					clientId: null,
+					content: [{
+						type: 'text',
+						text: '<codex_delegation><source_thread_id>source-thread</source_thread_id><input>Review &lt;this&gt;</input></codex_delegation>',
+						text_elements: [],
+					}],
+				}],
+				itemsView: { type: 'full' } as never,
+				status: 'inProgress' as never,
+				error: null,
+				startedAt: null,
+				completedAt: null,
+				durationMs: null,
+			},
+		}, '');
+		const action = actions[0];
+		assert.strictEqual(action.type, ActionType.ChatTurnStarted);
+		if (action.type !== ActionType.ChatTurnStarted) {
+			return;
+		}
+		assert.deepStrictEqual({
+			text: action.message.text,
+			delegation: readAgentMessageDelegationMeta(action.message),
+		}, {
+			text: 'Review <this>',
+			delegation: { sourceThreadId: 'source-thread' },
+		});
 	});
 
 	test('turn/started uses a current timestamp when Codex omits startedAt', () => {
@@ -194,13 +232,14 @@ suite('codexMapAppServerEvents', () => {
 				total: { inputTokens: 100, cachedInputTokens: 40, cacheWriteInputTokens: 0, outputTokens: 60, reasoningOutputTokens: 20, totalTokens: 160 },
 				modelContextWindow: 200000,
 			},
-		});
+		}, 'codex-model:openai:gpt-5.6-sol');
 		assert.deepStrictEqual(actions, [{
 			type: ActionType.ChatUsage,
 			turnId: 'turn_a',
 			usage: {
 				inputTokens: 10,
 				outputTokens: 6,
+				model: 'codex-model:openai:gpt-5.6-sol',
 				cacheReadTokens: 4,
 				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
 			},
@@ -567,8 +606,52 @@ suite('codexMapAppServerEvents', () => {
 			startTypes: [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady],
 			startMeta: { toolKind: 'search' },
 			delta: { type: ActionType.ChatToolCallDelta, turnId: 'turn_a', toolCallId, content: 'vscode tests' },
-			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'vscode tests', toolInput: 'vscode tests', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'search' } },
-			complete: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Searched vscode tests' } }],
+			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'Searching the web for vscode tests', toolInput: 'vscode tests', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: { toolKind: 'search' } },
+			complete: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Searched the web for vscode tests' } }],
+			remainingToolCalls: 0,
+		});
+	});
+
+	test('imageGeneration item maps to an image tool call lifecycle', () => {
+		const state = createCodexSessionMapState();
+		const startActions = mapItemStarted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '' },
+			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+		});
+		const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
+		const completeActions = mapItemCompleted(state, {
+			item: { type: 'imageGeneration', id: 'image_1', status: 'completed', revisedPrompt: 'A watercolor fox', result: 'aW1hZ2U=' },
+			threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+		});
+		assert.deepStrictEqual({
+			start: startActions,
+			complete: completeActions,
+			remainingToolCalls: state.itemToToolCall.size,
+		}, {
+			start: [{
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn_a',
+				toolCallId,
+				toolName: 'image_gen.imagegen',
+				displayName: 'Generate image',
+			}, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn_a',
+				toolCallId,
+				invocationMessage: 'Generating image',
+				toolInput: '{"prompt":"Generate image"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}],
+			complete: [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				},
+			}],
 			remainingToolCalls: 0,
 		});
 	});
@@ -600,7 +683,7 @@ suite('codexMapAppServerEvents', () => {
 			ready: { type: ActionType.ChatToolCallReady, turnId: 'turn_a', toolCallId, invocationMessage: 'update: src/a.ts', toolInput: 'update: src/a.ts', confirmed: ToolCallConfirmationReason.NotNeeded },
 			initialContent: { type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] },
 			patchActions: [{ type: ActionType.ChatToolCallContentChanged, turnId: 'turn_a', toolCallId, content: [{ type: ToolResultContentType.Text, text: 'add: src/b.ts\n+hello' }] }],
-			completeActions: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'Applied file changes', content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] } }],
+			completeActions: [{ type: ActionType.ChatToolCallComplete, turnId: 'turn_a', toolCallId, result: { success: true, pastTenseMessage: 'update: src/a.ts', content: [{ type: ToolResultContentType.Text, text: 'update: src/a.ts\n@@ -1 +1 @@\n-old\n+new' }] } }],
 			remainingToolCalls: 0,
 		});
 	});
@@ -742,7 +825,7 @@ suite('codexMapAppServerEvents', () => {
 		assert.strictEqual(complete.result.error?.code, 'denied');
 	});
 
-	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the peer chat shows it)', () => {
+	test('collabAgentToolCall spawnAgent start renders compactly (no prompt dump — the child conversation shows it)', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
 			item: {
@@ -754,9 +837,9 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
 		});
 		const toolCallId = state.itemToToolCall.get('collab_1')!.toolCallId;
-		// spawnAgent opens a read-only peer chat (the host attaches the
-		// subagent-discovery block to this tool call), so the raw prompt is
-		// deliberately NOT dumped into the tool box.
+		// spawnAgent opens a read-only child conversation (the host attaches
+		// the subagent-discovery block to this tool call), so the raw prompt
+		// is deliberately NOT dumped into the tool box.
 		assert.deepStrictEqual({
 			actions: startActions,
 			entryToolName: state.itemToToolCall.get('collab_1')!.toolName,

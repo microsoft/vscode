@@ -12,7 +12,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
-import { type AgentProvider, type AuthenticateParams, type AuthenticateResult, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
+import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -20,6 +21,7 @@ import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state
 import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -30,7 +32,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
-import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -238,6 +240,7 @@ class ConnectionState extends Disposable {
 	readonly modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
 	readonly authTokenCache = new AgentHostAuthTokenCache();
+	readonly authRecovery = new AgentHostAuthenticationRecovery();
 
 	constructor(
 		readonly name: string | undefined,
@@ -850,6 +853,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		store.add(connection.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(address, connection, rootState);
 		}));
+		store.add(connection.onDidNotification(notification => this._handleAuthenticationRequiredNotification(address, connection, notification)));
 
 		// If root state is already available, process it immediately
 		const initialRootState = connection.rootState.value;
@@ -974,6 +978,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const agentRegistration = agentStore.add(this._activeClientService.registerForAgent(sessionType, { includeUserStorage: true }));
 		const syncProvider = agentRegistration.syncProvider;
+		// The management UI remains ambient while individual sessions use their working-directory scopes.
+		const ambientScope = agentStore.add(agentRegistration.acquireScope([]));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			sanitized,
@@ -989,8 +995,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 					run: () => pluginController.removeConfiguredPlugin(customization),
 				}];
 			},
-			syncedUri => agentRegistration.bundler.getOrigin(syncedUri)
+			syncedUri => agentRegistration.getOrigin(syncedUri)
 		));
+		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
+		itemProvider.setDraftCustomizations(ambientScope.customizations);
 
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
@@ -1063,6 +1071,34 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
+	private _handleAuthenticationRequiredNotification(address: string, connection: IAgentConnection, notification: INotification): void {
+		if (notification.type !== NotificationType.AuthRequired) {
+			return;
+		}
+		this._authenticateNotificationResource(address, connection, notification.resource);
+	}
+
+	private _authenticateNotificationResource(address: string, connection: IAgentConnection, protectedResource: ProtectedResourceMetadata): void {
+		const connState = this._connections.get(address);
+		if (!connState) {
+			return;
+		}
+		const providerId = `agenthost-${agentHostAuthority(address)}`;
+		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+		provider?.setAuthenticationPending(true);
+		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
+			authTokenCache: connState.authTokenCache,
+			logPrefix: '[RemoteAgentHost]',
+			authenticate: this._authenticateCallback(address, connection),
+		}))
+			.catch(err => {
+				this._logService.error(`[RemoteAgentHost] Failed to authenticate notified resource ${protectedResource.resource}`, err);
+			})
+			.finally(() => {
+				provider?.setAuthenticationPending(false);
+			});
+	}
+
 	/**
 	 * Build the `authenticate` callback for a connection. Host-agnostic by default (forwards the
 	 * request unchanged); a connection kind may inject a token transform via
@@ -1079,19 +1115,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	/**
-	 * Interactively prompt the user to authenticate when the server requires it.
+	 * Interactively prompt the user to authenticate when the user starts a session.
 	 * Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(address: string, connection: IAgentConnection, protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
 		const authTokenCache = this._connections.get(address)?.authTokenCache;
-		// When the connection transforms the outgoing token (e.g. sealing), the resolved plaintext
-		// is not the identity that was actually sent, and the sealed envelope has its own lifetime.
-		// A host-requested re-auth (this path) must therefore send a fresh transformed token, so drop
-		// the plaintext-keyed dedupe first — otherwise an unchanged plaintext would be suppressed and
-		// the host would never receive a fresh envelope.
-		if (authTokenCache && this._connectionCustomizations.get(address)?.authenticate) {
-			authTokenCache.clear();
-		}
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache,
 			logPrefix: '[RemoteAgentHost]',
@@ -1128,7 +1156,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		// `CLOUD_SANDBOX_AGENT_SLUG`.
 		[CloudSandboxEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.cloudSandbox.enabled', "Enable connecting to Copilot cloud sandbox sessions over a live Agent Host Protocol relay. When enabled, opening a Copilot CLI cloud session connects to its sandbox for slash commands and a responsive, steerable experience instead of only polling logs."),
+			description: nls.localize('chat.agentHost.cloudSandbox.enabled', "Enable connecting to Copilot cloud sandbox sessions over a live Agent Host Protocol relay. When enabled, opening a Copilot cloud session connects to its sandbox for slash commands and a responsive, steerable experience instead of only polling logs."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

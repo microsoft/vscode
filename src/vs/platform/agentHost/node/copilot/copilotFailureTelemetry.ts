@@ -8,8 +8,7 @@ import { getErrorCode } from '../../../../base/common/errors.js';
 import type { URI } from '../../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../../telemetry/common/errorTelemetry.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 
 export type CopilotClientFailureOperation = 'abort' | 'changeAgent' | 'changeModel' | 'getSessionMetadata' | 'listSessions' | 'modelRefresh' | 'sendMessage' | 'startClient';
@@ -30,6 +29,38 @@ type CopilotSessionFailureCorrelation = {
 	readonly turnId: string | undefined;
 	readonly sdkSessionId: string;
 };
+
+export type CopilotModelCallEndpointTelemetryKind = 'anthropicMessages' | 'chatCompletions' | 'other' | 'responses' | 'responsesWebSocket';
+
+const normalizedCopilotApiEndpointKinds = new Map<string, CopilotModelCallEndpointTelemetryKind>([
+	['/chat/completions', 'chatCompletions'],
+	['/responses', 'responses'],
+	['/v1/messages', 'anthropicMessages'],
+	['ws:/responses', 'responsesWebSocket'],
+]);
+
+export function normalizeCopilotApiEndpoint(endpoint: string | undefined): CopilotModelCallEndpointTelemetryKind | undefined {
+	if (!endpoint) {
+		return undefined;
+	}
+
+	const trimmedEndpoint = endpoint.trim();
+	const directMatch = normalizedCopilotApiEndpointKinds.get(trimmedEndpoint.toLowerCase());
+	if (directMatch) {
+		return directMatch;
+	}
+
+	if (URL.canParse(trimmedEndpoint)) {
+		const parsed = new URL(trimmedEndpoint);
+		const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
+		if ((parsed.protocol === 'ws:' || parsed.protocol === 'wss:') && normalizedPath === '/responses') {
+			return 'responsesWebSocket';
+		}
+		return normalizedCopilotApiEndpointKinds.get(normalizedPath.toLowerCase()) ?? 'other';
+	}
+
+	return 'other';
+}
 
 export function createCopilotFailureCorrelation(sessionUri: URI, chatUri: URI, turnId: string | undefined, sdkSessionId: string): CopilotSessionFailureCorrelation {
 	return {
@@ -286,7 +317,7 @@ type CopilotModelCallFailureEvent = CopilotSessionFailureCorrelation & {
 	failureKind: string | undefined;
 	source: string;
 	transport: string | undefined;
-	apiEndpoint: TelemetryTrustedValue<string> | undefined;
+	apiEndpoint: CopilotModelCallEndpointTelemetryKind | undefined;
 	statusCode: number | undefined;
 	durationMs: number | undefined;
 	model: string | undefined;
@@ -317,7 +348,7 @@ type CopilotModelCallFailureClassification = {
 	failureKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the SDK model call failed at the API or transport boundary.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the model call came from the top-level agent, a subagent, or MCP sampling.' };
 	transport: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The HTTP or WebSocket transport used by the failed model call.' };
-	apiEndpoint: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded API endpoint used by the failed model call.' };
+	apiEndpoint: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The bounded API endpoint category used by the failed model call. Values are chatCompletions, responses, responsesWebSocket, anthropicMessages, or other.' };
 	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The HTTP status code, when available.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the failed model call in milliseconds.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The provider model identifier used by the failed call.' };
@@ -349,7 +380,7 @@ export function reportCopilotModelCallFailure(telemetryService: ITelemetryServic
 		failureKind: event.data.failureKind,
 		source: event.data.source,
 		transport: event.data.transport,
-		apiEndpoint: event.data.apiEndpoint ? new TelemetryTrustedValue(event.data.apiEndpoint) : undefined,
+		apiEndpoint: normalizeCopilotApiEndpoint(event.data.apiEndpoint),
 		statusCode: event.data.statusCode,
 		durationMs: event.data.durationMs,
 		model: event.data.isByok ? 'byokModel' : event.data.model,

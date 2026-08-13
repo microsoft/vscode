@@ -16,6 +16,7 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../common/attachments/chatVariables.js';
@@ -36,6 +37,10 @@ import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatC
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
 export { ChatOutline } from './chatOutline.js';
+
+export interface IChatContextPickerDelegate {
+	prepare(): Promise<IQuickInputService>;
+}
 
 /**
  * A workspace item that can be selected in the workspace picker.
@@ -128,6 +133,7 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+	readonly onDidRemoveWidget: Event<IChatWidget>;
 
 	readonly onDidChangeWidgetVisibility: Event<IChatWidget>;
 
@@ -262,7 +268,9 @@ export interface IChatWidgetViewOptions {
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
 	inputEditorMaxHeight?: number;
-	renderGettingStartedTip?: boolean;
+	renderGettingStartedTip?: boolean | (() => boolean);
+	/** Whether notifications deferred during first-use flows may render in this widget. */
+	deferredNotificationsEnabled?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
@@ -301,6 +309,11 @@ export interface IChatWidgetViewOptions {
 	 * immediately open a new session.
 	 */
 	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
+	/**
+	 * Session type whose model pool should be shown when this widget is only a
+	 * routing surface and its temporary local model is not the eventual target.
+	 */
+	modelPickerSessionType?: string;
 
 	/**
 	 * Optional delegate for the workspace picker.
@@ -323,16 +336,20 @@ export interface IChatWidgetViewOptions {
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
 	onDidChangeModelPickerVisibility?: (visible: boolean) => void | Promise<void>;
-	inputPickerPosition?: AnchorPosition;
+	inputPickerPosition?: AnchorPosition | (() => AnchorPosition);
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
+	contextPicker?: IChatContextPickerDelegate;
 
 	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+
+	/** Enables the transcript Find widget (`Ctrl/Cmd+F`) for this chat widget. Off by default. */
+	enableFind?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -428,6 +445,7 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	readonly contextPicker: IChatContextPickerDelegate | undefined;
 	/** The main input part at the bottom of the widget. Unlike `input`, this always returns the main input, not the inline editing input. */
 	readonly inputPart: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
@@ -519,6 +537,24 @@ export interface IChatWidget {
 	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
+
+	/** Returns the widget's transcript Find controller, or `undefined` if `enableFind` was not set. */
+	getFindController(): IChatFindController | undefined;
+}
+
+/** Minimal surface used to route `Ctrl/Cmd+F` and Find Next/Previous to a chat widget's transcript Find widget. */
+export interface IChatFindController {
+	readonly visible: boolean;
+	/** Shows the Find widget, optionally seeding the query and focusing the input. */
+	show(seedText?: string, focus?: boolean): void;
+	hide(): void;
+	next(): void;
+	previous(): void;
+	toggleCaseSensitive(): void;
+	toggleWholeWord(): void;
+	toggleRegex(): void;
+	/** Focuses the Find widget's last-focused element (defaults to the input). */
+	focus(): void;
 }
 
 /**

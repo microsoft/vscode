@@ -263,9 +263,9 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 
 		assert.deepStrictEqual(actual, {
 			editorVisible: { top: margin, bottom: margin },
-			maximizedUnderTitleBar: { top: margin, bottom: margin },
+			maximizedUnderTitleBar: { top: inner, bottom: margin },
 			maximizedAtTopEdge: { top: outer, bottom: margin },
-			maximizedUnderBanner: { top: margin, bottom: margin },
+			maximizedUnderBanner: { top: inner, bottom: margin },
 		});
 	});
 
@@ -294,12 +294,12 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			topPanelStatusBarHidden: { top: margin, bottom: inner },
+			topPanelStatusBarHidden: { top: inner, bottom: inner },
 			leftPanelAtBothEdges: { top: outer, bottom: outer },
 			sideBarTopPanelCentered: { top: outer, bottom: margin },
 			sideBarTopPanelJustified: { top: margin, bottom: margin },
-			sideBarBottomPanelJustified: { top: margin, bottom: inner },
-			sideBarBottomPanelCentered: { top: margin, bottom: outer },
+			sideBarBottomPanelJustified: { top: inner, bottom: inner },
+			sideBarBottomPanelCentered: { top: inner, bottom: outer },
 			disabled: { top: 0, bottom: 0 },
 		});
 	});
@@ -344,12 +344,12 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: { top: margin, bottom: margin },
+			titleAndStatusBarVisible: { top: inner, bottom: margin },
 			titleBarHidden: { top: outer, bottom: margin },
-			bannerInsteadOfTitleBar: { top: margin, bottom: margin },
+			bannerInsteadOfTitleBar: { top: inner, bottom: margin },
 			topPanelAtTopEdge: { top: margin, bottom: margin },
-			statusBarHidden: { top: margin, bottom: outer },
-			bottomPanelStatusBarHidden: { top: margin, bottom: inner },
+			statusBarHidden: { top: inner, bottom: outer },
+			bottomPanelStatusBarHidden: { top: inner, bottom: inner },
 			disabled: { top: 0, bottom: 0 },
 		});
 	});
