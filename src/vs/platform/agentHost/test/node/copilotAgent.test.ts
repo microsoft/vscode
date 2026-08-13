@@ -1584,8 +1584,6 @@ suite('CopilotAgent', () => {
 				proxyEnvironment = {
 					HTTP_PROXY: process.env['HTTP_PROXY'],
 					HTTPS_PROXY: process.env['HTTPS_PROXY'],
-					http_proxy: process.env['http_proxy'],
-					https_proxy: process.env['https_proxy'],
 				};
 				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
 			},
@@ -1594,8 +1592,6 @@ suite('CopilotAgent', () => {
 		const before = {
 			HTTP_PROXY: process.env['HTTP_PROXY'],
 			HTTPS_PROXY: process.env['HTTPS_PROXY'],
-			http_proxy: process.env['http_proxy'],
-			https_proxy: process.env['https_proxy'],
 		};
 
 		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080');
@@ -1608,8 +1604,6 @@ suite('CopilotAgent', () => {
 			environmentRestored: {
 				HTTP_PROXY: process.env['HTTP_PROXY'],
 				HTTPS_PROXY: process.env['HTTPS_PROXY'],
-				http_proxy: process.env['http_proxy'],
-				https_proxy: process.env['https_proxy'],
 			},
 		}, {
 			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
@@ -1618,27 +1612,19 @@ suite('CopilotAgent', () => {
 			proxyEnvironment: {
 				HTTP_PROXY: 'http://proxy.example.com:8080',
 				HTTPS_PROXY: 'http://proxy.example.com:8080',
-				http_proxy: 'http://proxy.example.com:8080',
-				https_proxy: 'http://proxy.example.com:8080',
 			},
 			environmentRestored: before,
 		});
 	});
 
 	test('identifies a stalled managed settings query', async () => {
-		const stalledRuntimeSdk = {
+		const runtimeSdk = {
 			getManagedSettings: () => new Promise<never>(() => { }),
 		};
 
 		await assert.rejects(
-			getCopilotManagedSettingsDiagnostics(stalledRuntimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
+			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
 			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
-		);
-
-		const resolved = { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] };
-		assert.deepStrictEqual(
-			await getCopilotManagedSettingsDiagnostics({ getManagedSettings: async () => ({ resolved }) }, 'token', 'https://github.com', new AbortController().signal),
-			{ resolved },
 		);
 	});
 
@@ -2747,53 +2733,19 @@ suite('CopilotAgent', () => {
 			}
 		}
 
-		test('normalizes proxy configuration for the Copilot runtime', async () => {
+		test('resolves the system proxy by default and bypasses it when disabled', async () => {
 			const proxyResolver = new TestProxyResolver();
 			proxyResolver.resolvedProxy = 'http://system-proxy.example:8080';
 			const { agent, configurationService } = createTestAgentContext(disposables, { proxyResolver });
-			const proxyMethods = agent as unknown as {
+			const resolveProxyForSdk = (env: Record<string, string | undefined>) => (agent as unknown as {
 				_resolveProxyForSdk(env: Record<string, string | undefined>): Promise<string | undefined>;
-				_configureProxyEnv(env: Record<string, string | undefined>): Promise<void>;
-			};
+			})._resolveProxyForSdk(env);
 			try {
-				const resolvedEnv: Record<string, string | undefined> = {};
-				await proxyMethods._configureProxyEnv(resolvedEnv);
-				const allProxyEnv: Record<string, string | undefined> = { ALL_PROXY: '', all_proxy: 'http://all-proxy.example:8888' };
-				await proxyMethods._configureProxyEnv(allProxyEnv);
-				const existingEnv: Record<string, string | undefined> = {
-					http_proxy: '',
-					HTTPS_PROXY: 'http://existing-proxy.example:3128',
-				};
-				await proxyMethods._configureProxyEnv(existingEnv);
-
-				assert.deepStrictEqual({
-					resolvedEnv,
-					allProxyEnv,
-					existingEnv,
-					resolveProxyCalls: proxyResolver.resolveProxyCalls,
-				}, {
-					resolvedEnv: {
-						HTTP_PROXY: proxyResolver.resolvedProxy,
-						HTTPS_PROXY: proxyResolver.resolvedProxy,
-						http_proxy: proxyResolver.resolvedProxy,
-						https_proxy: proxyResolver.resolvedProxy,
-					},
-					allProxyEnv: {
-						all_proxy: 'http://all-proxy.example:8888',
-						HTTP_PROXY: 'http://all-proxy.example:8888',
-						HTTPS_PROXY: 'http://all-proxy.example:8888',
-						http_proxy: 'http://all-proxy.example:8888',
-						https_proxy: 'http://all-proxy.example:8888',
-					},
-					existingEnv: {
-						HTTPS_PROXY: 'http://existing-proxy.example:3128',
-					},
-					resolveProxyCalls: 1,
-				});
+				assert.strictEqual(await resolveProxyForSdk({}), proxyResolver.resolvedProxy);
 
 				configurationService.updateRootConfig({ [AgentHostSystemProxyEnabledConfigKey]: false });
 				assert.deepStrictEqual({
-					proxy: await proxyMethods._resolveProxyForSdk({}),
+					proxy: await resolveProxyForSdk({}),
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 				}, {
 					proxy: undefined,

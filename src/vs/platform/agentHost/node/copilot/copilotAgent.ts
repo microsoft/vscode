@@ -130,21 +130,20 @@ export async function getCopilotManagedSettingsDiagnostics(
 }
 
 function invokeWithProxyEnvironment<T>(proxy: string | undefined, invoke: () => Promise<T>): Promise<T> {
-	const previousValues = new Map<string, string | undefined>();
-	for (const key of COPILOT_RUNTIME_PROXY_ENV_KEYS) {
-		previousValues.set(key, process.env[key]);
-		if (!process.env[key]?.trim()) {
-			delete process.env[key];
-		}
-		if (proxy) {
-			process.env[key] = proxy;
-		}
+	if (!proxy) {
+		return invoke();
+	}
+	const previousValues = COPILOT_PROXY_SET_ENV_KEYS.map(key => process.env[key]);
+	for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
+		process.env[key] = proxy;
 	}
 	try {
 		// The SDK snapshots process.env while constructing the native request.
 		return invoke();
 	} finally {
-		for (const [key, value] of previousValues) {
+		for (let index = 0; index < COPILOT_PROXY_SET_ENV_KEYS.length; index++) {
+			const key = COPILOT_PROXY_SET_ENV_KEYS[index];
+			const value = previousValues[index];
 			if (value === undefined) {
 				delete process.env[key];
 			} else {
@@ -166,8 +165,14 @@ function isCopilotConnectionClosedError(error: unknown): boolean {
 	return classifyCopilotClientFailure(error) === 'connectionClosed';
 }
 
-const COPILOT_RUNTIME_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'] as const;
-const COPILOT_ALL_PROXY_ENV_KEYS = ['ALL_PROXY', 'all_proxy'] as const;
+/**
+ * Proxy env vars that indicate the environment already configures a proxy.
+ */
+const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
+/**
+ * Proxy env vars we set when injecting the resolved CAPI proxy.
+ */
+const COPILOT_PROXY_SET_ENV_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY'] as const;
 
 async function fileExists(filePath: string): Promise<boolean> {
 	try {
@@ -3870,15 +3875,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- helpers ------------------------------------------------------------
 
 	private async _configureProxyEnv(env: Record<string, string | undefined>): Promise<void> {
-		for (const key of [...COPILOT_RUNTIME_PROXY_ENV_KEYS, ...COPILOT_ALL_PROXY_ENV_KEYS]) {
-			if (!env[key]?.trim()) {
-				delete env[key];
-			}
-		}
 		const proxy = await this._resolveProxyForSdk(env);
 		this._appliedProxy = proxy;
 		if (proxy) {
-			for (const key of COPILOT_RUNTIME_PROXY_ENV_KEYS) {
+			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
 				env[key] = proxy;
 			}
 			this._logService.info('[Copilot] Resolved CAPI proxy and forwarded HTTP_PROXY/HTTPS_PROXY to Copilot SDK');
@@ -3889,14 +3889,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!this._isSystemProxyEnabled()) {
 			return undefined;
 		}
-		if (COPILOT_RUNTIME_PROXY_ENV_KEYS.some(key => env[key]?.trim())) {
+		if (COPILOT_PROXY_ENV_KEYS.some(key => env[key])) {
 			this._logService.debug('[Copilot] Proxy env var already set; leaving Copilot SDK proxy configuration to the environment');
 			return undefined;
-		}
-		const allProxy = COPILOT_ALL_PROXY_ENV_KEYS.map(key => env[key]?.trim()).find(value => value);
-		if (allProxy) {
-			this._logService.debug('[Copilot] Forwarding ALL_PROXY as HTTP_PROXY/HTTPS_PROXY for Copilot runtime compatibility');
-			return allProxy;
 		}
 
 		let capiUrl = env['VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE'] || COPILOT_CAPI_URL;
