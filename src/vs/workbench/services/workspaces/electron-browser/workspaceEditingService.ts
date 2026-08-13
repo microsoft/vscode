@@ -177,9 +177,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
 		const isFromEmptyWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		const shouldPreserveExtensionHost = isFromEmptyWorkspace && !this.environmentService.remoteAuthority;
 
 		let stopped = true;
-		if (!isFromEmptyWorkspace) {
+		if (!shouldPreserveExtensionHost) {
 			stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace"));
 			if (!stopped) {
 				return;
@@ -199,8 +200,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
 			}
 
-			// Fire event to allow participants to join
-			// and possibly migrate data into this workspace
+			// Fire event to allow participants to join and migrate workspace data
 			await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 		}
 
@@ -211,7 +211,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 		// Restart the extension host: entering a workspace means a new location for
 		// storage and potentially a change in the workspace.rootPath property.
-		else if (!isFromEmptyWorkspace) {
+		else if (!shouldPreserveExtensionHost) {
 			this.extensionService.startExtensionHosts();
 		}
 	}
