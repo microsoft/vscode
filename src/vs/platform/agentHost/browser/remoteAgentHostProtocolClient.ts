@@ -1052,8 +1052,21 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params, scopes: params.scopes ? [...params.scopes] : undefined });
-		this._authentication.set(`${params.resource}\0${JSON.stringify(params.scopes ?? [])}`, params);
+		const normalizedParams: AuthenticateParams = {
+			...params,
+			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
+		};
+		await this._sendRequest('authenticate', {
+			channel: ROOT_STATE_URI,
+			...normalizedParams,
+			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
+		});
+		const key = `${normalizedParams.resource}\0${JSON.stringify(normalizedParams.scopes ?? [])}`;
+		if (params.token) {
+			this._authentication.set(key, normalizedParams);
+		} else {
+			this._authentication.delete(key);
+		}
 		return { authenticated: true };
 	}
 
@@ -1195,6 +1208,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			summary: s.title,
 			status: s.status,
 			activity: s.activity,
+			origin: s.origin,
 			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? toAgentHostUri(URI.parse(s.workingDirectories?.[0]), this._connectionAuthority) : undefined,
 			workingDirectories: s.workingDirectories?.map(d => toAgentHostUri(URI.parse(d), this._connectionAuthority)),
 			changes: s.changes,

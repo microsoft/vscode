@@ -1455,6 +1455,7 @@ export class ProtocolServerHandler extends Disposable {
 					title: s.summary ?? 'Session',
 					status: s.status ?? SessionStatus.Idle,
 					activity: s.activity,
+					origin: s.origin,
 					createdAt: new Date(s.startTime).toISOString(),
 					modifiedAt: new Date(s.modifiedTime).toISOString(),
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),

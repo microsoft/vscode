@@ -24,8 +24,10 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IAutomationDescriptor as IAutomation, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationMutationGuard, IAutomationRunStartResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -947,22 +949,27 @@ suite('AutomationsCardsWidget', () => {
 suite('AutomationsCustomViewContribution — context key', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup() {
+	function setup(automationsEnabled = true) {
 		const automationService = new FakeAutomationService();
 		const contextKeyService = new MockContextKeyService();
+		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(automationsEnabled);
+		let restore: boolean | undefined;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = constObservable(undefined);
-			override registerCustomView() { return { dispose() { } }; }
+			override registerCustomView(_descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }) {
+				restore = options?.restore;
+				return { dispose() { } };
+			}
 			override hideCustomView() { }
 		}());
 		instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override register() { return { dispose() { } }; }
 		}());
 		const contribution = disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
-		return { automationService, contextKeyService, contribution };
+		return { automationService, contextKeyService, contribution, restore };
 	}
 
 	test('AutomationsHasItemsContext follows the automations observable (empty → non-empty → empty)', () => {
@@ -975,5 +982,15 @@ suite('AutomationsCustomViewContribution — context key', () => {
 
 		automationService.setAutomations([]);
 		assert.strictEqual(contextKeyService.getContextKeyValue(AutomationsHasItemsContext.key), false, 'false when empty again');
+	});
+
+	test('restores the Automations view only when the feature is enabled', () => {
+		assert.deepStrictEqual({
+			enabled: setup(true).restore,
+			disabled: setup(false).restore,
+		}, {
+			enabled: true,
+			disabled: false,
+		});
 	});
 });

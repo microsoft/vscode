@@ -26,7 +26,7 @@ import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../platform/age
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ClientPluginCustomization, Customization, CustomizationType, ModelSelection, SessionOriginKind as ProtocolSessionOriginKind, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type Changeset, type SessionOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionEhcliAdoptable, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, type ChatSummary, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -107,6 +107,7 @@ interface ISerializedSessionMetadata {
 	/** @deprecated Legacy name for `isArchived`. */
 	readonly isDone?: boolean;
 	readonly project?: { readonly uri: string; readonly displayName: string };
+	readonly origin?: SessionOrigin;
 	/**
 	 * Whether the session is a workspace-less quick chat. Persisted because the
 	 * adapter seeds its session-kind from this tag at construction (see
@@ -133,6 +134,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
+		origin: meta.origin,
 		workspaceless: readSessionWorkspaceless(meta._meta) || undefined,
 		multiRoot: readSessionMultiRootMetadata(meta._meta),
 	};
@@ -150,6 +152,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			workingDirectories: raw.workingDirectory ? [URI.parse(raw.workingDirectory)] : undefined,
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
+			origin: raw.origin,
 			...(_meta ? { _meta } : {}),
 		};
 	} catch {
@@ -566,7 +569,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly isQuickChat: IObservable<boolean>;
-	readonly isAutomation = observableValue('isAutomation', false);
+	readonly isAutomation: ISettableObservable<boolean>;
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
@@ -749,6 +752,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
 		this._isQuickChat = observableValue('isQuickChat', readSessionWorkspaceless(metadata._meta));
+		this.isAutomation = observableValue('isAutomation', metadata.origin?.kind === ProtocolSessionOriginKind.Automation);
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
@@ -1265,6 +1269,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 			}
 
+			const isAutomation = metadata.origin?.kind === ProtocolSessionOriginKind.Automation;
+			if (isAutomation !== this.isAutomation.get()) {
+				this.isAutomation.set(isAutomation, tx);
+				didChange = true;
+			}
+
 			const modifiedTime = metadata.modifiedTime;
 			if (this.updatedAt.get().getTime() !== modifiedTime) {
 				this.updatedAt.set(new Date(modifiedTime), tx);
@@ -1378,10 +1388,6 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			didChange = this._setWorkspace(this._computeWorkspace(), tx);
 		});
 		return didChange;
-	}
-
-	setIsAutomation(isAutomation: boolean): void {
-		this.isAutomation.set(isAutomation, undefined);
 	}
 
 	/** Records that this session runs with worktree isolation. See {@link worktreePending}. */
@@ -1602,6 +1608,7 @@ class NewSession extends Disposable {
 	private readonly _workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	private readonly _changesets = observableValue<readonly ISessionChangeset[] | undefined>(this, undefined);
 	private readonly _worktreePending = observableValue<boolean>(this, false);
+	private readonly _description: ISettableObservable<IMarkdownString | undefined>;
 	private readonly _isActiveSessionObs: IObservable<boolean>;
 	private readonly _loading: ISettableObservable<boolean>;
 	private readonly _mainChat: ISettableObservable<IChat>;
@@ -1715,7 +1722,7 @@ class NewSession extends Disposable {
 		this._mode = mode;
 		const isArchived = observableValue(this, false);
 		const isRead = observableValue(this, true);
-		const description = observableValue<IMarkdownString | undefined>(this, undefined);
+		this._description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
 		this._loading = observableValue(this, true);
 		this._isResolvingConfig = observableValue(this, false);
@@ -1729,7 +1736,7 @@ class NewSession extends Disposable {
 			modelId: this._modelId,
 			mode, isArchived, isRead,
 			interactivity: constObservable(ChatInteractivity.Full),
-			description, lastTurnEnd,
+			description: this._description, lastTurnEnd,
 		};
 		this._mainChat = observableValue<IChat>(this, mainChat);
 		const authPending = ctx.authenticationPending;
@@ -1755,7 +1762,7 @@ class NewSession extends Disposable {
 			loading: derived(reader => loading.read(reader) || authPending.read(reader)),
 			isArchived,
 			isRead,
-			description,
+			description: this._description,
 			lastTurnEnd,
 			mainChat: this._mainChat,
 			chats,
@@ -1800,6 +1807,9 @@ class NewSession extends Disposable {
 	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
+	setActivity(activity: string | undefined): void {
+		this._description.set(activity ? new MarkdownString().appendText(activity) : undefined, undefined);
+	}
 	setLoading(loading: boolean): void { this._loading.set(loading, undefined); }
 	setTitle(title: string): void { this._title.set(title, undefined); }
 
@@ -2793,12 +2803,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._createDraftSession(sessionType, workspace, false, options?.metadata);
 	}
 
-	startNewSessionRequest(sessionId: string): void {
+	startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {
 			throw new Error('Cannot start a session that is no longer pending.');
 		}
 		newSession.setStatus(SessionStatus.InProgress);
+		newSession.setActivity(activity);
+		return toDisposable(() => newSession.setActivity(undefined));
 	}
 
 	createQuickChat(sessionTypeId: string): ISession {
@@ -5054,6 +5066,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			summary: summary.title,
 			activity: summary.activity,
 			status: summary.status,
+			origin: summary.origin,
 			...(summary.project ? {
 				project: {
 					displayName: summary.project.displayName,

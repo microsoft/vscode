@@ -392,7 +392,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// below so the user can retry.
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
 		const generation = this._generation;
-		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, session, chat.resource, resolved.response.requestId, query, { text: resolved.text })
+		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
 			.then(() => {
 				// A stale completion after a genuine navigation force-dismissed this overlay must no-op.
 				if (this._generation !== generation) {
