@@ -1048,10 +1048,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const resource = session.mainChat.get().resource;
 		// A restored, unloaded session has no pending request tracked in this window, so load its model first to re-establish cancellation tracking.
 		const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'sessionsManagement:cancel');
+		if (!modelRef) {
+			throw new Error('Failed to load chat session for cancellation.');
+		}
 		try {
 			await this.chatService.cancelCurrentRequestForSession(resource, 'sessionsManagement');
 		} finally {
-			modelRef?.dispose();
+			modelRef.dispose();
 		}
 	}
 
