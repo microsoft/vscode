@@ -412,6 +412,9 @@ chat's latest completed response delegates to the same moving changeset. Histori
 response pills open the same Changes editor with a transient **Turn Changes**
 selection backed by that request's exact per-turn changes and frozen after-snapshot;
 selecting a provider changeset or switching sessions clears the transient selection.
+In a multi-chat session, the canonical moving changeset belongs to the most recently
+modified chat. A latest-turn pill for another viewed chat therefore uses a transient
+chat-specific **Last Turn Changes** selection instead of showing a sibling chat's changes.
 Environment-specific opening uses separate implementations of
 `IChatResponseFileChangesService` over a shared provider-registry base: the Editor
 workbench registers an implementation that opens a standalone multi-diff, while

@@ -12,13 +12,15 @@ import { IEditSessionEntryDiff } from '../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 
-interface ISessionHistoricalTurnChanges {
-	readonly requestId: string;
-	readonly changes: IObservable<readonly IEditSessionEntryDiff[]>;
+interface ISessionTransientTurnChanges {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
 }
 
 /** Opens response changes in the canonical Agents Changes editor. */
@@ -34,13 +36,28 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 	}
 
 	override openChangesForRequest(chatResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void {
-		const session = this._sessionsManagementService.getSessionForChatResource(chatResource)?.session;
-		if (!session) {
+		const owner = this._sessionsManagementService.getSessionForChatResource(chatResource);
+		if (!owner) {
 			this._openStandaloneChanges(chatResource, requestId);
 			return;
 		}
 		if (context.isLastTurn) {
-			void this._openSessionTurnChanges(session);
+			if (this._isMostRecentChat(owner.session, owner.chat)) {
+				void this._openSessionTurnChanges(owner.session);
+				return;
+			}
+
+			const changes = requestId === undefined
+				? owner.chat.lastTurnChanges
+				: this._getSessionFileChanges(chatResource, requestId);
+			if (changes) {
+				void this._openSessionTurnChanges(owner.session, {
+					id: `${TURN_CHANGES_CHANGESET_ID}:${requestId ?? owner.chat.resource.toString()}`,
+					label: localize('lastTurnChanges.label', "Last Turn Changes"),
+					description: localize('lastTurnChanges.description', "Changes from the viewed chat's last turn."),
+					changes,
+				});
+			}
 			return;
 		}
 
@@ -52,7 +69,12 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			this._openStandaloneChanges(chatResource, requestId);
 			return;
 		}
-		void this._openSessionTurnChanges(session, { requestId, changes });
+		void this._openSessionTurnChanges(owner.session, {
+			id: `${TURN_CHANGES_CHANGESET_ID}:${requestId}`,
+			label: localize('historicalTurnChanges.label', "Turn Changes"),
+			description: localize('historicalTurnChanges.description', "Changes from the selected chat turn."),
+			changes: this._toSessionFileChanges(changes),
+		});
 	}
 
 	private _openStandaloneChanges(chatResource: URI, requestId: string | undefined): void {
@@ -74,28 +96,45 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		});
 	}
 
-	private async _openSessionTurnChanges(session: ISession, historicalTurn?: ISessionHistoricalTurnChanges): Promise<void> {
+	private _isMostRecentChat(session: ISession, chat: IChat): boolean {
+		const mostRecentChat = session.chats.get().reduce<IChat | undefined>(
+			(latest, candidate) => !latest || candidate.updatedAt.get().getTime() > latest.updatedAt.get().getTime() ? candidate : latest,
+			undefined,
+		);
+		return isEqual(mostRecentChat?.resource ?? session.mainChat.get().resource, chat.resource);
+	}
+
+	private _getSessionFileChanges(chatResource: URI, requestId: string): IObservable<readonly ISessionFileChange[]> | undefined {
+		const changes = this.getChangesForRequest(chatResource, requestId);
+		return changes ? this._toSessionFileChanges(changes) : undefined;
+	}
+
+	private _toSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[]>): IObservable<readonly ISessionFileChange[]> {
+		return derived(reader => changes.read(reader).map((diff): ISessionFileChange => ({
+			uri: diff.modifiedURI,
+			originalUri: isEqual(diff.originalURI, diff.modifiedURI) ? undefined : diff.originalURI,
+			modifiedUri: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
+			insertions: diff.added,
+			deletions: diff.removed,
+		})));
+	}
+
+	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
 		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
 			this._sessionsService.showSession(session.resource, { preserveFocus: true });
 		}
 		this._layoutService.revealEditorPartExplicitly();
-		const changesetSelection: ISessionChangesEditorOptions['changesetSelection'] = historicalTurn
+		const changesetSelection: ISessionChangesEditorOptions['changesetSelection'] = transientTurn
 			? {
 				kind: 'transient',
 				changeset: {
-					id: `${TURN_CHANGES_CHANGESET_ID}:${historicalTurn.requestId}`,
-					label: localize('historicalTurnChanges.label', "Turn Changes"),
-					description: localize('historicalTurnChanges.description', "Changes from the selected chat turn."),
+					id: transientTurn.id,
+					label: transientTurn.label,
+					description: transientTurn.description,
 					isEnabled: constObservable(true),
 					isDefault: constObservable(false),
 					isLoadingChanges: constObservable(false),
-					changes: derived(reader => historicalTurn.changes.read(reader).map((diff): ISessionFileChange => ({
-						uri: diff.modifiedURI,
-						originalUri: isEqual(diff.originalURI, diff.modifiedURI) ? undefined : diff.originalURI,
-						modifiedUri: diff.isDeleted ? undefined : diff.modifiedSnapshotURI ?? diff.modifiedURI,
-						insertions: diff.added,
-						deletions: diff.removed,
-					}))),
+					changes: transientTurn.changes,
 					operations: constObservable([]),
 					originalCheckpointRef: constObservable(undefined),
 					modifiedCheckpointRef: constObservable(undefined),

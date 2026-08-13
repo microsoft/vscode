@@ -71,7 +71,7 @@ export interface IChatResponseFileChangesService {
 	 */
 	getFileEditsForRequest?(sessionResource: URI, requestId: string): IObservable<readonly IChatResponseFileEdit[]> | undefined;
 
-	/** Opens response changes. `requestId` is omitted for the moving last-turn changeset. */
+	/** Opens response changes. `requestId` may be omitted for invocations not tied to a rendered response; `context.isLastTurn` controls last-turn routing. */
 	openChangesForRequest(sessionResource: URI, requestId: string | undefined, context: IChatResponseFileChangesOpenContext): void;
 }
 
