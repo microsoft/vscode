@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as http from 'http';
-import { FetchFunction } from '../../../node/shared/githubTransport.js';
+import { FetchFunction } from '../../../../node/shared/github/githubTransport.js';
 
 export const nodeFetch: FetchFunction = (input, init) => {
 	const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;

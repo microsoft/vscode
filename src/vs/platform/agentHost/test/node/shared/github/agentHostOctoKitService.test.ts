@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../log/common/log.js';
-import { AgentHostOctoKitService, type FetchFunction } from '../../../node/shared/agentHostOctoKitService.js';
-import type { GitHubCredential, IGitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
-import { GitHubTransport } from '../../../node/shared/githubTransport.js';
-import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { deriveGitHubEndpoints } from '../../../common/githubEndpoints.js';
-import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { AgentHostOctoKitService, type FetchFunction } from '../../../../node/shared/github/agentHostOctoKitService.js';
+import type { GitHubCredential, IGitHubCredentials } from '../../../../node/shared/github/githubCredentialService.js';
+import { GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
+import { createTestGitHubEndpointService } from '../../testGitHubEndpointService.js';
+import { deriveGitHubEndpoints } from '../../../../common/github/githubEndpoints.js';
+import type { IAgentHostGitHubEndpointService } from '../../../../node/agentHostGitHubEndpointService.js';
 
 type Captured = { url: string; init: RequestInit | undefined };
 
@@ -54,8 +54,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 suite('AgentHostOctoKitService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const credentialService: IGitHubCredentialService = {
-		_serviceBrand: undefined,
+	const credentialService: IGitHubCredentials = {
 		onDidInvalidate: Event.None,
 		getCredential: async requestSignal => ({
 			account: { host: 'api.github.com', accountId: '1' },

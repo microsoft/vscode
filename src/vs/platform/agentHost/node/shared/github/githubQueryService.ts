@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ILogService } from '../../../../log/common/log.js';
 import {
 	GitHubChangedFile,
 	GitHubComparison,
@@ -32,19 +31,16 @@ import {
 	GitHubRepositorySubscription,
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
-} from '../../common/githubQueryService.js';
-import { FragmentState, GitHubActor, PullRequestRef } from '../../common/githubPullRequestService.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentialService } from './githubCredentialService.js';
-import { IGitHubHostCapabilitiesService } from './githubHostCapabilitiesService.js';
+} from '../../../common/github/githubQueryService.js';
+import { FragmentState, GitHubActor, PullRequestRef } from '../../../common/github/githubPullRequestService.js';
+import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
+import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 
-export const IGitHubQueryService = createDecorator<IGitHubQueryService>('gitHubQueryService');
-
-export interface IGitHubQueryService extends GitHubQueryApi {
-	readonly _serviceBrand: undefined;
+export interface IGitHubQuery extends GitHubQueryApi {
 	clear(): void;
 }
 
@@ -221,9 +217,7 @@ class EntitySubscription<TRef extends EntityRef, TValue extends EntityValue> {
 	}
 }
 
-export class GitHubQueryService extends Disposable implements IGitHubQueryService {
-
-	declare readonly _serviceBrand: undefined;
+export class GitHubQueryService extends Disposable implements IGitHubQuery {
 
 	private readonly _entriesByKey = new Map<string, EntityEntry<EntityRef, EntityValue>>();
 	private readonly _entries = new Set<EntityEntry<EntityRef, EntityValue>>();
@@ -236,11 +230,11 @@ export class GitHubQueryService extends Disposable implements IGitHubQueryServic
 	constructor(
 		scheduler: IGitHubScheduler | undefined,
 		private readonly _policy: GitHubEntityPollingPolicy = defaultPollingPolicy,
-		@IGitHubCredentialService private readonly _credentials: IGitHubCredentialService,
-		@IGitHubTransport private readonly _transport: IGitHubTransport,
-		@IAgentHostGitHubEndpointService private readonly _endpoint: IAgentHostGitHubEndpointService,
-		@IGitHubHostCapabilitiesService private readonly _capabilities: IGitHubHostCapabilitiesService,
-		@ILogService private readonly _logService: ILogService,
+		private readonly _credentials: IGitHubCredentials,
+		private readonly _transport: IGitHubTransport,
+		private readonly _endpoint: IAgentHostGitHubEndpointService,
+		private readonly _capabilities: IGitHubCapabilities,
+		private readonly _logService: ILogService,
 	) {
 		super();
 		this._clock = scheduler ?? systemGitHubScheduler;
@@ -1203,7 +1197,7 @@ function requiredActor(value: object): GitHubActor {
 	return id ? { id, login } : { login };
 }
 
-function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('../../common/githubService.js').GitHubRequestErrorKind; readonly statusCode?: number } {
+function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('../../../common/github/githubService.js').GitHubRequestErrorKind; readonly statusCode?: number } {
 	if (error instanceof GitHubRequestError) {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}

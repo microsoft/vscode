@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseGitHubIssueReferences } from '../../common/githubIssueReferences.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { parseGitHubIssueReferences } from '../../../common/github/githubIssueReferences.js';
 
 suite('parseGitHubIssueReferences', () => {
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PullRequestFragment, PullRequestPriority, PullRequestSubscriptionOptions } from '../../common/githubPullRequestService.js';
+import { PullRequestFragment, PullRequestPriority, PullRequestSubscriptionOptions } from '../../../common/github/githubPullRequestService.js';
 
 export interface EffectivePullRequestFragmentInterest {
 	readonly priority: PullRequestPriority;

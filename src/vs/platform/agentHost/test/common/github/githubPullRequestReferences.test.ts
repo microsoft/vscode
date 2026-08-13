@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseGitHubPullRequestReferences } from '../../common/githubPullRequestReferences.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { parseGitHubPullRequestReferences } from '../../../common/github/githubPullRequestReferences.js';
 
 suite('GitHub pull request references', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

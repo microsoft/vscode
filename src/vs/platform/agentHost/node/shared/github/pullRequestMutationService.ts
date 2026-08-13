@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomUUID } from 'crypto';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import {
 	CreatedPullRequest,
 	CreatePullRequestOptions,
@@ -28,8 +27,8 @@ import {
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
 	PullRequestReplyOptions,
-} from '../../common/githubPullRequestMutationService.js';
-import { GitHubRepositoryRef } from '../../common/githubQueryService.js';
+} from '../../../common/github/githubPullRequestMutationService.js';
+import { GitHubRepositoryRef } from '../../../common/github/githubQueryService.js';
 import {
 	PullRequestComment,
 	GitHubFragmentError,
@@ -38,18 +37,15 @@ import {
 	PullRequestResource,
 	PullRequestSnapshot,
 	PullRequestSubscription,
-} from '../../common/githubPullRequestService.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentialService } from './githubCredentialService.js';
+} from '../../../common/github/githubPullRequestService.js';
+import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { IPullRequestResourceService } from './pullRequestResourceService.js';
+import { IPullRequestResources } from './pullRequestResourceService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 
-export const IPullRequestMutationService = createDecorator<IPullRequestMutationService>('pullRequestMutationService');
-
-export interface IPullRequestMutationService extends PullRequestMutationApi {
-	readonly _serviceBrand: undefined;
+export interface IPullRequestMutations extends PullRequestMutationApi {
 }
 
 interface IPreparationState {
@@ -98,9 +94,7 @@ const enableAutoMergeMutation = `mutation AgentHostEnablePullRequestAutoMerge($p
 	rateLimit { limit remaining used resetAt }
 }`;
 
-export class PullRequestMutationService extends Disposable implements IPullRequestMutationService {
-
-	declare readonly _serviceBrand: undefined;
+export class PullRequestMutationService extends Disposable implements IPullRequestMutations {
 
 	private readonly _mutationTails = new Map<string, Promise<void>>();
 	private readonly _preparations = new Map<string, IPreparationState>();
@@ -109,10 +103,10 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 
 	constructor(
 		scheduler: IGitHubScheduler | undefined,
-		@IGitHubCredentialService private readonly _credentials: IGitHubCredentialService,
-		@IGitHubTransport private readonly _transport: IGitHubTransport,
-		@IPullRequestResourceService private readonly _resources: IPullRequestResourceService,
-		@IAgentHostGitHubEndpointService private readonly _endpoint: IAgentHostGitHubEndpointService,
+		private readonly _credentials: IGitHubCredentials,
+		private readonly _transport: IGitHubTransport,
+		private readonly _resources: IPullRequestResources,
+		private readonly _endpoint: IAgentHostGitHubEndpointService,
 	) {
 		super();
 		this._clock = scheduler ?? systemGitHubScheduler;

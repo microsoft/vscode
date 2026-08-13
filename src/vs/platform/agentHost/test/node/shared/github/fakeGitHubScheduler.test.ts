@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { schedulerDelay } from '../../../node/shared/githubScheduler.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { schedulerDelay } from '../../../../node/shared/github/githubScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 
 suite('FakeGitHubScheduler', () => {

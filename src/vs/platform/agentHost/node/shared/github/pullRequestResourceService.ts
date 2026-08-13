@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { ILogService } from '../../../../log/common/log.js';
 import {
 	FragmentState,
 	GitHubFragmentError,
@@ -27,18 +26,15 @@ import {
 	PullRequestSnapshot,
 	PullRequestSubscription,
 	PullRequestSubscriptionOptions,
-} from '../../common/githubPullRequestService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentialService } from './githubCredentialService.js';
+} from '../../../common/github/githubPullRequestService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
 import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
-import { IPullRequestQueryService, PullRequestFragmentResult } from './pullRequestQueryService.js';
+import { IPullRequestQuery, PullRequestFragmentResult } from './pullRequestQueryService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 
-export const IPullRequestResourceService = createDecorator<IPullRequestResourceService>('pullRequestResourceService');
-
-export interface IPullRequestResourceService {
-	readonly _serviceBrand: undefined;
+export interface IPullRequestResources {
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription;
 	invalidatePullRequest(ref: PullRequestRef, fragments: readonly PullRequestFragment[]): void;
 	clear(): void;
@@ -200,9 +196,7 @@ class PullRequestSubscriptionImpl implements PullRequestSubscription {
 	}
 }
 
-export class PullRequestResourceService extends Disposable implements IPullRequestResourceService {
-
-	declare readonly _serviceBrand: undefined;
+export class PullRequestResourceService extends Disposable implements IPullRequestResources {
 
 	private readonly _entriesByKey = new Map<string, PullRequestEntry>();
 	private readonly _entries = new Set<PullRequestEntry>();
@@ -213,9 +207,9 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	constructor(
 		scheduler: IGitHubScheduler = systemGitHubScheduler,
 		private readonly _policy: PullRequestPollingPolicy = defaultPollingPolicy,
-		@IGitHubCredentialService private readonly _credentials: IGitHubCredentialService,
-		@IPullRequestQueryService private readonly _queries: IPullRequestQueryService,
-		@ILogService private readonly _logService: ILogService,
+		private readonly _credentials: IGitHubCredentials,
+		private readonly _queries: IPullRequestQuery,
+		private readonly _logService: ILogService,
 	) {
 		super();
 		this._scheduler = this._register(new PullRequestScheduler(scheduler));

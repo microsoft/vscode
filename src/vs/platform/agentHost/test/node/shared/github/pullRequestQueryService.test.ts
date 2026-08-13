@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { PullRequestCore, PullRequestRef, PullRequestSubscriptionOptions } from '../../../common/githubPullRequestService.js';
-import { GitHubHostCapabilities } from '../../../common/githubService.js';
-import { GitHubCredential } from '../../../node/shared/githubCredentialService.js';
-import { IGitHubHostCapabilitiesService } from '../../../node/shared/githubHostCapabilitiesService.js';
-import { GitHubRequestError, GitHubTransport } from '../../../node/shared/githubTransport.js';
-import { PullRequestQueryService } from '../../../node/shared/pullRequestQueryService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { PullRequestCore, PullRequestRef, PullRequestSubscriptionOptions } from '../../../../common/github/githubPullRequestService.js';
+import { GitHubHostCapabilities } from '../../../../common/github/githubService.js';
+import { GitHubCredential } from '../../../../node/shared/github/githubCredentialService.js';
+import { IGitHubCapabilities } from '../../../../node/shared/github/githubHostCapabilitiesService.js';
+import { GitHubRequestError, GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
+import { PullRequestQueryService } from '../../../../node/shared/github/pullRequestQueryService.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
@@ -22,9 +22,7 @@ const availableCapabilities: GitHubHostCapabilities = {
 	checkContextRequiredness: true,
 };
 
-class TestCapabilitiesService implements IGitHubHostCapabilitiesService {
-
-	declare readonly _serviceBrand: undefined;
+class TestCapabilitiesService implements IGitHubCapabilities {
 
 	constructor(readonly value: GitHubHostCapabilities) { }
 

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { GitHubHostCapabilities } from '../../common/githubService.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { GitHubHostCapabilities } from '../../../common/github/githubService.js';
+import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
 import { GitHubCredential } from './githubCredentialService.js';
 import { GitHubGraphQLError, IGitHubTransport } from './githubTransport.js';
 
@@ -40,23 +39,18 @@ interface ICapabilitiesProbeResult {
 	readonly cache: boolean;
 }
 
-export const IGitHubHostCapabilitiesService = createDecorator<IGitHubHostCapabilitiesService>('gitHubHostCapabilitiesService');
-
-export interface IGitHubHostCapabilitiesService {
-	readonly _serviceBrand: undefined;
+export interface IGitHubCapabilities {
 	getCapabilities(credential: GitHubCredential, enterpriseVersion: string | undefined, signal: AbortSignal): Promise<GitHubHostCapabilities>;
 	clear(): void;
 }
 
-export class GitHubHostCapabilitiesService extends Disposable implements IGitHubHostCapabilitiesService {
-
-	declare readonly _serviceBrand: undefined;
+export class GitHubHostCapabilitiesService extends Disposable implements IGitHubCapabilities {
 
 	private readonly _cache = new Map<string, Promise<GitHubHostCapabilities>>();
 
 	constructor(
-		@IGitHubTransport private readonly _transport: IGitHubTransport,
-		@IAgentHostGitHubEndpointService private readonly _endpointService: IAgentHostGitHubEndpointService,
+		private readonly _transport: IGitHubTransport,
+		private readonly _endpointService: IAgentHostGitHubEndpointService,
 	) {
 		super();
 		this._register(this._endpointService.onDidChange(() => this.clear()));

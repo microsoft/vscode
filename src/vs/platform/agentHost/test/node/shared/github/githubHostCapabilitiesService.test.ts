@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GitHubHostCapabilitiesService } from '../../../node/shared/githubHostCapabilitiesService.js';
-import { GitHubTransport } from '../../../node/shared/githubTransport.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { GitHubHostCapabilitiesService } from '../../../../node/shared/github/githubHostCapabilitiesService.js';
+import { GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 

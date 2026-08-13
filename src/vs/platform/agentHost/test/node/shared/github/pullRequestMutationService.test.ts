@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DeferredPromise, raceCancellationError } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import {
 	PullRequestFragment,
 	PullRequestRef,
@@ -17,11 +17,11 @@ import {
 	PullRequestSnapshot,
 	PullRequestSubscription,
 	PullRequestSubscriptionOptions,
-} from '../../../common/githubPullRequestService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
-import { GitHubTransport } from '../../../node/shared/githubTransport.js';
-import { PullRequestMutationService } from '../../../node/shared/pullRequestMutationService.js';
-import { IPullRequestResourceService } from '../../../node/shared/pullRequestResourceService.js';
+} from '../../../../common/github/githubPullRequestService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../../node/shared/github/githubCredentialService.js';
+import { GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
+import { PullRequestMutationService } from '../../../../node/shared/github/pullRequestMutationService.js';
+import { IPullRequestResources } from '../../../../node/shared/github/pullRequestResourceService.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
@@ -37,9 +37,7 @@ import {
 
 const operationMarker = '<!-- vscode-agent-host-operation:operation-1 -->';
 
-class TestCredentialService implements IGitHubCredentialService, IDisposable {
-
-	declare readonly _serviceBrand: undefined;
+class TestCredentialService implements IGitHubCredentials, IDisposable {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
@@ -71,9 +69,7 @@ class TestCredentialService implements IGitHubCredentialService, IDisposable {
 	}
 }
 
-class TestResourceService implements IPullRequestResourceService {
-
-	declare readonly _serviceBrand: undefined;
+class TestResourceService implements IPullRequestResources {
 
 	readonly invalidations: { readonly fragments: readonly PullRequestFragment[] }[] = [];
 	readonly snapshot;

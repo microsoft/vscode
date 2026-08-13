@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubMcpServerUrl, gitHubRepoResource } from '../../common/githubEndpoints.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../../common/agent.js';
+import { deriveGitHubEndpoints, gitHubCopilotResource, gitHubMcpServerUrl, gitHubRepoResource } from '../../../common/github/githubEndpoints.js';
 
 suite('githubEndpoints', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

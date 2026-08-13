@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GitHubAccountHandle } from '../../../common/githubService.js';
-import { GitHubRequestQueue } from '../../../node/shared/githubRequestQueue.js';
-import { GitHubRequestError, GitHubTransport } from '../../../node/shared/githubTransport.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { GitHubAccountHandle } from '../../../../common/github/githubService.js';
+import { GitHubRequestQueue } from '../../../../node/shared/github/githubRequestQueue.js';
+import { GitHubRequestError, GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubNotModifiedResponse, gitHubRateLimitResponse, gitHubRawResponse, gitHubRedirectResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';

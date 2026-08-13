@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { GitHubAccountHandle } from '../../common/githubService.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { GitHubAccountHandle } from '../../../common/github/githubService.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
 

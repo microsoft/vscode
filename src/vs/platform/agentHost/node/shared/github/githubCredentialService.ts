@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Event, Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { GitHubAccountHandle } from '../../common/githubService.js';
-import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { Event, Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { GitHubAccountHandle } from '../../../common/github/githubService.js';
+import { IAgentHostAuthenticationService } from '../../agentHostAuthenticationService.js';
+import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
 import { GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 
 export interface GitHubCredential {
@@ -24,10 +23,7 @@ export interface GitHubCredentialInvalidation {
 	readonly reason: 'replacement' | 'authentication' | 'endpoint' | 'shutdown';
 }
 
-export const IGitHubCredentialService = createDecorator<IGitHubCredentialService>('gitHubCredentialService');
-
-export interface IGitHubCredentialService {
-	readonly _serviceBrand: undefined;
+export interface IGitHubCredentials {
 	readonly onDidInvalidate: Event<GitHubCredentialInvalidation>;
 	getCredential(signal: AbortSignal): Promise<GitHubCredential>;
 	resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential>;
@@ -47,18 +43,16 @@ interface IGitHubUserResponse {
 	readonly id?: unknown;
 }
 
-export class GitHubCredentialService extends Disposable implements IGitHubCredentialService {
-
-	declare readonly _serviceBrand: undefined;
+export class GitHubCredentialService extends Disposable implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = this._register(new Emitter<GitHubCredentialInvalidation>());
 	readonly onDidInvalidate = this._onDidInvalidate.event;
 	private _current: ICredentialGeneration | undefined;
 
 	constructor(
-		@IGitHubTransport private readonly _transport: IGitHubTransport,
-		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
-		@IAgentHostGitHubEndpointService private readonly _endpointService: IAgentHostGitHubEndpointService,
+		private readonly _transport: IGitHubTransport,
+		private readonly _authenticationService: IAgentHostAuthenticationService,
+		private readonly _endpointService: IAgentHostGitHubEndpointService,
 	) {
 		super();
 		this._register(this._authenticationService.onDidChangeToken(event => {

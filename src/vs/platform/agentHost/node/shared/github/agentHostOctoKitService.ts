@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
-import { IGitHubCredentialService } from './githubCredentialService.js';
-import { GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { createDecorator } from '../../../../instantiation/common/instantiation.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
+import { IGitHubCredentials } from './githubCredentialService.js';
+import { GitHubRequestError } from './githubTransport.js';
+import { IGitHubTransport } from './githubTransport.js';
 
 export type { FetchFunction } from './githubTransport.js';
 
@@ -71,10 +72,10 @@ export class AgentHostOctoKitService implements IAgentHostOctoKitService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService,
-		@IAgentHostGitHubEndpointService private readonly _endpoint: IAgentHostGitHubEndpointService,
-		@IGitHubCredentialService private readonly _credentials: IGitHubCredentialService,
-		@IGitHubTransport private readonly _transport: IGitHubTransport,
+		private readonly _logService: ILogService,
+		private readonly _endpoint: IAgentHostGitHubEndpointService,
+		private readonly _credentials: IGitHubCredentials,
+		private readonly _transport: IGitHubTransport,
 	) { }
 
 	async createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, token: string, signal: AbortSignal): Promise<CreatedPullRequest> {

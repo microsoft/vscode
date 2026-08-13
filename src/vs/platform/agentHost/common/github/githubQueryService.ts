@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IDisposable } from '../../../base/common/lifecycle.js';
-import { IObservable } from '../../../base/common/observable.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { FragmentState, GitHubActor, PullRequestRef } from './githubPullRequestService.js';
 import { GitHubAccountHandle } from './githubService.js';
 

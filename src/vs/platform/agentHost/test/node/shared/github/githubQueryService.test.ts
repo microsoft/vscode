@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../log/common/log.js';
-import { GitHubRepositoryRef } from '../../../common/githubQueryService.js';
-import { GitHubHostCapabilities } from '../../../common/githubService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
-import { IGitHubHostCapabilitiesService } from '../../../node/shared/githubHostCapabilitiesService.js';
-import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../../node/shared/githubQueryService.js';
-import { GitHubTransport } from '../../../node/shared/githubTransport.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { GitHubRepositoryRef } from '../../../../common/github/githubQueryService.js';
+import { GitHubHostCapabilities } from '../../../../common/github/githubService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../../node/shared/github/githubCredentialService.js';
+import { IGitHubCapabilities } from '../../../../node/shared/github/githubHostCapabilitiesService.js';
+import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../../../node/shared/github/githubQueryService.js';
+import { GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
@@ -41,9 +41,7 @@ const availableCapabilities: GitHubHostCapabilities = {
 	checkContextRequiredness: true,
 };
 
-class TestCapabilitiesService implements IGitHubHostCapabilitiesService {
-
-	declare readonly _serviceBrand: undefined;
+class TestCapabilitiesService implements IGitHubCapabilities {
 
 	constructor(readonly value: GitHubHostCapabilities = availableCapabilities) { }
 
@@ -54,9 +52,7 @@ class TestCapabilitiesService implements IGitHubHostCapabilitiesService {
 	clear(): void { }
 }
 
-class SequencedCapabilitiesService implements IGitHubHostCapabilitiesService {
-
-	declare readonly _serviceBrand: undefined;
+class SequencedCapabilitiesService implements IGitHubCapabilities {
 	private _index = 0;
 
 	constructor(private readonly _values: readonly GitHubHostCapabilities[]) { }
@@ -68,9 +64,7 @@ class SequencedCapabilitiesService implements IGitHubHostCapabilitiesService {
 	clear(): void { }
 }
 
-class TestCredentialService implements IGitHubCredentialService, IDisposable {
-
-	declare readonly _serviceBrand: undefined;
+class TestCredentialService implements IGitHubCredentials, IDisposable {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
@@ -125,7 +119,7 @@ suite('GitHubQueryService', () => {
 		}
 	}
 
-	function setup(server: ProgrammableGitHubServer, capabilities: GitHubHostCapabilities | IGitHubHostCapabilitiesService = availableCapabilities): {
+	function setup(server: ProgrammableGitHubServer, capabilities: GitHubHostCapabilities | IGitHubCapabilities = availableCapabilities): {
 		readonly account: { readonly host: string; readonly accountId: string };
 		readonly ref: GitHubRepositoryRef;
 		readonly clock: FakeGitHubScheduler;

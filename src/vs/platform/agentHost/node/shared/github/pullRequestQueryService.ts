@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import {
 	PullRequestCheck,
 	PullRequestChecks,
@@ -19,12 +18,12 @@ import {
 	PullRequestReview,
 	PullRequestReviewThread,
 	PullRequestSubscriptionOptions,
-} from '../../common/githubPullRequestService.js';
-import { GitHubHostCapabilities } from '../../common/githubService.js';
+} from '../../../common/github/githubPullRequestService.js';
+import { GitHubHostCapabilities } from '../../../common/github/githubService.js';
 import { GitHubCredential } from './githubCredentialService.js';
-import { IGitHubHostCapabilitiesService } from './githubHostCapabilitiesService.js';
+import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostGitHubEndpointService } from '../../agentHostGitHubEndpointService.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
 
 export type PullRequestFragmentResult =
@@ -37,10 +36,7 @@ export type PullRequestFragmentResult =
 	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string }
 	| { readonly fragment: 'participants'; readonly value: PullRequestParticipants; readonly complete: true };
 
-export const IPullRequestQueryService = createDecorator<IPullRequestQueryService>('pullRequestQueryService');
-
-export interface IPullRequestQueryService {
-	readonly _serviceBrand: undefined;
+export interface IPullRequestQuery {
 	fetch(
 		fragment: PullRequestFragment,
 		ref: PullRequestRef,
@@ -145,16 +141,14 @@ const mergeabilityQuery = (includeMergeQueue: boolean) => `query AgentHostPullRe
 	rateLimit { limit remaining used resetAt }
 }`;
 
-export class PullRequestQueryService implements IPullRequestQueryService {
-
-	declare readonly _serviceBrand: undefined;
+export class PullRequestQueryService implements IPullRequestQuery {
 
 	private readonly _planner = new PullRequestRequestPlanner();
 
 	constructor(
-		@IGitHubTransport private readonly _transport: IGitHubTransport,
-		@IGitHubHostCapabilitiesService private readonly _capabilities: IGitHubHostCapabilitiesService,
-		@IAgentHostGitHubEndpointService private readonly _endpoint: IAgentHostGitHubEndpointService,
+		private readonly _transport: IGitHubTransport,
+		private readonly _capabilities: IGitHubCapabilities,
+		private readonly _endpoint: IAgentHostGitHubEndpointService,
 	) { }
 
 	async fetch(
@@ -261,7 +255,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		}
 	}
 
-	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('../../common/githubService.js').GitHubRequestPriority): Promise<PullRequestCore> {
+	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('../../../common/github/githubService.js').GitHubRequestPriority): Promise<PullRequestCore> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
@@ -276,7 +270,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		credential: GitHubCredential,
 		route: string,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 	): Promise<readonly unknown[]> {
 		const result: unknown[] = [];
 		let url: string | undefined = this._restUrl(ref, route);
@@ -303,7 +297,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		ref: PullRequestRef,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 		includeBodies: boolean,
 	): Promise<readonly PullRequestReviewThread[]> {
 		const result: PullRequestReviewThread[] = [];
@@ -338,7 +332,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		value: unknown,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 		includeBodies: boolean,
 	): Promise<PullRequestReviewThread> {
 		const thread = asObject(value, 'GitHub review thread was malformed');
@@ -384,7 +378,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 		includeRequiredness: boolean,
 		loadExpectedSuites: boolean,
 		includeOptional: boolean,
@@ -449,7 +443,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		headSha: string,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 	): Promise<readonly PullRequestCheckSuite[]> {
 		const suites: PullRequestCheckSuite[] = [];
 		let after: string | undefined;
@@ -484,7 +478,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 	): Promise<PullRequestChecks> {
 		const checks: PullRequestCheck[] = [];
 		let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/check-runs?per_page=100`);
@@ -524,7 +518,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 		mergeQueueSupported: boolean,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.graphql<unknown>(
@@ -575,7 +569,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 			method: 'GET',
@@ -605,7 +599,7 @@ export class PullRequestQueryService implements IPullRequestQueryService {
 		core: PullRequestCore | undefined,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('../../common/githubService.js').GitHubRequestPriority,
+		priority: import('../../../common/github/githubService.js').GitHubRequestPriority,
 	): Promise<PullRequestParticipants> {
 		const values = await this._fetchRestArray(ref, credential, `issues/${ref.number}/timeline?per_page=100`, signal, priority);
 		const participants = new Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>();

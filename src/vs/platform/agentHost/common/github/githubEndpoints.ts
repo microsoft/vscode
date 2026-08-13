@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../base/common/uri.js';
-import { ProtectedResourceMetadata } from './state/protocol/state.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ProtectedResourceMetadata } from '../state/protocol/state.js';
 
 /**
  * The GitHub endpoints an agent host talks to, derived from an optional

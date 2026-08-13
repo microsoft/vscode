@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GitHubHostCapabilities } from '../../../common/githubService.js';
-import { unionPullRequestInterests } from '../../../node/shared/pullRequestInterests.js';
-import { PullRequestRequestPlanner } from '../../../node/shared/pullRequestRequestPlanner.js';
-import { PullRequestScheduler } from '../../../node/shared/pullRequestScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { GitHubHostCapabilities } from '../../../../common/github/githubService.js';
+import { unionPullRequestInterests } from '../../../../node/shared/github/pullRequestInterests.js';
+import { PullRequestRequestPlanner } from '../../../../node/shared/github/pullRequestRequestPlanner.js';
+import { PullRequestScheduler } from '../../../../node/shared/github/pullRequestScheduler.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 
 suite('PullRequest planning', () => {

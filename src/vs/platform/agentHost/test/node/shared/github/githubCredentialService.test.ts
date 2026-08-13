@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../log/common/log.js';
-import { AgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
-import { GitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
-import { GitHubRequestError, GitHubTransport } from '../../../node/shared/githubTransport.js';
-import { MockAgent } from '../mockAgent.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { AgentHostAuthenticationService } from '../../../../node/agentHostAuthenticationService.js';
+import { GitHubCredentialService } from '../../../../node/shared/github/githubCredentialService.js';
+import { GitHubRequestError, GitHubTransport } from '../../../../node/shared/github/githubTransport.js';
+import { MockAgent } from '../../mockAgent.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 

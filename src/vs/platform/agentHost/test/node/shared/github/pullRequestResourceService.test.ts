@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../../log/common/log.js';
-import { PullRequestCore, PullRequestFragment, PullRequestRef, PullRequestSubscriptionOptions } from '../../../common/githubPullRequestService.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentialService } from '../../../node/shared/githubCredentialService.js';
-import { GitHubRequestError } from '../../../node/shared/githubTransport.js';
-import { IPullRequestQueryService, PullRequestFragmentResult } from '../../../node/shared/pullRequestQueryService.js';
-import { PullRequestPollingPolicy, PullRequestResourceService } from '../../../node/shared/pullRequestResourceService.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { PullRequestCore, PullRequestFragment, PullRequestRef, PullRequestSubscriptionOptions } from '../../../../common/github/githubPullRequestService.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../../node/shared/github/githubCredentialService.js';
+import { GitHubRequestError } from '../../../../node/shared/github/githubTransport.js';
+import { IPullRequestQuery, PullRequestFragmentResult } from '../../../../node/shared/github/pullRequestQueryService.js';
+import { PullRequestPollingPolicy, PullRequestResourceService } from '../../../../node/shared/github/pullRequestResourceService.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 
 const account = { host: 'github.example.test', accountId: '101' };
@@ -62,9 +62,7 @@ interface IQueryCall {
 	readonly signal: AbortSignal;
 }
 
-class TestPullRequestQueryService implements IPullRequestQueryService {
-
-	declare readonly _serviceBrand: undefined;
+class TestPullRequestQueryService implements IPullRequestQuery {
 
 	readonly calls: IQueryCall[] = [];
 	readonly handlers = new Map<PullRequestFragment, (call: IQueryCall) => Promise<PullRequestFragmentResult> | PullRequestFragmentResult>();
@@ -124,9 +122,7 @@ class TestPullRequestQueryService implements IPullRequestQueryService {
 	}
 }
 
-class TestGitHubCredentialService implements IGitHubCredentialService {
-
-	declare readonly _serviceBrand: undefined;
+class TestGitHubCredentialService implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;

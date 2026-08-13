@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../../../platform/agentHost/common/githubEndpoints.js';
+import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../../../platform/agentHost/common/github/githubEndpoints.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';

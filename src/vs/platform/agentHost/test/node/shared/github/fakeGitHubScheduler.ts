@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import type { IGitHubScheduler } from '../../../node/shared/githubScheduler.js';
+import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import type { IGitHubScheduler } from '../../../../node/shared/github/githubScheduler.js';
 
 interface IFakeGitHubSchedulerTask {
 	readonly id: number;

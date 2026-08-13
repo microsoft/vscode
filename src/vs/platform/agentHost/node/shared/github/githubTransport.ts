@@ -3,20 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LRUCache } from '../../../../base/common/map.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { GitHubAccountHandle, GitHubRequestErrorKind, GitHubRequestPriority } from '../../common/githubService.js';
+import { LRUCache } from '../../../../../base/common/map.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { GitHubAccountHandle, GitHubRequestErrorKind, GitHubRequestPriority } from '../../../common/github/githubService.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay, systemGitHubScheduler } from './githubScheduler.js';
 
 export type FetchFunction = typeof globalThis.fetch;
 
-export const IGitHubTransport = createDecorator<IGitHubTransport>('gitHubTransport');
-
 export interface IGitHubTransport {
-	readonly _serviceBrand: undefined;
 	readonly rateLimits: GitHubRateLimitCoordinator;
 	rest<T>(account: GitHubAccountHandle, token: string, request: GitHubRestRequest, signal: AbortSignal): Promise<GitHubRestResponse<T>>;
 	graphql<T>(account: GitHubAccountHandle, token: string, url: string, query: string, variables: Readonly<Record<string, unknown>>, signal: AbortSignal, priority?: GitHubRequestPriority): Promise<GitHubGraphQLResponse<T>>;
@@ -118,8 +114,6 @@ const maximumErrorBodyLength = 500;
 const maximumRedirects = 5;
 
 export class GitHubTransport extends Disposable implements IGitHubTransport {
-
-	declare readonly _serviceBrand: undefined;
 
 	private readonly _fetch: FetchFunction;
 	private readonly _queue: GitHubRequestQueue;

@@ -5,10 +5,10 @@
 
 import * as http from 'http';
 import * as net from 'net';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
-import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import type { IAgentHostGitHubEndpointService } from '../../../../node/agentHostGitHubEndpointService.js';
+import { createTestGitHubEndpointService } from '../../testGitHubEndpointService.js';
 
 export type GitHubMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type GitHubQueryPrimitive = string | number | boolean;

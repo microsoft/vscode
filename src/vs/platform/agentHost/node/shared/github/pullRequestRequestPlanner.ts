@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PullRequestFragment, PullRequestPriority } from '../../common/githubPullRequestService.js';
-import { GitHubHostCapabilities, GitHubRequestPriority } from '../../common/githubService.js';
+import { PullRequestFragment, PullRequestPriority } from '../../../common/github/githubPullRequestService.js';
+import { GitHubHostCapabilities, GitHubRequestPriority } from '../../../common/github/githubService.js';
 
 export type PullRequestRequestStrategy =
 	| 'rest'
