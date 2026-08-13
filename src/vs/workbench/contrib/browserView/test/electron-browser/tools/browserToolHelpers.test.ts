@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IPlaywrightService } from '../../../../../../platform/browserView/common/playwrightService.js';
 import { createBrowserPageLink } from '../../../electron-browser/tools/browserToolHelpers.js';
 import { ClickBrowserTool } from '../../../electron-browser/tools/clickBrowserTool.js';
+import { OpenPageToolId } from '../../../electron-browser/tools/openBrowserTool.js';
 
 suite('browserToolHelpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +65,10 @@ suite('browserToolHelpers', () => {
 				CancellationToken.None,
 			);
 
-			assert.ok(result, 'expected a tool result rather than a throw');
+			assert.strictEqual(
+				result.toolResultError,
+				`No page ID provided. Use '${OpenPageToolId}' first.`,
+			);
 		});
 	});
 });
