@@ -16,6 +16,7 @@ import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
+import { IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
@@ -83,18 +84,24 @@ export interface ChatInputFixtureOptions {
 	readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
+	/**
+	 * Docks a notification above the input. Drives the real notification service,
+	 * so the seam between the notice and the input is produced by the stack
+	 * rather than staged.
+	 */
+	readonly notification?: IChatInputNotification;
 }
 
 export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection, sandboxingEnabled = false, width = 500, models = [], voiceControl, notification } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos });
+			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification });
 			if (models.length > 0) {
 				const modelsById = new Map(models.map(model => [model.identifier, model]));
 				reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {

@@ -912,7 +912,6 @@ export class DictationOnboardingService extends Disposable implements IDictation
 
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: DICTATION_INTRO_SHOWN_KEY,
-			hostClass: 'has-dictation-onboarding',
 		}));
 	}
 
