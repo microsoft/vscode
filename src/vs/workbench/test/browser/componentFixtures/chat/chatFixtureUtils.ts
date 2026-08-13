@@ -38,7 +38,7 @@ import { IBrowserViewWorkbenchService } from '../../../../contrib/browserView/co
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { RootState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -298,6 +298,14 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	// inert, never-hydrating subscription (value `undefined`) so no config chips
 	// render and nothing crashes.
 	reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
+		override readonly onAgentHostStart = Event.None;
+		override readonly rootState: IAgentSubscription<RootState> = {
+			value: undefined,
+			verifiedValue: undefined,
+			onDidChange: Event.None,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
 		override getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
 			return {
 				object: {
