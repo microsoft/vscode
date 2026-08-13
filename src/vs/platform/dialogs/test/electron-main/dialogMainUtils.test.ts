@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepEqual } from 'assert';
+import { deepEqual, strictEqual } from 'assert';
 import { release } from 'os';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IMassagedMessageBoxOptions, massageMessageBoxOptions } from '../../electron-main/dialogMainUtils.js';
+import { IMassagedMessageBoxOptions, massageMessageBoxOptions, resolveMessageBoxResponse } from '../../electron-main/dialogMainUtils.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
 
@@ -166,6 +166,32 @@ suite('Dialog', () => {
 			assertOptions(fourButtonCancel_4, ['4', '3', '2', '1'], 3, 4, [3, 2, 1, 0]);
 			assertOptions(fourButtonNegativeCancel, ['4', '3', '2', '1'], 3, -1, [3, 2, 1, 0]);
 		}
+	});
+
+	test('resolveMessageBoxResponse: in-range response is mapped through buttonIndeces unchanged', () => {
+		deepEqual(resolveMessageBoxResponse(0, [2, 0, 1], 1), { response: 2, wasUnexpectedResponse: false });
+		deepEqual(resolveMessageBoxResponse(2, [2, 0, 1], 1), { response: 1, wasUnexpectedResponse: false });
+	});
+
+	test('resolveMessageBoxResponse: out-of-range response falls back to the cancel button', () => {
+		// Regression test for https://github.com/microsoft/vscode/issues/329901:
+		// Electron can report a response outside the shown button range (for
+		// example `420`) when third-party software interferes with native
+		// Windows dialogs. That must not silently resolve to `undefined`.
+		deepEqual(resolveMessageBoxResponse(420, [2, 0, 1], 1), { response: 0, wasUnexpectedResponse: true });
+		deepEqual(resolveMessageBoxResponse(-1, [2, 0, 1], 1), { response: 0, wasUnexpectedResponse: true });
+	});
+
+	test('resolveMessageBoxResponse: out-of-range response with no valid cancelId falls back to the last button', () => {
+		deepEqual(resolveMessageBoxResponse(420, [2, 0, 1], undefined), { response: 1, wasUnexpectedResponse: true });
+		deepEqual(resolveMessageBoxResponse(420, [2, 0, 1], -1 /* disabled */), { response: 1, wasUnexpectedResponse: true });
+		deepEqual(resolveMessageBoxResponse(420, [2, 0, 1], 99 /* out of range */), { response: 1, wasUnexpectedResponse: true });
+	});
+
+	test('resolveMessageBoxResponse: never throws for a single-button dialog', () => {
+		const result = resolveMessageBoxResponse(420, [0], undefined);
+		strictEqual(result.wasUnexpectedResponse, true);
+		strictEqual(result.response, 0);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

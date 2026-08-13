@@ -13,7 +13,7 @@ import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
 import { INativeOpenDialogOptions } from '../common/dialogs.js';
-import { massageMessageBoxOptions } from './dialogMainUtils.js';
+import { massageMessageBoxOptions, resolveMessageBoxResponse } from './dialogMainUtils.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -158,8 +158,13 @@ export class DialogMainService implements IDialogMainService {
 				result = await electron.dialog.showMessageBox(options);
 			}
 
+			const { response, wasUnexpectedResponse } = resolveMessageBoxResponse(result.response, buttonIndeces, options.cancelId);
+			if (wasUnexpectedResponse) {
+				this.logService.error(`[DialogMainService]: native message box returned out-of-range response '${result.response}' (expected 0-${buttonIndeces.length - 1}), falling back to response '${response}'. See https://github.com/microsoft/vscode/issues/329901.`);
+			}
+
 			return {
-				response: buttonIndeces[result.response],
+				response,
 				checkboxChecked: result.checkboxChecked
 			};
 		});

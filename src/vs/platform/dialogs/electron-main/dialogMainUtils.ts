@@ -110,3 +110,50 @@ export function massageMessageBoxOptions(options: MessageBoxOptions, productServ
 		buttonIndeces
 	};
 }
+
+export interface IResolvedMessageBoxResponse {
+
+	/**
+	 * The original (pre-massage) button index the response maps to.
+	 */
+	readonly response: number;
+
+	/**
+	 * `true` when `rawResponse` did not address a real button and had
+	 * to be mapped to a fallback response.
+	 */
+	readonly wasUnexpectedResponse: boolean;
+}
+
+/**
+ * Maps a native message box response back to the original button index,
+ * defending against out-of-range responses.
+ *
+ * On Windows, third-party software that inspects native file/message
+ * dialogs (for example security tooling) can send an overlapping
+ * `CDM_GETFOLDERPATH` / `TDM_CLICK_BUTTON` window message that makes
+ * Electron report a `response` outside the range of buttons that were
+ * actually shown (observed value: `420`). Indexing `buttonIndeces` with
+ * such a response silently yields `undefined`, and callers that treat the
+ * result as a button index (for example `AbstractDialogHandler#getPromptResult`)
+ * then run no button's action at all -- the dialog just closes with nothing
+ * having happened, which is the "dialog closed itself" symptom reported in
+ * https://github.com/microsoft/vscode/issues/329901. See also
+ * https://github.com/electron/electron/issues/52747.
+ *
+ * Instead of propagating an out-of-range response, fall back to the
+ * dialog's own cancel button (or, if none was designated, its last button --
+ * the same least-destructive convention `massageMessageBoxOptions` already
+ * uses as its default cancel button).
+ */
+export function resolveMessageBoxResponse(rawResponse: number, buttonIndeces: number[], cancelId: number | undefined): IResolvedMessageBoxResponse {
+	if (Number.isInteger(rawResponse) && rawResponse >= 0 && rawResponse < buttonIndeces.length) {
+		return { response: buttonIndeces[rawResponse], wasUnexpectedResponse: false };
+	}
+
+	const safeCancelId = typeof cancelId === 'number' && cancelId >= 0 && cancelId < buttonIndeces.length
+		? cancelId
+		: Math.max(0, buttonIndeces.length - 1);
+
+	return { response: buttonIndeces[safeCancelId] ?? 0, wasUnexpectedResponse: true };
+}

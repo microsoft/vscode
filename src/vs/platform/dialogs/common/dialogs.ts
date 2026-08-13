@@ -450,11 +450,21 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 
 	protected getPromptResult<T>(prompt: IPrompt<T>, buttonIndex: number, checkboxChecked: boolean | undefined): IAsyncPromptResult<T> {
 		const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
-		if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {
-			promptButtons.push(prompt.cancelButton);
+		const cancelButton = prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean'
+			? prompt.cancelButton
+			: undefined;
+		if (cancelButton) {
+			promptButtons.push(cancelButton);
 		}
 
-		let result = promptButtons[buttonIndex]?.run({ checkboxChecked });
+		// `buttonIndex` should always address one of `promptButtons`, but
+		// defend against an out-of-range index resolving to no button at
+		// all: silently running no action leaves the dialog looking like
+		// it closed itself (https://github.com/microsoft/vscode/issues/329901).
+		// Fall back to the prompt's own cancel button when it has one.
+		const button = promptButtons[buttonIndex] ?? cancelButton;
+
+		let result = button?.run({ checkboxChecked });
 		if (!(result instanceof Promise)) {
 			result = Promise.resolve(result);
 		}
