@@ -219,7 +219,11 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	function createService(): WorkbenchExtensionGalleryManifestService {
 		// Built here (not in setup) so the account service resolves the effective auth provider after
 		// each test sets it; registered to the store because it is injected, not owned by the manifest.
-		instantiationService.stub(IExtensionGalleryAccountService, disposableStore.add(instantiationService.createInstance(ExtensionGalleryAccountService)));
+		const accountService = disposableStore.add(instantiationService.createInstance(ExtensionGalleryAccountService));
+		// Play the role of the production orchestrator (ExtensionGalleryAccountAuthenticationContribution),
+		// which connects authentication post-startup to avoid a service DI cycle.
+		accountService.connectAuthentication(instantiationService.get(IAuthenticationService));
+		instantiationService.stub(IExtensionGalleryAccountService, accountService);
 		return disposableStore.add(instantiationService.createInstance(WorkbenchExtensionGalleryManifestService));
 	}
 

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getClaimsFromJWT } from '../../../../base/common/oauth.js';
 import { localize } from '../../../../nls.js';
@@ -21,6 +21,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAccess, isSafeTokenTarget, MarketplaceAuthRequiredError, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
 import { ExtensionGalleryServiceIndexService } from './extensionGalleryServiceIndex.js';
 
@@ -103,8 +104,12 @@ export const IExtensionGalleryAccountService = createDecorator<IExtensionGallery
 /**
  * Resolves "which account may access the Private Marketplace" and owns the durable access verdict
  * plus the in-process service-index cache. Registered as an {@link InstantiationType.Delayed}
- * singleton so the host manifest service can inject it without eagerly pulling in the
- * {@link IAuthenticationService} graph, which transitively re-enters the manifest service.
+ * singleton so the host manifest service can inject it. It does NOT inject {@link IAuthenticationService}
+ * itself — that would form a service DI cycle (this service → auth → extensionService → gallery →
+ * manifest → this service) which the instantiation graph walker detects and aborts startup on.
+ * Instead the Microsoft session dependency is supplied post-startup via
+ * {@link IExtensionGalleryAccountService.connectAuthentication}, wired by
+ * {@link ExtensionGalleryAccountAuthenticationContribution}.
  */
 export interface IExtensionGalleryAccountService {
 	readonly _serviceBrand: undefined;
@@ -131,6 +136,17 @@ export interface IExtensionGalleryAccountService {
 
 	/** Drops the durable access verdict. */
 	clearCache(): void;
+
+	/**
+	 * Supplies the {@link IAuthenticationService} the Microsoft path needs to resolve sessions. This
+	 * is an initialization API rather than a constructor dependency to avoid a service DI cycle
+	 * (see the class doc): the authentication graph transitively depends on the extension gallery /
+	 * manifest chain that depends back on this service. Called once, post-startup, by
+	 * {@link ExtensionGalleryAccountAuthenticationContribution} (orchestrator wiring). Idempotent;
+	 * before it runs the Microsoft path reports "no account", and connecting re-signals
+	 * {@link onDidChangeAccount} so any verdict resolved in that window is re-validated.
+	 */
+	connectAuthentication(authenticationService: IAuthenticationService): void;
 }
 
 /**
@@ -150,13 +166,21 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	// re-requests the same index.
 	private readonly indexService: ExtensionGalleryServiceIndexService;
 
+	// Not an `@IAuthenticationService` constructor dependency: declaring it would introduce a service
+	// DI cycle — this service → IAuthenticationService → extensionService → extensionGalleryService →
+	// IExtensionGalleryManifestService → this service — which the instantiation graph walker detects
+	// (a static walk over the `@IService` decorators, unaffected by `Delayed`) and aborts startup on.
+	// Supplied post-startup via connectAuthentication (see the class doc); `undefined` until then, in
+	// which case the Microsoft path reports "no account".
+	private authenticationService: IAuthenticationService | undefined;
+
+	private readonly _onDidChangeAccount = this._register(new Emitter<void>());
 	/** Fires when the underlying account may have changed, so the host can re-run validation. */
-	readonly onDidChangeAccount: Event<void>;
+	readonly onDidChangeAccount: Event<void> = this._onDidChangeAccount.event;
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -167,11 +191,32 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		this.authProvider = getEffectiveAuthProvider(configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey), !!productService.enableExtensionGalleryEntraAuth);
 		this.indexService = instantiationService.createInstance(ExtensionGalleryServiceIndexService);
 
-		// Signal only the change relevant to the effective provider so the host does not re-validate on
-		// unrelated account activity.
-		this.onDidChangeAccount = this.authProvider === 'microsoft'
-			? Event.signal(Event.filter(this.authenticationService.onDidChangeSessions, e => e.providerId === 'microsoft', this._store))
-			: Event.signal(this.defaultAccountService.onDidChangeDefaultAccount);
+		// The GitHub/default path resolves through IDefaultAccountService, which does not re-enter this
+		// service, so it can be wired here. The Microsoft path's change signal is wired later, once
+		// authentication is connected (see connectAuthentication), to keep the cycle broken.
+		if (this.authProvider !== 'microsoft') {
+			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
+		}
+	}
+
+	connectAuthentication(authenticationService: IAuthenticationService): void {
+		if (this.authenticationService) {
+			return; // idempotent — the orchestrator wires this exactly once, but guard defensively
+		}
+		this.authenticationService = authenticationService;
+		if (this.authProvider !== 'microsoft') {
+			return;
+		}
+		// Re-fire the change signal only for the effective (Microsoft) provider so the host does not
+		// re-validate on unrelated account activity.
+		this._register(authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === 'microsoft') {
+				this._onDidChangeAccount.fire();
+			}
+		}));
+		// Authentication connected after startup: re-signal once so a verdict resolved during the
+		// pre-connect window (when no Microsoft session was reachable) is re-validated now.
+		this._onDidChangeAccount.fire();
 	}
 
 	/**
@@ -425,6 +470,11 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * a transient auth-service failure, which propagates to the caller.
 	 */
 	private async getMicrosoftSession(): Promise<AuthenticationSession | undefined> {
+		if (!this.authenticationService) {
+			// Orchestrator wiring (connectAuthentication) has not run yet — treat as "no account".
+			// connectAuthentication re-signals onDidChangeAccount once wired, driving re-validation.
+			return undefined;
+		}
 		const sessions = await this.authenticationService.getSessions('microsoft', PRIVATE_MARKETPLACE_SCOPES);
 		if (sessions.length === 0) {
 			return undefined;
@@ -541,6 +591,29 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 }
 
 registerSingleton(IExtensionGalleryAccountService, ExtensionGalleryAccountService, InstantiationType.Delayed);
+
+/**
+ * Orchestrator wiring that hands {@link IAuthenticationService} to
+ * {@link IExtensionGalleryAccountService} after startup. The account service cannot inject
+ * authentication directly without forming a service DI cycle (see its class doc), so this
+ * contribution — which is created outside the core service graph and therefore free to depend on
+ * both — performs the one-time connection. Registered at {@link WorkbenchPhase.AfterRestored} so it
+ * runs off the critical startup path; the account service reports "no account" until then and
+ * re-validates once connected.
+ */
+export class ExtensionGalleryAccountAuthenticationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.extensionGalleryAccountAuthentication';
+
+	constructor(
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IExtensionGalleryAccountService extensionGalleryAccountService: IExtensionGalleryAccountService,
+	) {
+		extensionGalleryAccountService.connectAuthentication(authenticationService);
+	}
+}
+
+registerWorkbenchContribution2(ExtensionGalleryAccountAuthenticationContribution.ID, ExtensionGalleryAccountAuthenticationContribution, WorkbenchPhase.AfterRestored);
 
 /**
  * Interactive Microsoft (Entra ID) sign-in for the Private Marketplace. When several Microsoft
