@@ -47,6 +47,9 @@ export interface IAgentHostNetworkEndpoint {
 	readonly expectedStatus?: number;
 }
 
+/** JSON-serializable value, mirroring the SDK's `JsonValue` for the managed-settings payload without depending on the node-only SDK from this common layer. */
+export type AgentHostJsonValue = null | boolean | number | string | AgentHostJsonValue[] | { readonly [key: string]: AgentHostJsonValue };
+
 export interface IAgentHostManagedSettingsSnapshot {
 	readonly account?: string;
 	readonly source: 'server' | 'device' | 'client' | 'mixed' | 'none';
@@ -57,7 +60,7 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
 	readonly managedKeys: readonly string[];
-	readonly settings?: Readonly<Record<string, unknown>>;
+	readonly settings?: AgentHostJsonValue;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------

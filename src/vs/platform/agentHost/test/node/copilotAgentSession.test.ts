@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotSession, CurrentToolMetadata, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, CurrentToolMetadata, JsonValue, PermissionAllowAllMode, PermissionRequest, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -546,7 +546,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 } | {
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
-	readonly args?: Record<string, unknown>;
+	readonly args?: { [k: string]: JsonValue };
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
