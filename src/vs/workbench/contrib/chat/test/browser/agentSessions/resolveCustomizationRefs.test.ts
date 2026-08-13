@@ -195,6 +195,45 @@ class FakeBundler {
 	}
 }
 
+suite('resolveCustomizationRefs - workspace customizations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('omits Copilot-native workspace files while preserving prompts and Codex sync', async () => {
+		const workspaceFiles = new Map<string, readonly IPromptPath[]>();
+		for (const type of [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt]) {
+			const uri = URI.file(`/workspace/.github/${type}/${type}.md`);
+			workspaceFiles.set(`${type}/${PromptsStorage.local}`, [makePromptPath(uri, type, PromptsStorage.local)]);
+		}
+		const promptsService = makePromptsService(workspaceFiles);
+		const copilotBundler = new FakeBundler();
+		const remoteCopilotBundler = new FakeBundler();
+		const codexBundler = new FakeBundler();
+		const commonArgs = [
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+		] as const;
+
+		await resolveCustomizationRefs(...commonArgs, copilotBundler as unknown as SyncedCustomizationBundler, SessionType.AgentHostCopilot, false, undefined, []);
+		await resolveCustomizationRefs(...commonArgs, remoteCopilotBundler as unknown as SyncedCustomizationBundler, 'remote-example-copilotcli', false, undefined, []);
+		await resolveCustomizationRefs(...commonArgs, codexBundler as unknown as SyncedCustomizationBundler, SessionType.AgentHostCodex, false, undefined, []);
+
+		assert.deepStrictEqual({
+			copilot: copilotBundler.received[0].map(file => file.type),
+			remoteCopilot: remoteCopilotBundler.received[0].map(file => file.type),
+			codex: codexBundler.received[0].map(file => file.type),
+		}, {
+			copilot: [PromptsType.prompt],
+			remoteCopilot: [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt],
+			codex: [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt],
+		});
+	});
+});
+
 suite('resolveCustomizationRefs - built-in skills', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

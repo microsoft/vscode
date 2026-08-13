@@ -37,6 +37,12 @@ function hasBuiltInGitHubMcpServer(sessionType: string): boolean {
 	return sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || parseRemoteAgentHostHarness(sessionType) === 'copilotcli';
 }
 
+function shouldSyncLocalCustomization(sessionType: string, entry: ILocalCustomizationFile): boolean {
+	return entry.source !== AICustomizationSources.local
+		|| sessionType !== AGENT_HOST_COPILOT_CLI_SESSION_TYPE
+		|| entry.type === PromptsType.prompt;
+}
+
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
  *
@@ -152,8 +158,8 @@ export async function enumerateLocalCustomizationsForHarness(
  * Client customization refs intentionally omit parsed children; the host adds
  * those later in `SessionState.customizations`. New Agents-window drafts need
  * the picker before that state exists, so this mirrors the same eligibility
- * rules used by {@link resolveCustomizationRefs} without waiting for the host
- * to parse the plugin or synthetic bundle.
+ * rules used by {@link resolveCustomizationRefs} before its provider-native
+ * discovery filter, without waiting for the host to parse the customization.
  */
 export async function resolveLocalCustomAgents(
 	fileService: IFileService,
@@ -400,7 +406,7 @@ export async function resolveCustomizationRefs(
 	roots: readonly URI[],
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, roots);
-	const enabled = enumerated.filter(e => !e.disabled);
+	const enabled = enumerated.filter(e => !e.disabled && shouldSyncLocalCustomization(sessionType, e));
 
 	const plugins = agentPluginService.plugins.get();
 	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
