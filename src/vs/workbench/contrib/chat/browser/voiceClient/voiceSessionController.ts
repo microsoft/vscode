@@ -1967,6 +1967,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (text !== rawText && e.args) {
 					e.args['text'] = text;
 				}
+				if (e.args?.['new_session'] === true) {
+					// Clear the pin first: an explicit "start a new session"
+					// outranks a pin left by a focus change, which would
+					// otherwise win in _sendTranscriptionToChat.
+					this._consumePinnedSubmitSession();
+					this.newSessionAsTarget();
+				}
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -3537,7 +3544,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * it stable.
 	 *
 	 *   send_to_chat(text="Open a new terminal and cd into the current directory.")
-	 *   new_sessions(sessions=[{"text": "Refactor upload service"}])
+	 *   send_to_chat(text="Refactor upload service", new_session=true)
 	 *   respond_to_session(...)
 	 */
 	private _renderToolCallSummary(name: string, args: Record<string, unknown> | undefined): string {
