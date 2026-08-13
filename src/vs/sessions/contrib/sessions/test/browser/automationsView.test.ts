@@ -6,19 +6,22 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -29,13 +32,20 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { AutomationMutationGuard, IAutomationRunClaim, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, IUpdateAutomationRunOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IMenuService, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
+import { Menus } from '../../../../browser/menus.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -43,6 +53,7 @@ const RUN_ID = 'run-1';
 const SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-1');
 const SECOND_SESSION_RESOURCE = URI.parse('vscode-chat-session://test/session-2');
 const FOLDER = URI.parse('file:///workspace');
+const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
 function hourly(): IAutomationSchedule {
 	return { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -50,10 +61,6 @@ function hourly(): IAutomationSchedule {
 
 function workspaceTarget(): AutomationTarget {
 	return { kind: 'workspace', folderUri: FOLDER, isolation: { kind: 'default' } };
-}
-
-function quickChatTarget(): AutomationTarget {
-	return { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' };
 }
 
 function automation(overrides: Partial<IAutomationDescriptor> = {}): IAutomationDescriptor {
@@ -226,6 +233,8 @@ class FakeRunner extends mock<IAutomationRunner>() {
 }
 
 class FakeSessionsService extends mock<ISessionsService>() {
+	override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+	override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
 	error: Error | undefined;
@@ -251,21 +260,71 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	sessionExists = true;
 	readonly isRead = observableValue<boolean>(this, false);
 	readonly secondIsRead = observableValue<boolean>(this, false);
-	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.InProgress);
+	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
 	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true });
 	readonly session = upcastPartial<ISession>({
 		resource: SESSION_RESOURCE,
 		sessionId: 'test/session-1',
+		providerId: 'test',
+		sessionType: 'test',
+		icon: Codicon.account,
+		createdAt: new Date(),
+		workspace: constObservable({
+			uri: FOLDER,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		}),
+		isQuickChat: constObservable(false),
+		title: constObservable('Daily review'),
+		updatedAt: constObservable(new Date()),
 		isRead: this.isRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
+		changesets: constObservable([]),
+		changes: constObservable([]),
+		modelId: constObservable(undefined),
+		mode: constObservable(undefined),
+		loading: constObservable(false),
+		isArchived: constObservable(false),
+		description: constObservable(undefined),
+		lastTurnEnd: constObservable(undefined),
+		chats: constObservable<readonly IChat[]>([]),
+		mainChat: constObservable(new class extends mock<IChat>() { }),
 	});
 	readonly secondSession = upcastPartial<ISession>({
 		resource: SECOND_SESSION_RESOURCE,
 		sessionId: 'test/session-2',
+		providerId: 'test',
+		sessionType: 'test',
+		icon: Codicon.account,
+		createdAt: new Date(),
+		workspace: constObservable({
+			uri: FOLDER,
+			label: 'workspace',
+			icon: Codicon.folder,
+			folders: [],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		}),
+		isQuickChat: constObservable(false),
+		title: constObservable('Second daily review'),
+		updatedAt: constObservable(new Date()),
 		isRead: this.secondIsRead,
 		capabilities: this.capabilities,
 		status: this.sessionStatus,
+		changesets: constObservable([]),
+		changes: constObservable([]),
+		modelId: constObservable(undefined),
+		mode: constObservable(undefined),
+		loading: constObservable(false),
+		isArchived: constObservable(false),
+		description: constObservable(undefined),
+		lastTurnEnd: constObservable(undefined),
+		chats: constObservable<readonly IChat[]>([]),
+		mainChat: constObservable(new class extends mock<IChat>() { }),
 	});
 	markAllReadCalls = 0;
 	markAllReadSessionCount = 0;
@@ -342,6 +401,16 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 suite('AutomationsCardsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function getSessionAction(widget: AutomationsCardsWidget, label: string): HTMLElement | undefined {
+		return [...widget.element.querySelectorAll<HTMLElement>('.automations-run-session-list .action-label')]
+			.find(element => element.getAttribute('aria-label') === label || element.title === label);
+	}
+
+	function isMarkAllReadVisible(widget: AutomationsCardsWidget): boolean {
+		const button = widget.element.querySelector<HTMLElement>('.automations-mark-all-read');
+		return !!button && button.style.display !== 'none';
+	}
+
 	function setup() {
 		const automationService = new FakeAutomationService();
 		const automationDialogService = new FakeAutomationDialogService();
@@ -350,7 +419,8 @@ suite('AutomationsCardsWidget', () => {
 		const sessionsManagementService = disposables.add(new FakeSessionsManagementService());
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
-		const instantiationService = disposables.add(new TestInstantiationService());
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IAutomationDialogService, automationDialogService);
 		instantiationService.stub(IDialogService, dialogService);
@@ -358,46 +428,57 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 		instantiationService.stub(IHoverService, NullHoverService);
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+			override readonly onDidChange = Event.None;
+			override isSessionPinned(): boolean { return false; }
+			override getStatusIcon() { return Codicon.circleSmallFilled; }
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
+			override getProviders() { return []; }
+		});
+		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = constObservable(0);
+			override hasPendingResponse() { return false; }
+		});
+		instantiationService.stub(ITestAgentSessionsService, {
+			model: {
+				observeSession: () => constObservable(undefined),
+			},
+		});
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly chatModels = constObservable([]);
+		});
+		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+			override readonly activeCustomView = constObservable(undefined);
+			override registerCustomView() { return { dispose() { } }; }
+			override hideCustomView() { }
+		}());
+		disposables.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { automationService, automationDialogService, configurationService, dialogService, runner, sessionsManagementService, sessionsService, widget };
+		return { automationService, automationDialogService, configurationService, dialogService, instantiationService, runner, sessionsManagementService, sessionsService, widget };
 	}
 
-	test('renders localized schedules and accessible run state', () => {
+	test('renders localized schedules and shared session rows', () => {
 		const { automationService, widget } = setup();
 		const item = automation({ schedule: { interval: 'daily', scheduleHour: 13, scheduleMinute: 5, scheduleDay: 0 } });
-		const completedRun = run();
 		automationService.setAutomations([item]);
-		automationService.setRuns([completedRun]);
+		automationService.setRuns([run()]);
 		const scheduleTime = new Date(Date.UTC(2000, 0, 1, 13, 5));
-		const runTime = new Date(completedRun.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
 		assert.deepStrictEqual({
 			schedule: widget.element.querySelector('.automations-card-meta-item')?.textContent,
-			runLabel: widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label'),
+			sessionTitle: widget.element.querySelector('.automations-run-session-list .monaco-highlighted-label')?.textContent,
+			fallbackRows: widget.element.querySelectorAll('.automations-run-card').length,
 		}, {
 			schedule: `Daily at ${scheduleTime.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })}`,
-			runLabel: `Daily review, workspace, Completed, ${runTime}, Unread`,
-		});
-	});
-
-	test('labels quick chat runs in history', () => {
-		const { automationService, widget } = setup();
-		const completedRun = run();
-		automationService.setAutomations([automation({ target: quickChatTarget() })]);
-		automationService.setRuns([completedRun]);
-		const runTime = new Date(completedRun.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
-		assert.deepStrictEqual({
-			target: widget.element.querySelector('.automations-run-card-name-workspace')?.textContent,
-			runLabel: widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label'),
-		}, {
-			target: ' · Quick Chat',
-			runLabel: `Daily review, Quick Chat, Completed, ${runTime}, Unread`,
+			sessionTitle: 'Daily review',
+			fallbackRows: 0,
 		});
 	});
 
@@ -416,6 +497,34 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			sameCard: true,
 			focusPreserved: true,
+		});
+	});
+
+	test('running automation replaces the run button with running text', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+
+		const actions = widget.element.querySelector<HTMLElement>('.automations-card-actions');
+		const runningLabel = widget.element.querySelector<HTMLElement>('.automations-card-running-label');
+		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
+
+		assert.deepStrictEqual({
+			actionsRunning: actions?.classList.contains('automation-running'),
+			label: runningLabel?.textContent,
+			labelVisible: runningLabel?.style.display,
+			labelBeforeRunButton: !!(runningLabel && runButton && (runningLabel.compareDocumentPosition(runButton) & Node.DOCUMENT_POSITION_FOLLOWING)),
+			runButtonHidden: runButton?.classList.contains('automations-card-run-button-hidden'),
+			runButtonInFlow: runButton?.style.display,
+			runButtonDisabled: runButton?.getAttribute('aria-disabled'),
+		}, {
+			actionsRunning: true,
+			label: 'Running',
+			labelVisible: '',
+			labelBeforeRunButton: true,
+			runButtonHidden: true,
+			runButtonInFlow: '',
+			runButtonDisabled: 'true',
 		});
 	});
 
@@ -515,14 +624,14 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('run card opens with Space and becomes read only after open succeeds', async () => {
+	test('session row opens and becomes read only after open succeeds', async () => {
 		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
-		const card = widget.element.querySelector<HTMLElement>('.automations-run-card-main');
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
 
-		assert.ok(card);
-		dispatchKeydown(card, { key: ' ', code: 'Space', keyCode: 32 });
+		assert.ok(row);
+		row.click();
 		assert.deepStrictEqual({
 			openCalls: sessionsService.openCalls,
 			readBeforeOpen: sessionsManagementService.isRead.get(),
@@ -537,10 +646,10 @@ suite('AutomationsCardsWidget', () => {
 
 		assert.deepStrictEqual({
 			isRead: sessionsManagementService.isRead.get(),
-			label: widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label'),
+			unreadClass: widget.element.querySelector('.automations-run-session-list .session-item')?.classList.contains('unread'),
 		}, {
 			isRead: true,
-			label: card?.getAttribute('aria-label')?.replace(', Unread', ''),
+			unreadClass: false,
 		});
 	});
 
@@ -549,19 +658,20 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 		sessionsService.error = new Error('open failed');
-		const unreadLabel = widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label');
+		const row = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
+		assert.ok(row);
 
-		widget.element.querySelector<HTMLElement>('.automations-run-card-main')?.click();
+		row.click();
 		sessionsService.openGate.complete();
 		await dialogService.errorCalled.p;
 
 		assert.deepStrictEqual({
 			isRead: sessionsManagementService.isRead.get(),
-			label: widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label'),
+			unreadClass: widget.element.querySelector('.automations-run-session-list .session-item')?.classList.contains('unread'),
 			error: dialogService.errors,
 		}, {
 			isRead: false,
-			label: unreadLabel,
+			unreadClass: true,
 			error: [{ message: 'Failed to open automation run.', detail: 'open failed' }],
 		});
 	});
@@ -571,17 +681,17 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 
-		const unreadLabel = widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label');
+		const unreadClass = widget.element.querySelector('.automations-run-session-list .session-item')?.classList.contains('unread');
 		sessionsManagementService.setRead(true);
-		const readLabel = widget.element.querySelector('.automations-run-card-main')?.getAttribute('aria-label');
+		const readClass = widget.element.querySelector('.automations-run-session-list .session-item')?.classList.contains('unread');
 
 		assert.deepStrictEqual({
-			unreadLabel,
-			readLabel,
-			markAllVisible: !!widget.element.querySelector('.automations-mark-all-read'),
+			unreadClass,
+			readClass,
+			markAllVisible: isMarkAllReadVisible(widget),
 		}, {
-			unreadLabel: readLabel ? `${readLabel}, Unread` : undefined,
-			readLabel,
+			unreadClass: true,
+			readClass: false,
 			markAllVisible: false,
 		});
 	});
@@ -599,7 +709,7 @@ suite('AutomationsCardsWidget', () => {
 			isRead: sessionsManagementService.isRead.get(),
 			markAllReadCalls: sessionsManagementService.markAllReadCalls,
 			markAllReadSessionCount: sessionsManagementService.markAllReadSessionCount,
-			markAllVisible: !!widget.element.querySelector('.automations-mark-all-read'),
+			markAllVisible: isMarkAllReadVisible(widget),
 		}, {
 			isRead: true,
 			markAllReadCalls: 1,
@@ -621,102 +731,78 @@ suite('AutomationsCardsWidget', () => {
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			getSessionCalls: sessionsManagementService.getSessionCalls,
 			firstIsRead: sessionsManagementService.isRead.get(),
 			secondIsRead: sessionsManagementService.secondIsRead.get(),
 		}, {
-			getSessionCalls: 6,
 			firstIsRead: true,
 			secondIsRead: true,
 		});
 	});
 
-	test('stale run sessions cannot be opened but can be removed from history', () => {
-		const { automationService, sessionsManagementService, widget } = setup();
-		sessionsManagementService.sessionExists = false;
-		const staleRun = run();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([staleRun]);
-		const card = widget.element.querySelector<HTMLElement>('.automations-run-card');
-		const runTime = new Date(staleRun.startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
-		assert.deepStrictEqual({
-			role: card?.getAttribute('role'),
-			openButton: !!card?.querySelector('.automations-run-card-main[role="button"]'),
-			deleteButton: !!card?.querySelector('.automations-run-card-delete-button'),
-			deleteLabel: card?.querySelector('.automations-run-card-delete-button')?.getAttribute('aria-label'),
-			label: card?.getAttribute('aria-label'),
-		}, {
-			role: 'group',
-			openButton: false,
-			deleteButton: true,
-			deleteLabel: 'Delete run for Daily review from history',
-			label: `Daily review, workspace, Completed, ${runTime}`,
-		});
-	});
-
-	test('deletes a failed run without a session from history', async () => {
-		const { automationService, dialogService, sessionsManagementService, widget } = setup();
-		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ status: 'failed', sessionResource: undefined, errorMessage: 'startup failed' })]);
-		dialogService.confirmResult = { confirmed: true };
-
-		const deleteButton = widget.element.querySelector<HTMLElement>('.automations-run-card-delete-button');
-		assert.ok(deleteButton);
-		deleteButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
-
-		assert.deepStrictEqual({
-			confirmation: dialogService.confirmations[0],
-			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
-			deleteRunCalls: automationService.deleteRunCalls,
-			historyItemStillVisible: !!widget.element.querySelector('.automations-run-card'),
-		}, {
-			confirmation: {
-				message: 'Delete this run from history?',
-				detail: 'This will permanently remove the run for "Daily review" from history. This action cannot be undone.',
-				primaryButton: 'Delete',
-			},
-			deleteSessionCalls: 0,
-			deleteRunCalls: 1,
-			historyItemStillVisible: false,
-		});
-	});
-
-	test('does not expose history deletion for an active run without a session', () => {
+	test('omits runs without a resolvable session from run history', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ status: 'running', sessionResource: undefined })]);
+		automationService.setRuns([
+			run(),
+			run({ id: 'run-sessionless', sessionResource: undefined }),
+			run({ id: 'run-stale', sessionResource: URI.parse('vscode-chat-session://test/stale') }),
+			run({ id: 'run-b', sessionResource: SECOND_SESSION_RESOURCE }),
+		]);
 
-		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
+		const titles = [...widget.element.querySelectorAll('.automations-run-session-list .monaco-highlighted-label')]
+			.map(element => element.textContent)
+			.sort();
+
+		assert.deepStrictEqual({
+			lists: widget.element.querySelectorAll('.automations-run-session-list').length,
+			rows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			fallbackRows: widget.element.querySelectorAll('.automations-run-card').length,
+			titles,
+		}, {
+			lists: 1,
+			rows: 2,
+			fallbackRows: 0,
+			titles: ['Daily review', 'Second daily review'],
+		});
 	});
 
 	test('does not expose session deletion for an active run', () => {
-		const { automationService, widget } = setup();
+		const { automationService, instantiationService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.AutomationsHistoryRunningItem, contextKeyService);
+		const menuItems = MenuRegistry.getMenuItems(Menus.AutomationsHistoryRunningItem);
+		assert.ok(getSessionAction(widget, 'Stop'), `${menuItems.length}/${contextKeyService.contextMatchesRules(menuItems[0]?.when)}/${menuActions.length}: ${widget.element.querySelector<HTMLElement>('.automations-run-session-list')?.dataset.toolbarMenuId}: ${widget.element.querySelector('.session-title-toolbar')?.innerHTML}`);
 
-		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
+		assert.deepStrictEqual({
+			deleteVisible: !!getSessionAction(widget, 'Delete'),
+			stopVisible: !!getSessionAction(widget, 'Stop'),
+		}, {
+			deleteVisible: false,
+			stopVisible: true,
+		});
 	});
 
 	test('stops an active run without opening its session', async () => {
 		const { automationService, sessionsManagementService, sessionsService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 
-		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
+		const stopButton = getSessionAction(widget, 'Stop');
 		assert.ok(stopButton);
 		stopButton.click();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
-			ariaLabel: stopButton.getAttribute('aria-label'),
+			label: stopButton.getAttribute('aria-label') ?? stopButton.title,
 			cancelCurrentRequestCalls: sessionsManagementService.cancelCurrentRequestCalls,
 			openCalls: sessionsService.openCalls,
-			deleteButtonVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
+			deleteButtonVisible: !!getSessionAction(widget, 'Delete'),
 		}, {
-			ariaLabel: 'Stop session for Daily review',
+			label: 'Stop',
 			cancelCurrentRequestCalls: 1,
 			openCalls: 0,
 			deleteButtonVisible: false,
@@ -725,22 +811,21 @@ suite('AutomationsCardsWidget', () => {
 
 	test('re-enables Stop when cancellation fails', async () => {
 		const { automationService, dialogService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 		sessionsManagementService.cancelError = new Error('stop failed');
 
-		const stopButton = widget.element.querySelector<HTMLButtonElement>('.automations-run-card-stop-button');
+		const stopButton = getSessionAction(widget, 'Stop');
 		assert.ok(stopButton);
 		stopButton.click();
 		await dialogService.errorCalled.p;
 
 		assert.deepStrictEqual({
-			ariaDisabled: stopButton.getAttribute('aria-disabled'),
-			disabledClass: stopButton.classList.contains('disabled'),
+			enabled: !stopButton.classList.contains('disabled'),
 			error: dialogService.errors,
 		}, {
-			ariaDisabled: 'false',
-			disabledClass: false,
+			enabled: true,
 			error: [{ message: 'Failed to stop the automation run session.', detail: 'stop failed' }],
 		});
 	});
@@ -751,7 +836,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([run()]);
 		dialogService.confirmResult = { confirmed: true };
 
-		const deleteButton = widget.element.querySelector<HTMLElement>('.automations-run-card-delete-button');
+		const deleteButton = getSessionAction(widget, 'Delete');
 		assert.ok(deleteButton);
 		deleteButton.click();
 		await Promise.resolve();
@@ -762,7 +847,7 @@ suite('AutomationsCardsWidget', () => {
 			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
 			deleteRunCalls: automationService.deleteRunCalls,
 			openCalls: sessionsService.openCalls,
-			historyItemStillVisible: !!widget.element.querySelector('.automations-run-card'),
+			historyItemStillVisible: !!widget.element.querySelector('.automations-run-session-list .session-item'),
 		}, {
 			confirmation: {
 				message: 'Delete the session for "Daily review"?',
@@ -785,17 +870,17 @@ suite('AutomationsCardsWidget', () => {
 		]);
 		dialogService.confirmResult = { confirmed: true };
 
-		const deleteButton = widget.element.querySelector<HTMLElement>('.automations-run-card-delete-button');
+		const deleteButton = getSessionAction(widget, 'Delete');
 		assert.ok(deleteButton);
 		deleteButton.focus();
 		deleteButton.click();
 		await Promise.resolve();
 		await Promise.resolve();
-		const remainingOpenButton = widget.element.querySelector<HTMLElement>('.automations-run-card-main[role="button"]');
+		const remainingRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
 
 		assert.deepStrictEqual({
-			historyItemCount: widget.element.querySelectorAll('.automations-run-card').length,
-			focusedNextRun: document.activeElement === remainingOpenButton,
+			historyItemCount: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
+			focusedNextRun: remainingRow?.classList.contains('focused'),
 		}, {
 			historyItemCount: 1,
 			focusedNextRun: true,
@@ -807,13 +892,13 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 
-		widget.element.querySelector<HTMLElement>('.automations-run-card-delete-button')?.click();
+		getSessionAction(widget, 'Delete')?.click();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			confirmations: dialogService.confirmations.length,
 			deleteSessionCalls: sessionsManagementService.deleteSessionCalls,
-			deleteButtonStillVisible: !!widget.element.querySelector('.automations-run-card-delete-button'),
+			deleteButtonStillVisible: !!getSessionAction(widget, 'Delete'),
 		}, {
 			confirmations: 1,
 			deleteSessionCalls: 0,
@@ -828,12 +913,12 @@ suite('AutomationsCardsWidget', () => {
 		dialogService.confirmResult = { confirmed: true };
 		sessionsManagementService.deleteError = new Error('delete failed');
 
-		widget.element.querySelector<HTMLElement>('.automations-run-card-delete-button')?.click();
+		getSessionAction(widget, 'Delete')?.click();
 		await dialogService.errorCalled.p;
 
 		assert.deepStrictEqual({
 			deleteRunCalls: automationService.deleteRunCalls,
-			historyItemStillVisible: !!widget.element.querySelector('.automations-run-card'),
+			historyItemStillVisible: !!widget.element.querySelector('.automations-run-session-list .session-item'),
 			error: dialogService.errors,
 		}, {
 			deleteRunCalls: 0,
@@ -848,7 +933,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 
-		assert.strictEqual(widget.element.querySelector('.automations-run-card-delete-button'), null);
+		assert.strictEqual(getSessionAction(widget, 'Delete'), undefined);
 	});
 
 	test('edit conflict is reported to the user', async () => {
@@ -909,39 +994,36 @@ suite('AutomationsCardsWidget', () => {
 
 	test('running run shows needs-input indicator when session status transitions to NeedsInput', () => {
 		const { automationService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 
-		const card = widget.element.querySelector<HTMLElement>('.automations-run-card');
+		const card = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(card);
 		assert.strictEqual(card.classList.contains('needs-input'), false);
-		assert.ok(card.querySelector('.monaco-pixel-spinner'));
-		assert.strictEqual(card.querySelector('.monaco-pixel-spinner-ring'), null);
 
 		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
 
-		const updatedCard = widget.element.querySelector<HTMLElement>('.automations-run-card');
+		const updatedCard = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(updatedCard);
 		assert.strictEqual(updatedCard.classList.contains('needs-input'), true);
-		assert.ok(updatedCard.querySelector('.monaco-pixel-spinner-ring'));
-		assert.ok(updatedCard.querySelector('.automations-run-card-main')?.getAttribute('aria-label')?.includes('Needs input'));
+		assert.ok(getSessionAction(widget, 'Stop'));
 	});
 
 	test('needs-input indicator reverts when session status returns to InProgress', () => {
 		const { automationService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
 
-		assert.strictEqual(widget.element.querySelector('.automations-run-card')?.classList.contains('needs-input'), true);
+		assert.strictEqual(widget.element.querySelector('.automations-run-session-list .session-item')?.classList.contains('needs-input'), true);
 
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 
-		const card = widget.element.querySelector<HTMLElement>('.automations-run-card');
+		const card = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(card);
 		assert.strictEqual(card.classList.contains('needs-input'), false);
-		assert.ok(card.querySelector('.monaco-pixel-spinner'));
-		assert.strictEqual(card.querySelector('.monaco-pixel-spinner-ring'), null);
 	});
 });
 
