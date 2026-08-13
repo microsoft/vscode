@@ -56,20 +56,38 @@ suite('ChatFindModel', () => {
 		model.dispose();
 	});
 
-	test('searches tool invocation messages but not collapsed reasoning', () => {
-		// Reasoning bodies are built only on expansion, so indexing them would report matches
-		// that can never be revealed. See `buildSegments`.
+	test('does not index reasoning or tool invocations', () => {
+		// Where a tool renders is decided during rendering, and reasoning bodies are built on
+		// expansion, so indexing either makes the count depend on how far the transcript has drawn.
 		const items = [
 			fakeResponse('resp1', [
 				thinking('I should check the needle in this haystack first.'),
 				toolInvocation('Searching for needle in files', 'Searched for needle in files'),
+				markdown('A needle in the response body.'),
 			]),
 		];
 		const model = new ChatFindModel(() => items);
 		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
 
-		assert.strictEqual(model.matches.length, 1);
+		assert.strictEqual(model.matches.length, 1, 'only the rendered markdown is indexed');
 		assert.strictEqual(model.matches[0].itemId, 'resp1');
+		model.dispose();
+	});
+
+	test('match count does not change when the renderer marks a tool as grouped', () => {
+		// `isAttachedToThinking` is assigned while rendering; the index must not read it, or the
+		// count would drop as rows draw and navigation would target vanishing matches.
+		const tool = toolInvocation('Searching needle', 'Searched needle') as Record<string, unknown>;
+		const items = [fakeResponse('resp1', [tool, markdown('needle in prose')])];
+		const model = new ChatFindModel(() => items);
+
+		model.setQuery('needle', { isRegex: false, matchCase: false, wholeWord: false });
+		const before = model.matches.length;
+
+		tool.isAttachedToThinking = true;
+		model.recompute();
+
+		assert.strictEqual(model.matches.length, before, 'count is stable across render-time flags');
 		model.dispose();
 	});
 
