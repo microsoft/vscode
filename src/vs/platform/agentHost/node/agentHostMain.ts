@@ -21,6 +21,8 @@ import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/ag
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostPromptCache } from './agentHostPromptCache.js';
+import { IAgentHostSessionTitleSignal } from './agentHostSessionTitleSignal.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -214,6 +216,9 @@ async function startAgentHost(): Promise<void> {
 		agentService.setNetworkDiagnosticsService(networkDiagnosticsService);
 		diServices.set(IAgentService, agentService);
 		diServices.set(IAgentHostStateManager, agentService.stateManager);
+		// Narrow host seams providers consume instead of the whole state manager.
+		diServices.set(IAgentHostPromptCache, agentService.promptCache);
+		diServices.set(IAgentHostSessionTitleSignal, agentService.sessionTitleSignal);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));

@@ -8,9 +8,11 @@ import * as zlib from 'zlib';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import type { ToolDefinition } from '../../common/state/protocol/state.js';
+import { buildSubagentChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -74,6 +76,24 @@ suite('AgentHostTelemetryReporter', () => {
 
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
+
+	test('userMessageSent normalizes the chat URI to its session in standard GH telemetry', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		const chat = buildSubagentChatUri(session, 'tool-call-1');
+
+		reporter.userMessageSent('copilot', 'client-1', createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow), chat, 'turn-1', undefined, 'direct', undefined);
+
+		assert.deepStrictEqual(service.githubStandardEvents, [{
+			eventName: 'agentHost.userMessageSent',
+			properties: {
+				provider: 'copilot',
+				initiatorClientType: 'agents_window',
+				conversationId: AgentSession.id(session),
+				turnId: 'turn-1',
+			},
+		}]);
+	});
 
 	test('assistantMessageReceived emits request.options.tools keyed on the client request id, and no-ops without one or without tools', async () => {
 		const service = new TestRestrictedTelemetryService();

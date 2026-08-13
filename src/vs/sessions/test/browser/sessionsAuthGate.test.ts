@@ -5,19 +5,26 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ConditionalAuthState, conditionalAuthState, shouldForceGitHubSignIn, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn } from '../../browser/sessionsAuthGate.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, shouldShowDiscoveredConfigNudge, shouldShowGitHubWorkspaceGroupSignIn, SignedOutWindowGate } from '../../browser/sessionsAuthGate.js';
+import { SessionTypeAuthRequirement } from '../../services/sessions/common/session.js';
 
 suite('Sessions - Auth Gate', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocking sign-in follows the signed-out opt-in only', () => {
+	test('blocking sign-in requires the opt-in and a provider that does not need GitHub', () => {
 		assert.deepStrictEqual({
-			featureDisabled: shouldForceGitHubSignIn(false),
-			featureEnabled: shouldForceGitHubSignIn(true),
+			featureDisabled: resolveSignedOutWindowGate(false, [SessionTypeAuthRequirement.None]),
+			providersUnresolved: resolveSignedOutWindowGate(true, []),
+			allRequireGitHub: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.GitHub]),
+			nativeProvider: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.None]),
+			nativeProviderInitializing: resolveSignedOutWindowGate(true, [SessionTypeAuthRequirement.GitHub, SessionTypeAuthRequirement.Unusable]),
 		}, {
-			featureDisabled: true,
-			featureEnabled: false,
+			featureDisabled: SignedOutWindowGate.ForceGitHubSignIn,
+			providersUnresolved: SignedOutWindowGate.Unresolved,
+			allRequireGitHub: SignedOutWindowGate.ForceGitHubSignIn,
+			nativeProvider: SignedOutWindowGate.Proceed,
+			nativeProviderInitializing: SignedOutWindowGate.Proceed,
 		});
 	});
 

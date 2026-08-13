@@ -66,7 +66,7 @@ export class SessionsSideChatProviderContribution extends Disposable implements 
 			throw new Error(`Side chats are not supported for ${sessionResource.toString()}`);
 		}
 		const { session, chatResource, turnId } = source;
-		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, session, chatResource, turnId, query, selection);
+		await createAndSendSideChat(this.sessionsManagementService, this.sessionsService, session, chatResource, turnId, { query }, selection);
 	}
 
 	/** Observes the source metadata for a side chat. */

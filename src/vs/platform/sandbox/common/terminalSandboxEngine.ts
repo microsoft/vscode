@@ -1072,13 +1072,7 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _isSandboxAllowNetworkConfigured(): boolean {
-		if (this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxAllowNetwork) === true) {
-			return true;
-		}
-		if (this._os === OperatingSystem.Windows) {
-			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
-		}
-		return this._getSandboxConfiguredEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+		return this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxAllowNetwork) === true;
 	}
 
 	private _areUnsandboxedCommandsAllowed(): boolean {

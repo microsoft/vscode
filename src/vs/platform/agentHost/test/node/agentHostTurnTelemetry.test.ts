@@ -15,7 +15,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agent.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';

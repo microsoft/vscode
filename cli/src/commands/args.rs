@@ -906,6 +906,41 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Overrides the resolved user data directory used to home the local
+	/// agent-host endpoint registry
+	/// (`<user-data-dir>/agent-host/local-endpoint/entries/`, the directory of
+	/// per-instance entry files editor windows also publish to). Defaults to
+	/// the platform user data directory (honoring `VSCODE_PORTABLE` /
+	/// `VSCODE_APPDATA` when set), matching the editor's own resolution rules.
+	#[clap(long, hide = true)]
+	pub user_data_dir: Option<String>,
+
+	/// Serve only the agent-host tunnel port, without granting remote editor access.
+	#[clap(long, hide = true)]
+	pub agent_host_only: bool,
+
+	/// Emit machine-readable status lines on stdout for a parent process
+	/// (the editor) to consume, in addition to the human-readable banner.
+	#[clap(
+		long,
+		hide = true,
+		env = "VSCODE_CLI_MACHINE_STATUS",
+		action = clap::ArgAction::Set,
+		num_args = 0..=1,
+		default_value = "false",
+		default_missing_value = "true",
+		value_parser = clap::builder::BoolishValueParser::new()
+	)]
+	pub machine_status: bool,
+
+	/// Serve only the editor's own agent host through this tunnel: the
+	/// selection gateway pins every client to the live `editor` endpoint in
+	/// the registry and refuses to start a dedicated agent host. Intended for
+	/// tunnels whose lifetime is bound to the editor that started them, where
+	/// a dedicated agent host would outlive the tunnel and be unreachable.
+	#[clap(long, hide = true)]
+	pub delegate_to_editor: bool,
 }
 
 #[derive(Args, Debug, Clone, Default)]
@@ -1061,4 +1096,50 @@ pub struct LoginArgs {
 pub enum AuthProvider {
 	Microsoft,
 	Github,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{Commands, IntegratedCli};
+	use clap::Parser;
+
+	const MACHINE_STATUS_ENV: &str = "VSCODE_CLI_MACHINE_STATUS";
+
+	fn parse_machine_status(args: &[&str]) -> bool {
+		let cli = IntegratedCli::try_parse_from(args).unwrap();
+		let Some(Commands::Tunnel(tunnel_args)) = cli.core.subcommand else {
+			panic!("expected tunnel arguments");
+		};
+
+		tunnel_args.serve_args.machine_status
+	}
+
+	/// Mutates process-global environment, which `cargo test` runs in parallel
+	/// with every other test. This is only safe because no other test reads
+	/// `VSCODE_CLI_MACHINE_STATUS`; if a second env-dependent test is added
+	/// here, serialize them (a shared mutex) rather than letting them race.
+	#[test]
+	fn parses_machine_status_from_flag_and_environment() {
+		let previous_value = std::env::var_os(MACHINE_STATUS_ENV);
+		std::env::remove_var(MACHINE_STATUS_ENV);
+
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "1");
+		assert!(parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "0");
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "false");
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::remove_var(MACHINE_STATUS_ENV);
+		assert!(parse_machine_status(&["code", "tunnel", "--machine-status"]));
+
+		match previous_value {
+			Some(value) => std::env::set_var(MACHINE_STATUS_ENV, value),
+			None => std::env::remove_var(MACHINE_STATUS_ENV),
+		}
+	}
 }

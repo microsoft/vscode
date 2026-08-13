@@ -31,6 +31,8 @@ import { assertToolCallCompleteText, createRealSession } from '../harness/agentH
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+
 export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	/** See the same constant in `fileOperationsSuite`. */
@@ -97,7 +99,8 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(enabled ? test : test.skip)(title, function () {
+		const providerReplayEnabled = config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING);
+		(enabled && providerReplayEnabled ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});
@@ -156,7 +159,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		if (context.tier !== 'parity') {
 			return;
 		}
-		(config.supportsChatForkE2E ? test : test.skip)(title, function () {
+		(config.supportsChatFork && (config.supportsChatForkE2E || RECORDING) ? test : test.skip)(title, function () {
 			this.timeout(180_000);
 			return run.call(this);
 		});

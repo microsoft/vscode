@@ -528,6 +528,7 @@ class PlaywrightSession extends Disposable {
 
 	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string, logCtx?: IExecutionLogContext): Promise<IInvokeFunctionResult> {
 		const deferred = new DeferredPromise();
+		deferred.p.catch(() => { /* waitForDeferredResult observes the rejection when resumed */ });
 
 		// Attach settlement logging once, on the initiating call: `deferred.p` settles
 		// when the page work finishes no matter how many times the result is deferred,

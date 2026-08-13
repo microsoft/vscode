@@ -525,24 +525,6 @@ export function applyFeedbackTool(state: AnnotationsState, sessionResource: stri
 }
 
 /**
- * Parses the number of comments returned by the {@link listCommentsToolName}
- * tool from its JSON result (`{ comments: [...] }`). Returns `undefined` when
- * the result is missing or not in the expected shape, so the caller can fall
- * back to a count-less message.
- */
-function parseListedCommentCount(resultText: string | undefined): number | undefined {
-	if (!resultText) {
-		return undefined;
-	}
-	try {
-		const parsed = JSON.parse(resultText) as { comments?: unknown };
-		return Array.isArray(parsed.comments) ? parsed.comments.length : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-/**
  * Display strings for the feedback ("comments") tools, authored here so every
  * provider (Copilot, Claude, Codex, …) renders them identically instead of
  * each provider's display layer re-deriving the strings from the tool name.
@@ -552,47 +534,32 @@ function parseListedCommentCount(resultText: string | undefined): number | undef
  * {@link toolName} is the bare tool name (any transport prefix such as Claude's
  * `mcp__<server>__` has already been stripped by the dispatcher).
  */
-function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
+function getFeedbackToolDisplay(toolName: string, _args: unknown, _result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
 		case addCommentToolName:
 			return {
 				displayName: localize('toolName.addComment', "Add Comment"),
-				invocationMessage: localize('toolInvoke.addComment', "Adding comment"),
-				pastTenseMessage: localize('toolComplete.addComment', "Added comment"),
+				invocationMessage: localize('toolInvoke.addComment', "Add comment"),
 			};
-		case listCommentsToolName: {
-			let pastTenseMessage: StringOrMarkdown;
-			const count = result ? parseListedCommentCount(result.text) : undefined;
-			if (count === undefined) {
-				pastTenseMessage = localize('toolComplete.listComments', "Checked comments");
-			} else if (count === 1) {
-				pastTenseMessage = localize('toolComplete.listComments.one', "Checked 1 comment");
-			} else {
-				pastTenseMessage = localize('toolComplete.listComments.many', "Checked {0} comments", count);
-			}
+		case listCommentsToolName:
 			return {
 				displayName: localize('toolName.listComments', "List Comments"),
-				invocationMessage: localize('toolInvoke.listComments', "Checking comments"),
-				pastTenseMessage,
+				invocationMessage: localize('toolInvoke.listComments', "List comments"),
 			};
-		}
 		case deleteCommentsToolName:
 			return {
 				displayName: localize('toolName.deleteComments', "Delete Comments"),
-				invocationMessage: localize('toolInvoke.deleteComments', "Deleting comments"),
-				pastTenseMessage: localize('toolComplete.deleteComments', "Deleted comments"),
+				invocationMessage: localize('toolInvoke.deleteComments', "Delete comments"),
 			};
 		case resolveCommentsToolName:
 			return {
 				displayName: localize('toolName.resolveComments', "Resolve Comments"),
-				invocationMessage: localize('toolInvoke.resolveComments', "Resolving comments"),
-				pastTenseMessage: localize('toolComplete.resolveComments', "Resolved comments"),
+				invocationMessage: localize('toolInvoke.resolveComments', "Resolve comments"),
 			};
 		case viewUnreviewedCommentsToolName:
 			return {
 				displayName: localize('toolName.viewUnreviewedComments', "View Comments"),
-				invocationMessage: localize('toolInvoke.viewUnreviewedComments', "Viewing comments"),
-				pastTenseMessage: localize('toolComplete.viewUnreviewedComments', "Viewed comments"),
+				invocationMessage: localize('toolInvoke.viewUnreviewedComments', "View comments"),
 			};
 		default:
 			return undefined;
@@ -609,6 +576,9 @@ function getFeedbackToolDisplay(toolName: string, _args: unknown, result?: IServ
  */
 export const feedbackServerToolGroup: IServerToolGroup = {
 	definitions: feedbackServerToolDefinitions,
+	isEnabled(): boolean {
+		return true;
+	},
 	canRequireConfirmation(toolName): boolean {
 		return feedbackToolRequiresConfirmation(toolName);
 	},

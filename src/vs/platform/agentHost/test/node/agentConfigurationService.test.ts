@@ -14,7 +14,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { createSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
-import { buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildChatUri, buildSubagentSessionUri, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -70,6 +71,14 @@ suite('AgentConfigurationService', () => {
 	teardown(() => disposables.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rejects a chat channel when reading session config', () => {
+		const session = URI.from({ scheme: 'copilot', path: '/chat-owner' }).toString();
+		manager.createSession(makeSummary(session));
+		seedSessionConfig(session, { level: 'high' });
+
+		assert.throws(() => service.getSessionConfigValues(buildChatUri(session, 'peer')), /Expected a session URI/);
+	});
 
 	// ---- getEffectiveValue ------------------------------------------------
 
@@ -199,17 +208,21 @@ suite('AgentConfigurationService', () => {
 			const uri = URI.from({ scheme: 'copilot', path: '/a' }).toString();
 			manager.createSession(makeSummary(uri));
 			seedSessionConfig(uri, { level: 'low' });
-			let change: { session: string; config: Record<string, unknown> } | undefined;
+			const changes: Array<{ session: string; config: Record<string, unknown>; origin: { clientId: string; clientSeq: number } | undefined }> = [];
 			disposables.add(service.onDidSessionConfigChange(event => {
-				change = { session: event.session, config: event.config };
+				changes.push({ session: event.session, config: event.config, origin: event.origin });
 			}));
 
 			service.updateSessionConfig(uri, { level: 'high' });
+			manager.dispatchClientAction(uri, {
+				type: ActionType.SessionConfigChanged,
+				config: { level: 'low' },
+			}, { clientId: 'picker', clientSeq: 7 });
 
-			assert.deepStrictEqual(change, {
-				session: uri,
-				config: { level: 'high' },
-			});
+			assert.deepStrictEqual(changes, [
+				{ session: uri, config: { level: 'high' }, origin: undefined },
+				{ session: uri, config: { level: 'low' }, origin: { clientId: 'picker', clientSeq: 7 } },
+			]);
 		});
 	});
 

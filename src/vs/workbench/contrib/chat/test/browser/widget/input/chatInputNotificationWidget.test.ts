@@ -100,13 +100,13 @@ suite('ChatInputNotificationWidget', () => {
 			sessionTypes: [localChatSessionType],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Local only');
 
 		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header'), null);
 
 		currentSessionType.set(localChatSessionType, undefined);
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Local only');
 	});
 
 	test('reports visibility changes when a notification is shown and hidden', () => {
@@ -165,9 +165,9 @@ suite('ChatInputNotificationWidget', () => {
 			sessionResources: [firstSession],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'First session only');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'First session only');
 		currentSessionResource.set(secondSession, undefined);
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header'), null);
 	});
 
 	test('renders markdown descriptions as rich content', () => {
@@ -516,7 +516,7 @@ suite('ChatInputNotificationWidget', () => {
 			sessionTypes: ['agent-host-copilotcli'],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Agent Host promo');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Agent Host promo');
 	});
 
 	test('matches a notification scoped to both Copilot model targets', () => {
@@ -531,7 +531,7 @@ suite('ChatInputNotificationWidget', () => {
 			actions: [],
 			sessionTypes: [SessionType.AgentHostCopilot, SessionType.CopilotCLI],
 		});
-		const text = () => widget.domNode.querySelector('.chat-input-notification')?.textContent;
+		const text = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
 		const agentHostText = text();
 		currentSessionType.set(SessionType.CopilotCLI, undefined);
 		const copilotCliText = text();

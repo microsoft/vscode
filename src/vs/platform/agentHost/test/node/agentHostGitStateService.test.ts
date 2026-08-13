@@ -398,6 +398,30 @@ suite('AgentHostGitStateService', () => {
 		});
 	});
 
+	test('unchanged git state backfills missing GitHub state', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const gitState: ISessionGitState = {
+				branchName: 'feature',
+				githubOwner: 'microsoft',
+				githubRepo: 'vscode',
+			};
+			const h = createHarness();
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState });
+			h.setGitResult(gitState);
+
+			await h.service.refreshSessionGitState(SESSION, undefined);
+
+			const persistedGitHubState = await h.db.getMetadata(META_GITHUB_STATE);
+			assert.deepStrictEqual({
+				github: readSessionGitHubState(h.stateManager.getSessionState(SESSION)?._meta),
+				persistedGitHub: persistedGitHubState ? JSON.parse(persistedGitHubState) : undefined,
+			}, {
+				github: { owner: 'microsoft', repo: 'vscode' },
+				persistedGitHub: { owner: 'microsoft', repo: 'vscode' },
+			});
+		});
+	});
+
 	test('changed git state updates the session meta and fires the run-refresh event', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const h = createHarness();

@@ -16,8 +16,9 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession, type IAgentCreateChatOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
-import { AgentSession, type IAgentCreateChatOptions, type IAgentService, type IMcpNotification } from '../common/agentService.js';
+import { type IAgentService } from '../common/agentService.js';
 import { isActionEnvelopeRelevantToSubscriptionUris } from '../common/state/agentSubscription.js';
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
@@ -1326,7 +1327,7 @@ export class ProtocolServerHandler extends Disposable {
 			let createdSession: URI;
 			// Resolve fork turnId to a 0-based index using the source session's
 			// turn list in the state manager.
-			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
+			let fork: { session: URI; chat: URI; turnIndex: number; turnId: string } | undefined;
 			if (params.fork) {
 				if (URI.parse(params.fork.session).toString() === URI.parse(params.channel).toString()) {
 					throw new ProtocolError(AhpErrorCodes.SessionAlreadyExists, `Fork target session must differ from source session: ${params.channel}`);
@@ -1339,7 +1340,8 @@ export class ProtocolServerHandler extends Disposable {
 				if (turnIndex < 0) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
 				}
-				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
+				const sourceSession = URI.parse(params.fork.session);
+				fork = { session: sourceSession, chat: URI.parse(buildDefaultChatUri(sourceSession)), turnIndex, turnId: params.fork.turnId };
 			}
 			// If the client eagerly claimed the active client role, validate
 			// the clientId matches the connection before forwarding.

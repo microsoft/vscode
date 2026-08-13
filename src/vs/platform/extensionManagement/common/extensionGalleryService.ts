@@ -761,7 +761,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			if (!EXTENSION_IDENTIFIER_REGEX.test(extensionInfo.id)) {
 				continue;
 			}
-			if (extensionInfo.version) {
+			if (extensionInfo.version || !extensionInfo.uuid) {
 				toQuery.push(extensionInfo);
 			} else {
 				toFetchLatest.push(extensionInfo);

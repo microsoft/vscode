@@ -518,6 +518,14 @@ suite('Base IPC', function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
 		});
+
+		test('proxy is not a thenable', async function () {
+			// A thenable proxy would forward `then` over the channel and never settle.
+			assert.strictEqual((ipcService as unknown as { then?: unknown }).then, undefined);
+
+			const awaited = await (async () => ipcService)();
+			assert.strictEqual(await awaited.marco(), 'polo');
+		});
 	});
 
 	suite('one to one (proxy, extra context)', function () {

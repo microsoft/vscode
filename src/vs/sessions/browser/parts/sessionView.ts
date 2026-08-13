@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { localize } from '../../../nls.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
@@ -28,9 +28,9 @@ import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
-import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { ChatInteractivity, SessionStatus } from '../../services/sessions/common/session.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { applySessionViewThemeColors } from './sessionBarStyles.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -51,10 +51,6 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
 	private static readonly CENTERED_CONTENT_MAX_WIDTH = AGENTS_CENTERED_CONTENT_MAX_WIDTH;
-	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
-	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
-	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
-	private static readonly INACTIVE_FOREGROUND = asCssVariable(inactiveSessionViewForeground);
 
 	readonly element: HTMLElement = $('.session-view');
 
@@ -100,6 +96,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -183,6 +180,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._applyActiveSessionStyles();
+		this._register(this.themeService.onDidColorThemeChange(() => this._applyActiveSessionStyles()));
 
 		// Re-layout children when the header or composite bar changes visibility/height
 		this._register(this._header.onDidChangeVisibility(() => this._layoutChildren()));
@@ -387,11 +385,6 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	private _applyActiveSessionStyles(): void {
-		const background = this._isActive ? SessionView.ACTIVE_BACKGROUND : SessionView.INACTIVE_BACKGROUND;
-		const foreground = this._isActive ? SessionView.ACTIVE_FOREGROUND : SessionView.INACTIVE_FOREGROUND;
-		this.element.style.setProperty('--session-view-background', background);
-		this.element.style.setProperty('--session-view-foreground', foreground);
-		this.element.style.setProperty('--part-background', background);
-		this.element.style.setProperty('--part-foreground', foreground);
+		applySessionViewThemeColors(this.element, this.themeService.getColorTheme(), this._isActive);
 	}
 }

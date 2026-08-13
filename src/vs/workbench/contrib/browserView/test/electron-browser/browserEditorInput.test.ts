@@ -19,7 +19,8 @@ import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { applyAvailableEditorIds } from '../../../../common/contextkeys.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import type { PreferredGroup } from '../../../../services/editor/common/editorService.js';
+import { IEditorService, type PreferredGroup } from '../../../../services/editor/common/editorService.js';
+import { formatBrowserEditorList, getBrowserPageResourceNavigationError } from '../../electron-browser/tools/browserToolHelpers.js';
 
 class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -115,13 +116,13 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
-	test('preserves an associated file resource through reopen and serialization', () => {
+	test('preserves a associated file resource through reopen and serialization', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
 			id: 'file-browser',
-			url: associatedResource.toString()
+			url: associatedResource.toString(),
+			associatedResource,
 		});
-		input.setAssociatedResource(associatedResource);
 		const untyped = input.toUntyped();
 		const serializer = new BrowserEditorSerializer();
 		const serialized = serializer.serialize(input);
@@ -146,6 +147,47 @@ suite('BrowserEditorInput', () => {
 				url: associatedResource.toString(),
 				associatedResource: associatedResource.toString()
 			}
+		});
+	});
+
+	test('uses resource presentation for associated resources by default', () => {
+		const input = createInput({
+			id: 'file-browser',
+			url: URI.file('/workspace/index.html').toString(),
+			associatedResource: URI.file('/workspace/index.html')
+		});
+
+		assert.deepStrictEqual({
+			name: input.getName(),
+			icon: input.getIcon()
+		}, {
+			name: 'index.html',
+			icon: undefined
+		});
+	});
+
+	test('describes and restricts resource-backed pages for browser tools', () => {
+		const associatedResource = URI.file('/workspace/index.html');
+		const input = createInput({
+			id: 'resource-browser',
+			associatedResource,
+			url: associatedResource.toString(),
+			title: 'Resource editor'
+		});
+		const regularInput = createInput({ id: 'regular-browser' });
+
+		assert.deepStrictEqual({
+			context: formatBrowserEditorList(instantiationService.get(IEditorService), [input]),
+			query: getBrowserPageResourceNavigationError(input, associatedResource.with({ query: 'view=preview' }).toString()),
+			fragment: getBrowserPageResourceNavigationError(input, associatedResource.with({ fragment: 'content' }).toString()),
+			otherResource: getBrowserPageResourceNavigationError(input, URI.file('/workspace/other.html').toString()),
+			regularPage: getBrowserPageResourceNavigationError(regularInput, 'https://example.com')
+		}, {
+			context: '- [resource-browser] Resource editor (file:///workspace/index.html) (resource-backed; navigation is limited to this resource) (not visible)',
+			query: undefined,
+			fragment: undefined,
+			otherResource: 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.',
+			regularPage: undefined
 		});
 	});
 
@@ -186,6 +228,33 @@ suite('BrowserEditorInput', () => {
 					override: BrowserEditorInput.EDITOR_ID,
 					viewState: {
 						url: target.toString(),
+						title: undefined,
+						favicon: undefined
+					}
+				}
+			}
+		});
+	});
+
+	test('preserves query and fragment when following associated file renames', async () => {
+		const associatedResource = URI.file('/workspace/index.html');
+		const target = URI.file('/workspace/renamed.html');
+		const currentResource = associatedResource.with({ query: 'view=preview', fragment: 'content' });
+		const input = createInput({
+			id: 'file-browser',
+			associatedResource,
+			url: currentResource.toString()
+		});
+
+		const result = await input.rename(1, target);
+
+		assert.deepStrictEqual(result, {
+			editor: {
+				resource: target,
+				options: {
+					override: BrowserEditorInput.EDITOR_ID,
+					viewState: {
+						url: target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString(),
 						title: undefined,
 						favicon: undefined
 					}

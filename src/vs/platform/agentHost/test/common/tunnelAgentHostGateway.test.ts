@@ -31,6 +31,7 @@ suite('tunnelAgentHost - gateway wire protocol', () => {
 		test('parses a well-formed inventory with editor and standalone endpoints', () => {
 			const inventory = parseTunnelGatewayInventory(JSON.stringify({
 				userDataPath: '/home/user/.vscode-server/data',
+				delegatedInstanceId: 'editor-1',
 				endpoints: [
 					{ type: 'editor', pid: 111, instanceId: 'editor-1', quality: 'stable', endpointKind: 'socket', endpointLabel: '/tmp/editor-1.sock' },
 					{ type: 'standalone', pid: 222, instanceId: 'standalone-1', tunnelName: 'my-tunnel', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9001' },
@@ -38,6 +39,7 @@ suite('tunnelAgentHost - gateway wire protocol', () => {
 			}));
 			assert.deepStrictEqual(inventory, {
 				userDataPath: '/home/user/.vscode-server/data',
+				delegatedInstanceId: 'editor-1',
 				endpoints: [
 					{ type: 'editor', pid: 111, instanceId: 'editor-1', quality: 'stable', tunnelName: undefined, endpointKind: 'socket', endpointLabel: '/tmp/editor-1.sock' },
 					{ type: 'standalone', pid: 222, instanceId: 'standalone-1', quality: undefined, tunnelName: 'my-tunnel', endpointKind: 'tcp', endpointLabel: '127.0.0.1:9001' },
@@ -66,6 +68,8 @@ suite('tunnelAgentHost - gateway wire protocol', () => {
 			['non-object payload', JSON.stringify('not an object')],
 			['missing userDataPath', JSON.stringify({ endpoints: [] })],
 			['empty userDataPath', JSON.stringify({ userDataPath: '', endpoints: [] })],
+			['empty delegatedInstanceId', JSON.stringify({ userDataPath: '/data', delegatedInstanceId: '', endpoints: [] })],
+			['non-string delegatedInstanceId', JSON.stringify({ userDataPath: '/data', delegatedInstanceId: 1, endpoints: [] })],
 			['non-array endpoints', JSON.stringify({ userDataPath: '/data', endpoints: 'nope' })],
 			['endpoint with invalid type', JSON.stringify({ userDataPath: '/data', endpoints: [{ type: 'bogus', pid: 1, instanceId: 'x', endpointKind: 'tcp', endpointLabel: 'l' }] })],
 			['endpoint with non-numeric pid', JSON.stringify({ userDataPath: '/data', endpoints: [{ type: 'editor', pid: '1', instanceId: 'x', endpointKind: 'tcp', endpointLabel: 'l' }] })],

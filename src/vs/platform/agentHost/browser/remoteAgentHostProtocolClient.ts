@@ -18,7 +18,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentConnection, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentSession, IAgentCreateChatOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -1040,8 +1041,21 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		await this._sendRequest('authenticate', { channel: ROOT_STATE_URI, ...params, scopes: params.scopes ? [...params.scopes] : undefined });
-		this._authentication.set(`${params.resource}\0${JSON.stringify(params.scopes ?? [])}`, params);
+		const normalizedParams: AuthenticateParams = {
+			...params,
+			scopes: params.scopes ? [...new Set(params.scopes)].sort() : undefined,
+		};
+		await this._sendRequest('authenticate', {
+			channel: ROOT_STATE_URI,
+			...normalizedParams,
+			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
+		});
+		const key = `${normalizedParams.resource}\0${JSON.stringify(normalizedParams.scopes ?? [])}`;
+		if (params.token) {
+			this._authentication.set(key, normalizedParams);
+		} else {
+			this._authentication.delete(key);
+		}
 		return { authenticated: true };
 	}
 

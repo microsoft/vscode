@@ -150,5 +150,9 @@
 		"widget.border": "#E5E5E5",
 		// modern ui
 		"surface.border": "#E0E0E0",
+		"modernActivityBar.activeBackground": "#e4e6f1",
+		"modernActivityBar.hoverBackground": "#F2F2F2",
+		"modernActivityBar.activeForeground": "#3B3B3B",
+		"modernActivityBar.hoverForeground": "#3B3B3B"
 	},
 }

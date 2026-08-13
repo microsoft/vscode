@@ -448,4 +448,3 @@ function getTaskEnvironmentBinding(task: ITaskDetail): { environmentId: string; 
 	}
 	return undefined;
 }
-

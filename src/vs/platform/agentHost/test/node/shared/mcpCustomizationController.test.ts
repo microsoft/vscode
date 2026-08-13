@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentSession } from '../../../common/agentService.js';
+import { AgentSession } from '../../../common/agent.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type McpServerState } from '../../../common/state/protocol/channels-session/state.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';

@@ -16,6 +16,7 @@ import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ReconnectResultType, type FetchTurnsResult, type InitializeResult, type ListSessionsResult, type ReconnectResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
 import type { OtlpExportLogsParams } from '../../../../common/state/protocol/channels-otlp/notifications.js';
@@ -23,7 +24,7 @@ import type { IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnostics
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
 import { TerminalClaimKind } from '../../../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
-import { createRealSession, dispatchTurn } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, dispatchTurn, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
@@ -204,6 +205,41 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				clientId: `no-initial-subscriptions-${config.provider}`,
 			});
 			assert.deepStrictEqual(initialized.snapshots, []);
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize reports the negotiated protocol and sequence', async function () {
+		const client = await context.connectClient();
+		try {
+			const initialized = await client.call<InitializeResult>('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `server-identity-${config.provider}`,
+				clientInfo: { name: 'agent-host-e2e', version: '1.0.0' },
+			});
+
+			assert.deepStrictEqual({
+				protocolVersion: initialized.protocolVersion,
+				serverSeqIsNonNegative: initialized.serverSeq >= 0,
+			}, {
+				protocolVersion: PROTOCOL_VERSION,
+				serverSeqIsNonNegative: true,
+			});
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'initialize cannot be repeated after the handshake', async function () {
+		const client = await initializeAdditionalClient('repeat-initialize');
+		try {
+			await assert.rejects(client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `repeat-initialize-again-${config.provider}`,
+			}), { code: JsonRpcErrorCodes.MethodNotFound });
 		} finally {
 			client.close();
 		}
@@ -666,6 +702,211 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		} finally {
 			revived.close();
 		}
+	});
+
+	conformanceTest(context, 'resource requests before initialize are rejected', async function () {
+		const client = await context.connectClient();
+		try {
+			await assert.rejects(client.call('resourceResolve', {
+				channel: ROOT_STATE_URI,
+				uri: URI.file(tmpdir()).toString(),
+			}), { code: JsonRpcErrorCodes.MethodNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'unknown requests after initialize are rejected', async function () {
+		const client = await initializeAdditionalClient('unknown-request');
+		try {
+			await assert.rejects(client.call('agentHostE2E/unknownRequest', {
+				channel: ROOT_STATE_URI,
+			}), { code: JsonRpcErrorCodes.MethodNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'reconnect rejects an unknown client', async function () {
+		const client = await context.connectClient();
+		try {
+			await assert.rejects(client.call('reconnect', {
+				channel: ROOT_STATE_URI,
+				clientId: `unknown-reconnect-${config.provider}`,
+				lastSeenServerSeq: 0,
+				subscriptions: [],
+			}), { code: AhpErrorCodes.NotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'creating a session with an unknown provider is rejected', async function () {
+		const client = await initializeAdditionalClient('unknown-provider');
+		try {
+			await assert.rejects(client.call('createSession', {
+				channel: 'missing-provider:/session',
+				provider: 'missing-provider',
+			}), { code: AhpErrorCodes.ProviderNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'creating a duplicate session resource is rejected', async function () {
+		const { sessionUri, workspace } = await createSession('duplicate-session');
+
+		await assert.rejects(context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			workingDirectories: [URI.file(workspace).toString()],
+			config: { isolation: 'folder' },
+		}), { code: AhpErrorCodes.SessionAlreadyExists });
+	}, context.runHostOnlyKnownIssueTests);
+
+	conformanceTest(context, 'a session cannot fork onto its own resource', async function () {
+		const { sessionUri } = await createSession('self-fork');
+
+		await assert.rejects(context.client.call('createSession', {
+			channel: sessionUri,
+			provider: config.provider,
+			fork: { session: sessionUri, turnId: 'irrelevant' },
+		}), { code: AhpErrorCodes.SessionAlreadyExists });
+	});
+
+	conformanceTest(context, 'forking from a missing session is rejected', async function () {
+		const target = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		const missingSource = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		await context.client.call('initialize', {
+			channel: ROOT_STATE_URI,
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: `missing-fork-source-${config.provider}`,
+		});
+
+		await assert.rejects(context.client.call('createSession', {
+			channel: target,
+			provider: config.provider,
+			fork: { session: missingSource, turnId: 'missing-turn' },
+		}), { code: AhpErrorCodes.SessionNotFound });
+	});
+
+	conformanceTest(context, 'createSession rejects an active client owned by another connection', async function () {
+		const client = await context.connectClient();
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: `active-client-owner-${config.provider}`,
+			});
+			await assert.rejects(client.call('createSession', {
+				channel: URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString(),
+				provider: config.provider,
+				activeClient: { clientId: 'different-client', displayName: 'Different Client', tools: [] },
+			}), { code: JsonRpcErrorCodes.InvalidParams });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'createSession seeds a matching active client into session state', async function () {
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-active-client-create-'));
+		tempDirs.push(workspace);
+		const clientId = `active-client-create-${config.provider}`;
+		const client = await context.connectClient();
+		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
+		let created = false;
+		try {
+			await client.call('initialize', {
+				channel: ROOT_STATE_URI,
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId,
+			});
+			await client.call('authenticate', {
+				channel: ROOT_STATE_URI,
+				resource: 'https://api.github.com',
+				token: config.githubToken ?? resolveGitHubToken(),
+			});
+			await client.call('createSession', {
+				channel: sessionUri,
+				provider: config.provider,
+				workingDirectories: [URI.file(workspace).toString()],
+				config: { isolation: 'folder' },
+				activeClient: { clientId, displayName: 'Creating Client', tools: [] },
+			});
+			created = true;
+
+			const subscribed = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const state = subscribed.snapshot!.state as SessionState;
+			assert.deepStrictEqual(state.activeClients, [{
+				clientId,
+				displayName: 'Creating Client',
+				tools: [],
+			}]);
+		} finally {
+			if (created) {
+				await client.call('disposeSession', { channel: sessionUri });
+			}
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'creating a chat for a missing session is rejected', async function () {
+		const client = await initializeAdditionalClient('missing-chat-session');
+		const sessionUri = URI.from({ scheme: config.scheme, path: '/missing-chat-session' }).toString();
+		try {
+			await assert.rejects(client.call('createChat', {
+				channel: sessionUri,
+				chat: buildChatUri(sessionUri, 'peer'),
+			}), { code: AhpErrorCodes.SessionNotFound });
+		} finally {
+			client.close();
+		}
+	});
+
+	conformanceTest(context, 'subscribing twice does not duplicate action delivery', async function () {
+		const { sessionUri } = await createSession('duplicate-subscription');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		context.client.clearReceived();
+
+		const clientSeq = nextClientSeq();
+		const action = { type: ActionType.ChatDraftChanged, draft: { text: 'single delivery', origin: { kind: MessageKind.User } } } as const;
+		context.client.dispatch({ channel: chatUri, clientSeq, action });
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, action.type)
+			&& getActionEnvelope(n).channel === chatUri
+			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+		);
+		await context.client.call('ping', { channel: ROOT_STATE_URI });
+		const deliveries = context.client.receivedNotifications(n =>
+			isActionNotification(n, action.type)
+			&& getActionEnvelope(n).channel === chatUri
+			&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+		);
+
+		assert.strictEqual(deliveries.length, 1);
+	});
+
+	conformanceTest(context, 'resubscribing receives state changed while unsubscribed', async function () {
+		const { sessionUri } = await createSession('resubscribe-snapshot');
+		const chatUri = buildDefaultChatUri(sessionUri);
+		context.client.notify('unsubscribe', { channel: chatUri });
+		const clientSeq = nextClientSeq();
+		context.client.dispatch({
+			channel: chatUri,
+			clientSeq,
+			action: {
+				type: ActionType.ChatDraftChanged,
+				draft: { text: 'changed while unsubscribed', origin: { kind: MessageKind.User } },
+			},
+		});
+		await context.client.call('ping', { channel: ROOT_STATE_URI });
+
+		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		const state = subscribed.snapshot!.state as ChatState;
+
+		assert.strictEqual(state.draft?.text, 'changed while unsubscribed');
 	});
 
 	// The protocol declares working-directory mutation on both the session and

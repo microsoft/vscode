@@ -32,7 +32,7 @@
 	height: 2px;
 	border-radius: 50%;
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.5;
+	opacity: 0.75;
 }
 
 .monaco-enable-motion .style-override .monaco-sash:not(.disabled)::after {

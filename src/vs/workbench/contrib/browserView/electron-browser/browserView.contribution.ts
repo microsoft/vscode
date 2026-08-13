@@ -19,6 +19,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 // Register actions and browser features
 import './features/webContentsViewRendererFeature.js';
@@ -66,6 +68,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -116,6 +119,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 				},
 				{
 					createEditorInput: ({ resource, options }) => {
+						logBrowserOpen(telemetryService, 'fileResource');
+
 						const viewState = options?.viewState;
 						const browserInput = browserViewWorkbenchService.getOrCreateLazy(generateUuid(), {
 							...viewState,

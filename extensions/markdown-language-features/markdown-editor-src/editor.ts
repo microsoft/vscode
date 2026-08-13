@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, taskCheckboxRange, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, CommentModeController, CommentsModel, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, VsCodeV2CommentsView, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode } from '@vscode/markdown-editor';
 import { VirtualizedIframeEmbeddedEditorFactory, type IframeEmbeddedEditorProvider, type IframeEmbeddedEditorProviderSelector, type ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import 'katex/dist/katex.min.css';
@@ -203,20 +203,7 @@ class Editor extends Disposable {
 				return undefined;
 			},
 			onToggleCheckbox: (item, newChecked) => {
-				if (model.readonlyMode.get()) {
-					return;
-				}
-				const doc = model.document.get();
-				const itemOffset = findNodeOffsetById(doc, item);
-				if (itemOffset === undefined) { return; }
-				const range = taskCheckboxRange(item);
-				if (!range) { return; }
-				model.applyEdit(
-					StringEdit.replace(
-						range.delta(itemOffset),
-						newChecked ? '[x]' : '[ ]'
-					)
-				);
+				model.setTaskCheckboxChecked(item, newChecked);
 			},
 			renderCustomCodeBlock: (language, content) => {
 				if (language !== 'mermaid') {

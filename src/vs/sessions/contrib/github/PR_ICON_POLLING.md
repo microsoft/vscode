@@ -32,6 +32,9 @@ Both halves of the fix are now implemented:
    async PR number resolves, acquires a shared PR‑model reference and holds it for the
    session's lifetime — keeping the live model warm (and the icon stable) even for
    non‑active sessions. Merged PRs stop the repeating loop unless the session is active.
+   A provider can replace a provisional `ISession` with a committed object while preserving
+   its `sessionId`; the tracker rebinds when the polling observables change, and a stale
+   removal for the provisional object cannot dispose the committed object's poller.
 
 2. **Sticky PR‑number resolution in the agent‑host provider.**
    [`SessionGitHubInfoResolver`](../providers/agentHost/browser/sessionGitHubInfo.ts) — the

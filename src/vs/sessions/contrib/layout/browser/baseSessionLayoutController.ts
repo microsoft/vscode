@@ -545,6 +545,9 @@ export abstract class BaseLayoutController extends Disposable {
 		return false;
 	}
 
+	/** Hook invoked before a session working set is queued for application. */
+	protected _onWillApplyWorkingSet(_workingSet: IEditorWorkingSet | 'empty'): void { }
+
 	// --- Editor part reveal ---
 
 	/**
@@ -682,6 +685,7 @@ export abstract class BaseLayoutController extends Disposable {
 		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
 			? (this._workingSets.get(sessionResource) ?? 'empty')
 			: 'empty';
+		this._onWillApplyWorkingSet(workingSet);
 
 		return this._workingSetSequencer.queue(async () => {
 			// When multiple sessions are visible, applying a working set must never

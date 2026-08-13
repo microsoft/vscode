@@ -8,7 +8,7 @@ import type { SessionEvent } from '@github/copilot-sdk';
 import { readFileSync } from 'fs';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 
 interface BenchmarkResult {

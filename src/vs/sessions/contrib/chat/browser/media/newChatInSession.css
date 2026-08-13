@@ -122,23 +122,10 @@
 	border-radius: 0 !important;
 }
 
-.new-chat-in-session .sub-session-tip-widget {
-	display: flex;
-	align-items: flex-start;
-	gap: 6px;
-	width: 100%;
-	max-width: 100%;
-	box-sizing: border-box;
-	padding: 6px 8px;
-	background-color: var(--vscode-editorWidget-background);
-	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
-	border: 1px solid var(--vscode-agentsChatInput-border, var(--vscode-editorWidget-border, var(--vscode-input-border, transparent)));
-	border-bottom: none;
-	font-size: var(--vscode-chat-font-size-body-s);
-	font-family: var(--vscode-chat-font-family, inherit);
-	color: var(--vscode-descriptionForeground);
-}
-
+/*
+ * The frame, the row layout and the dismiss button all come from
+ * `.chat-input-notice`; only the two content elements are styled here.
+ */
 .new-chat-in-session .sub-session-tip-icon {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -149,30 +136,4 @@
 	flex: 1;
 	min-width: 0;
 	line-height: 1.4;
-}
-
-.new-chat-in-session .sub-session-tip-dismiss {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	width: 20px;
-	height: 20px;
-	border: none;
-	background: transparent;
-	padding: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
-	touch-action: manipulation;
-}
-
-.new-chat-in-session .sub-session-tip-dismiss:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.new-chat-in-session .sub-session-tip-dismiss:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }

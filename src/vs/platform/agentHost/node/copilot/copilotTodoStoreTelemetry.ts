@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { isSubagentSession } from '../../common/state/sessionState.js';
 
 type TodoStoreOperation = 'read' | 'write' | 'mixed';

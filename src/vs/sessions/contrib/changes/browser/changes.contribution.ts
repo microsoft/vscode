@@ -18,7 +18,7 @@ import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGL
 import { ChangesViewPane, SinglePaneChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
-import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
@@ -98,6 +98,8 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
+export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext, SessionIsCreatedContext);
+
 /**
  * Registers the Changes view with the layout-appropriate pane class: the single-pane
  * {@link SinglePaneChangesViewPane} when the single-pane layout is enabled, otherwise
@@ -123,7 +125,7 @@ class ChangesViewContribution extends Disposable implements IWorkbenchContributi
 			canMoveView: false,
 			weight: 100,
 			order: 1,
-			when: ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
+			when: changesViewWhen,
 			windowEnablement: WindowEnablement.Sessions,
 		}], changesViewContainer);
 	}

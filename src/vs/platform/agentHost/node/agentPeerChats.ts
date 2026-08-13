@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
-import { type ActiveTurn, type ModelSelection, type Turn } from '../common/state/protocol/state.js';
+import { type ActiveTurn, type AgentSelection, type ModelSelection, type Turn } from '../common/state/protocol/state.js';
 
 const SIDE_CHAT_CONTEXT_START = '<side-chat-context>';
 const SIDE_CHAT_CONTEXT_END = '</side-chat-context>';
@@ -14,7 +14,7 @@ const SIDE_CHAT_GUIDANCE = 'This is a side conversation. Prefer explanation over
 export const MAX_SIDE_CHAT_CONTEXT_CHARS = 20_000;
 
 export interface IPersistedSideChat {
-	readonly source: string;
+	readonly source?: string;
 	readonly turnId: string;
 	readonly selection?: { readonly text: string; readonly responsePartId?: string };
 	readonly providerAnchorTurnId?: string;
@@ -151,15 +151,16 @@ export function stripSideChatContext(turns: readonly Turn[], sideChat: IPersiste
 }
 
 /**
- * In-memory backing for an additional (non-default) peer chat. Records the SDK
- * chat id that backs the chat so it can be re-resumed after a process restart,
- * along with any model override chosen at creation time. This is also the shape
+ * Provider-owned backing for an exact chat. Records the SDK chat id so it can
+ * be resumed after a process restart,
+ * along with any model or custom-agent selection. This is also the shape
  * serialized into the opaque, agent-owned `providerData` blob the orchestrator
  * persists in its chat catalog and hands back on restore.
  */
 export interface IPersistedChat {
 	readonly sdkSessionId: string;
 	readonly model?: ModelSelection;
+	readonly agent?: AgentSelection;
 	readonly sideChat?: IPersistedSideChat;
 }
 
@@ -184,7 +185,7 @@ export function encodeProviderData(backing: IPersistedChat): string {
  */
 export function decodeProviderData(providerData: string): IPersistedChat | undefined {
 	try {
-		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; sideChat?: unknown };
+		const value = JSON.parse(providerData) as { sdkSessionId?: unknown; model?: unknown; agent?: unknown; sideChat?: unknown };
 		if (!value || typeof value !== 'object') {
 			return undefined;
 		}
@@ -198,6 +199,10 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 		const validModel = model && typeof model === 'object' && typeof (model as { id?: unknown }).id === 'string'
 			? model as ModelSelection
 			: undefined;
+		const agent = value.agent as { uri?: unknown } | undefined;
+		const validAgent = agent && typeof agent === 'object' && typeof agent.uri === 'string'
+			? { uri: agent.uri }
+			: undefined;
 		const sideChat = value.sideChat as { source?: unknown; turnId?: unknown; selection?: unknown; providerAnchorTurnId?: unknown; inheritedTurnCount?: unknown; partialResponse?: unknown; context?: unknown } | undefined;
 		const validSelection = sideChat?.selection
 			&& typeof sideChat.selection === 'object'
@@ -209,14 +214,14 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 			}
 			: undefined;
 		const validSideChat = sideChat
-			&& typeof sideChat.source === 'string'
+			&& (sideChat.source === undefined || typeof sideChat.source === 'string')
 			&& typeof sideChat.turnId === 'string'
 			&& (sideChat.providerAnchorTurnId === undefined || typeof sideChat.providerAnchorTurnId === 'string')
 			&& typeof sideChat.inheritedTurnCount === 'number'
 			&& (sideChat.partialResponse === undefined || typeof sideChat.partialResponse === 'string')
 			&& (sideChat.context === undefined || typeof sideChat.context === 'string')
 			? {
-				source: sideChat.source,
+				...(sideChat.source ? { source: sideChat.source } : {}),
 				turnId: sideChat.turnId,
 				...(validSelection ? { selection: validSelection } : {}),
 				...(sideChat.providerAnchorTurnId ? { providerAnchorTurnId: sideChat.providerAnchorTurnId } : {}),
@@ -225,7 +230,7 @@ export function decodeProviderData(providerData: string): IPersistedChat | undef
 				...(sideChat.context ? { context: sideChat.context } : {}),
 			}
 			: undefined;
-		return { sdkSessionId, ...(validModel ? { model: validModel } : {}), ...(validSideChat ? { sideChat: validSideChat } : {}) };
+		return { sdkSessionId, ...(validModel ? { model: validModel } : {}), ...(validAgent ? { agent: validAgent } : {}), ...(validSideChat ? { sideChat: validSideChat } : {}) };
 	} catch {
 		return undefined;
 	}

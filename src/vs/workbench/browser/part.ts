@@ -80,7 +80,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea);
+		this.partLayout = new PartLayout(this.options, this.contentArea, this.layoutService);
 
 		this.updateStyles();
 	}
@@ -224,15 +224,19 @@ class PartLayout {
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
+	constructor(
+		private options: IPartOptions,
+		private contentArea: HTMLElement | undefined,
+		private layoutService: IWorkbenchLayoutService,
+	) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
-		const isStyleOverride = !!this.contentArea?.closest('.style-override');
+		const isModernUI = this.layoutService.isFloatingPanelsEnabled();
 
 		// Title Size: Width (Fill), Height (Variable).
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			const titleHeight = isStyleOverride ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.TITLE_HEIGHT;
+			const titleHeight = isModernUI ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.TITLE_HEIGHT;
 			titleSize = new Dimension(width, Math.min(height, titleHeight));
 		} else {
 			titleSize = Dimension.None;
@@ -241,7 +245,7 @@ class PartLayout {
 		// Header Size: Width (Fill), Height (Variable)
 		let headerSize: Dimension;
 		if (this.headerVisible) {
-			const headerHeight = isStyleOverride ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.HEADER_HEIGHT;
+			const headerHeight = isModernUI ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.HEADER_HEIGHT;
 			headerSize = new Dimension(width, Math.min(height, headerHeight));
 		} else {
 			headerSize = Dimension.None;
@@ -250,7 +254,7 @@ class PartLayout {
 		// Footer Size: Width (Fill), Height (Variable)
 		let footerSize: Dimension;
 		if (this.footerVisible) {
-			const footerHeight = isStyleOverride ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.FOOTER_HEIGHT;
+			const footerHeight = isModernUI ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.FOOTER_HEIGHT;
 			footerSize = new Dimension(width, Math.min(height, footerHeight));
 		} else {
 			footerSize = Dimension.None;

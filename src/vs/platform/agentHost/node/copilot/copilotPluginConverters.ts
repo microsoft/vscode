@@ -398,6 +398,7 @@ export function toSdkHooks(
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
 	// Group all commands by SDK handler key
@@ -434,16 +435,17 @@ export function toSdkHooks(
 
 	// User-prompt-submitted handler
 	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
-	if (promptCommands?.length) {
+	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
 		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of promptCommands) {
+			for (const cmd of promptCommands ?? []) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
 					// Hook failures are non-fatal
 				}
 			}
+			return editTrackingHooks?.onUserPromptSubmitted?.();
 		};
 	}
 

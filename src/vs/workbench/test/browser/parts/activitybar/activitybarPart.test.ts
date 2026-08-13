@@ -399,10 +399,10 @@ suite('ActivitybarPart', () => {
 		};
 
 		assert.deepStrictEqual(actual, {
-			titleAndStatusBarVisible: 300 - margin * 2,
+			titleAndStatusBarVisible: 300 - margin,
 			titleBarHidden: 300 - margin * 2 - margin,
-			bannerInsteadOfTitleBar: 300 - margin * 2,
-			statusBarHidden: 300 - margin - margin * 2,
+			bannerInsteadOfTitleBar: 300 - margin,
+			statusBarHidden: 300 - margin * 2,
 			bothEdgesExposed: 300 - margin * 2 - margin * 2,
 			floatingPanelsDisabled: 300,
 		});

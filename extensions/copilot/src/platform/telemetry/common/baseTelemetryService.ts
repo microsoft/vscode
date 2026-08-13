@@ -163,6 +163,27 @@ export class BaseTelemetryService implements ITelemetryService {
 				"errortype": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth"}
 			}
 		*/
+		/* __GDPR__
+			"assignments-validation" : {
+				"FeatureVariableCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"AssignedVariantCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"DataVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"AssignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		/* __GDPR__
+			"call-assignments-error" : {
+				"ErrorType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth"}
+			}
+		*/
+		/* __GDPR__
+			"tas-call" : {
+				"callType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"extensionName": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"assignmentContext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		if (name === 'abexp.assignmentcontext') {
 			this._setOriginalExpAssignments(value);
 			return;

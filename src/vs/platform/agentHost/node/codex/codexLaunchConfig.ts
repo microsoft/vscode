@@ -25,9 +25,11 @@ export function buildCodexResumeParams(
 	workingDirectories?: readonly string[],
 	configOverrides: Readonly<Record<string, JsonValue>> = {},
 	developerInstructions?: string,
+	imageGenerationEnabled = false,
 ): ThreadResumeParams {
 	const config = {
 		...configOverrides,
+		'features.image_generation': imageGenerationEnabled,
 		...(Object.keys(mcpServers).length > 0 ? { mcp_servers: mcpServers as JsonValue } : {}),
 	};
 	return {
@@ -66,24 +68,32 @@ export function buildCodexLaunchConfig(
 		// would otherwise drop it.
 		`shell_environment_policy.set.${AiAgentEnvVar}="${AiAgentEnvValue}"`,
 		`features.tool_call_mcp_elicitation=false`,
+		// Keep image generation disabled for the Copilot/CAPI proxy by default.
+		// ChatGPT subscription threads opt in with a per-thread override.
 		`features.image_generation=false`,
-		...codexTelemetryOverrides(telemetry),
 	];
+	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
-		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs],
+		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...telemetryOverrides.flatMap(value => ['-c', value])],
 	};
 }
 
 export function codexTelemetryOverrides(config: IAgentHostNativeOTelConfig | undefined): string[] {
-	if (!config) {
-		return [];
-	}
 	return [
-		`otel.log_user_prompt=${config.captureContent}`,
-		config.traces ? `otel.trace_exporter=${codexExporter(config.traces)}` : 'otel.trace_exporter="none"',
-		config.external ? `otel.exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol) })}` : 'otel.exporter="none"',
-		config.external ? `otel.metrics_exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol) })}` : 'otel.metrics_exporter="none"',
+		// Codex analytics are independent from its OTel exporters and post to an
+		// OpenAI-owned endpoint. Keep them disabled even when the user configures
+		// Agent Host OTel, whose destinations are supplied explicitly below. Codex
+		// currently uses this same flag to gate its metrics exporter, so preventing
+		// product analytics also suppresses its otherwise user-directed metrics.
+		'analytics.enabled=false',
+		// Agent Host does not expose Codex's feedback flow. Disable its Sentry
+		// upload path rather than leaving an unused outbound channel available.
+		'feedback.enabled=false',
+		`otel.log_user_prompt=${config?.captureContent ?? false}`,
+		config?.traces ? `otel.trace_exporter=${codexExporter(config.traces)}` : 'otel.trace_exporter="none"',
+		config?.external ? `otel.exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'logs', config.external.protocol) })}` : 'otel.exporter="none"',
+		config?.external ? `otel.metrics_exporter=${codexExporter({ ...config.external, endpoint: resolveSignalEndpoint(config.external.endpoint, 'metrics', config.external.protocol) })}` : 'otel.metrics_exporter="none"',
 	];
 }
 

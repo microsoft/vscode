@@ -8,15 +8,6 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
 /**
- * Whether the SDK sandbox is supported on Windows. Not enabled yet, so the
- * builders bail out early on `win32`; the Windows handling is kept so support
- * can be turned on by flipping this flag once the runtime is ready. Typed as
- * `boolean` (not the `false` literal) so the Windows branches are not flagged
- * as unreachable by control-flow narrowing.
- */
-const WINDOWS_SANDBOX_SUPPORTED: boolean = false;
-
-/**
  * Per-platform filesystem rule bundle accepted under each `fileSystem.<os>`
  * sub-key (`AgentHostSandboxKey.LinuxFileSystem` etc.) in the AgentHost root
  * sandbox config bag. Mirrors the workbench's `chat.agent.sandbox.fileSystem.*`
@@ -52,16 +43,13 @@ export type CopilotSandboxConfig = SdkSandboxConfig & {
  *  - Path precedence: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`.
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
- *  - Network: `allowNetwork` opens outbound to everything and drops the
- *    allow/deny lists. Otherwise the allow/deny lists open outbound when
- *    set so they're actually enforced; host lists are currently disabled on
- *    all platforms (fail closed) because the runtime does not yet enforce
- *    them reliably everywhere.
+ *  - Network: the separate `allowNetwork` policy opens outbound to everything.
+ *    Domain allow/deny lists are ignored because the SDK's `SandboxConfig`
+ *    does not support host-level rules.
  *
- * Windows is not supported yet, so this bails out early and returns `undefined`
- * there. The Windows handling below is intentionally kept (and exercised when
- * {@link WINDOWS_SANDBOX_SUPPORTED} is flipped) so support can be turned on once
- * the runtime is ready.
+ * Windows uses its platform-specific enablement and filesystem settings. It
+ * does not fall back to the shared enablement setting so Windows rollout is
+ * controlled independently.
  */
 export function buildSandboxConfigForSdk(
 	platform: NodeJS.Platform,
@@ -71,16 +59,10 @@ export function buildSandboxConfigForSdk(
 		return undefined;
 	}
 
-	// Typed as `boolean` (not the `false` literal) so the Windows branches below
-	// are not flagged as unreachable by control-flow narrowing.
-	if (platform === 'win32' && !WINDOWS_SANDBOX_SUPPORTED) {
-		return undefined;
-	}
-
-	const enabledRaw = platform === 'win32' && sandbox[AgentHostSandboxKey.WindowsEnabled] !== undefined
+	const enabledRaw = platform === 'win32'
 		? sandbox[AgentHostSandboxKey.WindowsEnabled]
 		: sandbox[AgentHostSandboxKey.Enabled];
-	if (enabledRaw !== AgentSandboxEnabledValue.On && enabledRaw !== AgentSandboxEnabledValue.AllowNetwork) {
+	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
 
@@ -89,7 +71,8 @@ export function buildSandboxConfigForSdk(
 		: platform === 'darwin'
 			? sandbox[AgentHostSandboxKey.MacFileSystem]
 			: sandbox[AgentHostSandboxKey.LinuxFileSystem];
-	const fs = (fsRaw && typeof fsRaw === 'object') ? fsRaw as IAgentSandboxFileSystemSetting : {};
+	const hasFileSystemPolicy = fsRaw !== undefined && typeof fsRaw === 'object';
+	const fs = hasFileSystemPolicy ? fsRaw as IAgentSandboxFileSystemSetting : {};
 
 	const denied = new Set<string>(fs.denyRead ?? []);
 	const readonly = new Set<string>();
@@ -110,20 +93,25 @@ export function buildSandboxConfigForSdk(
 		}
 	}
 
-	const legacyAllowAllNetwork = enabledRaw === AgentSandboxEnabledValue.AllowNetwork;
-	const allowAllNetwork = legacyAllowAllNetwork || (enabledRaw === AgentSandboxEnabledValue.On && sandbox[AgentHostSandboxKey.AllowNetwork] === true);
+	const allowNetwork = sandbox[AgentHostSandboxKey.AllowNetwork];
+	const allowBypass = sandbox[AgentHostSandboxKey.AllowUnsandboxedCommands];
+	const filesystem = hasFileSystemPolicy
+		? {
+			...(denied.size ? { deniedPaths: [...denied] } : {}),
+			...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+			...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+		}
+		: undefined;
+	const network = typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : undefined;
+	const userPolicy = filesystem || network
+		? {
+			...(filesystem ? { filesystem } : {}),
+			...(network ? { network } : {}),
+		}
+		: undefined;
 	return {
 		enabled: true,
-		allowBypass: true,
-		userPolicy: {
-			filesystem: {
-				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-				...(denied.size ? { deniedPaths: [...denied] } : {}),
-			},
-			network: {
-				allowOutbound: allowAllNetwork,
-			},
-		},
+		...(typeof allowBypass === 'boolean' ? { allowBypass } : {}),
+		...(userPolicy ? { userPolicy } : {}),
 	};
 }

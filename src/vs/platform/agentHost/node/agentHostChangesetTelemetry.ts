@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AgentSession } from '../common/agentService.js';
+import { AgentSession } from '../common/agent.js';
 
 /** The static changeset slot a compute was for. */
 export type StaticChangesetTelemetryKind = 'branch' | 'session' | 'uncommitted';

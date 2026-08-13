@@ -11,7 +11,6 @@ import {
 	type ITunnelHostInfo,
 	type TunnelHostStatus,
 } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
@@ -48,7 +47,6 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IProductService private readonly _productService: IProductService,
-		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILoggerService loggerService: ILoggerService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -104,8 +102,7 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 
 			this._logger.info('Starting tunnel hosting...');
 
-			const socketInfo = await this._agentHostService.startWebSocketServer();
-			const info = await this._mainService.startHosting(auth.token, auth.provider, socketInfo);
+			const info = await this._mainService.startHosting(auth.token, auth.provider);
 			this._isSharing = true;
 			this._sharingInfo = info;
 		} finally {

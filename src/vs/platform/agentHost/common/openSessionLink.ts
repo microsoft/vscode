@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
-import { AgentSession } from './agentService.js';
+import { AgentSession } from './agent.js';
 import { SessionServerToolName } from './serverToolNames.js';
 import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/sessionState.js';
 

@@ -6,6 +6,7 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -62,13 +63,22 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 
 		const title = blocked ? localize('browser.blockedByPolicy', "Blocked by network domain policy") : (editor.title || 'Untitled');
 		const displayUrl = blocked ? '' : ` (${url})`;
+		const resourceNavigationHint = editor.associatedResource ? ' (resource-backed; navigation is limited to this resource)' : '';
 		const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : ' (not visible)';
 		const id = options?.excludeIds ? '' : `[${editor.id}] `;
 
 		// By default, use numbers only if we're excluding IDs, so models don't get confused about which ID to use.
 		const bullet = (options?.numbered ?? options?.excludeIds) ? `${index + 1}. ` : '- ';
-		return `${indent}${bullet}${id}${title}${displayUrl}${hint}`;
+		return `${indent}${bullet}${id}${title}${displayUrl}${resourceNavigationHint}${hint}`;
 	}).join('\n');
+}
+
+export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
+	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target)) {
+		return undefined;
+	}
+
+	return 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.';
 }
 
 export function getBrowserPagesContext(

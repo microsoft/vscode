@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { findMatchRangesInDom, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
+import { ChatFindWidget, findMatchRangesInDom, openAncestorDisclosures, rangesEqual, shouldCaptureFocusBeforeShow } from '../../../browser/widget/chatFind/chatFindWidget.js';
 
 suite('ChatFindWidget DOM highlighting', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -135,5 +135,64 @@ suite('ChatFindWidget DOM highlighting', () => {
 	test('shouldCaptureFocusBeforeShow only captures focus when opening from hidden', () => {
 		assert.strictEqual(shouldCaptureFocusBeforeShow(false), true, 'opening from hidden captures the pre-Find focus target');
 		assert.strictEqual(shouldCaptureFocusBeforeShow(true), false, 'reopening while already visible must not overwrite it');
+	});
+});
+
+/**
+ * Exercises the walk that moves past matches the DOM cannot produce. Driving the private members
+ * directly keeps the test free of the widget's service graph while still covering the real
+ * direction, cap and termination behaviour.
+ */
+suite('ChatFindWidget unlocatable match walk', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const skipUnlocatableMatch = Reflect.get(ChatFindWidget.prototype, '_skipUnlocatableMatch') as (this: IWalkHarness) => void;
+	const maxSkips = Reflect.get(ChatFindWidget, 'MAX_UNLOCATABLE_SKIPS') as number;
+
+	interface IWalkHarness {
+		_unlocatableSkips: number;
+		_lastNavigationWasPrevious: boolean;
+		_advanceActiveMatch(previous: boolean): void;
+	}
+
+	/** Walks `locatable` from `startIndex`, skipping entries the DOM cannot produce. */
+	function runWalk(locatable: readonly boolean[], startIndex: number, previous: boolean) {
+		const directions: boolean[] = [];
+		let index = startIndex;
+		const harness: IWalkHarness = {
+			_unlocatableSkips: 0,
+			_lastNavigationWasPrevious: previous,
+			_advanceActiveMatch(wasPrevious: boolean) {
+				directions.push(wasPrevious);
+				index = (index + (wasPrevious ? -1 : 1) + locatable.length) % locatable.length;
+				if (!locatable[index]) {
+					skipUnlocatableMatch.call(harness);
+				}
+			},
+		};
+
+		harness._advanceActiveMatch(previous);
+		return { index, directions, skips: harness._unlocatableSkips };
+	}
+
+	test('advances past unlocatable matches to the next locatable one', () => {
+		// index 0 active; 1 and 2 cannot be located, 3 can.
+		const result = runWalk([true, false, false, true], 0, false);
+
+		assert.strictEqual(result.index, 3);
+		assert.strictEqual(result.skips, 2, 'skipped exactly the two unlocatable matches');
+	});
+
+	test('keeps walking backwards when navigating to the previous match', () => {
+		const result = runWalk([true, false, false, true], 3, true);
+
+		assert.strictEqual(result.index, 0);
+		assert.deepStrictEqual(result.directions, [true, true, true], 'every step kept the direction');
+	});
+
+	test('stops at the cap when nothing can be located', () => {
+		const result = runWalk(new Array(200).fill(false), 0, false);
+
+		assert.strictEqual(result.skips, maxSkips, 'gave up at the cap instead of spinning');
 	});
 });

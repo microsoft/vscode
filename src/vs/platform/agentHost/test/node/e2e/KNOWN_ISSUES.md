@@ -16,6 +16,23 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Duplicate session creation is accepted
+
+A client can retry session creation with a URI that already identifies a live session. The host accepts the duplicate request instead of reporting that the resource already exists, so clients cannot distinguish an idempotent retry from an accidental collision and a provider may be asked to create conflicting backing state.
+
+- Test: `creating a duplicate session resource is rejected`.
+- Scope: conformance reference provider on all platforms.
+- Expected: the second AHP `createSession` request fails with `SessionAlreadyExists`.
+- Observed: the second request resolves successfully.
+- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "creating a duplicate session resource is rejected"
+  ```
+
 ### Deleting a worktree session can race background Git work
 
 A user can configure ignored files to be copied into an isolated worktree, complete an agent turn, and then delete the session. Session deletion can fail because background changeset or Git-state work is still using the worktree while Git removes it, leaving the session's worktree behind.
@@ -789,6 +806,22 @@ Use the affected provider command with `--grep "<exact test title>"` and tempora
     --grep "accepted steering followed by abort"
   ```
 
+### Codex model-backed multiple-chat recording
+
+- Tests: the model-backed peer-chat and fork scenarios in `multiChatSuite.ts`.
+- Scope: Codex recording and strict replay only. Codex advertises `multipleChats.fork`; host-only capability checks and conformance catalog/lifecycle scenarios run.
+- Expected: focused `AGENT_HOST_UPDATE_SNAPSHOTS=1` recording produces Codex peer/fork captures that replay without cache misses.
+- Observed: on the current live recording path, even the existing simple Codex recording fails before producing a usable model response; peer turns report a CAPI malformed authorization-header error. No fixtures are accepted or hand-edited.
+- Gate: `supportsMultipleChatsE2E: false` and `supportsChatForkE2E: false`.
+- Reproduce:
+
+  ```bash
+  unset GITHUB_TOKEN
+  AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "peer chat completes a simple turn"
+  ```
+
 ## Test-design limitations
 
 ### Claude plan-mode prompt
@@ -809,8 +842,9 @@ A test that checks only its final dispatch can miss an earlier action that was e
 
 | Capability | Gate | Provider(s) skipped | Effect |
 |---|---|---|---|
-| Multiple chats | `supportsMultipleChats` | Codex | Model-backed peer-chat scenarios skip; the negative capability test still runs. |
-| Chat fork | `supportsChatForkE2E` | Codex | Provider-backed fork scenarios skip. Claude's use of the same gate is the bug above. |
+| Model-backed multiple chats | `supportsMultipleChatsE2E` | Codex | Capability and conformance scenarios run; provider/model peer turns skip until focused Codex captures can be recorded. |
+| Provider-backed fork parity | `supportsChatForkE2E` | Claude, Codex | Fork capability remains advertised; model-backed fork-context assertions skip. |
+| Side chats | `supportsSideChats` | Codex | Provider-owned hidden-context and restore scenarios skip; ordinary peer chats and chat forks still run. |
 | Subagents | `supportsSubagents` | Codex | Subagent routing and reopen scenarios skip. |
 | Streaming file creation | `streamingFileCreateToolName` | Codex | Argument-delta coverage requires a native file-creation tool; shell-backed file behavior is covered separately. |
 | Plan mode | `supportsPlanMode` | Codex | The plan-mode scenario skips. Claude's use of the same gate is the prompt limitation above. |

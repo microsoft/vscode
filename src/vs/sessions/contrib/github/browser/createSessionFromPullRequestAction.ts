@@ -236,14 +236,18 @@ registerAction2(class CreateSessionFromPullRequestAction extends Action2 {
 					return;
 				}
 				await createAndOpenPullRequestSession(
-					onSessionCreated => sessionsManagementService.createAndSendNewChatRequest(repository.folderUri, async () => {
-						const pullRequestContext = await gitHubService.getPullRequestContext(repository.owner, repository.repo, pullRequest.number);
-						return {
-							query: createPullRequestBootstrapPrompt(pullRequest),
-							title: pullRequest.title,
-							attachedContext: [createPullRequestContextAttachment(pullRequestContext)],
-							hideFromTranscript: true,
-						};
+					onSessionCreated => sessionsManagementService.createAndSendNewChatRequest(repository.folderUri, {
+						kind: 'deferred',
+						activity: localize('createSessionFromPullRequest.fetching', "Fetching pull request..."),
+						async resolve() {
+							const pullRequestContext = await gitHubService.getPullRequestContext(repository.owner, repository.repo, pullRequest.number);
+							return {
+								query: createPullRequestBootstrapPrompt(pullRequest),
+								title: pullRequest.title,
+								attachedContext: [createPullRequestContextAttachment(pullRequestContext)],
+								hideFromTranscript: true,
+							};
+						},
 					}, {
 						isolationMode: 'worktree',
 						branch: pullRequest.checkoutRef,

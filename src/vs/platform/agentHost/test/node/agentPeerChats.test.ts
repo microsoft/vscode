@@ -194,4 +194,15 @@ suite('agentPeerChats', () => {
 			responsePartId: 'response-part-1',
 		});
 	});
+
+	test('round-trips the selected agent through provider data', () => {
+		const providerData = encodeProviderData({
+			sdkSessionId: 'sdk-session',
+			agent: { uri: 'agent://workspace/reviewer' },
+		});
+
+		assert.deepStrictEqual(decodeProviderData(providerData)?.agent, {
+			uri: 'agent://workspace/reviewer',
+		});
+	});
 });

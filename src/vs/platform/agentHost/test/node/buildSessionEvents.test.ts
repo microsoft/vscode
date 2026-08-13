@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { buildSessionEventLogFromTurns, buildSessionEventsFromTurns, serializeSessionEventsToJsonl } from '../../node/copilot/buildSessionEvents.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';

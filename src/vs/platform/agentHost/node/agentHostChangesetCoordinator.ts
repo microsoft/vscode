@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IAgentSessionMetadata } from '../common/agentService.js';
+import { IAgentSessionMetadata } from '../common/agent.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';

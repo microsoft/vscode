@@ -174,6 +174,7 @@ class ChangesMenuWorkbenchButtonBarWidget extends Disposable implements IChanges
 				MenuId.AgentsChangesToolbar,
 				{
 					telemetrySource: 'changesView',
+					renderSecondaryActions: false,
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
@@ -291,6 +292,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			container,
 			{
 				telemetrySource: 'changesView',
+				renderSecondaryActions: false,
 				buttonConfigProvider: (action, index) => {
 					return index === 0
 						? { showIcon: false, showLabel: true, customLabel: stripIcons(action.label) }

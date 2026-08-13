@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { adaptManagedSettings, IManagedSettingsResponse } from '../../browser/managedSettings.js';
+import { adaptManagedSettings, getManagedSettingsClientHeaders, IManagedSettingsResponse, parseManagedSettingsCompatibilityError } from '../../browser/managedSettings.js';
 
 suite('adaptManagedSettings', () => {
 
@@ -17,6 +17,24 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('builds available client identity headers', () => {
+		assert.deepStrictEqual({
+			withRuntime: getManagedSettingsClientHeaders({
+				version: '1.132.0',
+				copilotVersions: { runtime: '0.0.344', sdk: '0.1.0' },
+			}),
+			withoutRuntime: getManagedSettingsClientHeaders({ version: '1.132.0' }),
+		}, {
+			withRuntime: {
+				'Editor-Version': 'vscode/1.132.0',
+				'Copilot-Runtime-Version': 'copilot-runtime/0.0.344',
+			},
+			withoutRuntime: {
+				'Editor-Version': 'vscode/1.132.0',
+			},
+		});
+	});
+
 	test('normalizes permissions into a dot-path managed setting', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			permissions: { disableBypassPermissionsMode: 'disable' },
@@ -25,6 +43,23 @@ suite('adaptManagedSettings', () => {
 				'permissions.disableBypassPermissionsMode': 'disable',
 			},
 		});
+	});
+
+	test('parses the stable compatibility error and optional versions', () => {
+		assert.deepStrictEqual(parseManagedSettingsCompatibilityError({
+			error_code: 'client_update_required',
+			client_id: 'vscode',
+			client_version: '1.132.0',
+			minimum_client_version: '1.133.0',
+		}), {
+			errorCode: 'client_update_required',
+			clientVersion: '1.132.0',
+			minimumClientVersion: '1.133.0',
+		});
+	});
+
+	test('rejects an unrecognized compatibility error shape', () => {
+		assert.strictEqual(parseManagedSettingsCompatibilityError({ error_code: 'unexpected' }), undefined);
 	});
 
 	test('carries enabledPlugins as a canonical JSON string under a single key', () => {

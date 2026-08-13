@@ -24,9 +24,28 @@ import type { AgentSelection } from '../../common/state/protocol/state.js';
  *                      session was created against (URI string).
  *                      Multi-root sessions store a JSON object in this same
  *                      field so single-root reads retain their original shape.
+ *                      This is the session's *current* working directory —
+ *                      it may be a managed temp folder or a host/user-picked
+ *                      one, and can change over the session's lifetime (see
+ *                      `_adoptWorkingDirectoryBeforeSend`) — so it must never
+ *                      be used to *locate* a managed folder for cleanup.
  *   `codex.model`    — serialized {@link ModelSelection.id} string,
  *                      remembered for restore so resumed sessions reuse
  *                      the model picked during the prior process.
+ *   `codex.managedWorkingDirectory` — the absolute path (URI string) of the
+ *                      managed temp folder this agent itself created for the
+ *                      session, when it currently owns one; the *only* value
+ *                      a destructive teardown may delete. Deliberately
+ *                      separate from `codex.cwd`, which the session's own
+ *                      working directory always occupies regardless of who
+ *                      picked it — folding the two together is what let a
+ *                      stale `codex.ownsManagedWorkingDirectory` flag infer a
+ *                      user-adopted `cwd` was safe to `rm -rf`. Written
+ *                      alongside `codex.ownsManagedWorkingDirectory` (kept for
+ *                      backward compatibility with overlays predating this
+ *                      field) but never read for a destructive decision: an
+ *                      overlay carrying only the legacy flag, with no
+ *                      explicit path recorded here, is left untouched.
  */
 
 export interface ICodexSessionOverlay {
@@ -35,6 +54,8 @@ export interface ICodexSessionOverlay {
 	readonly modelId?: string;
 	readonly agent?: AgentSelection;
 	readonly workingDirectories?: readonly URI[];
+	readonly ownsManagedWorkingDirectory?: boolean;
+	readonly managedWorkingDirectory?: URI;
 }
 
 export interface ICodexSessionOverlayUpdate {
@@ -43,6 +64,14 @@ export interface ICodexSessionOverlayUpdate {
 	readonly modelId?: string;
 	readonly agent?: AgentSelection | null;
 	readonly workingDirectories?: readonly URI[];
+	readonly ownsManagedWorkingDirectory?: boolean;
+	/**
+	 * `undefined` leaves the persisted value untouched, a {@link URI} records
+	 * this agent's own managed temp folder, and `null` explicitly clears it
+	 * (the session has abandoned or never had one) — the same
+	 * present/absent/clear tri-state {@link agent} uses.
+	 */
+	readonly managedWorkingDirectory?: URI | null;
 }
 
 export class CodexSessionMetadataStore {
@@ -51,6 +80,8 @@ export class CodexSessionMetadataStore {
 	private static readonly KEY_CWD = 'codex.cwd';
 	private static readonly KEY_MODEL = 'codex.model';
 	private static readonly KEY_AGENT = 'codex.agent';
+	private static readonly KEY_OWNS_MANAGED_WORKING_DIRECTORY = 'codex.ownsManagedWorkingDirectory';
+	private static readonly KEY_MANAGED_WORKING_DIRECTORY = 'codex.managedWorkingDirectory';
 	constructor(
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
@@ -86,6 +117,18 @@ export class CodexSessionMetadataStore {
 						fields.agent === null ? '' : JSON.stringify({ uri: fields.agent.uri }),
 					));
 				}
+				if (fields.ownsManagedWorkingDirectory !== undefined) {
+					work.push(db.setMetadata(
+						CodexSessionMetadataStore.KEY_OWNS_MANAGED_WORKING_DIRECTORY,
+						fields.ownsManagedWorkingDirectory ? 'true' : 'false',
+					));
+				}
+				if (fields.managedWorkingDirectory !== undefined) {
+					work.push(db.setMetadata(
+						CodexSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY,
+						fields.managedWorkingDirectory === null ? '' : fields.managedWorkingDirectory.toString(),
+					));
+				}
 				await Promise.all(work);
 			} finally {
 				ref.dispose();
@@ -107,11 +150,13 @@ export class CodexSessionMetadataStore {
 				return {};
 			}
 			try {
-				const [threadId, cwdRaw, modelId, agentRaw] = await Promise.all([
+				const [threadId, cwdRaw, modelId, agentRaw, ownsManagedWorkingDirectoryRaw, managedWorkingDirectoryRaw] = await Promise.all([
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_THREAD_ID),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_CWD),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MODEL),
 					ref.object.getMetadata(CodexSessionMetadataStore.KEY_AGENT),
+					ref.object.getMetadata(CodexSessionMetadataStore.KEY_OWNS_MANAGED_WORKING_DIRECTORY),
+					ref.object.getMetadata(CodexSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY),
 				]);
 				const cwd = parseCwd(cwdRaw);
 				return {
@@ -120,6 +165,12 @@ export class CodexSessionMetadataStore {
 					modelId: modelId ?? undefined,
 					agent: parseAgentSelection(agentRaw),
 					workingDirectories: cwd.workingDirectories,
+					...(ownsManagedWorkingDirectoryRaw === 'true' ? { ownsManagedWorkingDirectory: true } : {}),
+					// Absent or explicitly cleared (empty string) both read back
+					// as `undefined` — an overlay with no known managed path is
+					// indistinguishable from one that never had one, which is the
+					// point: neither is ever safe to delete from.
+					...(managedWorkingDirectoryRaw ? { managedWorkingDirectory: URI.parse(managedWorkingDirectoryRaw) } : {}),
 				};
 			} finally {
 				ref.dispose();

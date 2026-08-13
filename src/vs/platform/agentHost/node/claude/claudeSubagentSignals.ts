@@ -7,7 +7,7 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import type { Mutable } from '../../../../base/common/types.js';
 import { toToolCallMeta, type IToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agentService.js';
+import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
@@ -67,10 +67,10 @@ export function tagWithParent(
 		agentDisplayName: spawn.subagentType ?? 'Subagent',
 		agentDescription: spawn.description,
 		// The Task tool's short `description` input doubles as the concise
-		// per-task tab title for the subagent's read-only peer chat.
+		// per-task tab title for the subagent's read-only chat.
 		taskDescription: spawn.description,
 		// The Task tool's `prompt` input is the full delegated instruction
-		// that seeds the subagent peer chat's opening request.
+		// that seeds the subagent chat's opening request.
 		taskPrompt: spawn.prompt,
 		// When the spawning Task tool is itself an inner tool of another
 		// subagent, its parent Task (one level up) is the tool call in

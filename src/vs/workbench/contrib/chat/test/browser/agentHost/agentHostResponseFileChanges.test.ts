@@ -138,6 +138,88 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		], [1, 1]);
 	});
 
+	test('falls back to the owning peer chat file edits when a turn checkpoint is unavailable', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const peerResource = URI.parse('agent-host-copilot:/sess-1/peer-1');
+		const otherPeerResource = URI.parse('agent-host-copilot:/sess-1/peer-2');
+		const peerChatUri = URI.parse('ahp-chat://peer-1/sess-1');
+		const otherPeerChatUri = URI.parse('ahp-chat://peer-2/sess-1');
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(
+			conn,
+			authority,
+			() => backendSession,
+			resource => resource.toString() === peerResource.toString() ? peerChatUri : otherPeerChatUri,
+		));
+		const peerTurn = (file: string, added: number): ChatState => ({
+			resource: peerChatUri.toString(),
+			turns: [{
+				id: 'same-turn-id',
+				message: {},
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file(`/repo/${file}`).toString(), content: { uri: `git-blob://${file}` } },
+							diff: { added, removed: 0 },
+						}],
+					},
+				}],
+				state: TurnState.Complete,
+			}],
+		} as unknown as ChatState);
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('same-turn-id'), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(peerChatUri.toString(), peerTurn('peer-1.ts', 1));
+		conn.setState(otherPeerChatUri.toString(), peerTurn('peer-2.ts', 2));
+
+		const obs = provider.getChangesForRequest(peerResource, 'same-turn-id')!;
+		let latest: readonly IEditSessionEntryDiff[] = [];
+		ds.add(autorun(reader => { latest = obs.read(reader); }));
+
+		assert.deepStrictEqual(latest.map(diff => ({
+			file: fromAgentHostUri(diff.modifiedURI).path,
+			added: diff.added,
+		})), [{ file: '/repo/peer-1.ts', added: 1 }]);
+
+		assert.notStrictEqual(
+			provider.getChangesForRequest(peerResource, 'same-turn-id'),
+			provider.getChangesForRequest(otherPeerResource, 'same-turn-id'),
+		);
+	});
+
+	test('preserves an authoritative empty turn changeset', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession, () => defaultChatUri));
+
+		conn.setState(backendSession.toString(), sessionStateWithTurnSupport());
+		conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+		conn.setState(defaultChatUri.toString(), {
+			turns: [{
+				id: 't1',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file('/repo/no-op.ts').toString(), content: { uri: 'git-blob://no-op' } },
+							diff: { added: 1, removed: 0 },
+						}],
+					},
+				}],
+			}],
+		} as unknown as ChatState);
+
+		const { latest } = observe(provider, ds);
+		assert.deepStrictEqual(latest(), []);
+	});
+
 	test('bounds per-request observable caches', () => {
 		const ds = store.add(new DisposableStore());
 		const provider = ds.add(new AgentHostResponseFileChangesProvider(new FakeAgentConnection(), authority, () => backendSession));
@@ -231,9 +313,26 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	test('returns empty when the agent does not advertise a turn changeset', () => {
 		const ds = store.add(new DisposableStore());
 		const conn = new FakeAgentConnection();
-		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession));
+		const defaultChatUri = URI.parse(buildDefaultChatUri(backendSession.toString()));
+		const provider = ds.add(new AgentHostResponseFileChangesProvider(conn, authority, () => backendSession, () => defaultChatUri));
 
 		conn.setState(backendSession.toString(), { changesets: [{ label: 'All', uriTemplate: `${backendSession}/changeset/session`, changeKind: 'session' }] } as unknown as SessionState);
+		conn.setState(defaultChatUri.toString(), {
+			turns: [{
+				id: 't1',
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.Completed,
+						content: [{
+							type: ToolResultContentType.FileEdit,
+							after: { uri: URI.file('/repo/unsupported.ts').toString(), content: { uri: 'git-blob://unsupported' } },
+							diff: { added: 1, removed: 0 },
+						}],
+					},
+				}],
+			}],
+		} as unknown as ChatState);
 
 		const { latest } = observe(provider, ds);
 		assert.deepStrictEqual(latest(), []);

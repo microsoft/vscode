@@ -108,6 +108,7 @@ import { localize } from '../../../nls.js';
 import { LogService } from '../../../platform/log/common/logService.js';
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from '../../../platform/lifecycle/node/sharedProcessLifecycleService.js';
 import { RemoteTunnelService } from '../../../platform/remoteTunnel/node/remoteTunnelService.js';
+import { ITunnelProcessCoordinator, TunnelProcessCoordinator } from '../../../platform/remoteTunnel/node/tunnelProcessCoordinator.js';
 import { ExtensionsProfileScannerService } from '../../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { ExtensionRecommendationNotificationServiceChannelClient } from '../../../platform/extensionRecommendations/common/extensionRecommendationsIpc.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
@@ -410,6 +411,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
 		// Remote Tunnel
+		services.set(ITunnelProcessCoordinator, new SyncDescriptor(TunnelProcessCoordinator, [undefined], true));
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
 
 		// Web Content Extractor

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
@@ -29,6 +31,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let userDataDir: string;
 	const secondaryClients: TestProtocolClient[] = [];
 
 	function createSecondaryClient(): TestProtocolClient {
@@ -44,12 +47,21 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
-		server = await startServer({ env: { [AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS) } });
+		userDataDir = mkdtempSync(`${tmpdir()}/vscode-agent-host-lifecycle-`);
+		server = await startServer({
+			userDataDir,
+			env: {
+				HOME: userDataDir,
+				USERPROFILE: userDataDir,
+				[AgentHostSessionReleaseGraceMsEnvVar]: String(RELEASE_GRACE_MS),
+			},
+		});
 	});
 
 	suiteTeardown(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
 		await stopServer(server);
+		rmSync(userDataDir, { recursive: true, force: true });
 	});
 
 	setup(async function () {

@@ -2372,6 +2372,48 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup.activeEditor, movedInput);
 	});
 
+	test('file move is only handled by the global editor service', async function () {
+		const [part, service, accessor] = await createEditorService();
+		const resource = URI.parse('my://resource1');
+		const target = URI.parse('my://resource2');
+		const movedInput = createTestFileEditorInput(target, TEST_EDITOR_INPUT_ID);
+		let renameCalls = 0;
+		const input = disposables.add(new class extends TestFileEditorInput {
+			override async rename() {
+				renameCalls++;
+				return { editor: movedInput };
+			}
+		}(resource, TEST_EDITOR_INPUT_ID));
+		service.createScoped(part, disposables);
+		await service.openEditor(input, { pinned: true });
+
+		const activeEditorChangePromise = awaitActiveEditorChange(service);
+		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, {
+			resource: target,
+			ctime: 0,
+			etag: '',
+			isDirectory: false,
+			isFile: true,
+			mtime: 0,
+			name: 'resource2',
+			size: 0,
+			isSymbolicLink: false,
+			readonly: false,
+			locked: false,
+			executable: false,
+			children: undefined
+		}));
+		await activeEditorChangePromise;
+
+		assert.deepStrictEqual({
+			renameCalls,
+			activeEditor: part.activeGroup.activeEditor
+		}, {
+			renameCalls: 1,
+			activeEditor: movedInput
+		});
+	});
+
 	function awaitActiveEditorChange(editorService: IEditorService): Promise<void> {
 		return Event.toPromise(Event.once(editorService.onDidActiveEditorChange));
 	}

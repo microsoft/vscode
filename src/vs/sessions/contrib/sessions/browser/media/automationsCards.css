@@ -261,13 +261,6 @@
 	flex: 1;
 }
 
-.automations-cards-empty-icon {
-	font-size: 28px;
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: 4px;
-	opacity: 0.7;
-}
-
 .automations-cards-empty-title {
 	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);

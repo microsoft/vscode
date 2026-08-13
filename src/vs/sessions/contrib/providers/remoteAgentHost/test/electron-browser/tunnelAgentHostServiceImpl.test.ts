@@ -95,6 +95,13 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 	});
 
 	suite('selectGatewayFallbackAfterRejection', () => {
+		test('retries the delegated instance instead of selecting or spawning a dedicated host', () => {
+			assert.deepStrictEqual(
+				selectGatewayFallbackAfterRejection({ instanceId: 'editor-1' }, { userDataPath: '/data', delegatedInstanceId: 'editor-1', endpoints: [] }),
+				{ instanceId: 'editor-1' },
+			);
+		});
+
 		test('a rejected editor endpoint falls back to the deterministic live standalone', () => {
 			assert.deepStrictEqual(
 				selectGatewayFallbackAfterRejection({ instanceId: 'editor-1' }, inventory([editorEndpoint, standaloneEndpoint, secondStandaloneEndpoint])),
@@ -125,6 +132,23 @@ suite('tunnelAgentHostServiceImpl - gateway selection', () => {
 	});
 
 	suite('resolveGatewaySelection', () => {
+		test('a delegated instance short-circuits saved preferences and prompts', async () => {
+			const { service, setCalls } = stubLocationPreferenceService('dedicated');
+			const { dialogService, promptCalls } = stubDialogService(undefined);
+
+			const selection = await resolveGatewaySelection(service, dialogService, {
+				hostKey: 'tunnel:abc', hostLabel: 'My Tunnel', productName: 'Test Product',
+				inventory: { userDataPath: '/data', delegatedInstanceId: 'editor-1', endpoints: [editorEndpoint] },
+				userInitiated: true,
+			});
+
+			assert.deepStrictEqual({ selection, promptCalls, setCalls }, {
+				selection: { instanceId: 'editor-1' },
+				promptCalls: [],
+				setCalls: [],
+			});
+		});
+
 		test('saved "editor" preference + a live editor selects that editor without prompting or re-persisting', async () => {
 			const { service, setCalls } = stubLocationPreferenceService('editor');
 			const { dialogService, promptCalls } = stubDialogService(undefined);

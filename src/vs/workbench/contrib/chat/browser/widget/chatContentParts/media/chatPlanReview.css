@@ -400,7 +400,7 @@
 
 .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer .chat-buttons {
 	display: flex;
-	column-gap: 6px;
+	gap: 6px;
 	align-items: center;
 }
 

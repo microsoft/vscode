@@ -16,6 +16,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -136,7 +137,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	});
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();
-	const customViewService = new CustomViewService(new NullLogService());
+	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const automationService = new FixtureAutomationService(data.automations, data.runs);
 	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
 	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);

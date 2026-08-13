@@ -10,17 +10,42 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID } from '../../browser/changesView.js';
 import '../../browser/changesViewActions.js';
 
 suite('Changes View Actions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let changesViewWhen: ContextKeyExpression | undefined;
+
+	suiteSetup(async () => {
+		({ changesViewWhen } = await import('../../browser/changes.contribution.js'));
+	});
+
+	test('Changes view is hidden until the session is created', () => {
+		assert.ok(changesViewWhen);
+		const context = new Context(1, null);
+		context.setValue(IsPhoneLayoutContext.key, false);
+		context.setValue(SessionHasWorkspaceContext.key, true);
+		context.setValue(SessionIsCreatedContext.key, false);
+		const whileNew = changesViewWhen.evaluate(context);
+
+		context.setValue(SessionIsCreatedContext.key, true);
+		assert.deepStrictEqual({
+			whileNew,
+			afterCreation: changesViewWhen.evaluate(context),
+		}, {
+			whileNew: false,
+			afterCreation: true,
+		});
+	});
 
 	test('primary header actions gate themselves to the single-pane Changes editor', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)

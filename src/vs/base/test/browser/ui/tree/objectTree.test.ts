@@ -218,6 +218,25 @@ suite('ObjectTree', function () {
 		disposeTemplate(): void { }
 	}
 
+	test('applies renderer row class names', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const renderer = new class extends Renderer {
+			readonly rowClassName = 'test-tree-row';
+		};
+		const tree = new ObjectTree<number>('test', container, new Delegate(), [renderer]);
+		try {
+			tree.layout(200);
+			tree.setChildren(null, [{ element: 0 }, { element: 1 }]);
+
+			assert.strictEqual(container.querySelectorAll('.monaco-list-row.test-tree-row').length, 2);
+		} finally {
+			tree.dispose();
+		}
+	});
+
 	class IdentityProvider implements IIdentityProvider<number> {
 		getId(element: number): { toString(): string } {
 			return `${element % 100}`;

@@ -628,6 +628,8 @@ export interface ISession {
 	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
+	/** Whether this session is associated with an automation run. Absent means `false`. */
+	readonly isAutomation?: IObservable<boolean>;
 
 	// Reactive properties
 

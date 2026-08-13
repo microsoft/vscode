@@ -64,8 +64,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 
 // =============================================================================
@@ -80,7 +79,6 @@ suite('AgentHostClientTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('shares a customization scope for equivalent root sets', async () => {
-		const resolvedRoots: URI[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, TestFileService);
 		instantiationService.stub(IAgentHostFileSystemService, {
@@ -98,10 +96,7 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidChangeSkills = Event.None;
 			override readonly onDidChangeInstructions = Event.None;
 			override getDisabledPromptFiles() { return new ResourceSet(); }
-			override async listPromptFilesForStorage(_type: PromptsType, storage: PromptsStorage, _token: CancellationToken, root?: URI) {
-				if (storage === PromptsStorage.local && root) {
-					resolvedRoots.push(root);
-				}
+			override async listPromptFilesForStorage() {
 				return [];
 			}
 		}());
@@ -138,7 +133,6 @@ suite('AgentHostClientTools', () => {
 		const sharedScopeState = {
 			customizations: first.customizations === second.customizations,
 			customAgents: first.customAgents === second.customAgents,
-			resolvedRoots,
 		};
 		first.dispose();
 		second.dispose();
@@ -153,7 +147,6 @@ suite('AgentHostClientTools', () => {
 			sharedScopeState: {
 				customizations: true,
 				customAgents: true,
-				resolvedRoots: [rootA, rootB, rootA, rootB, rootA, rootB, rootA, rootB, rootA, rootB, rootA, rootB, rootA, rootB, rootA, rootB],
 			},
 			scopeAfterRegistrationDisposal: undefined,
 		});

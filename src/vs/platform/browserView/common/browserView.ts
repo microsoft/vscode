@@ -5,6 +5,8 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
@@ -242,6 +244,7 @@ export interface IBrowserViewOwner {
 export interface IBrowserViewInfo {
 	readonly id: string;
 	readonly owner: IBrowserViewOwner;
+	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
 
@@ -268,7 +271,16 @@ export interface IBrowserViewCreatedEvent {
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
 	readonly sessionOptions: IBrowserSessionOptions;
+	readonly associatedResource?: UriComponents;
 	readonly initialState?: Partial<IBrowserViewState>;
+}
+
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
+	const targetResource = URI.parse(target);
+	return extUriBiasedIgnorePathCase.isEqual(
+		associatedResource.with({ query: null, fragment: null }),
+		targetResource.with({ query: null, fragment: null })
+	);
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
@@ -471,7 +483,7 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
 	 */
-	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo>;
 
 	/**
 	 * Destroy a browser view instance

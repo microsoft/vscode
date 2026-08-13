@@ -1241,6 +1241,11 @@ export namespace ProxyChannel {
 						return options.properties.get(propKey);
 					}
 
+					// Answering `then` makes this proxy a thenable, so `await` would forward it and never settle.
+					if (propKey === 'then') {
+						return undefined;
+					}
+
 					// Dynamic Event
 					if (propertyIsDynamicEvent(propKey)) {
 						return function (arg: unknown) {
