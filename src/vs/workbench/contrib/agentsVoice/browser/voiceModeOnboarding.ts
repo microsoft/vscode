@@ -1211,7 +1211,6 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: AgentsVoiceStorageKeys.IntroBannerShown,
-			hostClass: 'has-voice-mode-onboarding',
 		}));
 	}
 
