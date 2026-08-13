@@ -2055,7 +2055,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _startClaudeCodeChatDiscovery(): Promise<void> {
 		if (!this._claudeCodeChatDiscovery) {
 			this._claudeCodeChatDiscovery = retry(async () => {
-				await this._sdkService.ensureAvailableForDiscovery?.();
+				await this._sdkService.ensureAvailableForDiscovery();
 				if (!(await this._emitClaudeCodeChats())) {
 					throw new Error('Claude chat catalog is not available');
 				}

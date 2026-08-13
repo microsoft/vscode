@@ -75,10 +75,10 @@ export interface IClaudeAgentSdkService {
 	 */
 	canLoadWithoutDownload(): Promise<boolean>;
 	/**
-	 * Starts the SDK download used by native chat discovery without loading the
-	 * SDK module. Optional for test doubles that cannot initiate downloads.
+	 * Ensures the SDK is available for native chat discovery without loading
+	 * the module.
 	 */
-	ensureAvailableForDiscovery?(): Promise<void>;
+	ensureAvailableForDiscovery(): Promise<void>;
 
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
 	deleteSession(sessionId: string, options?: SessionMutationOptions): Promise<void>;
