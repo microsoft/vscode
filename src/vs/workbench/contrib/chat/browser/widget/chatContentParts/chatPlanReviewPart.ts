@@ -38,6 +38,8 @@ import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chat
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import './media/chatPlanReview.css';
 
 const MARKDOWN_EDITOR_ID = 'vscode.markdown.editor';
@@ -316,7 +318,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._messageContentDisposables.value = store;
 		const rendered = store.add(this._markdownRendererService.render(
 			new MarkdownString(this.review.content, { supportThemeIcons: true, isTrusted: false }),
-			{ asyncRenderCallback: () => this._messageScrollable.scanDomNode() }
+			getChatMarkdownRenderOptions({ asyncRenderCallback: () => this._messageScrollable.scanDomNode() })
 		));
 		this._messageEl.append(rendered.element);
 		this._messageScrollable.scanDomNode();
@@ -666,6 +668,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	}
 
 	private toggleCollapsed(): void {
+		// Announce the toggle before the row grows so the list anchors this part's header instead
+		// of auto-scrolling to the new end of the transcript when it is already at the bottom.
+		this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		this._isCollapsed = !this._isCollapsed;
 		if (this.review instanceof ChatPlanReviewData) {
 			this.review.draftCollapsed = this._isCollapsed;

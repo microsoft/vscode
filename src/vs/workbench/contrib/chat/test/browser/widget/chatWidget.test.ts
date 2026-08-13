@@ -5,17 +5,69 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { acceptAndAwaitSentRequest, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight } from '../../../browser/widget/chatWidget.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SaveReason } from '../../../../../common/editor.js';
+import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
+import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
 import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 
 suite('ChatWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	class RecordingEditorService extends TestEditorService {
+		readonly saveAllCalls: (ISaveAllEditorsOptions | undefined)[] = [];
+
+		override async saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult> {
+			this.saveAllCalls.push(options);
+			return { success: true, editors: [] };
+		}
+	}
+
+	test('saves non-untitled editors before sending by default', async () => {
+		const configurationService = new TestConfigurationService();
+		const editorService = store.add(new RecordingEditorService());
+
+		await saveAllBeforeChatSend(configurationService, editorService);
+		await configurationService.setUserConfiguration(ChatConfiguration.SaveBeforeSend, false);
+		await saveAllBeforeChatSend(configurationService, editorService);
+
+		assert.deepStrictEqual(editorService.saveAllCalls, [{
+			includeUntitled: false,
+			reason: SaveReason.EXPLICIT,
+		}]);
+	});
+
+	test('transcript overlays suppress the welcome state', () => {
+		assert.deepStrictEqual({
+			unavailable: shouldShowChatWelcome(undefined, false),
+			progressBeforeModel: shouldShowChatWelcome(undefined, true),
+			empty: shouldShowChatWelcome(0, false),
+			progress: shouldShowChatWelcome(0, true),
+			message: shouldShowChatWelcome(1, false),
+		}, {
+			unavailable: undefined,
+			progressBeforeModel: false,
+			empty: true,
+			progress: false,
+			message: false,
+		});
+	});
+
+	test('loading suppresses the getting-started tip', () => {
+		assert.deepStrictEqual([
+			shouldShowChatTip(0, false, false),
+			shouldShowChatTip(0, false, true),
+		], [true, false]);
+	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {
 		const command = new ChatRequestSlashCommandPart(
@@ -85,6 +137,54 @@ suite('ChatWidget', () => {
 			['layoutForInputHeight', 420, 720],
 		]);
 	});
+
+	test('captures and restores transcript scroll state', () => {
+		const listWidget = {
+			scrollTop: 200,
+			scrollHeight: 1000,
+			renderHeight: 300,
+			get isScrolledToBottom() {
+				return this.scrollTop + this.renderHeight >= this.scrollHeight - 2;
+			},
+			scrollToEnd() {
+				this.scrollTop = this.scrollHeight - this.renderHeight;
+			},
+		};
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget });
+
+		const scrolledUp = widget.getViewState();
+		widget.restoreViewState({ scrollTop: 350 });
+		const legacyScrollTop = listWidget.scrollTop;
+		widget.restoreViewState({ scrollTop: 200, isAtBottom: true });
+
+		assert.deepStrictEqual({
+			scrolledUp,
+			legacyScrollTop,
+			bottomScrollTop: listWidget.scrollTop,
+		}, {
+			scrolledUp: { scrollTop: 200, isAtBottom: false },
+			legacyScrollTop: 350,
+			bottomScrollTop: 700,
+		});
+	});
+
+	test('prompt timeline width follows explicit widget layout', () => {
+		const onDidLayout = new Emitter<{ width: number; height: number }>();
+		const host = document.createElement('div');
+		Object.defineProperty(host, 'clientWidth', { value: 320 });
+		const widths: number[] = [];
+		const observation = observePromptTimelineHostWidth(
+			{ onDidLayout: onDidLayout.event },
+			host,
+			{ setHostWidth: width => widths.push(width) },
+		);
+
+		onDidLayout.fire({ width: 480, height: 600 });
+		observation.dispose();
+		onDidLayout.fire({ width: 640, height: 600 });
+		onDidLayout.dispose();
+		assert.deepStrictEqual(widths, [320, 480]);
+	});
 });
 
 suite('ChatWidget - acceptAndAwaitSentRequest', () => {
@@ -108,7 +208,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
 		// The queued request has not run yet, so `pending` is still unresolved here.
 		const acceptedWhileQueued = accepted === 1;
 
@@ -134,7 +234,7 @@ suite('ChatWidget - acceptAndAwaitSentRequest', () => {
 		const deferred = new DeferredPromise<ChatSendResult>();
 		let accepted = 0;
 
-		const pending = acceptAndAwaitSentRequest({ kind: 'queued', deferred: deferred.p }, () => accepted++);
+		const pending = acceptAndAwaitSentRequest({ kind: 'queued', requestId: 'queued-request', deferred: deferred.p }, () => accepted++);
 		await deferred.complete({ kind: 'rejected', reason: 'Session is read-only' });
 
 		assert.deepStrictEqual({ accepted, sent: await pending }, { accepted: 1, sent: undefined });

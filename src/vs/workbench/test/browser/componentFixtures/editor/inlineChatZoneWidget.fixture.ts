@@ -29,6 +29,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
+import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
@@ -53,6 +54,8 @@ import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widge
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -185,6 +188,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly onDidPerformUserAction = Event.None;
 				override readonly onDidSubmitRequest = Event.None;
 				override readonly requestInProgressObs = observableValue('requestInProgress', false);
+				override hasSessions() { return false; }
 			}());
 			reg.defineInstance(IChatAgentService, new class extends mock<IChatAgentService>() {
 				override readonly onDidChangeAgents = Event.None;
@@ -272,7 +276,16 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 					override readonly onDidChangeSessions = Event.None;
 				}();
 			}());
-			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() { }());
+			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly rootState: IAgentSubscription<RootState> = {
+					value: undefined,
+					verifiedValue: undefined,
+					onDidChange: Event.None,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				};
+			}());
 			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
 				override get() { return undefined; }
@@ -324,6 +337,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IVoiceModeOnboardingService, new class extends mock<IVoiceModeOnboardingService>() {
 				override readonly isVisible = false;
 				override registerHost() { return Disposable.None; }
+			}());
+			reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
+				override registerHost() { return Disposable.None; }
+				override toggleNoticeFocus() { return false; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;

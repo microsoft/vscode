@@ -17,6 +17,8 @@ import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '..
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
+const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
+
 export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity') {
 		return;
@@ -124,7 +126,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		});
 	});
 
-	(config.supportsMultipleChats ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
+	(config.supportsMultipleChats && (config.supportsMultipleChatsE2E !== false || RECORDING) ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
 		this.timeout(240_000);
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
 		tempDirs.push(workspace);
@@ -151,6 +153,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			60_000,
 		);
 
+		await releaseAndRestoreSession(sessionUri);
 		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
 
 		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });

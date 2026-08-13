@@ -32,7 +32,7 @@ import { FixtureMenuService } from '../chat/chatFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import { ActiveSessionState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
+import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../../sessions/contrib/changes/common/changesViewService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../../sessions/contrib/changes/common/changes.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -59,6 +59,7 @@ interface IChangesViewFixtureOptions {
 	readonly checks?: readonly IGitHubCICheck[];
 	readonly reviewCommentCounts?: ReadonlyMap<string, number>;
 	readonly agentFeedbackCounts?: ReadonlyMap<string, number>;
+	readonly sectionCollapseState?: IChangesViewSectionCollapseState;
 	readonly height?: number;
 }
 
@@ -83,6 +84,8 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionLoadingObs: IObservable<boolean>;
+	readonly activeSessionSectionCollapseStateObs: IObservable<IChangesViewSectionCollapseState>;
+	readonly detailsViewStateTransferObs = constObservable(undefined);
 	readonly viewModeObs = observableValue<ChangesViewMode>(this, ChangesViewMode.List);
 
 	constructor(session: IActiveSession, options: IChangesViewFixtureOptions) {
@@ -102,6 +105,7 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionHasGitRepositoryObs = constObservable(true);
 		this.activeSessionReviewCommentCountByFileObs = constObservable(new Map(options.reviewCommentCounts));
 		this.activeSessionAgentFeedbackCountByFileObs = constObservable(new Map(options.agentFeedbackCounts));
+		this.activeSessionSectionCollapseStateObs = constObservable(options.sectionCollapseState ?? { otherFiles: false, checks: false });
 		this.activeSessionStateObs = constObservable({
 			isolationMode: IsolationMode.Worktree,
 			hasGitRepository: true,
@@ -121,7 +125,14 @@ class FixtureChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionLoadingObs = constObservable(false);
 	}
 
+	setSectionCollapsed(_sessionResource: URI, _section: ChangesViewSection, _collapsed: boolean): void { }
+
+	getDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode): IChangesDetailsViewState | undefined { return undefined; }
+
+	setDetailsViewState(_sessionResource: URI, _viewMode: ChangesViewMode, _state: IChangesDetailsViewState): void { }
+
 	setChangesetId(_changesetId: string | undefined): void { }
+	showChangeset(_changeset: ISessionChangeset): void { }
 
 	setChangesetFilesReviewState(_resources: readonly URI[], _reviewed: boolean): void { }
 
@@ -455,6 +466,10 @@ const SAMPLE_CHANGES = [
 	createFileChange('src/vs/sessions/contrib/changes/browser/oldChangesLayout.ts', 'deleted', 0, 47),
 ];
 
+const MANY_CHANGES = Array.from({ length: 40 }, (_, index) =>
+	createFileChange(`src/feature/changed-file-${String(index + 1).padStart(2, '0')}.ts`, 'modified', index + 1, index % 4)
+);
+
 const SAMPLE_OTHER_FILES = [
 	createOtherFile('/home/user/.config/code/settings.json', SessionFileOperation.Modified),
 	createOtherFile('/home/user/.config/copilot/agents/inbox.agent.md', SessionFileOperation.Created),
@@ -503,6 +518,29 @@ export default defineThemedFixtureGroup({ path: 'sessions/changes/' }, {
 			viewMode: ChangesViewMode.List,
 			changes: SAMPLE_CHANGES,
 			checks: SAMPLE_CHECKS,
+			height: 440,
+		}),
+	}),
+
+	ManyChanges: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: MANY_CHANGES,
+			otherFiles: SAMPLE_OTHER_FILES,
+			checks: SAMPLE_CHECKS,
+			height: 1252,
+		}),
+	}),
+
+	CollapsedSections: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderChangesView(ctx, {
+			viewMode: ChangesViewMode.List,
+			changes: SAMPLE_CHANGES,
+			otherFiles: SAMPLE_OTHER_FILES,
+			checks: SAMPLE_CHECKS,
+			sectionCollapseState: { otherFiles: true, checks: true },
 			height: 440,
 		}),
 	}),

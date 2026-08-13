@@ -717,7 +717,7 @@ declare module 'vscode' {
 		readonly promo?: {
 			readonly id: string;
 			readonly discountPercent: number;
-			readonly endsAt: string;
+			readonly endsAt?: string;
 			readonly message: string;
 		};
 		readonly maxInputTokens?: number;

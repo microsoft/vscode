@@ -41,14 +41,21 @@ export namespace ChatContextKeys {
 
 	export const inputHasText = new RawContextKey<boolean>('chatInputHasText', false, { type: 'boolean', description: localize('interactiveInputHasText', "True when the chat input has text.") });
 	export const inputHasSendableContent = new RawContextKey<boolean>('chatInputHasSendableContent', false, { type: 'boolean', description: localize('interactiveInputHasSendableContent', "True when the chat input has text or file attachments that can be sent.") });
+	export const inputSubmitPending = new RawContextKey<boolean>('chatInputSubmitPending', false, { type: 'boolean', description: localize('chatInputSubmitPending', "True when a submitted request is being routed or dispatched (e.g. omni-chat routing) and cannot be re-sent yet.") });
+	export const inputRouting = new RawContextKey<boolean>('chatInputRouting', false, { type: 'boolean', description: localize('chatInputRouting', "True while the destination for a submitted chat request is being resolved.") });
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inChatQuestionCarousel = new RawContextKey<boolean>('inChatQuestionCarousel', false, { type: 'boolean', description: localize('inChatQuestionCarousel', "True when focus is in the chat question carousel.") });
 	export const chatQuestionCarouselHasTerminal = new RawContextKey<boolean>('chatQuestionCarouselHasTerminal', false, { type: 'boolean', description: localize('chatQuestionCarouselHasTerminal', "True when the chat question carousel was triggered by a terminal and has a terminal to focus.") });
 	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
+	export const findSupported = new RawContextKey<boolean>('chatFindSupported', false, { type: 'boolean', description: localize('chatFindSupported', "True when the chat widget hosting the current focus supports transcript Find.") });
+	export const findWidgetVisible = new RawContextKey<boolean>('chatFindWidgetVisible', false, { type: 'boolean', description: localize('chatFindWidgetVisible', "True when the chat transcript Find widget is visible.") });
+	export const findInputFocused = new RawContextKey<boolean>('chatFindInputFocused', false, { type: 'boolean', description: localize('chatFindInputFocused', "True when the chat transcript Find widget's input box has focus.") });
+	export const findWidgetFocused = new RawContextKey<boolean>('chatFindWidgetFocused', false, { type: 'boolean', description: localize('chatFindWidgetFocused', "True when any part of the chat transcript Find widget has focus.") });
 	export const inChatTodoList = new RawContextKey<boolean>('inChatTodoList', false, { type: 'boolean', description: localize('inChatTodoList', "True when focus is in the chat todo list.") });
 	export const inChatTip = new RawContextKey<boolean>('inChatTip', false, { type: 'boolean', description: localize('inChatTip', "True when focus is in a chat tip.") });
+	export const inChatComposer = new RawContextKey<boolean>('inChatComposer', false, { type: 'boolean', description: localize('inChatComposer', "True when focus is in an Agents window chat composer or one of the notices above it.") });
 	export const multipleChatTips = new RawContextKey<boolean>('multipleChatTips', false, { type: 'boolean', description: localize('multipleChatTips', "True when there are multiple chat tips available.") });
 	export const inChatTerminalToolOutput = new RawContextKey<boolean>('inChatTerminalToolOutput', false, { type: 'boolean', description: localize('inChatTerminalToolOutput', "True when focus is in the chat terminal output region.") });
 	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
@@ -82,6 +89,8 @@ export namespace ChatContextKeys {
 	 * Widget-scoped: logical Agent Host provider ID for this chat widget, e.g. `copilotcli`, `claude`, or `codex`.
 	 */
 	export const chatAgentHostProviderId = new RawContextKey<string>('chatAgentHostProviderId', '', { type: 'string', description: localize('chatAgentHostProviderId', "The Agent Host provider ID when the chat widget is locked to an Agent Host session.") });
+	/** Widget-scoped: whether the locked Agent Host provider pins an immutable primary working directory. */
+	export const chatAgentHostHasImmutablePrimaryWorkingDirectory = new RawContextKey<boolean>('chatAgentHostHasImmutablePrimaryWorkingDirectory', false, { type: 'boolean', description: localize('chatAgentHostHasImmutablePrimaryWorkingDirectory', "True when the locked Agent Host provider pins an immutable primary working directory.") });
 	/**
 	 * True when the chat session has a customAgentTarget defined in its contribution,
 	 * which means the mode picker should be shown with filtered custom agents.
@@ -110,6 +119,7 @@ export namespace ChatContextKeys {
 	export const inputHasAgent = new RawContextKey<boolean>('chatInputHasAgent', false);
 	export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
 	export const inQuickChat = new RawContextKey<boolean>('quickChatHasFocus', false, { type: 'boolean', description: localize('inQuickChat', "True when the quick chat UI has focus, false otherwise.") });
+	export const inChatInputWindow = new RawContextKey<boolean>('inChatInputWindow', false, { type: 'boolean', description: localize('inChatInputWindow', "True when focus is in the floating chat input window, false otherwise.") });
 	export const inAgentSessionsWelcome = new RawContextKey<boolean>('inAgentSessionsWelcome', false, { type: 'boolean', description: localize('inAgentSessionsWelcome', "True when the chat input is within the agent sessions welcome page.") });
 	export const inAutomationsDialog = new RawContextKey<boolean>('inAutomationsDialog', false, { type: 'boolean', description: localize('inAutomationsDialog', "True when the chat input is within the automations dialog.") });
 	export const chatSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session.") });

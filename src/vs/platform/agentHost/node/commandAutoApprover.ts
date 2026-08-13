@@ -15,6 +15,7 @@ import { shouldRequireConfirmationForAutoApproveParse } from '../../terminal/com
 import { gitAutoApproveRules } from '../../terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { SedFileWriteParser } from '../../terminal/common/autoApprove/sedFileWriteParser.js';
+import { sortAutoApproveRules } from '../../terminal/common/autoApprove/sortAutoApproveRules.js';
 import type { AgentHostTerminalAutoApproveRuleValue, AgentHostTerminalAutoApproveRules } from '../common/agentHostSchema.js';
 
 /**
@@ -175,6 +176,48 @@ interface IAutoApproveRules {
 const neverMatchRegex = /(?!.*)/;
 const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 const sedFileWriteParser = new SedFileWriteParser();
+
+interface ITreeSitterResources {
+	readonly parserClass: typeof Parser;
+	readonly queryClass: typeof Query;
+	readonly bashLanguage: PromiseSettledResult<Language>;
+	readonly powershellLanguage: PromiseSettledResult<Language>;
+}
+
+let treeSitterResourcesPromise: Promise<ITreeSitterResources> | undefined;
+
+function getTreeSitterResources(): Promise<ITreeSitterResources> {
+	// Parser.init and Language.load mutate process-global WASM state, so load them once.
+	return treeSitterResourcesPromise ??= loadTreeSitterResources();
+}
+
+async function loadTreeSitterResources(): Promise<ITreeSitterResources> {
+	const { default: TreeSitter } = await import('@vscode/tree-sitter-wasm');
+	const moduleRoot = URI.joinPath(FileAccess.asFileUri(getAppNodeModulesPath()), '@vscode', 'tree-sitter-wasm', 'wasm');
+	const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
+
+	await TreeSitter.Parser.init({
+		locateFile() {
+			return wasmPath;
+		}
+	});
+
+	const loadGrammar = async (fileName: string) => {
+		const grammarWasm = await fs.promises.readFile(URI.joinPath(moduleRoot, fileName).fsPath);
+		return TreeSitter.Language.load(new Uint8Array(grammarWasm.buffer, grammarWasm.byteOffset, grammarWasm.byteLength));
+	};
+	const [bashLanguage, powershellLanguage] = await Promise.allSettled([
+		loadGrammar('tree-sitter-bash.wasm'),
+		loadGrammar('tree-sitter-powershell.wasm'),
+	]);
+
+	return {
+		parserClass: TreeSitter.Parser,
+		queryClass: TreeSitter.Query,
+		bashLanguage,
+		powershellLanguage,
+	};
+}
 
 /**
  * Auto-approves or denies shell commands based on terminal auto-approve rules.
@@ -390,30 +433,13 @@ export class CommandAutoApprover extends Disposable {
 
 	private async _initTreeSitter(): Promise<void> {
 		try {
-			const { default: TreeSitter } = (await import('@vscode/tree-sitter-wasm'));
+			const resources = await getTreeSitterResources();
 
 			if (this._store.isDisposed) {
 				return;
 			}
 
-			// Resolve WASM files from node_modules. In the desktop app the `.wasm`
-			// files are unpacked next to the ASAR archive (`node_modules.asar.unpacked`),
-			// while in dev and on the server (which has no ASAR) they live in a plain
-			// `node_modules`.
-			const moduleRoot = URI.joinPath(FileAccess.asFileUri(getAppNodeModulesPath()), '@vscode', 'tree-sitter-wasm', 'wasm');
-			const wasmPath = URI.joinPath(moduleRoot, 'tree-sitter.wasm').fsPath;
-
-			await TreeSitter.Parser.init({
-				locateFile() {
-					return wasmPath;
-				}
-			});
-
-			if (this._store.isDisposed) {
-				return;
-			}
-
-			const parser = new TreeSitter.Parser();
+			const parser = new resources.parserClass();
 			this._register(toDisposable(() => {
 				try {
 					parser.delete();
@@ -422,36 +448,20 @@ export class CommandAutoApprover extends Disposable {
 				}
 			}));
 
-			// Load the bash and PowerShell grammars. A failure to load one must
-			// not disable auto-approval for the other, so each is settled
-			// independently and assigned only if it resolved.
-			const loadGrammar = async (fileName: string) => {
-				const grammarWasm = await fs.promises.readFile(URI.joinPath(moduleRoot, fileName).fsPath);
-				return TreeSitter.Language.load(new Uint8Array(grammarWasm.buffer, grammarWasm.byteOffset, grammarWasm.byteLength));
-			};
-			const [bashLanguage, powershellLanguage] = await Promise.allSettled([
-				loadGrammar('tree-sitter-bash.wasm'),
-				loadGrammar('tree-sitter-powershell.wasm'),
-			]);
-
-			if (this._store.isDisposed) {
-				return;
-			}
-
 			this._parser = parser;
-			this._queryClass = TreeSitter.Query;
+			this._queryClass = resources.queryClass;
 			// A grammar that fails to load leaves its language undefined, so
 			// commands for that shell fall back to `noMatch` and require
 			// confirmation rather than auto-approving.
-			if (bashLanguage.status === 'fulfilled') {
-				this._bashLanguage = bashLanguage.value;
+			if (resources.bashLanguage.status === 'fulfilled') {
+				this._bashLanguage = resources.bashLanguage.value;
 			} else {
-				this._logService.warn('[CommandAutoApprover] Failed to load the bash grammar; bash commands will require confirmation', bashLanguage.reason);
+				this._logService.warn('[CommandAutoApprover] Failed to load the bash grammar; bash commands will require confirmation', resources.bashLanguage.reason);
 			}
-			if (powershellLanguage.status === 'fulfilled') {
-				this._powershellLanguage = powershellLanguage.value;
+			if (resources.powershellLanguage.status === 'fulfilled') {
+				this._powershellLanguage = resources.powershellLanguage.value;
 			} else {
-				this._logService.warn('[CommandAutoApprover] Failed to load the PowerShell grammar; PowerShell commands will require confirmation', powershellLanguage.reason);
+				this._logService.warn('[CommandAutoApprover] Failed to load the PowerShell grammar; PowerShell commands will require confirmation', resources.powershellLanguage.reason);
 			}
 			this._logService.info(`[CommandAutoApprover] Tree-sitter initialized (bash=${this._bashLanguage ? 'available' : 'unavailable'}, powershell=${this._powershellLanguage ? 'available' : 'unavailable'})`);
 		} catch (err) {
@@ -639,12 +649,21 @@ const DEFAULT_TERMINAL_AUTO_APPROVE_RULES: Readonly<Record<string, AgentHostTerm
 	'/^find\\b.*\\s-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 	rg: true,
 	'/^rg\\b.*\\s(--pre|--hostname-bin)\\b/': false,
+	// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 	sed: true,
 	'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 	'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-	'/^sed\\b.*;W/': false,
-	'/^sort\\b(?!-)/': true,
-	'/^sort\\b.*\\s-(o|S)\\b/': false,
+	// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+	// captured so the closing quote must match it, and whitespace and `!` are allowed
+	// around the optional address since sed ignores them. The option prefix also skips
+	// the separate operand consumed by -l/--line-length.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+	// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+	// Escaped characters are consumed before testing for the matching closing quote.
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+	// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+	'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
+	...sortAutoApproveRules,
 	tree: true,
 	'/^tree\\b.*\\s-o\\b/': false,
 	'/^xxd$/': true,

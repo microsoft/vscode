@@ -14,7 +14,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun, runOnChange } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -37,12 +37,12 @@ import { pluginIcon } from './aiCustomizationIcons.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
+import { UpdateAgentPluginsCommandId } from '../chat.js';
 
 const $ = DOM.$;
 
@@ -117,7 +117,6 @@ class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 
 interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
-	readonly syncCheckboxContainer: HTMLElement;
 	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
@@ -127,14 +126,9 @@ interface IPluginInstalledItemTemplateData {
 class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
 	readonly templateId = 'pluginInstalledItem';
 
-	constructor(
-		private readonly _harnessService: ICustomizationHarnessService,
-	) { }
-
 	renderTemplate(container: HTMLElement): IPluginInstalledItemTemplateData {
 		container.classList.add('mcp-server-item');
 
-		const syncCheckboxContainer = DOM.append(container, $('.item-sync-checkbox'));
 		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
 		typeIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
 
@@ -142,7 +136,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const name = DOM.append(details, $('.mcp-server-name'));
 		const description = DOM.append(details, $('.mcp-server-description'));
 
-		return { container, syncCheckboxContainer, typeIcon, name, description, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IPluginInstalledItemEntry, _index: number, templateData: IPluginInstalledItemTemplateData): void {
@@ -166,26 +160,6 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 			templateData.container.classList.toggle('disabled', !enabled);
 		}));
 
-		// Disable checkbox: shown when the active harness has a disable provider
-		const syncProvider = this._harnessService.getActiveDescriptor().syncProvider;
-		if (syncProvider) {
-			templateData.syncCheckboxContainer.style.display = '';
-			const pluginUri = element.item.plugin.uri;
-			const disabled = syncProvider.isDisabled(pluginUri);
-			const title = disabled
-				? localize('enablePlugin', "Enable {0} for sync", element.item.name)
-				: localize('disablePlugin', "Disable {0} from sync", element.item.name);
-			const checkbox = templateData.disposables.add(
-				new Checkbox(title, !disabled, defaultCheckboxStyles)
-			);
-			templateData.syncCheckboxContainer.replaceChildren(checkbox.domNode);
-			templateData.disposables.add(checkbox.onChange(() => {
-				syncProvider.setDisabled(pluginUri, !checkbox.checked);
-			}));
-		} else {
-			templateData.syncCheckboxContainer.style.display = 'none';
-			templateData.syncCheckboxContainer.replaceChildren();
-		}
 	}
 
 	disposeTemplate(templateData: IPluginInstalledItemTemplateData): void {
@@ -249,7 +223,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		templateData.container.classList.toggle('disabled', element.item.enabled === false);
 		templateData.status.className = 'mcp-server-status';
 		if (element.item.enabled === false) {
-			templateData.status.textContent = localize('remotePluginDisabled', "Disabled");
+			templateData.status.textContent = getRemotePluginDisabledLabel(element.item);
 			templateData.status.classList.add('disabled');
 			return;
 		}
@@ -278,6 +252,10 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 	}
 
 	disposeTemplate(_templateData: IPluginRemoteItemTemplateData): void { }
+}
+
+export function getRemotePluginDisabledLabel(item: Pick<ICustomizationItem, 'disabledReason'>): string {
+	return getCustomizationDisabledLabel(item.disabledReason);
 }
 
 //#endregion
@@ -398,6 +376,7 @@ export class PluginListWidget extends Disposable {
 	private addButtonSimple!: Button;
 	private addButton!: ButtonWithDropdown;
 	private createPluginButton!: Button;
+	private updatePluginsButton!: Button;
 	private readonly addDropdownActions = this._register(new DisposableStore());
 
 	private installedItems: IInstalledPluginItem[] = [];
@@ -509,7 +488,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
-		// Button container (Browse Marketplace + Add actions + Create Plugin)
+		// Button container (Browse Marketplace + Add actions + Create Plugin + Update Plugins)
 		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
 		// Back button (visible only in marketplace browse mode)
@@ -552,6 +531,12 @@ export class PluginListWidget extends Disposable {
 		this.createPluginButton.label = `$(${Codicon.newFile.id})`;
 		this._register(this.createPluginButton.onDidClick(() => this.runCreatePluginAction()));
 
+		const updatePluginsLabel = localize('updatePlugins', "Update Plugins");
+		this.updatePluginsButton = this._register(new Button(this.buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: updatePluginsLabel, ariaLabel: updatePluginsLabel }));
+		this.updatePluginsButton.element.classList.add('list-icon-button');
+		this.updatePluginsButton.label = `$(${Codicon.refresh.id})`;
+		this._register(this.updatePluginsButton.onDidClick(() => this.runUpdatePluginsAction()));
+
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
@@ -575,7 +560,7 @@ export class PluginListWidget extends Disposable {
 		// Create list
 		const delegate = new PluginItemDelegate();
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IPluginGroupHeaderEntry>('pluginGroupHeader', this.hoverService);
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService);
+		const installedRenderer = new PluginInstalledItemRenderer();
 		const remoteRenderer = new PluginRemoteItemRenderer();
 		const marketplaceRenderer = new GalleryItemRenderer<IPluginMarketplaceItemEntry>(PLUGIN_MARKETPLACE_ITEM_TEMPLATE_ID, new PluginMarketplaceItemProvider(this.pluginInstallService, this.agentPluginService));
 
@@ -843,6 +828,15 @@ export class PluginListWidget extends Disposable {
 
 	private async runCreatePluginAction(): Promise<void> {
 		await this.commandService.executeCommand('workbench.action.chat.createPlugin');
+	}
+
+	private async runUpdatePluginsAction(): Promise<void> {
+		this.updatePluginsButton.enabled = false;
+		try {
+			await this.commandService.executeCommand(UpdateAgentPluginsCommandId);
+		} finally {
+			this.updatePluginsButton.enabled = true;
+		}
 	}
 
 	private async runPluginAction(action: ICustomizationItemAction): Promise<void> {

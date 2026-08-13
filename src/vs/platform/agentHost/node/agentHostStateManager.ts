@@ -129,6 +129,11 @@ class SessionSummaryNotifier extends Disposable {
 		return this._lastNotified.has(session);
 	}
 
+	/** The last summary announced to clients for `session`, if any. */
+	getAnnounced(session: string): SessionSummary | undefined {
+		return this._lastNotified.get(session);
+	}
+
 	/** Marks `session` dirty and schedules a debounced flush. */
 	markDirty(session: string): void {
 		this._dirty.add(session);
@@ -268,6 +273,9 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _onDidChangeSessionConfig = this._register(new Emitter<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }>());
 	readonly onDidChangeSessionConfig: Event<{ session: URI; previous: SessionConfigState | undefined; current: SessionConfigState | undefined }> = this._onDidChangeSessionConfig.event;
 
+	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
+	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		options: IAgentHostStateManagerOptions = {},
@@ -384,6 +392,11 @@ export class AgentHostStateManager extends Disposable {
 		return entry ? this._toSummary(session, entry) : undefined;
 	}
 
+	/** Returns an unrestored session's last surfaced summary, if any. */
+	getSurfacedSessionSummary(session: string): SessionSummary | undefined {
+		return this._sessionStates.has(session) ? undefined : this._summaryNotifier.getAnnounced(session);
+	}
+
 	/**
 	 * Projects an {@link ISessionEntry} into its root-channel
 	 * {@link SessionSummary}. The summary's `_meta` is the same object as
@@ -436,6 +449,16 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns already-hydrated state without triggering resolution or I/O. */
 	getChatState(chat: URI): ChatState | undefined {
 		return this._chatEntries.get(chat)?.state;
+	}
+
+	/**
+	 * Returns a chat's {@link ChatOrigin} from its catalog summary, not its
+	 * (lazily-materialized) {@link ChatState}: a restored chat registers its
+	 * summary — origin included — up front, before state resolves via
+	 * {@link resolveChatState}. Origin is immutable, so no hydration is needed.
+	 */
+	getChatOrigin(chat: URI): ChatOrigin | undefined {
+		return this._chatEntries.get(chat)?.summary.origin;
 	}
 
 	/**
@@ -535,15 +558,30 @@ export class AgentHostStateManager extends Disposable {
 	getOverlaySessionSummaries(): SessionSummary[] {
 		const summaries: SessionSummary[] = [];
 		for (const [key, entry] of this._sessionStates) {
-			// Turn activity lives on the session's default chat after the
-			// multi-chat protocol move, so consult that chat's turns/activeTurn.
-			const chat = this._chatEntries.get(buildDefaultChatUri(key))?.state;
-			if (entry.state.lifecycle === SessionLifecycle.Creating && !chat?.activeTurn && (chat?.turns.length ?? 0) === 0) {
+			if (this._isIdleProvisional(key, entry.state.lifecycle)) {
 				continue;
 			}
 			summaries.push(this._toSummary(key, entry));
 		}
 		return summaries;
+	}
+
+	/**
+	 * Whether a session is created but not yet materialized ({@link SessionLifecycle.Creating})
+	 * with no turn activity — e.g. the new-session composer's eagerly-created
+	 * session before its first message. Such sessions must not leak into the
+	 * session list (#321269). Returns `false` if the session has no tracked state.
+	 */
+	isIdleProvisionalSession(session: string): boolean {
+		const entry = this._sessionStates.get(session);
+		return entry ? this._isIdleProvisional(session, entry.state.lifecycle) : false;
+	}
+
+	private _isIdleProvisional(session: string, lifecycle: SessionLifecycle): boolean {
+		// Turn activity lives on the session's default chat after the multi-chat
+		// protocol move, so consult that chat's turns/activeTurn.
+		const chat = this._chatEntries.get(buildDefaultChatUri(session))?.state;
+		return lifecycle === SessionLifecycle.Creating && !chat?.activeTurn && (chat?.turns.length ?? 0) === 0;
 	}
 
 	/**
@@ -695,7 +733,7 @@ export class AgentHostStateManager extends Disposable {
 	 * state is authoritative for those. No-ops for sessions that were already
 	 * announced (idempotent).
 	 */
-	markSessionPersisted(session: URI, summary: SessionSummary): void {
+	markSessionPersisted(session: URI, summary: SessionSummary, force = false): void {
 		const key = session.toString();
 		const entry = this._sessionStates.get(key);
 		if (!entry) {
@@ -705,8 +743,12 @@ export class AgentHostStateManager extends Disposable {
 		// The notifier records a session's announced summary whenever it has
 		// been surfaced to clients (either through `createSession` or here);
 		// using it as the idempotency check keeps us from firing `SessionAdded`
-		// twice for a session whose creation was not deferred.
-		if (this._summaryNotifier.isAnnounced(key)) {
+		// twice for a session whose creation was not deferred. `force` overrides
+		// this for adopt, where `restoreSession` marks the summary announced
+		// without ever emitting, so clients (e.g. the workspace-scoped editor
+		// session list) that rely on the notification would otherwise miss it —
+		// a redundant re-announce is harmless (`SessionAdded` is idempotent).
+		if (!force && this._summaryNotifier.isAnnounced(key)) {
 			return;
 		}
 		// Propagate the materialization-resolved fields so subscribers calling
@@ -727,13 +769,40 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
+	 * Announce a legacy Copilot CLI session that the provider discovered on disk
+	 * (surfaced as adoptable) after startup, so clients add it to their list
+	 * without a manual reload. Does NOT create persistent state — the session is
+	 * materialized on demand when the user opens it (restore/adopt). No-ops if
+	 * the session is already in state or was already announced.
+	 */
+	announceSurfacedSession(summary: SessionSummary): void {
+		const key = summary.resource;
+		if (this._sessionStates.has(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already in state ${key}`);
+			return;
+		}
+		if (this._summaryNotifier.isAnnounced(key)) {
+			this._logService.trace(`[AgentHostStateManager] announceSurfacedSession: already announced ${key}`);
+			return;
+		}
+		this._summaryNotifier.announce(key, summary);
+		this._onDidEmitNotification.fire({
+			type: 'root/sessionAdded',
+			channel: ROOT_STATE_URI,
+			summary,
+		});
+	}
+
+	/**
 	 * Restores a session from a previous server lifetime into the state manager
 	 * with pre-populated turns. The session is created in `ready` lifecycle
 	 * state since it already exists on the backend.
 	 *
 	 * Unlike {@link createSession}, this does NOT emit a `sessionAdded`
 	 * notification because the session is already known to clients via
-	 * `listSessions`.
+	 * `listSessions`. When the session was previously surfaced with a different
+	 * summary (e.g. adoptable-legacy), a `sessionSummaryChanged` delta is emitted
+	 * so clients update the entry in place instead of dropping it.
 	 */
 	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string }): SessionState {
 		const key = summary.resource;
@@ -749,7 +818,16 @@ export class AgentHostStateManager extends Disposable {
 		};
 		this._sessionStates.set(key, this._newEntry(state, summary, SessionUse.Used));
 		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle);
-		this._summaryNotifier.announce(key, summary);
+		// A session that was previously surfaced (e.g. announced as an
+		// adoptable-legacy session) is already known to clients with a different
+		// summary. Emit the delta so they update the entry in place — clearing the
+		// adoptable marker — rather than dropping the just-opened session on the
+		// next list reconcile. Never-announced sessions record the summary silently.
+		if (this._summaryNotifier.isAnnounced(key)) {
+			this._summaryNotifier.flush(key);
+		} else {
+			this._summaryNotifier.announce(key, summary);
+		}
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
 
@@ -805,6 +883,10 @@ export class AgentHostStateManager extends Disposable {
 	 * When `options.providerData` is supplied it is recorded verbatim as the
 	 * peer chat's opaque, agent-owned restore blob. The StateManager never
 	 * parses it. The default chat never carries `providerData`.
+	 *
+	 * `options.origin` records how the chat came into existence (fork, side
+	 * chat, tool spawn). Omitting it defaults to {@link ChatOriginKind.User}
+	 * via {@link createDefaultChatSummary}, so every catalog chat has an origin.
 	 */
 	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly interactivity?: ChatInteractivity }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
@@ -833,7 +915,7 @@ export class AgentHostStateManager extends Disposable {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options?.title ?? '',
 			status: SessionStatus.Idle,
-			origin: options?.origin,
+			...(options?.origin ? { origin: options.origin } : {}),
 			interactivity: options?.interactivity,
 		};
 		this._chatEntries.set(chatUri, {
@@ -852,7 +934,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly draft?: Message; readonly providerData?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly draft?: Message; readonly providerData?: string; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -873,7 +955,11 @@ export class AgentHostStateManager extends Disposable {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
 			status: SessionStatus.Idle,
-			origin: options.origin,
+			// A persisted catalog entry with no recorded origin is a plain
+			// user-created chat; keep the default rather than restoring it
+			// without provenance.
+			...(options.origin ? { origin: options.origin } : {}),
+			interactivity: options.interactivity,
 		};
 		sessionState.chats = [...sessionState.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
@@ -1360,6 +1446,13 @@ export class AgentHostStateManager extends Disposable {
 				}
 				if (sessionAction.type === ActionType.SessionConfigChanged) {
 					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config });
+				}
+				// The reducer returns the SAME state object when a working-directory
+				// action is a no-op, so a reference change here means the effective
+				// set actually changed. Multi-root operation suppression (turn /
+				// compare-turns) depends on this set, so consumers refresh operations.
+				if (previousState.workingDirectories !== newState.workingDirectories) {
+					this._onDidChangeSessionWorkingDirectories.fire({ session: key });
 				}
 
 				// When the reducer touched a summary-relevant field, notify
