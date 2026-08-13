@@ -68,9 +68,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 		return undefined;
 	}
 
-	// Both options are always offered so the smaller window stays selectable. When the long
-	// context tier has no surcharge, default to the full window (free long context); otherwise
-	// default to the smaller tier so users opt into the surcharge. See microsoft/vscode#322950, microsoft/vscode#323116.
+	// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 	const fullIsDefault = !pricing.longContext;
 
 	return [

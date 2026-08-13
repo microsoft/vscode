@@ -1897,9 +1897,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
-		// Both options are always offered so the smaller window stays selectable. When the long
-		// context tier has no surcharge, default to the full window (free long context); otherwise
-		// default to the smaller tier so users opt into the surcharge. See microsoft/vscode#322950, microsoft/vscode#323116.
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		return {
 			type: 'number',
 			title: localize('copilot.modelContextSize.title', "Context Size"),
@@ -1931,9 +1929,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Whether the model has a long-context window available at no additional cost. When true, a
-	 * session with no explicit context-size selection defaults to the `long_context` tier while the
-	 * picker still offers the smaller window.
+	 * Whether the model has a larger long-context window at no additional cost. When true, a session
+	 * with no explicit selection defaults to `long_context` while the picker still offers both sizes.
 	 */
 	private _isFreeLongContext(modelId: string | undefined): boolean {
 		return !!modelId && this._freeLongContextModels.has(modelId);
@@ -2176,8 +2173,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
-			// A model has free long context when it offers a larger long-context window at no
-			// surcharge. Such models default to the full window while the picker keeps both options.
+			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
 				&& !!tokenPrices.longContext?.contextMax

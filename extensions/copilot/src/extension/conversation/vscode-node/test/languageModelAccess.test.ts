@@ -388,8 +388,7 @@ suite('LanguageModelAccess model info', () => {
 			isFallback: false,
 			tokenizer: TokenizerType.O200K,
 			urlOrRequestMetadata: '',
-			// Default tier caps context at 200K while the full window is 1M, and there
-			// is no long-context surcharge, so the picker must offer both sizes.
+			// Free long context: default tier 200K, full window 1M, no surcharge — picker offers both.
 			tokenPricing: { default: { inputPrice: 1, outputPrice: 1, contextMax: 200_000 } },
 		} as unknown as IChatEndpoint;
 		const copilotToken = new CopilotToken(createTestExtendedTokenInfo({ token: 'token', username: 'fake', copilot_plan: 'unknown' }));

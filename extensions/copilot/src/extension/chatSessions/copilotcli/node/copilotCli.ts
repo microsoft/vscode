@@ -318,9 +318,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	const defaultContextMax = modelInfo.defaultContextMax;
 	const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
 	if (defaultContextMax && defaultContextMax < fullMax) {
-		// Both options are always offered so the smaller window stays selectable. When the long
-		// context tier has no surcharge, default to the full window (free long context); otherwise
-		// default to the smaller tier so users opt into the surcharge. See microsoft/vscode#322950, microsoft/vscode#323116.
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
 		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
@@ -708,18 +706,15 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 
 /**
  * Maps a user-selected numeric context size to the SDK's context tier.
- * Returns `'long_context'` when the selected size exceeds the default context
- * max, `'default'` when it is within the default tier. When no context size was
- * provided, defaults to `'long_context'` for free long-context models (larger
- * window, no surcharge) and otherwise `undefined` (SDK default tier).
+ * With an explicit selection, `'long_context'` when it exceeds the default max, else `'default'`.
+ * With no selection, `'long_context'` for free long-context models (larger window, no surcharge), else `undefined`.
  */
 export function resolveContextTier(contextSize: unknown, modelInfo: CopilotCLIModelInfo | undefined): 'default' | 'long_context' | undefined {
 	if (!modelInfo?.defaultContextMax) {
 		return undefined;
 	}
 	if (typeof contextSize !== 'number') {
-		// No explicit selection: default free long-context models (larger window, no
-		// surcharge) to the full window; leave surcharged models on the SDK default tier.
+		// No selection: free long context uses the full window; surcharged models stay on the SDK default tier.
 		const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
