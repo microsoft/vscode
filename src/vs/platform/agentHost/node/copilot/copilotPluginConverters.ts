@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
+import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
 import { Schemas } from '../../../../base/common/network.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,7 +15,6 @@ import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedH
 import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
-type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
@@ -399,6 +398,7 @@ export function toSdkHooks(
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
 	// Group all commands by SDK handler key
@@ -435,16 +435,17 @@ export function toSdkHooks(
 
 	// User-prompt-submitted handler
 	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
-	if (promptCommands?.length) {
+	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
 		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of promptCommands) {
+			for (const cmd of promptCommands ?? []) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
 					// Hook failures are non-fatal
 				}
 			}
+			return editTrackingHooks?.onUserPromptSubmitted?.();
 		};
 	}
 

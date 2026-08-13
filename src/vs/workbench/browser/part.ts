@@ -80,7 +80,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		this.titleArea = this.createTitleArea(parent, options);
 		this.contentArea = this.createContentArea(parent, options);
 
-		this.partLayout = new PartLayout(this.options, this.contentArea);
+		this.partLayout = new PartLayout(this.options, this.contentArea, this.layoutService);
 
 		this.updateStyles();
 	}
@@ -217,26 +217,26 @@ class PartLayout {
 
 	private static readonly HEADER_HEIGHT = 35;
 	private static readonly TITLE_HEIGHT = 35;
-	// KEEP IN SYNC WITH: styleOverrides/browser/media/padding.css `.style-override .part > .title { height: 32px }`
-	private static readonly TITLE_HEIGHT_STYLE_OVERRIDE = 32;
-	private static readonly Footer_HEIGHT = 35;
+	private static readonly FOOTER_HEIGHT = 35;
+	// KEEP IN SYNC WITH: styleOverrides/browser/media/padding.css
+	private static readonly AREA_HEIGHT_STYLE_OVERRIDE = 32;
 
 	private headerVisible: boolean = false;
 	private footerVisible: boolean = false;
 
-	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
+	constructor(
+		private options: IPartOptions,
+		private contentArea: HTMLElement | undefined,
+		private layoutService: IWorkbenchLayoutService,
+	) { }
 
 	layout(width: number, height: number): ILayoutContentResult {
+		const isModernUI = this.layoutService.isFloatingPanelsEnabled();
 
 		// Title Size: Width (Fill), Height (Variable).
-		// When the Modern UI style-override is active the title bar is 32 px
-		// (set in padding.css). Mirror that value here so the content area
-		// calculation stays in sync. Uses the same `.closest('.style-override')`
-		// check as EditorTabsControl.tabHeight.
 		let titleSize: Dimension;
 		if (this.options.hasTitle) {
-			const isStyleOverride = !!this.contentArea?.closest('.style-override');
-			const titleHeight = isStyleOverride ? PartLayout.TITLE_HEIGHT_STYLE_OVERRIDE : PartLayout.TITLE_HEIGHT;
+			const titleHeight = isModernUI ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.TITLE_HEIGHT;
 			titleSize = new Dimension(width, Math.min(height, titleHeight));
 		} else {
 			titleSize = Dimension.None;
@@ -245,7 +245,8 @@ class PartLayout {
 		// Header Size: Width (Fill), Height (Variable)
 		let headerSize: Dimension;
 		if (this.headerVisible) {
-			headerSize = new Dimension(width, Math.min(height, PartLayout.HEADER_HEIGHT));
+			const headerHeight = isModernUI ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.HEADER_HEIGHT;
+			headerSize = new Dimension(width, Math.min(height, headerHeight));
 		} else {
 			headerSize = Dimension.None;
 		}
@@ -253,7 +254,8 @@ class PartLayout {
 		// Footer Size: Width (Fill), Height (Variable)
 		let footerSize: Dimension;
 		if (this.footerVisible) {
-			footerSize = new Dimension(width, Math.min(height, PartLayout.Footer_HEIGHT));
+			const footerHeight = isModernUI ? PartLayout.AREA_HEIGHT_STYLE_OVERRIDE : PartLayout.FOOTER_HEIGHT;
+			footerSize = new Dimension(width, Math.min(height, footerHeight));
 		} else {
 			footerSize = Dimension.None;
 		}

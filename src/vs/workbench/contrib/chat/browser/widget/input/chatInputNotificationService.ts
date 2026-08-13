@@ -27,6 +27,7 @@ export const enum ChatInputNotificationActionKind {
 
 interface IChatInputNotificationActionBase {
 	readonly label: string;
+	readonly keepOpen?: boolean;
 }
 
 export interface IChatInputNotificationCommandAction extends IChatInputNotificationActionBase {
@@ -66,6 +67,8 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	readonly dismissible: boolean;
 	readonly autoDismissOnMessage: boolean;
+	/** Whether this notification should be hidden until the user has prior chat usage. */
+	readonly deferForNewUsers?: boolean;
 	/**
 	 * Optional allow-list of chat session types that should display this
 	 * notification. When undefined, the notification renders in every chat

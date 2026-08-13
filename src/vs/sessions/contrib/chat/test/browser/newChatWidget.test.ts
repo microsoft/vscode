@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -41,33 +42,17 @@ const createNewSession = Reflect.get(NewChatWidget.prototype, '_createNewSession
 ) => Promise<IOpenNewSessionResult>;
 const scheduleRecreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_scheduleRecreateOnProviderChange') as INewChatWidgetHarness['_scheduleRecreateOnProviderChange'];
 const recreateOnProviderChange = Reflect.get(NewChatWidget.prototype, '_recreateOnProviderChange') as INewChatWidgetHarness['_recreateOnProviderChange'];
-const setInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'setInputOnboardingVisible') as (this: IChatTipVisibilityHarness, visible: boolean) => void;
-const setInputNotificationVisible = Reflect.get(NewChatWidget.prototype, 'setInputNotificationVisible') as (this: IChatTipVisibilityHarness, visible: boolean) => void;
-const isInputOnboardingVisible = Reflect.get(NewChatWidget.prototype, 'isInputOnboardingVisible') as (this: IChatTipVisibilityHarness) => boolean;
-const isChatTipSuppressed = Reflect.get(NewChatWidget.prototype, 'isChatTipSuppressed') as (this: IChatTipVisibilityHarness) => boolean;
-const updateChatTipVisibility = Reflect.get(NewChatWidget.prototype, 'updateChatTipVisibility') as (this: IChatTipVisibilityHarness) => void;
+const handlePromptOptionsWorkspaceChange = Reflect.get(NewChatWidget.prototype, '_handlePromptOptionsWorkspaceChange') as (this: IPromptOptionsWorkspaceHarness, previousFolderUri: URI | undefined, folderUri: URI | undefined) => void;
+const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 
-interface IChatTipVisibilityHarness {
-	_isInputOnboardingVisible: boolean;
-	_isInputNotificationVisible: boolean;
-	isInputOnboardingVisible(): boolean;
-	isChatTipSuppressed(): boolean;
-	updateChatTipVisibility(): void;
-	_clearChatTip(): void;
-	_renderChatTip(): void;
+interface IPromptOptionsWorkspaceHarness {
+	readonly uriIdentityService: { readonly extUri: typeof extUri };
+	readonly _newChatInput: { clearPromptOptions(): void };
+	_refreshPromptOptions(): Promise<void>;
 }
 
-function createChatTipVisibilityHarness(visibilityChanges: string[]): IChatTipVisibilityHarness {
-	const harness: IChatTipVisibilityHarness = {
-		_isInputOnboardingVisible: false,
-		_isInputNotificationVisible: false,
-		isInputOnboardingVisible: () => isInputOnboardingVisible.call(harness),
-		isChatTipSuppressed: () => isChatTipSuppressed.call(harness),
-		updateChatTipVisibility: () => updateChatTipVisibility.call(harness),
-		_clearChatTip: () => visibilityChanges.push('hidden'),
-		_renderChatTip: () => visibilityChanges.push('visible'),
-	};
-	return harness;
+interface ISessionCountHarness {
+	readonly storageService: { getNumber(key: string, scope: unknown, defaultValue: number): number };
 }
 
 function createHarness(
@@ -160,15 +145,30 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual({ tokenCount: tokens.length, firstCancelledWhenSecondStarted }, { tokenCount: 2, firstCancelledWhenSecondStarted: true });
 	});
 
-	test('hides tips for notifications until all suppressors are inactive', () => {
-		const visibilityChanges = ['visible'];
-		const harness = createChatTipVisibilityHarness(visibilityChanges);
+	test('refreshes prompt options when the draft workspace changes', () => {
+		const changes: string[] = [];
+		const harness: IPromptOptionsWorkspaceHarness = {
+			uriIdentityService: { extUri },
+			_newChatInput: { clearPromptOptions: () => changes.push('cleared') },
+			_refreshPromptOptions: async () => { changes.push('refreshed'); },
+		};
+		const first = URI.file('/first');
+		const second = URI.file('/second');
 
-		setInputNotificationVisible.call(harness, true);
-		setInputOnboardingVisible.call(harness, true);
-		setInputNotificationVisible.call(harness, false);
-		setInputOnboardingVisible.call(harness, false);
+		handlePromptOptionsWorkspaceChange.call(harness, first, second);
+		handlePromptOptionsWorkspaceChange.call(harness, second, second);
+		handlePromptOptionsWorkspaceChange.call(harness, second, undefined);
+		handlePromptOptionsWorkspaceChange.call(harness, undefined, first);
 
-		assert.deepStrictEqual(visibilityChanges, ['visible', 'hidden', 'hidden', 'hidden', 'visible']);
+		assert.deepStrictEqual(changes, ['refreshed', 'cleared', 'refreshed']);
 	});
+
+	test('only allows first-run notices once the session count threshold is reached', () => {
+		const eligibility = [0, 1, 2, 5].map(sessionCount => hasEnoughSessionsForFirstRunNotices.call({
+			storageService: { getNumber: () => sessionCount },
+		}));
+
+		assert.deepStrictEqual(eligibility, [false, false, true, true]);
+	});
+
 });

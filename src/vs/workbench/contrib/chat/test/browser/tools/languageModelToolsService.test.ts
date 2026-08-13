@@ -18,6 +18,8 @@ import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../.
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -68,6 +70,15 @@ class TestTelemetryService implements Partial<ITelemetryService> {
 
 	reset() {
 		this.events = [];
+	}
+}
+
+class CountingDialogService extends TestDialogService {
+	confirmCalls = 0;
+
+	override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		this.confirmCalls++;
+		return super.confirm(confirmation);
 	}
 }
 
@@ -169,6 +180,7 @@ interface TestToolsServiceOptions {
 	accessibilitySignalService?: Partial<IAccessibilitySignalService>;
 	telemetryService?: Partial<ITelemetryService>;
 	commandService?: Partial<ICommandService>;
+	dialogService?: IDialogService;
 	/** Called after configurationService is created but before the service is instantiated */
 	configureServices?: (config: TestConfigurationService) => void;
 }
@@ -207,6 +219,9 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	}
 	if (options?.commandService) {
 		instaService.stub(ICommandService, options.commandService as ICommandService);
+	}
+	if (options?.dialogService) {
+		instaService.stub(IDialogService, options.dialogService);
 	}
 
 	const service = store.add(instaService.createInstance(LanguageModelToolsService));
@@ -489,6 +504,61 @@ suite('LanguageModelToolsService', () => {
 
 		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
 		assert.strictEqual(result.content[0].value, 'result');
+	});
+
+	test('invokeTool uses re-registered implementation after prepareToolInvocation', async () => {
+		const toolData: IToolData = {
+			id: 'reRegisteredTool',
+			modelDescription: 'Re-registered Tool',
+			displayName: 'Re-registered Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const registration = store.add(service.registerTool(toolData, {
+			prepareToolInvocation: async () => {
+				registration.dispose();
+				store.add(service.registerTool(toolData, {
+					invoke: async () => ({ content: [{ kind: 'text', value: 'replacement result' }] }),
+				}));
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'stale result' }] }),
+		}));
+
+		const result = await service.invokeTool({
+			callId: '1',
+			toolId: toolData.id,
+			tokenBudget: 100,
+			parameters: {},
+			context: undefined,
+		}, async () => 0, CancellationToken.None);
+
+		assert.strictEqual(result.content[0].value, 'replacement result');
+	});
+
+	test('invokeTool reports a tool removed during prepareToolInvocation as not contributed', async () => {
+		const toolData: IToolData = {
+			id: 'removedTool',
+			modelDescription: 'Removed Tool',
+			displayName: 'Removed Tool',
+			source: ToolDataSource.Internal,
+		};
+
+		const registration = store.add(service.registerTool(toolData, {
+			prepareToolInvocation: async () => {
+				registration.dispose();
+				return undefined;
+			},
+			invoke: async () => ({ content: [{ kind: 'text', value: 'stale result' }] }),
+		}));
+
+		await assert.rejects(service.invokeTool({
+			callId: '1',
+			toolId: toolData.id,
+			tokenBudget: 100,
+			parameters: {},
+			context: undefined,
+		}, async () => 0, CancellationToken.None), /Tool removedTool was not contributed/);
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
@@ -5075,6 +5145,61 @@ suite('LanguageModelToolsService', () => {
 
 			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
 			await invokePromise;
+		});
+
+		test('a headless confirmable tool with dto.preApproved does not show a dialog', async () => {
+			const dialogService = new CountingDialogService({ confirmed: true });
+			const setup = createTestToolsService(store, { dialogService });
+			let invokeCompleted = false;
+			const tool = registerToolForTest(setup.service, store, 'headlessPreApprovedTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool would normally require confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+			const dto = tool.makeDto({ test: 1 });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+
+			const result = await setup.service.invokeTool(dto, async () => 0, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				invokeCompleted,
+				value: (result.content[0] as IToolResultTextPart).value,
+				confirmCalls: dialogService.confirmCalls,
+			}, {
+				invokeCompleted: true,
+				value: 'success',
+				confirmCalls: 0,
+			});
+		});
+
+		test('a headless preToolUse hook ask overrides dto.preApproved', async () => {
+			const dialogService = new CountingDialogService({ confirmed: true });
+			const setup = createTestToolsService(store, { dialogService });
+			const tool = registerToolForTest(setup.service, store, 'headlessPreApprovedAskTool', {
+				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] }),
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool requires confirmation',
+						allowAutoConfirm: true,
+					},
+				}),
+			});
+			const dto = tool.makeDto({ test: 1 });
+			dto.preApproved = { type: ToolConfirmKind.Setting, id: 'autoApprove' };
+			dto.preToolUseResult = { permissionDecision: 'ask', permissionDecisionReason: 'Requires user confirmation' };
+
+			await setup.service.invokeTool(dto, async () => 0, CancellationToken.None);
+
+			assert.strictEqual(dialogService.confirmCalls, 1);
 		});
 	});
 });

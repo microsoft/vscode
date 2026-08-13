@@ -11,6 +11,8 @@ import { autorun, constObservable, ISettableObservable, observableValue } from '
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -23,7 +25,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../workben
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
 // ---- Mocks ------------------------------------------------------------------
@@ -73,7 +75,7 @@ function createFakeQuickChatSession(providerId: string, sessionTypeId: string): 
 }
 
 function sessionType(providerId: string, id: string, label: string, chatSessionType?: string): IProviderSessionType {
-	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType } };
+	return { providerId, sessionType: { id, label, icon: Codicon.terminal, chatSessionType, authRequirement: SessionTypeAuthRequirement.GitHub } };
 }
 
 function createFakeSession(providerId: string, sessionTypeId: string, folderUri: URI, status = SessionStatus.Untitled): ISession {
@@ -134,6 +136,7 @@ function createPicker(
 		getLanguageModelIds: () => [],
 		lookupLanguageModel: () => undefined,
 	});
+	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	return disposables.add(instantiationService.createInstance(TestSessionTypePicker, session, options));
 }
@@ -143,6 +146,7 @@ function createPicker(
 suite('SessionTypePicker', () => {
 
 	const disposables = new DisposableStore();
+
 	const folder = URI.file('/project');
 
 	let management: MockSessionsManagementService;
@@ -217,9 +221,8 @@ suite('SessionTypePicker', () => {
 	});
 
 	test('a draft never displays a harness the picker no longer offers', () => {
-		// `chat.agents.copilotCli.hideExtensionHost`: the extension-host Copilot
-		// CLI ('copilot' provider) stops being advertised, leaving only the agent
-		// host's entry — which shares the 'copilotcli' session type id.
+		// The extension-host Copilot CLI stops being advertised, leaving only the
+		// agent host's entry, which shares the 'copilotcli' session type id.
 		management.setSessionTypes([sessionType('local-agent-host', 'copilotcli', 'Copilot')]);
 		const picker = createPicker(disposables, session, management, storage);
 
@@ -641,7 +644,7 @@ suite('SessionTypePicker', () => {
 		// favor of the stored pick rather than the folder's preferred (first) type.
 		const picker = createPicker(disposables, observableValue<ISession | undefined>('session2', undefined), management, storage);
 		picker.setFolderSource(observableValue<URI | undefined>('folder', folderA), {
-			initialPick: { providerId: 'claude', sessionTypeId: 'claude-code' },
+			initialPick: { providerId: 'local-agent-host', sessionTypeId: 'claude' },
 		});
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });

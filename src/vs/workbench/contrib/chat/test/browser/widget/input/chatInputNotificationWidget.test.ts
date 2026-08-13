@@ -19,6 +19,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
@@ -100,13 +101,13 @@ suite('ChatInputNotificationWidget', () => {
 			sessionTypes: [localChatSessionType],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Local only');
 
 		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header'), null);
 
 		currentSessionType.set(localChatSessionType, undefined);
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Local only');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Local only');
 	});
 
 	test('reports visibility changes when a notification is shown and hidden', () => {
@@ -165,9 +166,122 @@ suite('ChatInputNotificationWidget', () => {
 			sessionResources: [firstSession],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'First session only');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'First session only');
 		currentSessionResource.set(secondSession, undefined);
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification'), null);
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header'), null);
+	});
+
+	test('reactively filters notifications deferred for new users without hiding other notifications', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, { deferredNotificationsEnabled }));
+		notificationService.setNotification({
+			id: 'ordinary',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Ordinary notification',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+		});
+		notificationService.setNotification({
+			id: 'promotion',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Model promotion',
+			description: undefined,
+			actions: [],
+			dismissible: false,
+			autoDismissOnMessage: false,
+			deferForNewUsers: true,
+		});
+
+		const renderedText = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const before = renderedText();
+		deferredNotificationsEnabled.set(true, undefined);
+
+		assert.deepStrictEqual({ before, after: renderedText() }, {
+			before: 'Ordinary notification',
+			after: 'Model promotion',
+		});
+	});
+
+	test('standard workbench defers notifications for the first session only', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
+		let hasSessions = false;
+		const harness = {
+			options: {},
+			environmentService: { isSessionsWindow: false },
+			chatService: { hasSessions: () => hasSessions },
+			_deferredNotificationsEnabled: deferredNotificationsEnabled,
+			_isFirstWorkbenchSession: undefined as boolean | undefined,
+		};
+		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
+			this: typeof harness,
+			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
+		) => void;
+		const untitled = URI.parse('agent-host-copilotcli:/untitled-1');
+		const materialized = URI.parse('agent-host-copilotcli:/session-1');
+		const second = URI.parse('agent-host-copilotcli:/session-2');
+
+		update.call(harness);
+		const firstSession = deferredNotificationsEnabled.get();
+		hasSessions = true;
+		update.call(harness, { previousSessionResource: untitled, currentSessionResource: materialized });
+		const materializedFirstSession = deferredNotificationsEnabled.get();
+		update.call(harness, { previousSessionResource: materialized, currentSessionResource: second });
+
+		assert.deepStrictEqual({
+			firstSession,
+			materializedFirstSession,
+			secondSession: deferredNotificationsEnabled.get(),
+		}, {
+			firstSession: false,
+			materializedFirstSession: false,
+			secondSession: true,
+		});
+	});
+
+	test('Agents window bypasses the workbench first-session gate', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
+		const harness = {
+			options: {},
+			environmentService: { isSessionsWindow: true },
+			chatService: { hasSessions: () => false },
+			_deferredNotificationsEnabled: deferredNotificationsEnabled,
+			_isFirstWorkbenchSession: undefined as boolean | undefined,
+		};
+		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
+			this: typeof harness,
+			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
+		) => void;
+
+		update.call(harness);
+
+		assert.strictEqual(deferredNotificationsEnabled.get(), true);
+	});
+
+	test('widget option disables deferred notifications', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
+		const harness = {
+			options: { deferredNotificationsEnabled: false },
+			environmentService: { isSessionsWindow: true },
+			chatService: { hasSessions: () => true },
+			_deferredNotificationsEnabled: deferredNotificationsEnabled,
+			_isFirstWorkbenchSession: undefined as boolean | undefined,
+		};
+		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
+			this: typeof harness,
+			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
+		) => void;
+
+		update.call(harness);
+
+		assert.strictEqual(deferredNotificationsEnabled.get(), false);
 	});
 
 	test('renders markdown descriptions as rich content', () => {
@@ -339,6 +453,28 @@ suite('ChatInputNotificationWidget', () => {
 		assert.strictEqual(notificationService.dismissed.join(','), 'info');
 	});
 
+	test('keep-open actions execute without dismissing the notification', async () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+		showNotification(notificationService, {
+			id: 'setup',
+			message: 'Setup',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Sign In', commandId: 'test.signIn', keepOpen: true }],
+		});
+
+		clickAction(widget);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			executed: commandService.executed,
+			dismissed: notificationService.dismissed,
+		}, {
+			executed: [{ id: 'test.signIn', args: [] }],
+			dismissed: [],
+		});
+	});
+
 	test('catches rejected command actions', async () => {
 		const logService = store.add(new RecordingLogService());
 		const commandService = new class extends TestCommandService {
@@ -494,7 +630,33 @@ suite('ChatInputNotificationWidget', () => {
 			sessionTypes: ['agent-host-copilotcli'],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification')?.textContent, 'Agent Host promo');
+		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-header')?.textContent, 'Agent Host promo');
+	});
+
+	test('matches a notification scoped to both Copilot model targets', () => {
+		const currentSessionType = observableValue<string | undefined>('currentSessionType', SessionType.AgentHostCopilot);
+		const { notificationService, widget } = createWidget({
+			delegate: { modelTargetChatSessionType: currentSessionType },
+		});
+
+		showNotification(notificationService, {
+			id: 'copilot-model-setup',
+			message: 'Choose how you want to use Copilot.',
+			actions: [],
+			sessionTypes: [SessionType.AgentHostCopilot, SessionType.CopilotCLI],
+		});
+		const text = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const agentHostText = text();
+		currentSessionType.set(SessionType.CopilotCLI, undefined);
+		const copilotCliText = text();
+
+		assert.deepStrictEqual({
+			agentHostText,
+			copilotCliText,
+		}, {
+			agentHostText: 'Choose how you want to use Copilot.',
+			copilotCliText: 'Choose how you want to use Copilot.',
+		});
 	});
 
 	test('announces only the notification rendered in the current session', () => {

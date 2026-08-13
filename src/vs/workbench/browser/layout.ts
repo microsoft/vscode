@@ -12,7 +12,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent, isFloatingTopEdgeExposed } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -34,6 +34,7 @@ import { coalesce } from '../../base/common/arrays.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
 import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
 import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { isHighContrast } from '../../platform/theme/common/theme.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
 import { URI } from '../../base/common/uri.js';
@@ -102,6 +103,9 @@ enum LayoutClasses {
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	ACTIVITYBAR_HIDDEN = 'noactivitybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
+	// Set when no grid row sits above the middle section (both the title bar and the
+	// banner are hidden), so the floating cards abut the top window edge.
+	TOP_WINDOW_EDGE = 'top-window-edge',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	WINDOW_BORDER = 'border',
@@ -109,13 +113,10 @@ enum LayoutClasses {
 	FLOATING_PANELS = 'floating-panels',
 	// Presentation class for the Modern UI Update experiment, owned/toggled at
 	// runtime by `StyleOverridesContribution`. It is *also* applied here at render
-	// time (see `getLayoutClasses`) because parts read it back during layout (e.g.
-	// the 32px vs 35px part title height in `PartLayout`, and the editor tab
-	// height) via `.closest('.style-override')`. The contribution runs in the
-	// `Restored` phase — after the first layout — so without this early
-	// application the first layout would size parts against the default (35px)
-	// title and leave them mismatched until the next relayout.
-	STYLE_OVERRIDE = 'style-override'
+	// time (see `getLayoutClasses`) to avoid a flash of unstyled workbench chrome.
+	STYLE_OVERRIDE = 'style-override',
+	// Module-specific gate shared with the Agents workbench.
+	MODERN_UI_TABS = 'modern-ui-tabs'
 }
 
 interface IPathToOpen extends IPath {
@@ -454,7 +455,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Modern UI Update (floating panels presentation)
 			if (e.affectsConfiguration(LayoutSettings.MODERN_UI)) {
 				this.updateFloatingPanels();
-				this.layout(); // re-layout so parts pick up the new floating margins
 			}
 
 			// Auxiliary Sidebar
@@ -641,6 +641,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// card margins) to the main container so auxiliary windows — whose parts do
 		// not apply the matching content insets in code — are left untouched.
 		this.mainContainer.classList.toggle(LayoutClasses.FLOATING_PANELS, this.isFloatingPanelsEnabled());
+		this.updateWindowBorder();
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -677,6 +678,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout = false) {
+		const theme = this.themeService.getColorTheme();
+		const didHaveMainWindowBorder = this.hasMainWindowBorder();
+		const suppressMainWindowBorder = this.isFloatingPanelsEnabled() && !isHighContrast(theme.type);
+
 		if (
 			isWeb ||
 			isWindows || 											// not working well with zooming (border often not visible)
@@ -689,24 +694,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		const theme = this.themeService.getColorTheme();
-
 		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
-
-		const didHaveMainWindowBorder = this.hasMainWindowBorder();
 
 		for (const container of this.containers) {
 			const isMainContainer = container === this.mainContainer;
 			const isActiveContainer = this.activeContainer === container;
 
 			let windowBorder = false;
-			if (!this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
+			if (!(isMainContainer && suppressMainWindowBorder) && !this.state.runtime.mainWindowFullscreen && (activeBorder || inactiveBorder)) {
 				windowBorder = true;
 
 				// If the inactive color is missing, fallback to the active one
 				const borderColor = isActiveContainer && this.state.runtime.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
 				container.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
+			} else {
+				container.style.removeProperty('--window-border-color');
 			}
 
 			if (isMainContainer) {
@@ -1701,6 +1704,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
+		// The floating cards abut the top window edge only while neither of the two grid rows
+		// above the middle section is showing, so track both rather than the title bar alone.
+		this._register(this.onDidChangePartVisibility(({ partId }) => {
+			if (partId === Parts.TITLEBAR_PART || partId === Parts.BANNER_PART) {
+				this.updateTopWindowEdgeClass();
+			}
+		}));
+
 		this._register(this.storageService.onWillSaveState(() => {
 
 			// Side Bar Size
@@ -1915,11 +1926,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.ACTIVITYBAR_PART) ? LayoutClasses.ACTIVITYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
+			isFloatingTopEdgeExposed(this, mainWindow) ? LayoutClasses.TOP_WINDOW_EDGE : undefined,
 			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined,
 			this.isFloatingPanelsEnabled() ? LayoutClasses.FLOATING_PANELS : undefined,
 			// Also seed the style-override class here (see `LayoutClasses.STYLE_OVERRIDE`).
 			this.isFloatingPanelsEnabled() ? LayoutClasses.STYLE_OVERRIDE : undefined,
+			this.isFloatingPanelsEnabled() ? LayoutClasses.MODERN_UI_TABS : undefined,
 			`panel-position-${positionToString(this.getPanelPosition())}`,
 			`panel-alignment-${this.getPanelAlignment()}`
 		]);
@@ -2366,6 +2379,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
+	}
+
+	private updateTopWindowEdgeClass(): void {
+		this.mainContainer.classList.toggle(LayoutClasses.TOP_WINDOW_EDGE, isFloatingTopEdgeExposed(this, mainWindow));
 	}
 
 	toggleMenuBar(): void {

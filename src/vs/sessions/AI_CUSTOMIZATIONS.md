@@ -71,6 +71,8 @@ The first sidebar entry is a static `Overview` navigation item. It is styled lik
 
 The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
 
+The Plugins section keeps plugin maintenance close to plugin creation: its compact toolbar includes an accessible Update Plugins button beside Create Plugin. This invokes the shared `workbench.agentPlugins.checkForUpdates` command, matching the Update Plugins action in the installed Agent Plugins view title; holding Alt/Shift on that view-title action invokes the existing force-update command. Update actions are disabled while the shared operation is running. Progress is shown while checking, followed by a notification listing updated or failed plugins, or confirming that plugins are already up to date.
+
 Agent Host MCP **Show Output** actions prepare and register their target channel, close the modal management editor, then reveal the prepared channel. Closing before preparation can tear down the active harness context, while showing before close lets modal teardown reset the Output presentation.
 
 When the active harness is an agent host (`agent-host-*` / `remote-*`), the overview can render a **Migrate** card. The card appears only when the core `IPromptsService` still discovers local/user `*.prompt.md` files, because those files are ignored by agent-host harnesses, and only when the experimental `chat.customizations.promptMigration.enabled` setting is enabled. The left sidebar also renders a bottom **Migrate Prompt Files** shortcut in that state so the flow is discoverable even when the overview is not visible. Choosing either entry opens a dedicated migration page where users can review all migratable prompt files, select the ones to migrate, and open individual files before running migration. Workspace and User prompt-file groups on that page are independently collapsible so large migrations stay scannable. The migrate action converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude), preserves manual invocation by setting `disable-model-invocation: true`, and removes the original prompt files. If multiple workspace skill roots are available, migration prompts once to choose the workspace target and reuses that target for all migrated workspace prompts.
@@ -117,7 +119,7 @@ Available harnesses:
 | `claude` | Claude | Restricts user roots to `~/.claude`; hides Prompts + Plugins sections |
 
 In core VS Code, all three harnesses are registered but CLI and Claude only appear when their respective agents are registered (`requiredAgentId` checked via `IChatAgentService`). VS Code is the default.
-In sessions, harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). AHP remote servers register directly via `registerExternalHarness`.
+In sessions, the Local harness is not registered. Harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). The first provider harness becomes active until a session selects its own harness, and the editor uses no Local fallback label while none is available. AHP remote servers register directly via `registerExternalHarness`.
 
 Remote agent hosts can also register **external harnesses** dynamically. Each remote agent harness may contribute:
 - an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
@@ -199,7 +201,7 @@ Claude additionally applies:
 - `hiddenSections: [Prompts, Plugins]`
 - `instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md']`
 - `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
-- `sectionOverrides`: Hooks → `copilot.claude.hooks` command; Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
+- `sectionOverrides`: Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
 
 ### Built-in Extension Grouping (Core VS Code)
 
@@ -244,9 +246,7 @@ AHP Remote Server ────────────────────�
 
 The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Runtime states render as semantic colored icons rather than text badges: running uses a green check, while stopped has no visual icon. Authentication-required rows expose an inline **Sign In** button, and an actionable error icon opens that server's local or agent-host output.
 
-Enablement has three explicit scopes. `Enable` / `Disable` persists at profile scope, `Enable (Workspace)` / `Disable (Workspace)` persists for the active project, and `Enable (Session)` / `Disable (Session)` dispatches only to the active agent-host session. Servers with an exact, unambiguous identifier or name match to an `IMcpService` entry, including extension-provided servers, use the existing local enablement model for profile/workspace state. Ambiguous matches remain agent-host-only so an action cannot target the wrong local server. Agent-host-only profile state is keyed by agent-host resource scheme (which includes local/remote host and provider identity) plus exact server name; workspace state additionally includes the session working directory so repositories inside the shared Agents window storage workspace remain independent. Workspace actions are hidden when the Sessions-aware active project root is absent, including workspace-less quick chats.
-
-A durable agent-host policy is persisted without immediately changing live sessions. Immediately before `ChatTurnStarted`, `AgentHostSessionHandler` asks `IAgentHostCustomizationService` to prepare that session's MCP servers. Preparation dispatches only preferences that are explicit on first use or changed since the session's previous preparation; unchanged policy is not reapplied, so a later session-scoped action may intentionally diverge. `EnabledProfile` on first preparation records the default without overwriting the server's current state, while resetting an explicit durable policy back to `EnabledProfile` enables the server before the next turn. `getMcpServers()` remains a pure query. Session customization enablement remains desired runtime state: providers with live MCP lifecycle support (currently Copilot and Claude) reconcile their observed SDK runtime before each turn and after runtime rebinds. Codex does not yet expose a live per-thread MCP enable/disable API, so its runtime cannot reconcile this state without recreating the thread.
+For agent-host sessions, the client publishes every known plugin and VS Code-owned MCP server with an explicit global decision derived only from the VS Code profile. The host owns durable workspace and session decisions and resolves their effective enablement. Bundled MCP servers carry their decision by child name because the host discovers them from the synthetic plugin's `.mcp.json`. A session action dispatches only a session decision; the temporary non-session action dispatches a global decision until the full scoped action matrix is available.
 
 ### Structured Detail Preview
 
@@ -279,6 +279,30 @@ All built-in customizations bundled with the Sessions app are skills, living in 
 - Shown in a "Built-in" group in the AI Customization tree view and management editor
 - Filtered out when a user/workspace skill shares the same name (override behavior)
 - Skills with UI integrations (e.g. `act-on-feedback`, `generate-run-commands`) display a "UI Integration" badge in the management editor
+
+#### Enabling and Disabling Built-in Skills
+
+The **Enable** / **Disable** actions on a built-in skill persist to `IPromptsService.setDisabledPromptFiles(PromptsType.skill, …)` (profile-scoped storage). This is a distinct store from the per-harness auto-sync opt-out owned by `ICustomizationSyncProvider`, which the Plugins section writes.
+
+The two stores are consulted at different points, and deliberately not identically:
+
+- **The wire** honors *both*. `enumerateLocalCustomizationsForHarness` marks a file disabled when either store opts it out, so a disabled skill is excluded from the synthetic Open Plugin bundle and never reaches the agent host.
+- **The list** derives `enabled` from the prompts-service store *only*. `mergeBuiltinSkills` ignores the sync-provider store because that store holds **plugin** URIs — its sole writer is the Plugins section checkbox, and `isDisabled` matches URIs exactly rather than by containment — so it can never opt out an individual built-in skill. If a per-file sync opt-out is ever added, this derivation must account for it; otherwise a skill dropped from the wire would be re-listed as enabled, and the **Enable** action (which writes only the prompts store) could not correct it.
+
+Two places must consult the prompts-service store for the toggle to take effect on an agent-host harness:
+
+- **The wire.** As above — the skill is excluded from the bundle.
+- **The list.** Because a disabled skill is no longer in the bundle, the agent-host item provider stops reporting it. `PureItemProviderItemSource` therefore merges built-in skills in from `IPromptsService.listPromptFilesForStorage(skill, builtIn)` (via the shared `mergeBuiltinSkills` helper, deduped by URI against provider rows) and derives their `enabled` state from `getDisabledPromptFiles`. This keeps a disabled built-in listed — greyed out, with an **Enable** action — instead of vanishing with no way to restore it. Its `onDidAICustomizationItemsChange` includes `onDidChangeSkills` so the row updates immediately.
+
+`ItemProviderItemSource` (non-agent-host harnesses) uses the same helper, so both paths group, dedupe, and gate built-ins identically.
+
+##### Scope: only built-in skills may be hidden by the user-disabled store
+
+The wire consults `getDisabledPromptFiles` **only** for the `(type, storage)` combination the Customizations UI can re-enable, expressed by `isUserToggleableCustomization` in `chat/common/promptSyntax/service/promptsService.ts`. Both the management editor and the sessions tree view register their Enable/Disable actions solely for built-in skills, so that is the only toggleable combination today.
+
+This gate is load-bearing rather than cosmetic. `getDisabledPromptFiles` is a shared store that the chat view agent picker also writes for `PromptsType.agent` ("hidden from agent picker"). Because callers drop opted-out files from the bundle entirely and the Agents-window lists are derived from that bundle, honoring the store for a customization the Customizations UI cannot re-enable would strand it: the row disappears, and the **Enable** action that would bring it back is only rendered for rows that are still listed. The agent picker is unaffected — it owns its own unhide affordance and does not read from the bundle.
+
+Consequently, the wire gate and `mergeBuiltinSkills` must be kept in sync: anything the wire is allowed to hide must have a corresponding restore path in the list.
 
 ### UI Integration Badges
 

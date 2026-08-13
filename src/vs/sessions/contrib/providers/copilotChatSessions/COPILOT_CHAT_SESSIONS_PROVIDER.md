@@ -1,15 +1,15 @@
 # CopilotChatSessionsProvider — Default Copilot Provider
 
-**File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
+**File:** `src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports **Copilot CLI** (local) when Agent Host is unavailable and **Copilot Cloud** (remote).
 
 ## Registration
 
 Registered via `DefaultSessionsProviderContribution` workbench contribution at `WorkbenchPhase.AfterRestored`:
 
 ```
-src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessions.contribution.ts
+src/vs/sessions/contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.ts
 ```
 
 ```typescript
@@ -28,7 +28,7 @@ class DefaultSessionsProviderContribution extends Disposable {
 | `id` | `'default-copilot'` |
 | `label` | `'Copilot Chat'` |
 | `icon` | `Codicon.copilot` |
-| `sessionTypes` | `[CopilotCLISessionType, CopilotCloudSessionType]` (+ `ClaudeCodeSessionType` when enabled) |
+| `sessionTypes` | `[CopilotCloudSessionType]`, plus `CopilotCLISessionType` when Agent Host is unavailable |
 
 ## Browse Actions
 
@@ -53,12 +53,6 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 - No-ops for isolation/branch/client mode (cloud-managed)
 - Provides `getModelOptionsSnapshot()`, `getOtherOptionGroups()` for UI to render provider-specific pickers
 - Watches context key changes to dynamically show/hide option groups
-
-**`ClaudeCodeNewSession`** — For Claude agent sessions (local `file://` workspaces):
-- Implements `ISession` with simplified configuration (Claude manages its own worktrees and branches)
-- No-ops for `setIsolationMode()` and `setBranch()`
-- `setOption()` writes to `selectedOptions` map; options are propagated to `IChatSessionsService` during `_sendFirstChat()` via `updateSessionOptions()`
-- Gated by the `sessions.chat.claudeAgent.enabled` setting (default: `true`)
 
 ## `AgentSessionAdapter` — Wrapping Existing Sessions
 

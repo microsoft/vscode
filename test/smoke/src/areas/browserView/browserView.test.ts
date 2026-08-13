@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
 import * as http from 'http';
 import * as path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 import type { Page } from '@playwright/test';
 import { Application, ApplicationOptions, Logger } from '../../../../automation';
 import { installAllHandlers, preseedChatExtensionEnablement } from '../../utils';
@@ -18,7 +20,10 @@ export function setup(logger: Logger): void {
 		installAllHandlers(
 			logger,
 			options => withFakeMediaDevice(options),
-			app => preseedChatExtensionEnablement(app.userDataPath)
+			async app => {
+				await preseedChatExtensionEnablement(app.userDataPath);
+				preseedSettings(app.userDataPath);
+			}
 		);
 
 		const comment = 'Smoke-test-comment';
@@ -28,7 +33,6 @@ export function setup(logger: Logger): void {
 		let baseUrl: string;
 
 		before(async function () {
-			const app = this.app as Application;
 			server = http.createServer((request, response) => {
 				const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1');
 				const count = (requestCounts.get(requestUrl.pathname) ?? 0) + 1;
@@ -48,20 +52,50 @@ export function setup(logger: Logger): void {
 				throw new Error('Integrated Browser smoke server did not expose a TCP address.');
 			}
 			baseUrl = `http://127.0.0.1:${address.port}`;
-			await app.workbench.settingsEditor.addUserSetting('workbench.browser.experimentalUserTools.enabled', 'true');
 		});
 
-		afterEach(async () => {
-			for (const page of openPages) {
-				if (!page.isClosed()) {
-					await page.close();
-				}
-			}
+		afterEach(async function () {
+			const app = this.app as Application;
+			const pageClosePromises = [...openPages]
+				.filter(page => !page.isClosed())
+				.map(page => page.waitForEvent('close'));
+			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+			await Promise.all(pageClosePromises);
 			openPages.clear();
 		});
 
 		after(async () => {
 			await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+		});
+
+		it('opens an HTML file in a locked browser editor', async function () {
+			const app = this.app as Application;
+			const htmlPath = path.join(app.workspacePathOrFolder, 'browser-editor-smoke.html');
+			const htmlUrl = pathToFileURL(htmlPath).toString();
+			fs.writeFileSync(htmlPath, '<!DOCTYPE html><html><head><title>HTML Browser Editor Smoke</title></head><body><main id="browser-editor-smoke">Loaded in the browser editor</main></body></html>');
+
+			try {
+				const browserPage = await app.code.driver.waitForNewPage(path.basename(htmlPath), async () => {
+					await app.workbench.quickaccess.openFileQuickAccessAndWait(htmlPath, path.basename(htmlPath));
+					await app.workbench.quickinput.selectQuickInputElement(0);
+				});
+				openPages.add(browserPage);
+				await browserPage.locator('#browser-editor-smoke', { hasText: 'Loaded in the browser editor' }).waitFor();
+
+				const urlDisplay = app.code.driver.currentPage.locator('.browser-root .browser-url-display');
+				await urlDisplay.waitFor();
+				assert.deepStrictEqual({
+					path: normalizeFileUrl(await urlDisplay.textContent()),
+					contentEditable: await urlDisplay.getAttribute('contenteditable'),
+					ariaReadonly: await urlDisplay.getAttribute('aria-readonly')
+				}, {
+					path: normalizeFileUrl(htmlUrl),
+					contentEditable: 'false',
+					ariaReadonly: 'true'
+				});
+			} finally {
+				fs.rmSync(htmlPath, { force: true });
+			}
 		});
 
 		it('navigates, reloads, and exposes page history', async function () {
@@ -98,6 +132,7 @@ export function setup(logger: Logger): void {
 			const workbenchPage = app.code.driver.currentPage;
 			const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
 
+			await browserPage.locator('body').click({ position: { x: 1, y: 1 } });
 			await browserPage.keyboard.press(`${modifier}+f`);
 			const findWidget = workbenchPage.locator('.browser-find-widget-wrapper .simple-find-part.visible');
 			const findInput = findWidget.locator('.monaco-findInput input');
@@ -162,8 +197,10 @@ export function setup(logger: Logger): void {
 			await browserPage.locator('[data-vscode-pick-host]').waitFor({ state: 'attached' });
 			await target.click();
 			await browserPage.waitForFunction(() => document.activeElement?.hasAttribute('data-vscode-pick-host'));
+			await browserPage.evaluate(() => document.querySelector('#comment-keydown-count')!.textContent = '0');
 			await browserPage.keyboard.type(comment);
 			await browserPage.keyboard.press('Enter');
+			assert.strictEqual(await browserPage.locator('#comment-keydown-count').textContent(), '0');
 			await app.workbench.chat.waitForInputText('@button#comment-target');
 			await app.workbench.chat.waitForInputText(comment);
 
@@ -226,6 +263,45 @@ export function setup(logger: Logger): void {
 			await waitForWorkbenchUrl(app.code.driver.currentPage, lifecycleUrl);
 		});
 	});
+}
+
+function normalizeFileUrl(url: string | null): string | null {
+	if (!url) {
+		return null;
+	}
+
+	const filePath = path.normalize(fileURLToPath(url));
+	return process.platform === 'win32' ? filePath.toLowerCase() : filePath;
+}
+
+/**
+ * Pre-seed the settings this suite depends on before the application starts.
+ *
+ * `window.menuStyle` must be written to disk rather than through the settings
+ * editor: `SettingsChangeRelauncher` watches it on Windows/Linux and would pop a
+ * modal "restart to take effect" dialog the moment the value changes at runtime,
+ * blocking the workbench. Seeding it up front means it is already in effect when
+ * the window opens, so nothing changes and no prompt appears.
+ *
+ * The suite drives the browser toolbar overflow and "Add to Chat" menus through
+ * DOM locators (`.monaco-menu-container`), which only exist for custom menus. The
+ * default is quality dependent on macOS (`native` for stable, `inherit` for
+ * insiders), so pinning `custom` keeps the suite deterministic across qualities.
+ */
+function preseedSettings(userDataDir: string | undefined): void {
+	if (!userDataDir) {
+		throw new Error('Cannot pre-seed Integrated Browser settings without a user data directory');
+	}
+
+	const settingsPath = path.join(userDataDir, 'User', 'settings.json');
+	fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+	fs.writeFileSync(settingsPath, JSON.stringify({
+		'window.menuStyle': 'custom',
+		'workbench.browser.experimentalUserTools.enabled': true,
+		'workbench.editorAssociations': {
+			'*.html': 'workbench.editor.browser'
+		},
+	}, null, 2));
 }
 
 function withFakeMediaDevice(options: ApplicationOptions): ApplicationOptions {
@@ -312,7 +388,14 @@ function pageForRoute(route: string, requestCount: number): string {
 				});
 			</script>`);
 		case '/comment':
-			return html('Browser Smoke Comment', '<button id="comment-target">Comment target</button>');
+			return html('Browser Smoke Comment', `<button id="comment-target">Comment target</button>
+				<output id="comment-keydown-count">0</output>
+				<script>
+					window.addEventListener('keydown', () => {
+						const output = document.querySelector('#comment-keydown-count');
+						output.textContent = String(Number(output.textContent) + 1);
+					});
+				</script>`);
 		case '/screenshot':
 			return html('Browser Smoke Screenshot', '<div id="screenshot-top">Top</div><div style="height: 2400px"></div><div id="screenshot-bottom">Bottom</div>');
 		case '/lifecycle':

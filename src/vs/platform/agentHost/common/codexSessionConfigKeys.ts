@@ -28,7 +28,7 @@ export const enum CodexSessionConfigKey {
 }
 
 /** Subset of the generated `AskForApproval` union that VS Code exposes. */
-export type CodexApprovalPolicy = 'never' | 'on-request' | 'on-failure' | 'untrusted';
+export type CodexApprovalPolicy = 'never' | 'on-request' | 'untrusted';
 
 /** Mirrors the generated `SandboxMode` union. */
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';

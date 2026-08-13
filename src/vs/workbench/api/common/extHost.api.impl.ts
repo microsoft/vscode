@@ -103,7 +103,7 @@ import { IExtHostStorage } from './extHostStorage.js';
 import { IExtensionStoragePaths } from './extHostStoragePaths.js';
 import { IExtHostTask } from './extHostTask.js';
 import { ExtHostTelemetryLogger, IExtHostTelemetry, isNewAppInstall } from './extHostTelemetry.js';
-import { IExtHostTerminalService } from './extHostTerminalService.js';
+import { IExtHostTerminalService, ITerminalInternalOptions } from './extHostTerminalService.js';
 import { IExtHostTerminalShellIntegration } from './extHostTerminalShellIntegration.js';
 import { IExtHostTesting } from './extHostTesting.js';
 import { ExtHostEditors } from './extHostTextEditors.js';
@@ -134,6 +134,14 @@ export interface IExtensionRegistries {
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, extensionInfo: IExtensionRegistries, configProvider: ExtHostConfigProvider): typeof vscode;
+}
+
+export function getTerminalInternalOptions(extension: IExtensionDescription, options: vscode.TerminalOptions): ITerminalInternalOptions | undefined {
+	if (options.isRemoteResolverTerminal) {
+		checkProposedApiEnabled(extension, 'terminalRemoteResolver');
+		return { isRemoteResolverTerminal: true };
+	}
+	return undefined;
 }
 
 /**
@@ -967,7 +975,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if ('pty' in options) {
 						return extHostTerminalService.createExtensionTerminal(options);
 					}
-					return extHostTerminalService.createTerminalFromOptions(options);
+					return extHostTerminalService.createTerminalFromOptions(options, getTerminalInternalOptions(extension, options));
 				}
 				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
 			},
@@ -1058,6 +1066,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createSourceControlDiffInformation(uri: vscode.Uri): vscode.SourceControlDiffInformationProvider {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
 				return extHostQuickDiff.createSourceControlDiffInformation(uri);
+			},
+			createDataWatcher<T extends vscode.DataWatcherParams>(params: T): vscode.DataWatcher<vscode.DataWatcherData<T>> {
+				checkProposedApiEnabled(extension, 'dataChannels');
+				return extHostDataChannels.createDataWatcher(extension, params);
 			},
 			createAgentEditorComments(uri: vscode.Uri): vscode.AgentEditorCommentsProvider {
 				checkProposedApiEnabled(extension, 'agentEditorComments');
@@ -2029,6 +2041,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			DiagnosticTag: extHostTypes.DiagnosticTag,
 			Disposable: extHostTypes.Disposable,
+			DataWatcherKind: extHostTypes.DataWatcherKind,
+			AgentSessionStatus: extHostTypes.AgentSessionStatus,
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
 			MultiDocumentHighlight: extHostTypes.MultiDocumentHighlight,

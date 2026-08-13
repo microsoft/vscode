@@ -22,17 +22,18 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
+import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
+import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { type IChatAcceptInputOptions, IChatContextPickerDelegate, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -48,6 +49,7 @@ export interface IChatExecuteActionContext {
 	inputValue?: string;
 	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
+	contextPicker?: IChatContextPickerDelegate;
 }
 
 abstract class SubmitAction extends Action2 {
@@ -193,6 +195,9 @@ export class ChatSubmitAction extends SubmitAction {
 			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
+			// A submission that is being routed/dispatched off-model (omni-chat)
+			// disables sending until it resolves or the draft changes.
+			ChatContextKeys.inputSubmitPending.negate(),
 		);
 
 		super({
@@ -223,6 +228,7 @@ export class ChatSubmitAction extends SubmitAction {
 						whenNoActiveRequest,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
+						ChatContextKeys.inputSubmitPending.negate(),
 					),
 					group: 'navigation',
 					alt: {
@@ -244,6 +250,34 @@ export class ChatSubmitAction extends SubmitAction {
 	}
 }
 
+class ChatSubmitPendingAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.submitPending';
+
+	constructor() {
+		super({
+			id: ChatSubmitPendingAction.ID,
+			title: localize2('interactive.submitPending.label', "Routing Request…"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: ThemeIcon.modify(Codicon.loading, 'spin'),
+			precondition: ChatContextKeys.inputRouting,
+			menu: {
+				id: MenuId.ChatExecute,
+				order: 4,
+				when: ContextKeyExpr.and(
+					whenNoActiveRequest,
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
+					ChatContextKeys.withinEditSessionDiff.negate(),
+					ChatContextKeys.inputRouting,
+				),
+				group: 'navigation',
+			},
+		});
+	}
+
+	run(): void { }
+}
+
 
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
@@ -251,30 +285,6 @@ export interface IToggleChatModeArgs {
 	modeId: ChatModeKind | string;
 	sessionResource: URI | undefined;
 }
-
-type ChatModeChangeClassification = {
-	owner: 'digitarald';
-	comment: 'Reporting when agent is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent name' };
-	mode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent name' };
-	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
-	storage?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source of the target mode (builtin, local, user, extension)' };
-	extensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension ID if the target mode is from an extension' };
-	toolsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of custom tools in the target mode'; 'isMeasurement': true };
-	handoffsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of handoffs in the target mode'; 'isMeasurement': true };
-	isClaudeAgent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the target mode is a Claude agent file from .claude/agents/' };
-};
-
-type ChatModeChangeEvent = {
-	fromMode: string;
-	mode: string;
-	requestCount: number;
-	storage?: string;
-	extensionId?: string;
-	toolsCount?: number;
-	handoffsCount?: number;
-	isClaudeAgent?: boolean;
-};
 
 class ToggleChatModeAction extends Action2 {
 
@@ -325,25 +335,7 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		// Send telemetry for mode change
-		const storage = switchToMode.source?.storage ?? 'builtin';
-		const extensionId = switchToMode.source?.storage === 'extension' ? switchToMode.source.extensionId.value : undefined;
-		const toolsCount = switchToMode.customTools?.get()?.length ?? 0;
-		const handoffsCount = switchToMode.handOffs?.get()?.length ?? 0;
-
-		const modeUri = switchToMode.uri?.get();
-		const isClaudeAgent = modeUri ? isInClaudeAgentsFolder(modeUri) : undefined;
-
-		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
-			fromMode: getModeNameForTelemetry(currentMode),
-			mode: getModeNameForTelemetry(switchToMode),
-			requestCount: requestCount,
-			storage,
-			extensionId,
-			toolsCount,
-			handoffsCount,
-			isClaudeAgent
-		});
+		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount);
 
 		widget.input.setChatMode(switchToMode.id, true, true);
 
@@ -441,7 +433,11 @@ export class OpenModelPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels,
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+							ContextKeyExpr.and(
+								IsSessionsWindowContext,
+								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
+								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
 					)
 			}
 		});
@@ -481,7 +477,6 @@ export class OpenPermissionPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
-							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Claude),
 						),
 					)
 			}
@@ -1206,6 +1201,7 @@ class ExecuteHandoffAction extends Action2 {
 export function registerChatExecuteActions(): DisposableStore {
 	const store = new DisposableStore();
 	store.add(registerAction2(ChatSubmitAction));
+	store.add(registerAction2(ChatSubmitPendingAction));
 	store.add(registerAction2(ChatEditingSessionSubmitAction));
 	store.add(registerAction2(SubmitWithoutDispatchingAction));
 	store.add(registerAction2(CancelAction));

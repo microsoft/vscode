@@ -10,9 +10,8 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IAgentHostWorkspaceSessionMembershipStore } from './agentHostWorkspaceSessionMembershipStore.js';
+import { readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Minimal agent-host connection surface needed by the session list store.
@@ -92,7 +91,6 @@ export class AgentHostSessionListStore extends Disposable {
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IAgentHostWorkspaceSessionMembershipStore private readonly _workspaceMembership: IAgentHostWorkspaceSessionMembershipStore,
 	) {
 		super();
 
@@ -179,8 +177,6 @@ export class AgentHostSessionListStore extends Disposable {
 		// removal; invalidating that snapshot here prevents `_doRefresh` from
 		// resurrecting the just-removed session.
 		this._mutationGeneration++;
-		const key = this._key(provider, rawId);
-		this._workspaceMembership.remove(key);
 		this._removeSessionFromList(provider, rawId);
 	}
 
@@ -242,18 +238,14 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const nextEntries: IAgentHostSessionListEntry[] = [];
-		const backendSessionKeys: string[] = [];
 		for (const session of sessions) {
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry) {
-				const key = this._key(entry.provider, entry.rawId);
-				backendSessionKeys.push(key);
 				if (this._isSessionInWorkspace(entry)) {
 					nextEntries.push(entry);
 				}
 			}
 		}
-		this._workspaceMembership.reconcileBackendSessions(backendSessionKeys);
 
 		this._entries.clear();
 		for (const entry of nextEntries) {
@@ -292,7 +284,6 @@ export class AgentHostSessionListStore extends Disposable {
 			if (!this._isSessionInWorkspace(entry)) {
 				return;
 			}
-			this._workspaceMembership.markSeen(key);
 			this._mutationGeneration++;
 			this._entries.set(key, entry);
 			// The backend has now announced this session, so it is no longer a
@@ -329,7 +320,6 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 
-			this._workspaceMembership.markSeen(key);
 			this._mutationGeneration++;
 			this._entries.set(key, updated);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [updated] });
@@ -358,6 +348,10 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				// Carry `_meta` so the adoptable-legacy marker survives into the list
+				// item; consumers use it to avoid passively restoring (and thereby
+				// migrating) an un-adopted legacy Copilot CLI session.
+				...(session._meta !== undefined ? { _meta: session._meta } : {}),
 			},
 		};
 	}
@@ -375,18 +369,33 @@ export class AgentHostSessionListStore extends Disposable {
 		};
 	}
 
-	/** Uses legacy path containment for zero/single-folder windows and durable provenance only for multi-root workspaces. */
+	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
 		const workingDirectories = entry.summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
-		const folders = this._workspaceContextService.getWorkspace().folders;
+		const workspace = this._workspaceContextService.getWorkspace();
+		const folders = workspace.folders;
+		const configuration = workspace.configuration;
+		const multiRoot = readSessionMultiRootMetadata(entry.summary._meta);
+		if (multiRoot) {
+			// A multi-root window matches strictly by workspace-file identity so two
+			// different `.code-workspace` files that share a folder don't cross over.
+			if (URI.isUri(configuration)) {
+				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
+			}
+			// An empty window shows every session; a single-folder (or other
+			// non-multi-root) window falls back to working-directory containment.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
+		}
 		if (folders.length === 0) {
 			return true;
 		}
-		if (folders.length === 1) {
-			return workingDirectories.some(directory => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folders[0].uri));
-		}
-		const key = this._key(entry.provider, entry.rawId);
-		return this._workspaceMembership.shouldInclude(key, workingDirectories, this._pendingNewSessions.has(key));
+		return this._matchesAnyFolder(workingDirectories, folders);
+	}
+
+	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
+		return workingDirectories.some(directory =>
+			folders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(directory, folder.uri))
+		);
 	}
 
 	private _toRemoval(entry: IAgentHostSessionListEntry): IAgentHostSessionListRemoval {
