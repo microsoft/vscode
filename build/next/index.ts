@@ -1054,42 +1054,51 @@ async function watch(): Promise<void> {
 
 	let pendingTsFiles: Set<string> = new Set();
 	let pendingCopyFiles: Set<string> = new Set();
+	let processingChanges = false;
 
 	const processChanges = async () => {
-		console.log('Starting transpilation...');
-		const t1 = Date.now();
-		const tsFiles = [...pendingTsFiles];
-		const filesToCopy = [...pendingCopyFiles];
-		pendingTsFiles = new Set();
-		pendingCopyFiles = new Set();
+		if (processingChanges) {
+			return;
+		}
 
+		processingChanges = true;
 		try {
-			if (tsFiles.length > 0) {
-				console.log(`[watch] Transpiling ${tsFiles.length} file(s)...`);
-				await mapWithConcurrency(tsFiles, MAX_CONCURRENT_FILE_OPERATIONS, srcPath => {
-					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
-					const destPath = path.join(REPO_ROOT, outDir, relativePath.replace(/\.ts$/, '.js'));
-					return transpileFile(srcPath, destPath);
-				});
-			}
+			while (pendingTsFiles.size > 0 || pendingCopyFiles.size > 0) {
+				console.log('Starting transpilation...');
+				const t1 = Date.now();
+				const tsFiles = [...pendingTsFiles];
+				const filesToCopy = [...pendingCopyFiles];
+				pendingTsFiles = new Set();
+				pendingCopyFiles = new Set();
 
-			if (filesToCopy.length > 0) {
-				await mapWithConcurrency(filesToCopy, MAX_CONCURRENT_FILE_OPERATIONS, async srcPath => {
-					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
-					const destPath = path.join(REPO_ROOT, outDir, relativePath);
-					await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-					await copyFile(srcPath, destPath);
-					console.log(`[watch] Copied ${relativePath}`);
-				});
-			}
+				try {
+					if (tsFiles.length > 0) {
+						console.log(`[watch] Transpiling ${tsFiles.length} file(s)...`);
+						await mapWithConcurrency(tsFiles, MAX_CONCURRENT_FILE_OPERATIONS, srcPath => {
+							const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
+							const destPath = path.join(REPO_ROOT, outDir, relativePath.replace(/\.ts$/, '.js'));
+							return transpileFile(srcPath, destPath);
+						});
+					}
 
-			if (tsFiles.length > 0 || filesToCopy.length > 0) {
-				console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
+					if (filesToCopy.length > 0) {
+						await mapWithConcurrency(filesToCopy, MAX_CONCURRENT_FILE_OPERATIONS, async srcPath => {
+							const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
+							const destPath = path.join(REPO_ROOT, outDir, relativePath);
+							await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+							await copyFile(srcPath, destPath);
+							console.log(`[watch] Copied ${relativePath}`);
+						});
+					}
+
+					console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
+				} catch (err) {
+					console.error('[watch] Rebuild failed:', err);
+					console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
+				}
 			}
-		} catch (err) {
-			console.error('[watch] Rebuild failed:', err);
-			console.log(`Finished transpilation with 1 errors after ${Date.now() - t1} ms`);
-			// Continue watching
+		} finally {
+			processingChanges = false;
 		}
 	};
 
