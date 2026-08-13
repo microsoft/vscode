@@ -428,7 +428,7 @@ interface ITestCopilotModelInfo {
 	readonly supportedReasoningEfforts?: CopilotModelInfo['supportedReasoningEfforts'];
 }
 
-interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
+interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'ping' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: {
 		readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] };
 		readonly models: { readonly list: CopilotModelsList };
@@ -477,6 +477,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	};
 	startCallCount = 0;
 	stopCallCount = 0;
+	pingCallCount = 0;
+	/** When set, `ping` rejects with it, simulating a dead runtime connection. */
+	pingError: Error | undefined;
 	startGate: Promise<void> | undefined;
 	startError: Error | undefined;
 	listSessionCallCount = 0;
@@ -505,6 +508,13 @@ class TestCopilotClient implements ITestCopilotClient {
 	async stop(): ReturnType<ITestCopilotClient['stop']> {
 		this.stopCallCount++;
 		return [];
+	}
+	async ping(message?: string): ReturnType<ITestCopilotClient['ping']> {
+		this.pingCallCount++;
+		if (this.pingError) {
+			throw this.pingError;
+		}
+		return { message: message ?? '', timestamp: new Date(0).toISOString() };
 	}
 	async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
 		this.listSessionCallCount++;
@@ -719,6 +729,8 @@ class TestableCopilotAgent extends CopilotAgent {
 	// Keep model-refresh retries effectively instant in tests.
 	protected override readonly _modelRefreshBaseDelayMs = 1;
 	protected override readonly _modelRefreshMaxDelayMs = 2;
+	// Keep the in-flight-turn liveness probe fast enough to observe in tests.
+	protected override readonly _turnKeepaliveIntervalMs = 1;
 
 	constructor(
 		private readonly _copilotClient: ITestCopilotClient,
@@ -2273,6 +2285,87 @@ suite('CopilotAgent', () => {
 					clientFailureIdMatches: true,
 				},
 			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('fails the in-flight turn when the keepalive probe finds the connection closed', async () => {
+		const client = new TestCopilotClient([]);
+		const telemetryService = new RecordingTelemetryService();
+		const agent = createTestAgent(disposables, { copilotClient: client, telemetryService });
+		const chat = defaultChatUri(AgentSession.uri('copilotcli', 'stranded'));
+		let hasActiveTurn = true;
+		let failCount = 0;
+		setDefaultSessionStub(agent, 'stranded', {
+			sessionId: 'stranded',
+			sessionUri: AgentSession.uri('copilotcli', 'stranded'),
+			chatUri: chat,
+			get hasActiveTurn() { return hasActiveTurn; },
+			failActiveTurn: () => {
+				failCount++;
+				hasActiveTurn = false;
+				return 'stranded-turn';
+			},
+			dispose: () => { },
+		});
+		try {
+			// Starts the client, which the keepalive needs before it arms.
+			await agent.listLegacyChats();
+			client.pingError = new Error('Connection is closed.');
+			(agent as unknown as { _updateTurnKeepalive(): void })._updateTurnKeepalive();
+			for (let i = 0; i < 500 && failCount === 0; i++) {
+				await timeout(1);
+			}
+			const failure = telemetryService.errorEvents
+				.filter(event => event.eventName === 'agentHost.copilotClientFailure')
+				.map(event => event.data as Record<string, unknown>);
+
+			assert.deepStrictEqual({
+				failCount,
+				probed: client.pingCallCount > 0,
+				stopCount: client.stopCallCount,
+				remainingSessions: chatEntriesBySdkId(agent).size,
+				failures: failure.map(event => ({
+					operation: event.operation,
+					failureKind: event.failureKind,
+					activeTurnCount: event.activeTurnCount,
+					recoveryStarted: event.recoveryStarted,
+				})),
+			}, {
+				failCount: 1,
+				probed: true,
+				stopCount: 1,
+				remainingSessions: 0,
+				failures: [{
+					operation: 'keepalive',
+					failureKind: 'connectionClosed',
+					activeTurnCount: 1,
+					recoveryStarted: true,
+				}],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('does not probe the connection while no turn is in flight', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const chat = defaultChatUri(AgentSession.uri('copilotcli', 'idle'));
+		setDefaultSessionStub(agent, 'idle', {
+			sessionId: 'idle',
+			sessionUri: AgentSession.uri('copilotcli', 'idle'),
+			chatUri: chat,
+			hasActiveTurn: false,
+			dispose: () => { },
+		});
+		try {
+			await agent.listLegacyChats();
+			(agent as unknown as { _updateTurnKeepalive(): void })._updateTurnKeepalive();
+			await timeout(20);
+
+			assert.strictEqual(client.pingCallCount, 0);
 		} finally {
 			await disposeAgent(agent);
 		}

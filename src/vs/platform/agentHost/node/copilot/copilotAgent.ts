@@ -130,6 +130,9 @@ export async function getCopilotManagedSettingsDiagnostics(
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
 const COPILOT_CAPI_URL = 'https://api.githubcopilot.com';
 
+/** How often the runtime connection is probed while a turn is in flight. */
+const COPILOT_TURN_KEEPALIVE_INTERVAL_MS = 30_000;
+
 interface ICopilotClosedConnectionRecoveryResult {
 	readonly failedTurnIds: ReadonlySet<string>;
 	readonly stopSucceeded: boolean;
@@ -627,6 +630,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
 	 */
 	private readonly _pendingClientRestartReasons = new Set<string>();
+	/**
+	 * Liveness probe scheduled while a chat has an in-flight turn. See
+	 * {@link _updateTurnKeepalive}.
+	 */
+	private readonly _turnKeepalive = this._register(new MutableDisposable());
+	private _turnKeepaliveProbeRunning = false;
+	protected readonly _turnKeepaliveIntervalMs: number = COPILOT_TURN_KEEPALIVE_INTERVAL_MS;
 	private _closedConnectionRecovery: { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> } | undefined;
 	private readonly _reportedClientFailures = new WeakSet<Error>();
 	private readonly _authenticationSequencer = new Sequencer();
@@ -991,6 +1001,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * SDK event handling and the restart disposes the session making the call.
 	 */
 	private _onChatTurnEnded(): void {
+		this._updateTurnKeepalive();
 		if (this._pendingClientRestartReasons.size === 0) {
 			return;
 		}
@@ -999,6 +1010,58 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to apply deferred client restart', err)
 			);
 		});
+	}
+
+	/**
+	 * Arms (or disarms) the liveness probe that watches the runtime connection
+	 * while a turn is in flight.
+	 *
+	 * A turn is driven entirely by SDK notifications: `session.send` resolves as
+	 * soon as the runtime accepts the prompt, so from then on there is no
+	 * request outstanding that a dying connection could reject. Without a probe
+	 * a runtime that goes away mid-turn is simply never noticed — the turn is
+	 * never completed, cancelled or errored, so the session reports `inProgress`
+	 * forever and only a new user message gets it moving again. The probe turns
+	 * that silence into the same failure an in-flight request would have raised,
+	 * so {@link _recoverFromClosedConnection} fails the stranded turns with a
+	 * retryable error and drops the dead client.
+	 */
+	private _updateTurnKeepalive(): void {
+		if (this._turnKeepaliveProbeRunning) {
+			return;
+		}
+		if (this._shutdownPromise || !this._client || this._chatsWithActiveTurn() === 0) {
+			this._turnKeepalive.clear();
+			return;
+		}
+		if (this._turnKeepalive.value) {
+			return;
+		}
+		this._turnKeepalive.value = disposableTimeout(() => {
+			this._turnKeepalive.clear();
+			void this._runTurnKeepaliveProbe();
+		}, this._turnKeepaliveIntervalMs);
+	}
+
+	/** One liveness probe; re-arms itself while a turn is still in flight. */
+	private async _runTurnKeepaliveProbe(): Promise<void> {
+		const client = this._client;
+		if (this._shutdownPromise || !client || this._chatsWithActiveTurn() === 0) {
+			return;
+		}
+		this._turnKeepaliveProbeRunning = true;
+		try {
+			await client.ping();
+		} catch (error) {
+			// Only a closed connection is actionable: any other rejection
+			// leaves the runtime able to keep driving the turn.
+			await this._recoverFromClosedConnection(error, 'keepalive').catch(err =>
+				this._logService.error(err, '[Copilot] Failed to recover from keepalive failure')
+			);
+		} finally {
+			this._turnKeepaliveProbeRunning = false;
+			this._updateTurnKeepalive();
+		}
 	}
 
 	private async _recoverFromClosedConnection(error: unknown, operation: CopilotClientFailureOperation, correlation?: ICopilotFailureCorrelation): Promise<ICopilotClosedConnectionRecoveryResult | undefined> {
@@ -1637,6 +1700,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// synchronously so a concurrent `_applyPendingClientRestart` bails rather
 		// than stopping a client this call is already tearing down.
 		this._pendingClientRestartReasons.clear();
+		// No client, nothing to probe.
+		this._turnKeepalive.clear();
 		if (this._clientStopping) {
 			return this._clientStopping;
 		}
@@ -2929,6 +2994,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 			throw error;
+		} finally {
+			// The runtime now drives the turn over notifications, so watch the
+			// connection until the turn ends.
+			this._updateTurnKeepalive();
 		}
 	}
 
