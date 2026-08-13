@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { parseRuleFile, type IMcpServerDefinition, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { parseRuleFile, resolveAgentDisableModelInvocation, type IMcpServerDefinition, type IParsedAgent, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import type { AgentSelection } from '../../common/state/protocol/state.js';
 import { type ChildCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
@@ -196,7 +196,13 @@ export function codexSkillRootsFromPlugins(plugins: readonly ICodexClientPlugin[
 	return [...roots].sort();
 }
 
-export async function codexCustomizationConfigFromPlugins(
+/**
+ * Builds Codex's launch-time roles and developer instructions. Workspace
+ * agents are processed first so the session's own repository wins a role-name
+ * collision with a global client plugin.
+ */
+export async function codexCustomizationConfig(
+	workspaceAgents: readonly IParsedAgent[],
 	plugins: readonly ICodexClientPlugin[],
 	selectedAgent: AgentSelection | undefined,
 	fileService: IFileService,
@@ -207,24 +213,42 @@ export async function codexCustomizationConfigFromPlugins(
 	let selectedAgentMatch = SelectedAgentMatch.None;
 	const selectedAgentUri = selectedAgent?.uri;
 
+	const addAgent = async (agent: IParsedAgent, match: SelectedAgentMatch): Promise<void> => {
+		try {
+			const content = (await fileService.readFile(agent.uri)).value.toString();
+			const frontmatter = parseFrontMatter(content);
+			const name = frontmatter?.getStringValue('name')?.trim() || agent.name;
+			const description = frontmatter?.getStringValue('description')?.trim() || agent.description || name;
+			const instructions = frontmatter?.body ?? content;
+			const model = frontmatter?.getStringArrayValue('model')?.map(value => value.trim()).find(Boolean) || agent.model;
+			const infer = frontmatter?.getBooleanValue('infer');
+			const disableModelInvocation = resolveAgentDisableModelInvocation(infer, frontmatter?.getBooleanValue('disable-model-invocation'), agent.disableModelInvocation);
+			if (!disableModelInvocation && !agentRoles.has(name)) {
+				agentRoles.set(name, {
+					name,
+					description,
+					instructions,
+					...(model ? { model } : {}),
+				});
+			}
+			if (match > selectedAgentMatch) {
+				selectedAgentInstructions = instructions;
+				selectedAgentMatch = match;
+			}
+		} catch { }
+	};
+
+	for (const agent of workspaceAgents) {
+		const match = selectedAgentUri && extUri.isEqual(agent.uri, URI.parse(selectedAgentUri))
+			? SelectedAgentMatch.Exact
+			: SelectedAgentMatch.None;
+		await addAgent(agent, match);
+	}
+
 	for (const plugin of plugins) {
 		for (const agent of plugin.parsed?.agents ?? []) {
-			try {
-				const content = (await fileService.readFile(agent.uri)).value.toString();
-				const frontmatter = parseFrontMatter(content);
-				const name = frontmatter?.getStringValue('name')?.trim() || agent.name;
-				const description = frontmatter?.getStringValue('description')?.trim() || agent.description || name;
-				const instructions = frontmatter?.body ?? content;
-				const model = frontmatter?.getStringValue('model')?.trim() || undefined;
-				if (!agentRoles.has(name)) {
-					agentRoles.set(name, { name, description, instructions, ...(model ? { model } : {}) });
-				}
-				const match = selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None;
-				if (match > selectedAgentMatch) {
-					selectedAgentInstructions = instructions;
-					selectedAgentMatch = match;
-				}
-			} catch { }
+			const match = selectedAgentUri ? matchSelectedAgent(plugin, agent.uri, selectedAgentUri) : SelectedAgentMatch.None;
+			await addAgent(agent, match);
 		}
 
 		for (const instruction of plugin.parsed?.instructions ?? []) {

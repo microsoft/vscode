@@ -146,6 +146,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.focusNotice', 'When a tip, notification or introduction appears above the input, toggle focus between it and the chat input{0}.', '<keybinding:workbench.action.chat.focusTip>'));
 		if (isSessionsWindow) {
 			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
+			content.push(localize('sessions.requestOrigin', 'Some requests include a source chat button above the message. Use Tab to focus it, then Enter or Space to open the originating chat.'));
+			content.push(localize('sessions.threadCoordinationResult', 'Completed create-chat and send-message operations can include a target chat button in the response. Use Tab to focus it, then Enter or Space to open that chat.'));
 		}
 	}
 	if (type === 'editsView' || type === 'agentView') {

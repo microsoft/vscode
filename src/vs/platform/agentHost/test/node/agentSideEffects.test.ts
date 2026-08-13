@@ -26,12 +26,12 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChangesSummary, ChatOriginKind, CustomizationType, McpAuthRequiredReason, SessionInputRequestKind } from '../../common/state/protocol/state.js';
-import { ActionType, ActionEnvelope, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInteractivity, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -1138,6 +1138,65 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
 		});
 
+		test('peer /rename synchronously suppresses the automatic rename reminder', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			const peerChat = buildChatUri(sessionUri.toString(), 'peer-rename');
+			stateManager.addChat(sessionUri.toString(), peerChat, { title: 'Automatic peer title' });
+			renameSideEffects.markTitleAuto(sessionUri.toString(), peerChat, 'Automatic peer title');
+			const renameAction: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-rename',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: '/rename User Peer Title', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChat, renameAction, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(peerChat, renameAction);
+			await waitForState(stateManager, () => (
+				stateManager.getChatState(peerChat)?.title === 'User Peer Title'
+				&& stateManager.getActiveTurnId(peerChat) === undefined
+			) || undefined);
+
+			const followUpAction: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-follow-up',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'Continue', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(peerChat, followUpAction, { clientId: 'test', clientSeq: 2 });
+			renameSideEffects.handleAction(peerChat, followUpAction);
+			await waitForSendMessageCalls(1);
+
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Continue');
+		});
+
+		test('automatic rename guidance is transient context and never changes the user prompt', async () => {
+			setupSession();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true },
+			});
+			const renameSideEffects = createRenameSideEffects();
+			renameSideEffects.markTitleAuto(sessionUri.toString(), undefined, 'Automatic title');
+			const action: ChatAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-guidance',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Keep GitHub casing', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(defaultChatUri, action);
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
+			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_session`'));
+		});
+
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
 			setupSession();
 			const renameSideEffects = createRenameSideEffects();
@@ -1901,6 +1960,28 @@ suite('AgentSideEffects', () => {
 	// ---- registerProgressListener ---------------------------------------
 
 	suite('registerProgressListener', () => {
+
+		test('emits auth-required notifications when observable state becomes required', () => {
+			const notifications: INotification[] = [];
+			disposables.add(stateManager.onDidEmitNotification(notification => notifications.push(notification)));
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const requirement = {
+				resource: {
+					resource: 'https://api.github.com',
+					authorization_servers: ['https://github.com/login/oauth'],
+				},
+				reason: AuthRequiredReason.Expired,
+			};
+
+			agent.setAuthenticationRequired(requirement);
+			agent.setAuthenticationRequired(undefined);
+			agent.setAuthenticationRequired(requirement);
+
+			assert.deepStrictEqual(notifications.filter(notification => notification.type === 'auth/required'), [
+				{ type: 'auth/required', channel: ROOT_STATE_URI, ...requirement },
+				{ type: 'auth/required', channel: ROOT_STATE_URI, ...requirement },
+			]);
+		});
 
 		test('maps agent progress events to state actions', () => {
 			setupSession();

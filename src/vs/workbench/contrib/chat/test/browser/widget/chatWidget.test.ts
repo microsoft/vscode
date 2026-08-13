@@ -48,10 +48,14 @@ suite('ChatWidget', () => {
 
 	test('transcript overlays suppress the welcome state', () => {
 		assert.deepStrictEqual({
+			unavailable: shouldShowChatWelcome(undefined, false),
+			progressBeforeModel: shouldShowChatWelcome(undefined, true),
 			empty: shouldShowChatWelcome(0, false),
 			progress: shouldShowChatWelcome(0, true),
 			message: shouldShowChatWelcome(1, false),
 		}, {
+			unavailable: undefined,
+			progressBeforeModel: false,
 			empty: true,
 			progress: false,
 			message: false,
