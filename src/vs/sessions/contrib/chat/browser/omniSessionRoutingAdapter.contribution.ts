@@ -8,7 +8,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -39,6 +40,7 @@ interface ISessionRoutingTarget {
 export class OmniSessionRoutingAdapter extends Disposable implements IChatSessionRoutingProvider {
 
 	private readonly sessions = new Map<string, ISession>();
+	private readonly sessionResourceAliases = new Map<string, URI>();
 	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 	private readonly _onDidChangeNewSessionWorkspaceCatalog = this._register(new Emitter<void>());
@@ -77,6 +79,11 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 			this._refreshSessions();
 			this._onDidChangeSessions.fire();
 		}));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this.sessionResourceAliases.set(from.resource.toString(), to.resource);
+			this._refreshSessions();
+			this._onDidChangeSessions.fire();
+		}));
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			this._refreshSessions();
 			this._onDidChangeSessions.fire();
@@ -106,10 +113,11 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		const target = this._resolveTarget(resource.toString());
+		const target = this._resolveTarget(this._resolveSessionResourceAlias(resource).toString());
 		if (!target) {
 			return undefined;
 		}
+
 		const candidate = this._toCandidate(target.session);
 		try {
 			const history = await this.chatSessionsService.getChatSessionHistory(target.chat.resource, token);
@@ -120,6 +128,32 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 			}
 			return token.isCancellationRequested ? undefined : candidate;
 		}
+	}
+
+	watchSession(resource: URI, listener: () => void): IDisposable {
+		const store = new DisposableStore();
+		const observableWatcher = store.add(new MutableDisposable<IDisposable>());
+		let watchedSession: ISession | undefined;
+		let watchedChat: IChat | undefined;
+		const bind = () => {
+			const target = this._resolveTarget(this._resolveSessionResourceAlias(resource).toString());
+			if (target?.session === watchedSession && target?.chat === watchedChat) {
+				return;
+			}
+			watchedSession = target?.session;
+			watchedChat = target?.chat;
+			const session = target?.session;
+			observableWatcher.value = session ? autorun(reader => {
+				session.title.read(reader);
+				session.status.read(reader);
+				session.updatedAt.read(reader);
+				session.lastTurnEnd.read(reader);
+				listener();
+			}) : undefined;
+		};
+		store.add(this.onDidChangeSessions(bind));
+		bind();
+		return store;
 	}
 
 	async getNewSessionWorkspaceCatalog(): Promise<IChatSessionRoutingWorkspaceCatalog> {
@@ -273,7 +307,21 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 	}
 
 	revealSession(resource: URI): Promise<void> {
-		return this.sessionsService.openSession(resource);
+		return this.sessionsService.openSession(this._resolveSessionResourceAlias(resource));
+	}
+
+	private _resolveSessionResourceAlias(resource: URI): URI {
+		let resolved = resource;
+		const visited = new Set<string>();
+		while (!visited.has(resolved.toString())) {
+			visited.add(resolved.toString());
+			const replacement = this.sessionResourceAliases.get(resolved.toString());
+			if (!replacement) {
+				break;
+			}
+			resolved = replacement;
+		}
+		return resolved;
 	}
 
 	private _refreshSessions(): void {

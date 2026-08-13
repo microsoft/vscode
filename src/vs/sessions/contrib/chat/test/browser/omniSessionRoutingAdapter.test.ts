@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -131,7 +131,13 @@ suite('OmniSessionRoutingAdapter', () => {
 	});
 
 	test('publishes live title, status, and response snapshots', async () => {
-		const original = createSession('provider:session', { title: 'New session', status: SessionStatus.InProgress });
+		const title = observableValue('title', 'New session');
+		const status = observableValue('status', SessionStatus.InProgress);
+		const original = {
+			...createSession('provider:session', { title: 'New session', status: SessionStatus.InProgress }),
+			title,
+			status,
+		};
 		managementService.sessions = [original];
 		history = [{
 			type: 'response',
@@ -140,14 +146,16 @@ suite('OmniSessionRoutingAdapter', () => {
 		}];
 		let changeCount = 0;
 		store.add(adapter.onDidChangeSessions(() => changeCount++));
+		let watchedCount = 0;
+		store.add(adapter.watchSession(original.resource, () => watchedCount++));
 
-		const completed = createSession('provider:session', { title: 'Update routing badge', status: SessionStatus.Completed });
-		managementService.sessions = [completed];
-		managementService.fireSessionsChanged({ added: [], removed: [], changed: [completed] });
-		const snapshot = await adapter.getSessionSnapshot(completed.resource, CancellationToken.None);
+		title.set('Update routing badge', undefined);
+		status.set(SessionStatus.Completed, undefined);
+		const snapshot = await adapter.getSessionSnapshot(original.resource, CancellationToken.None);
 
-		assert.deepStrictEqual({ changeCount, snapshot }, {
-			changeCount: 1,
+		assert.deepStrictEqual({ changeCount, watchedCount, snapshot }, {
+			changeCount: 0,
+			watchedCount: 3,
 			snapshot: {
 				sessionId: 'provider:session',
 				label: 'Update routing badge',
@@ -158,6 +166,37 @@ suite('OmniSessionRoutingAdapter', () => {
 				description: undefined,
 				lastResponse: 'Implemented the requested change.',
 			},
+		});
+	});
+
+	test('follows a new session from its provisional resource to the committed session', async () => {
+		const provisional = createSession('provider:provisional', { title: 'New session', status: SessionStatus.InProgress });
+		const committed = createSession('provider:committed', { title: 'Adding repository README', status: SessionStatus.Completed });
+		managementService.sessions = [provisional];
+		history = [{
+			type: 'response',
+			parts: [{ kind: 'markdownContent', content: { value: 'Added the repository README.' } }],
+			participant: 'assistant',
+		}];
+		let watchedCount = 0;
+		store.add(adapter.watchSession(provisional.resource, () => watchedCount++));
+
+		managementService.fireSessionReplaced(provisional, committed);
+		const snapshot = await adapter.getSessionSnapshot(provisional.resource, CancellationToken.None);
+		await adapter.revealSession(provisional.resource);
+
+		assert.deepStrictEqual({
+			watchedCount,
+			label: snapshot?.label,
+			status: snapshot?.status,
+			lastResponse: snapshot?.lastResponse,
+			opened: opened.map(resource => resource.toString()),
+		}, {
+			watchedCount: 2,
+			label: 'Adding repository README',
+			status: 'idle',
+			lastResponse: 'Added the repository README.',
+			opened: [committed.resource.toString()],
 		});
 	});
 
@@ -481,8 +520,10 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 
 	private readonly sessionsChangedEmitter = new Emitter<ISessionsChangeEvent>();
 	private readonly sessionTypesChangedEmitter = new Emitter<void>();
+	private readonly sessionReplacedEmitter = new Emitter<{ readonly from: ISession; readonly to: ISession }>();
 	override readonly onDidChangeSessions = this.sessionsChangedEmitter.event;
 	override readonly onDidChangeSessionTypes = this.sessionTypesChangedEmitter.event;
+	override readonly onDidReplaceSession = this.sessionReplacedEmitter.event;
 
 	sessions: ISession[] = [];
 	createdSession: ISession | undefined;
@@ -530,9 +571,16 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 		this.sessionsChangedEmitter.fire(event);
 	}
 
+	fireSessionReplaced(from: ISession, to: ISession): void {
+		this.sessions = this.sessions.filter(session => session !== from);
+		this.sessions.push(to);
+		this.sessionReplacedEmitter.fire({ from, to });
+	}
+
 	dispose(): void {
 		this.sessionsChangedEmitter.dispose();
 		this.sessionTypesChangedEmitter.dispose();
+		this.sessionReplacedEmitter.dispose();
 	}
 }
 

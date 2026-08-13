@@ -1403,7 +1403,9 @@ export class ChatSessionRoutingController extends Disposable {
 			}
 		};
 		void update();
-		if (provider.onDidChangeSessions) {
+		if (provider.watchSession) {
+			store.add(provider.watchSession(resource, () => void update()));
+		} else if (provider.onDidChangeSessions) {
 			store.add(provider.onDidChangeSessions(() => void update()));
 		}
 	}

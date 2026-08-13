@@ -999,7 +999,7 @@ suite('ChatSessionRoutingController', () => {
 			lastActivity: 1,
 		};
 		const provider = {
-			onDidChangeSessions: sessionsChanged.event,
+			watchSession: (_resource: URI, listener: () => void) => sessionsChanged.event(listener),
 			getSessionSnapshot: async () => snapshot,
 		} as unknown as IChatSessionRoutingProvider;
 		const controller = new ChatSessionRoutingController(

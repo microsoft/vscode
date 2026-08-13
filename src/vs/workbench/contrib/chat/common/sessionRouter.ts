@@ -256,6 +256,7 @@ export interface IChatSessionRoutingProvider {
 	readonly onDidChangeNewSessionWorkspaceCatalog?: Event<void>;
 	getCandidateSessions(token: CancellationToken): readonly IRoutableSession[] | Promise<readonly IRoutableSession[]>;
 	getSessionSnapshot?(resource: URI, token: CancellationToken): IRoutableSession | undefined | Promise<IRoutableSession | undefined>;
+	watchSession?(resource: URI, listener: () => void): IDisposable;
 	getNewSessionWorkspaceCatalog?(): IChatSessionRoutingWorkspaceCatalog | Promise<IChatSessionRoutingWorkspaceCatalog>;
 	selectNewSessionWorkspace?(workspace: IChatSessionRoutingWorkspace): void | Promise<void>;
 	browseNewSessionWorkspace?(actionId: string, token: CancellationToken): Promise<IChatSessionRoutingWorkspace | undefined>;
