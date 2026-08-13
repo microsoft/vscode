@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
@@ -139,7 +140,7 @@ suite('Sessions - Chat View', () => {
 
 		const showing = () => {
 			const tip = container.querySelector<HTMLElement>('.sub-session-tip-container');
-			return !!tip && tip.style.display !== 'none';
+			return !!tip && isChatInputStackSlotShowing(tip);
 		};
 		const shownInitially = showing();
 		// A notification owns the space outright, so the banner must not stack with it.

@@ -1113,6 +1113,8 @@
 		"--animation-opacity",
 		"--chat-input-anim-angle",
 		"--chat-input-anim-duration",
+		"--chat-input-radius",
+		"--chat-input-stack-radius-top",
 		"--chat-input-working-border-color1",
 		"--session-input-banner-anim-angle",
 		"--session-input-banner-anim-duration",

@@ -54,7 +54,7 @@ import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
-import { IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IChatInputNotification, IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { IDictationOnboardingService } from '../../../../contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/widget/input/chatInputNoticeHub.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -118,6 +118,8 @@ export interface IChatFixtureServicesOptions {
 	readonly artifactGroups?: IObservable<readonly IArtifactSourceGroup[]>;
 	/** Initial todos returned from IChatTodoListService.getTodos(). */
 	readonly todos?: readonly IChatTodo[];
+	/** Active notification returned from IChatInputNotificationService. */
+	readonly notification?: IChatInputNotification;
 }
 
 /**
@@ -278,7 +280,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
 	reg.defineInstance(IChatInputNotificationService, new class extends mock<IChatInputNotificationService>() {
 		override readonly onDidChange = Event.None;
-		override getActiveNotification() { return undefined; }
+		override getActiveNotification() { return options.notification; }
 		override announceRendered() { }
 	}());
 	reg.defineInstance(IChatSubmitRequestHandlerService, new ChatSubmitRequestHandlerService());

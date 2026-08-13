@@ -41,6 +41,7 @@ import { buildNewSessionPrompt } from '../../agentFeedback/browser/agentFeedback
 import { SessionInputBannerWidget } from '../../sessionInputBanners/browser/sessionInputBannerWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ChatInputTipPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputTipPresenter.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -324,7 +325,7 @@ export class NewChatWidget extends Disposable {
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
-		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
+		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
 
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 		const aquariumAction = this._register(new Action(
@@ -873,6 +874,7 @@ export class NewChatWidget extends Disposable {
 			content.clear();
 			dom.clearNode(host);
 			if (!feedbackItems.length) {
+				setChatInputStackSlot(host, ChatInputStackSlot.Empty);
 				return;
 			}
 
@@ -893,6 +895,8 @@ export class NewChatWidget extends Disposable {
 				}],
 			}));
 			host.appendChild(banner.domNode);
+			// Docks to the composer below it.
+			setChatInputStackSlot(host, ChatInputStackSlot.Docked);
 		}));
 	}
 
