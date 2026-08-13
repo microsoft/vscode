@@ -36,6 +36,7 @@ import { IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -90,8 +91,9 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IDialogService dialogService: IDialogService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostUntitledProvisionalSessionService provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, provisionalSessionService);
 		this.automations = this._register(instantiationService.createInstance(AutomationStore, providerAutomationStorageKey(this.id)));
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;

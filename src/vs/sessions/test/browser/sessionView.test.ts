@@ -4,11 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { SessionView } from '../../browser/parts/sessionView.js';
+import { resolveSessionViewKind, SessionView } from '../../browser/parts/sessionView.js';
+import { ChatInteractivity, SessionStatus } from '../../services/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('Sessions - Session View', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('routes a read-only untitled session to the standard chat view (Sessions read-only invariant)', () => {
+		assert.deepStrictEqual({
+			noSession: resolveSessionViewKind(undefined, undefined, undefined),
+			editableUntitledNewSession: resolveSessionViewKind(false, SessionStatus.Untitled, ChatInteractivity.Full),
+			editableUntitledInSession: resolveSessionViewKind(true, SessionStatus.Untitled, ChatInteractivity.Full),
+			readOnlyUntitled: resolveSessionViewKind(false, SessionStatus.Untitled, ChatInteractivity.ReadOnly),
+			readOnlyUntitledInProgress: resolveSessionViewKind(false, SessionStatus.InProgress, ChatInteractivity.ReadOnly),
+			committed: resolveSessionViewKind(true, SessionStatus.Completed, ChatInteractivity.Full),
+		}, {
+			noSession: 'newSession',
+			editableUntitledNewSession: 'newSession',
+			editableUntitledInSession: 'newChatInSession',
+			readOnlyUntitled: 'chat',
+			readOnlyUntitledInProgress: 'chat',
+			committed: 'chat',
+		});
+	});
 
 	test('forwards effective visibility (part and grid leaf) to the hosted chat view', () => {
 		const forwarded: boolean[] = [];

@@ -372,12 +372,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	discardNewSession(session?: ISession): void {
 		const current = this._newSession.get();
-		if (!current) {
+		// Explicit untitled drafts remain discardable after the current pointer is cleared.
+		if (session && (!current || session.sessionId !== current.sessionId)) {
+			if (session.status.get() === SessionStatus.Untitled) {
+				const provider = this._getProvider(session);
+				if (provider) {
+					provider.deleteNewSession(session.sessionId);
+					this._onDidDiscardNewSession.fire(session);
+				}
+			}
 			return;
 		}
-		// When a specific session is given, only discard if it is the current
-		// new session; closing an unrelated session must not drop the draft.
-		if (session && session.sessionId !== current.sessionId) {
+		if (!current) {
 			return;
 		}
 		this._newSession.set(undefined, undefined);

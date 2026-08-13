@@ -44,7 +44,7 @@ import { createNoopGitService, createSessionDataService, TestSessionDatabase } f
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, WorktreeCreationFailedError, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { AhpErrorCodes, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -7019,7 +7019,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('first-send worktree failure warns and falls back to the original folder', async () => {
+		test('first-send worktree creation failure propagates the typed fatal error without folder fallback', async () => {
 			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-worktree-failure-`));
 			disposables.add(toDisposable(() => {
 				rmSync(sourceDir.fsPath, { recursive: true, force: true });
@@ -7071,26 +7071,26 @@ suite('AgentService (node dispatcher)', () => {
 			const resolver = localService as unknown as {
 				_resolveWorkingDirectoryBeforeSend: (params: { session: string; chat: string; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
 			};
-			const resolved = await resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' });
-			const chatState = localService.stateManager.getChatState(chat);
 
+			// The typed fatal worktree-creation failure must propagate rather than
+			// fall back to the selected folder.
+			await assert.rejects(
+				resolver._resolveWorkingDirectoryBeforeSend({ session: sessionResource, chat, turnId: 'turn-1', prompt: 'test' }),
+				(err: unknown) => err instanceof WorktreeCreationFailedError && err.errorType === 'worktreeCreationFailed',
+			);
+
+			const chatState = localService.stateManager.getChatState(chat);
 			assert.deepStrictEqual({
-				resolved: resolved?.map(uri => uri.toString()),
+				// Activity cleared on the fatal exit path.
 				activity: chatState?.activity,
+				// No fallback warning response part dispatched for a fatal attempt.
 				responseParts: chatState?.activeTurn?.responseParts,
-				persistedFailure: JSON.parse((await database.getMetadata('copilot.worktree.creationFailure'))!),
+				// No durable creation-failure metadata persisted for a fatal attempt.
+				persistedFailure: await database.getMetadata('copilot.worktree.creationFailure'),
 			}, {
-				resolved: [sourceDir.toString()],
 				activity: undefined,
-				responseParts: [{
-					kind: ResponsePartKind.SystemNotification,
-					content: 'Couldn\'t create the isolated worktree. This session is continuing in the original folder.\n\n`git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found`',
-					_meta: { kind: 'worktreeCreationFailure', severity: 'warning' },
-				}],
-				persistedFailure: {
-					sessionId: 'worktree-failure',
-					diagnostic: 'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
-				},
+				responseParts: [],
+				persistedFailure: undefined,
 			});
 		});
 

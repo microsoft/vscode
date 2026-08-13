@@ -23,6 +23,7 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { AgentSession, AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { toAgentWorktreeFailureMeta, WORKTREE_CREATION_FAILED_ERROR_TYPE } from '../common/meta/agentWorktreeFailureMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
@@ -80,7 +81,7 @@ import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { persistSessionMetadata } from './shared/persistSessionMetadata.js';
-import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { WorktreeCreationFailedError, type WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -1932,6 +1933,22 @@ export class AgentSideEffects extends Disposable {
 
 		const chatUri = URI.parse(chat);
 
+		// Only the fatal worktree classification permanently rejects later turns.
+		const creationState = this._stateManager.getSessionState(sessionChannel);
+		if (creationState?.lifecycle === SessionLifecycle.CreationFailed && creationState.creationError?.errorType === WORKTREE_CREATION_FAILED_ERROR_TYPE) {
+			const error = creationState.creationError;
+			this._logService.warn(`[AgentSideEffects] Rejecting turn on session with failed worktree creation session=${sessionChannel}, turnId=${turnId}`);
+			this._stateManager.dispatchServerAction(turnChannel, {
+				type: ActionType.ChatError,
+				turnId,
+				duration: this._turnDuration(turnStopWatch),
+				error,
+			});
+			this._completeTurn(turnChannel, turnId, 'error', { stage: 'validation', error });
+			this._toolCallTracker.clearSession(turnChannel);
+			return;
+		}
+
 		let failureStage: AgentHostTurnFailureStage = 'workingDirectory';
 		try {
 			// Host-owned working-directory resolution: resolve the session's working
@@ -2045,6 +2062,8 @@ export class AgentSideEffects extends Disposable {
 	 * so subscribers render the session as failed immediately rather than
 	 * waiting on a client-side timeout. The provisional session survives on the
 	 * agent, so resending re-attempts materialization.
+	 *
+	 * Fatal worktree failures remain unannounced and reject later turns.
 	 */
 	private _failSessionCreationIfStillCreating(sessionChannel: ProtocolURI, error: ErrorInfo): void {
 		const state = this._stateManager.getSessionState(sessionChannel);
@@ -2055,6 +2074,10 @@ export class AgentSideEffects extends Disposable {
 			type: ActionType.SessionCreationFailed,
 			error,
 		});
+		// Generic creation failures remain catalog-visible; fatal worktree failures do not.
+		if (error.errorType === WORKTREE_CREATION_FAILED_ERROR_TYPE) {
+			return;
+		}
 		const summary = this._stateManager.getSessionSummary(sessionChannel);
 		if (summary) {
 			this._stateManager.markSessionPersisted(sessionChannel, summary);
@@ -2090,6 +2113,14 @@ function buildTurnFailure(stage: AgentHostTurnFailureStage, err: unknown): IAgen
 }
 
 function buildTurnFailureError(stage: AgentHostTurnFailureStage, err: unknown): ErrorInfo {
+	// Use the typed error rather than message matching for the fatal classification.
+	if (err instanceof WorktreeCreationFailedError) {
+		return {
+			errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+			message: err.message,
+			_meta: toAgentWorktreeFailureMeta(err.toFailureMeta()),
+		};
+	}
 	const message = String(err);
 	const forwarded = tryParseForwardedChatError(err instanceof Error ? err.message : message);
 	const errorType = stage === 'modelSelection' ? 'modelSelectionFailed'

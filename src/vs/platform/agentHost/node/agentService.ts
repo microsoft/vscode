@@ -53,7 +53,7 @@ import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
 import { type IChatContextSnapshot, type ISessionCreationDefaults, type ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 
-import { buildWorktreeFailureNotification, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, WorktreeCreationFailedError, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT, worktreeProjectFromRepositoryRoot } from './shared/worktreeIsolation.js';
 import { AgentHostChangesetService } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
@@ -671,8 +671,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return [resolved, ...tail];
 		}
 
-		// Fall back to the picked folder when worktree creation failed so the
-		// session still materializes in the user's folder rather than nowhere.
+		// Only non-fatal resolution may fall back to the picked folder.
 		const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri }) ?? pickedFolderUri;
 		return resolved ? [resolved, ...tail] : undefined;
 	}
@@ -716,8 +715,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * activity, surfaces the "Created isolated worktree" announcement as the first
 	 * markdown response part or a durable fallback warning, and returns the created worktree URI.
 	 * Idempotent; safe to call once the worktree exists. Returns `undefined` when
-	 * worktree creation failed. Only invoked for sessions whose worktree is still
-	 * pending (see {@link _resolveWorkingDirectoryBeforeSend}).
+	 * worktree creation resolved to no worktree via a non-fatal path. Typed
+	 * {@link WorktreeCreationFailedError}s propagate without fallback metadata.
 	 */
 	private async _resolveWorktreeBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string; sessionId: string; pickedFolderUri: URI | undefined }): Promise<URI | undefined> {
 		const { sessionId, pickedFolderUri } = params;
@@ -744,13 +743,18 @@ export class AgentService extends Disposable implements IAgentService {
 				},
 			});
 		} catch (err) {
+			// Propagate the typed failure before fallback metadata is written.
+			if (err instanceof WorktreeCreationFailedError) {
+				this._logService.warn(`[AgentService] worktree creation failed fatally for ${params.session}: ${toErrorMessage(err)}`);
+				throw err;
+			}
 			failureDiagnostic = toErrorMessage(err);
 			this._logService.warn(`[AgentService] worktree resolution failed for ${params.session}: ${failureDiagnostic}`);
-		}
-		// Clear on every exit path so a failed creation can't strand the chat
-		// on a stale "Creating isolated worktree" activity.
-		if (reportedActivity) {
-			this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
+		} finally {
+			// Never leave stale worktree activity behind.
+			if (reportedActivity) {
+				this._stateManager.dispatchServerAction(params.chat, { type: ActionType.ChatActivityChanged, activity: undefined });
+			}
 		}
 		const resolvedWorktree = worktree.getResolvedWorktree(sessionId);
 		if (!resolvedWorktree) {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -30,7 +31,7 @@ import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from 
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { ChatInteractivity, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -38,7 +39,9 @@ import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { IPullRequestIconCache, PullRequestIconCache } from '../../../../github/browser/pullRequestIconCache.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { IObservable, constObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { AgentHostBackendCleanupState, IAgentHostUntitledProvisionalSessionService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 
@@ -191,7 +194,42 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean }): RemoteAgentHostSessionsProvider {
+class FakeRemoteProvisionalSessionService extends mock<IAgentHostUntitledProvisionalSessionService>() {
+	private readonly _states = new ResourceMap<ISettableObservable<AgentHostBackendCleanupState>>();
+	private readonly _cleared = new ResourceMap<boolean>();
+	readonly published: AgentHostBackendCleanupState[] = [];
+	/** Every resource passed to {@link clearBackendCleanupState}, in call order. */
+	readonly clearedResources: URI[] = [];
+
+	private _ensure(resource: URI): ISettableObservable<AgentHostBackendCleanupState> {
+		let state = this._states.get(resource);
+		if (!state) {
+			state = observableValue<AgentHostBackendCleanupState>('fakeCleanup', AgentHostBackendCleanupState.None);
+			this._states.set(resource, state);
+		}
+		return state;
+	}
+
+	override getBackendCleanupState(resource: URI): IObservable<AgentHostBackendCleanupState> {
+		return this._ensure(resource);
+	}
+
+	override publishBackendCleanupState(resource: URI, state: AgentHostBackendCleanupState): void {
+		if (this._cleared.get(resource)) {
+			return;
+		}
+		this.published.push(state);
+		this._ensure(resource).set(state, undefined);
+	}
+
+	override clearBackendCleanupState(resource: URI): void {
+		this.clearedResources.push(resource);
+		this._cleared.set(resource, true);
+		this._ensure(resource).set(AgentHostBackendCleanupState.None, undefined);
+	}
+}
+
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; noConnection?: boolean; isWebPlatform?: boolean; workspaceTrusted?: boolean; provisionalSessionService?: IAgentHostUntitledProvisionalSessionService; sessionSchemeAlias?: { readonly backend: string; readonly ui: string } }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -234,11 +272,14 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, tools: [], customizations: [] });
 		override getCustomAgents = () => constObservable([]);
 	}());
+	const provisional = overrides?.provisionalSessionService ?? new FakeRemoteProvisionalSessionService();
+	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, provisional);
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
 		preferenceKey: overrides?.preferenceKey,
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
+		sessionSchemeAlias: overrides?.sessionSchemeAlias,
 	};
 
 	const providerCtor = overrides?.isWebPlatform !== undefined
@@ -1016,6 +1057,127 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
+	});
+
+	test('fatal worktree completion detaches only the remote backend and publishes truthful cleanup state', async () => {
+		const provisional = new FakeRemoteProvisionalSessionService();
+		const provider = createProvider(disposables, connection, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			// Suppress `SessionAdded`; complete the response with the fatal code.
+			sendRequest: async (): Promise<ChatSendResult> => ({
+				kind: 'sent',
+				data: {
+					agent: {} as never,
+					responseCreatedPromise: Promise.resolve({ result: { errorDetails: { code: 'worktreeCreationFailed' } } } as never),
+					responseCompletePromise: Promise.resolve(),
+				},
+			} as ChatSendResult),
+		});
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		await timeout(0);
+		const disposedBefore = connection.disposedSessions.length;
+
+		const returned = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sameSession: returned === session,
+			status: session.status.get(),
+			interactivity: session.mainChat.get().interactivity.get(),
+			enumerated: provider.getSessions().includes(session),
+			viewAddressable: provider.getSessionByResource(session.resource) === session,
+			backendDetaches: connection.disposedSessions.length - disposedBefore,
+			cleanup: provisional.published,
+		}, {
+			sameSession: true,
+			status: SessionStatus.Untitled,
+			interactivity: ChatInteractivity.ReadOnly,
+			enumerated: false,
+			viewAddressable: true,
+			backendDetaches: 1,
+			cleanup: [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Confirmed],
+		});
+	});
+
+	test('late fatal cleanup maps an adopted session URI back to its aliased backend scheme', async () => {
+		const provisional = new FakeRemoteProvisionalSessionService();
+		const provider = createProvider(disposables, connection, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sessionSchemeAlias: { backend: 'ahp-session', ui: 'copilotcli' },
+			sendRequest: async (): Promise<ChatSendResult> => ({
+				kind: 'sent',
+				data: {
+					agent: {} as never,
+					responseCreatedPromise: Promise.resolve({ result: { errorDetails: { code: 'worktreeCreationFailed' } } } as never),
+					responseCompletePromise: Promise.resolve(),
+				},
+			} as ChatSendResult),
+		});
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+
+		const rawId = AgentSession.id(session.resource);
+		const disposedBefore = connection.disposedSessions.length;
+		fireSessionAdded(connection, rawId, { provider: 'ahp-session', title: 'Late Commit' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			lateDisposals: connection.disposedSessions.slice(disposedBefore).map(uri => uri.toString()),
+			cleanup: provisional.published.slice(-2),
+			listed: provider.getSessions().some(candidate => candidate.resource.path === session.resource.path),
+		}, {
+			lateDisposals: [AgentSession.uri('ahp-session', rawId).toString()],
+			cleanup: [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Confirmed],
+			listed: false,
+		});
+	});
+
+	test('connection loss disposes a fatal draft and clears its shared cleanup state exactly once', async () => {
+		// `clearConnection` → `_disposeAllNewSessions` must clear the shared
+		// backend cleanup state via the NewSession lifetime callback, just like
+		// an explicit close does.
+		const provisional = new FakeRemoteProvisionalSessionService();
+		const provider = createProvider(disposables, connection, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => ({
+				kind: 'sent',
+				data: {
+					agent: {} as never,
+					responseCreatedPromise: Promise.resolve({ result: { errorDetails: { code: 'worktreeCreationFailed' } } } as never),
+					responseCompletePromise: Promise.resolve(),
+				},
+			} as ChatSendResult),
+		});
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		await timeout(0);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		assert.strictEqual(provisional.clearedResources.length, 0);
+
+		provider.clearConnection();
+
+		assert.deepStrictEqual({
+			clearsForDraft: provisional.clearedResources.filter(r => isEqual(r, session.resource)).length,
+			totalClears: provisional.clearedResources.length,
+			stillAddressable: provider.getSessionByResource(session.resource) === session,
+		}, {
+			clearsForDraft: 1,
+			totalClears: 1,
+			stillAddressable: false,
+		});
 	});
 
 	// ---- Session data adapter -------

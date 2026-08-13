@@ -43,6 +43,12 @@ Continuous row animations preserve their existing appearance while limiting rend
 
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
 
+### View-local drafts and commit-only list timing
+
+A new Agent Host session is a **view-local draft**: it is directly addressable by its initiating view (via the provider's `getSessionByResource`) but is **never** enumerated by `getSessions()` and never produces an `onDidChangeSessions.added` event before it commits. A session row therefore appears in the list only when the backend actually commits the session (a matching `notify/sessionAdded`), at which point the active view transitions from the draft to the committed session and exactly one committed row is published. This intentional list-timing change applies to every new Agent Host send, successful or not.
+
+A send whose initial isolated-worktree creation fails fatally (`worktreeCreationFailed`) is aborted view-locally: its draft is latched read-only and kept visible in its initiating view (rendered as a standard `ChatView`, see the read-only invariant in `SESSIONS.md`) but **never** enters the list, cache, history, or restore data — no aborted row is ever shown, and because no draft row was added no removal event is needed. A process-lifetime quarantine prevents any late commit/refresh/summary event for that identity from publishing a row.
+
 ### Grouping
 
 Sessions are organized into sections with fixed priority:

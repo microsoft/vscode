@@ -142,6 +142,15 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
 	}
 
+	/**
+	 * Lists registered worktrees with their path, branch ref, HEAD oid, and
+	 * lock/detached flags — the linkage `getWorktreeRoots` omits, used by guarded
+	 * rollback to attribute residue to a live creation attempt.
+	 */
+	async getWorktreeEntries(repositoryRoot: URI): Promise<readonly IWorktreeEntry[]> {
+		return parseWorktreeEntries(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+	}
+
 	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
 		if (!porcelainOutput) {
 			return [];
@@ -1139,6 +1148,50 @@ interface IWorktreeIncludeEntry {
 	readonly sourcePath: string;
 	readonly fileCount: number;
 }
+
+/** A registered worktree with the branch/HEAD linkage `git worktree list --porcelain` reports. */
+export interface IWorktreeEntry {
+	readonly path: URI;
+	readonly branch?: string;
+	readonly head?: string;
+	readonly locked: boolean;
+	readonly detached: boolean;
+}
+
+/** Parses `git worktree list --porcelain` blocks into structured entries. */
+export function parseWorktreeEntries(porcelainOutput: string | undefined): readonly IWorktreeEntry[] {
+	if (!porcelainOutput) {
+		return [];
+	}
+	const entries: IWorktreeEntry[] = [];
+	let current: { path: URI; branch?: string; head?: string; locked: boolean; detached: boolean } | undefined;
+	const flush = () => {
+		if (current) {
+			entries.push(current);
+			current = undefined;
+		}
+	};
+	for (const rawLine of porcelainOutput.split(/\r?\n/g)) {
+		const line = rawLine.replace(/\r$/, '');
+		if (line.startsWith('worktree ')) {
+			flush();
+			current = { path: URI.file(line.substring('worktree '.length)), locked: false, detached: false };
+		} else if (!current) {
+			continue;
+		} else if (line.startsWith('HEAD ')) {
+			current = { ...current, head: line.substring('HEAD '.length).trim() || undefined };
+		} else if (line.startsWith('branch ')) {
+			current = { ...current, branch: line.substring('branch '.length).trim() || undefined };
+		} else if (line === 'detached') {
+			current = { ...current, detached: true };
+		} else if (line === 'locked' || line.startsWith('locked ')) {
+			current = { ...current, locked: true };
+		}
+	}
+	flush();
+	return entries;
+}
+
 
 /**
  * Builds the entries to copy: one per collapsed directory, standing in for all

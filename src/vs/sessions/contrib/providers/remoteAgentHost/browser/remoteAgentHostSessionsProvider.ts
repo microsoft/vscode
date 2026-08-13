@@ -38,6 +38,7 @@ import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspa
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
@@ -181,8 +182,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IAgentHostActiveClientService activeClientService: IAgentHostActiveClientService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostUntitledProvisionalSessionService provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, provisionalSessionService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -436,14 +438,6 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._defaultDirectory = undefined;
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);
-
-		// Drop only the transient pending/draft session; keep the persisted
-		// cache so the workspace picker keeps showing offline sessions.
-		if (this._pendingSession) {
-			const pending = this._pendingSession;
-			this._pendingSession = undefined;
-			this._onDidChangeSessions.fire({ added: [], removed: [pending], changed: [] });
-		}
 
 		// Reset the in-memory cache-initialized flag so a fresh connection
 		// triggers a full list refresh (which will reconcile against the

@@ -50,14 +50,15 @@
 
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, type IObservable, type ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { WORKTREE_CREATION_FAILED_ERROR_TYPE } from '../../../../../../platform/agentHost/common/meta/agentWorktreeFailureMeta.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -73,12 +74,25 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import type { IChatModel } from '../../../common/model/chatModel.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
+
+/** Process-local status of a fatal backend detach, keyed by chat resource. */
+export const enum AgentHostBackendCleanupState {
+	/** No fatal detach applies to this session. */
+	None,
+	/** Capture barrier reached; backend disposal is in flight. */
+	Pending,
+	/** Backend disposal confirmed by the agent host. */
+	Confirmed,
+	/** Backend disposal failed/unconfirmed; awaiting retry. */
+	Failed,
+}
 
 /**
  * LM contract: maintain one backend provisional session per untitled chat UI
@@ -186,6 +200,15 @@ export interface IAgentHostUntitledProvisionalSessionService {
 		workingDirectory: URI | undefined,
 		config: Record<string, unknown> | undefined,
 	): Promise<void>;
+
+	/** Returns the stable, process-local backend cleanup state for a chat. */
+	getBackendCleanupState(sessionResource: URI): IObservable<AgentHostBackendCleanupState>;
+
+	/** Updates an existing provider-owned cleanup state without creating one. */
+	publishBackendCleanupState(sessionResource: URI, state: AgentHostBackendCleanupState): void;
+
+	/** Clears provider-owned cleanup state on final frontend disposal. */
+	clearBackendCleanupState(sessionResource: URI): void;
 }
 
 interface IProvisionalGeneration {
@@ -240,6 +263,16 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private readonly _resolvedConfigs = new ResourceMap<ResolveSessionConfigResult>();
 	private readonly _resolvedConfigRequestSeq = new ResourceMap<number>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
+	// Watches chat models for the fatal response capture barrier.
+	private readonly _captureWatchers = new ResourceMap<IDisposable>();
+	// Joins duplicate detach triggers and a racing frontend disposal.
+	private readonly _detachOps = new ResourceMap<Promise<void>>();
+	private readonly _backendDisposeOps = new ResourceMap<Promise<boolean>>();
+	private readonly _backendCleanupStates = new ResourceMap<ISettableObservable<AgentHostBackendCleanupState>>();
+	// Retains unconfirmed backend URIs for process-local retry.
+	private readonly _fatalPendingBackends = new ResourceMap<URI>();
+	private readonly _disposedFrontendResources = new ResourceSet();
+	private _isDisposed = false;
 	// URIs that were the source of a successful `tryRebind`. The chat widget
 	// briefly reattaches to the old untitled URI before its viewModel switches
 	// to the new real URI; without this tombstone the picker would call
@@ -252,7 +285,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatService chatService: IChatService,
+		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -268,16 +301,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// without ever sending a message). Without this, untitled chats the
 		// user opens and abandons leak in-memory state-manager entries on
 		// the agent host.
-		this._register(chatService.onDidDisposeSession(e => {
+		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
-				if (this._entries.has(sessionResource)) {
-					void this.disposeSession(sessionResource);
-				}
-				this._resolvedConfigs.delete(sessionResource);
-				this._resolvedConfigRequestSeq.delete(sessionResource);
-				// Drop any tombstone for the abandoned untitled URI so the
-				// set doesn't grow unbounded across the workbench lifetime.
-				this._rebound.delete(sessionResource);
+				this._disposeFrontendSession(sessionResource);
 			}
 		}));
 
@@ -554,22 +580,71 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		await this._disposeBackend(generation.backendSession, 'retired provisional generation');
 	}
 
-	private async _disposeBackend(backendSession: URI, reason: string): Promise<boolean> {
-		this._pendingBackendDisposals.add(backendSession);
-		try {
-			await this._agentHostService.disposeSession(backendSession);
-			this._pendingBackendDisposals.delete(backendSession);
-			return true;
-		} catch (err) {
-			this._logService.warn(`[AgentHostProvisional] Failed to dispose ${reason} ${backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
-			return false;
+	private _disposeBackend(backendSession: URI, reason: string): Promise<boolean> {
+		const inflight = this._backendDisposeOps.get(backendSession);
+		if (inflight) {
+			return inflight;
 		}
+		const op = (async () => {
+			this._pendingBackendDisposals.add(backendSession);
+			try {
+				await this._agentHostService.disposeSession(backendSession);
+				this._pendingBackendDisposals.delete(backendSession);
+				return true;
+			} catch (err) {
+				this._logService.warn(`[AgentHostProvisional] Failed to dispose ${reason} ${backendSession.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+				return false;
+			}
+		})();
+		this._backendDisposeOps.set(backendSession, op);
+		void op.finally(() => {
+			if (this._backendDisposeOps.get(backendSession) === op) {
+				this._backendDisposeOps.delete(backendSession);
+			}
+		}).catch(() => { });
+		return op;
 	}
 
 	private _retryPendingBackendDisposals(): void {
-		for (const backendSession of this._pendingBackendDisposals) {
-			void this._disposeBackend(backendSession, 'pending provisional cleanup');
+		// Fatal detaches update their per-frontend cleanup state on retry; other
+		// pending disposals (e.g. orphaned provisionals) retry without UI state.
+		const fatalBackends = new ResourceSet();
+		for (const [sessionResource, backendSession] of this._fatalPendingBackends) {
+			fatalBackends.add(backendSession);
+			void this._retryFatalDetach(sessionResource, backendSession);
 		}
+		for (const backendSession of this._pendingBackendDisposals) {
+			if (!fatalBackends.has(backendSession)) {
+				void this._disposeBackend(backendSession, 'pending provisional cleanup');
+			}
+		}
+	}
+
+	private _retryFatalDetach(sessionResource: URI, backendSession: URI): Promise<void> {
+		if (!this._ownsFatalRetry(sessionResource, backendSession)) {
+			return Promise.resolve();
+		}
+		const inflight = this._detachOps.get(sessionResource);
+		if (inflight) {
+			return inflight;
+		}
+		const op = this._queue(sessionResource, async () => {
+			if (!this._ownsFatalRetry(sessionResource, backendSession)) {
+				return;
+			}
+			const confirmed = await this._disposeBackend(backendSession, 'fatal worktree backend detach retry');
+			if (!this._ownsFatalRetry(sessionResource, backendSession)) {
+				return;
+			}
+			if (confirmed) {
+				this._fatalPendingBackends.delete(sessionResource);
+				this._setBackendCleanupState(sessionResource, AgentHostBackendCleanupState.Confirmed);
+			} else {
+				this._setBackendCleanupState(sessionResource, AgentHostBackendCleanupState.Failed);
+			}
+		});
+		this._trackDetachOperation(sessionResource, op);
+		return op;
 	}
 
 	/**
@@ -664,6 +739,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories };
 				this._entries.set(newSessionResource, newEntry);
 				this._publishActiveClient(newEntry);
+				// Observe the real chat model for the fatal-worktree capture
+				// barrier so a classified terminal error triggers backend-only
+				// detach without disposing the retained frontend chat model.
+				this._watchForFatalCapture(newSessionResource);
 				this._entries.delete(oldSessionResource);
 				oldEntry.disposed = true;
 				oldEntry.activeClientSync.dispose();
@@ -738,11 +817,17 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	disposeSession(sessionResource: URI): Promise<void> {
+		// Stop watching for a fatal capture; a full frontend disposal supersedes it.
+		this._captureWatchers.get(sessionResource)?.dispose();
+		this._captureWatchers.delete(sessionResource);
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
 		if (!entry) {
-			return Promise.resolve();
+			// The entry may already be gone because a backend-only detach ran
+			// after a fatal capture. Join any in-flight detach so callers observe
+			// a settled backend, but never issue a second teardown.
+			return this._detachOps.get(sessionResource) ?? Promise.resolve();
 		}
 		entry.disposed = true;
 		entry.activeClientSync.dispose();
@@ -756,25 +841,187 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		});
 	}
 
+	private _disposeFrontendSession(sessionResource: URI): void {
+		this._captureWatchers.get(sessionResource)?.dispose();
+		this._captureWatchers.delete(sessionResource);
+		this._disposedFrontendResources.add(sessionResource);
+		this._resolvedConfigs.delete(sessionResource);
+		this._resolvedConfigRequestSeq.delete(sessionResource);
+		this._rebound.delete(sessionResource);
+		const operation = this.disposeSession(sessionResource);
+		void operation.finally(() => {
+			this._detachOps.delete(sessionResource);
+			this._resolvedConfigs.delete(sessionResource);
+			this._resolvedConfigRequestSeq.delete(sessionResource);
+			this._backendCleanupStates.delete(sessionResource);
+			this._fatalPendingBackends.delete(sessionResource);
+			this._rebound.delete(sessionResource);
+			this._disposedFrontendResources.delete(sessionResource);
+		}).catch(() => { });
+	}
+
+	private _trackDetachOperation(sessionResource: URI, operation: Promise<void>): void {
+		this._detachOps.set(sessionResource, operation);
+		void operation.finally(() => {
+			if (this._detachOps.get(sessionResource) === operation) {
+				this._detachOps.delete(sessionResource);
+			}
+		}).catch(() => { });
+	}
+
+	private _ownsFrontendCleanup(sessionResource: URI): boolean {
+		return !this._isDisposed
+			&& !this._disposedFrontendResources.has(sessionResource)
+			&& this._backendCleanupStates.has(sessionResource);
+	}
+
+	private _ownsFatalRetry(sessionResource: URI, backendSession: URI): boolean {
+		const pending = this._fatalPendingBackends.get(sessionResource);
+		return this._ownsFrontendCleanup(sessionResource)
+			&& pending !== undefined
+			&& isEqual(pending, backendSession);
+	}
+
+	/** Detaches the backend after fatal response capture while retaining the chat model. */
+	private detachFailedBackend(sessionResource: URI): Promise<void> {
+		const inflight = this._detachOps.get(sessionResource);
+		if (inflight) {
+			return inflight;
+		}
+		const entry = this._entries.get(sessionResource);
+		if (!entry || entry.disposed) {
+			return Promise.resolve();
+		}
+		// Capture achieved: stop observing before releasing ownership.
+		this._captureWatchers.get(sessionResource)?.dispose();
+		this._captureWatchers.delete(sessionResource);
+		this._ensureBackendCleanupState(sessionResource).set(AgentHostBackendCleanupState.Pending, undefined);
+		const op = this._queue(sessionResource, async () => {
+			if (entry.disposed || !this._ownsFrontendCleanup(sessionResource)) {
+				return;
+			}
+			entry.disposed = true;
+			entry.activeClientSync.dispose();
+			this._entries.delete(sessionResource);
+			this._resolvedConfigs.delete(sessionResource);
+			this._resolvedConfigRequestSeq.delete(sessionResource);
+			this._onDidChange.fire(sessionResource);
+			const generation = entry.generation;
+			entry.generation = undefined;
+			if (!generation) {
+				if (this._ownsFrontendCleanup(sessionResource)) {
+					this._setBackendCleanupState(sessionResource, AgentHostBackendCleanupState.Confirmed);
+				}
+				return;
+			}
+			const confirmed = await this._disposeBackend(generation.backendSession, 'fatal worktree backend detach');
+			if (!this._ownsFrontendCleanup(sessionResource)) {
+				return;
+			}
+			if (confirmed) {
+				this._setBackendCleanupState(sessionResource, AgentHostBackendCleanupState.Confirmed);
+			} else {
+				// The unconfirmed backend URI owns the retry; never report success.
+				this._fatalPendingBackends.set(sessionResource, generation.backendSession);
+				this._setBackendCleanupState(sessionResource, AgentHostBackendCleanupState.Failed);
+			}
+		});
+		this._trackDetachOperation(sessionResource, op);
+		return op;
+	}
+
+	getBackendCleanupState(sessionResource: URI): IObservable<AgentHostBackendCleanupState> {
+		return this._ensureBackendCleanupState(sessionResource);
+	}
+
+	publishBackendCleanupState(sessionResource: URI, state: AgentHostBackendCleanupState): void {
+		if (this._ownsFrontendCleanup(sessionResource)) {
+			this._backendCleanupStates.get(sessionResource)?.set(state, undefined);
+		}
+	}
+
+	clearBackendCleanupState(sessionResource: URI): void {
+		this._backendCleanupStates.get(sessionResource)?.set(AgentHostBackendCleanupState.None, undefined);
+		this._backendCleanupStates.delete(sessionResource);
+		this._fatalPendingBackends.delete(sessionResource);
+	}
+
+	private _ensureBackendCleanupState(sessionResource: URI): ISettableObservable<AgentHostBackendCleanupState> {
+		let state = this._backendCleanupStates.get(sessionResource);
+		if (!state) {
+			state = observableValue<AgentHostBackendCleanupState>('agentHostBackendCleanupState', AgentHostBackendCleanupState.None);
+			this._backendCleanupStates.set(sessionResource, state);
+		}
+		return state;
+	}
+
+	private _setBackendCleanupState(sessionResource: URI, next: AgentHostBackendCleanupState): void {
+		if (this._ownsFrontendCleanup(sessionResource)) {
+			this._backendCleanupStates.get(sessionResource)?.set(next, undefined);
+		}
+	}
+
+	/** Starts backend detach once the first response records the fatal code. */
+	private _watchForFatalCapture(sessionResource: URI): void {
+		if (this._captureWatchers.has(sessionResource)) {
+			return;
+		}
+		const store = new DisposableStore();
+		this._captureWatchers.set(sessionResource, store);
+		const attach = (model: IChatModel) => {
+			const check = () => {
+				if (this._hasFatalWorktreeCapture(model)) {
+					void this.detachFailedBackend(sessionResource);
+				}
+			};
+			store.add(model.onDidChange(() => check()));
+			check();
+		};
+		const existing = this._chatService.getSession(sessionResource);
+		if (existing) {
+			attach(existing);
+		}
+		store.add(this._chatService.onDidCreateModel(model => {
+			if (isEqual(model.sessionResource, sessionResource)) {
+				attach(model);
+			}
+		}));
+	}
+
+	private _hasFatalWorktreeCapture(model: IChatModel): boolean {
+		const response = model.getRequests()[0]?.response;
+		return response?.isComplete === true && response.result?.errorDetails?.code === WORKTREE_CREATION_FAILED_ERROR_TYPE;
+	}
+
 	override dispose(): void {
 		// Fire-and-forget cleanup for any provisionals still tracked. Avoid
 		// awaiting in `dispose()` to keep workbench teardown synchronous.
+		this._isDisposed = true;
+		for (const [, watcher] of this._captureWatchers) {
+			watcher.dispose();
+		}
+		this._captureWatchers.clear();
+		this._detachOps.clear();
+		this._backendCleanupStates.clear();
+		this._fatalPendingBackends.clear();
 		for (const [, entry] of this._entries) {
 			entry.disposed = true;
 			entry.activeClientSync.dispose();
 			if (entry.generation) {
-				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
+				void this._disposeBackend(entry.generation.backendSession, 'service disposal');
 			}
 		}
 		for (const backendSession of this._pendingBackendDisposals) {
-			this._agentHostService.disposeSession(backendSession).catch(() => { /* swallow on shutdown */ });
+			void this._disposeBackend(backendSession, 'service disposal');
 		}
 		this._entries.clear();
 		this._pending.clear();
 		this._pendingBackendDisposals.clear();
+		this._backendDisposeOps.clear();
 		this._resolvedConfigs.clear();
 		this._resolvedConfigRequestSeq.clear();
 		this._rebound.clear();
+		this._disposedFrontendResources.clear();
 		super.dispose();
 	}
 

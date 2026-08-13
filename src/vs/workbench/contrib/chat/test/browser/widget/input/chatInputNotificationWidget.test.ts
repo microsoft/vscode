@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
@@ -22,6 +23,8 @@ import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatIn
 import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+
+import '../../../../browser/widget/media/chat.css';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -573,5 +576,138 @@ suite('ChatInputNotificationWidget', () => {
 
 		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
 		assert.strictEqual(lastAnnounced()?.id, 'copilot-promo', 'the promo should be announced once its session is active');
+	});
+
+	test('read-only chat-input-hidden keeps only the opt-in recovery notification visible while hiding the composer', () => {
+		// Mirror the production input-part hierarchy so the `chat-input-hidden`
+		// rules apply: a read-only chat hides its composer but must retain the
+		// scoped recovery notification/action when (and only when) it opts in.
+		const session = mainWindow.document.createElement('div');
+		session.classList.add('interactive-session');
+		const inputPart = mainWindow.document.createElement('div');
+		inputPart.classList.add('interactive-input-part', 'chat-input-hidden');
+		session.appendChild(inputPart);
+
+		const notificationContainer = mainWindow.document.createElement('div');
+		notificationContainer.classList.add('chat-input-notification-container', 'has-notification', 'show-when-read-only');
+		const notificationChild = mainWindow.document.createElement('div');
+		notificationChild.classList.add('chat-input-notification');
+		notificationContainer.appendChild(notificationChild);
+		inputPart.appendChild(notificationContainer);
+
+		const composer = mainWindow.document.createElement('div');
+		composer.classList.add('interactive-input-and-side-toolbar');
+		inputPart.appendChild(composer);
+
+		mainWindow.document.body.appendChild(session);
+		try {
+			assert.deepStrictEqual({
+				inputPartVisible: mainWindow.getComputedStyle(inputPart).display !== 'none',
+				notificationVisible: mainWindow.getComputedStyle(notificationContainer).display !== 'none',
+				composerHidden: mainWindow.getComputedStyle(composer).display === 'none',
+			}, {
+				inputPartVisible: true,
+				notificationVisible: true,
+				composerHidden: true,
+			}, 'the opt-in recovery notification stays visible while the composer is hidden');
+
+			// An ordinary notification (no opt-in class) must remain hidden along
+			// with the composer, exactly as before this feature.
+			notificationContainer.classList.remove('show-when-read-only');
+			assert.deepStrictEqual({
+				inputPartVisible: mainWindow.getComputedStyle(inputPart).display !== 'none',
+				notificationVisible: mainWindow.getComputedStyle(notificationContainer).display !== 'none',
+			}, {
+				inputPartVisible: false,
+				notificationVisible: false,
+			}, 'an ordinary notification stays hidden under read-only');
+		} finally {
+			session.remove();
+		}
+	});
+
+	test('the widget toggles the read-only opt-in class only for opt-in notifications and clears it on switch/delete', () => {
+		const { notificationService, widget } = createWidget();
+		// Mount the widget under a container so `domNode.parentElement` is the
+		// notification container the class is toggled on, as in production.
+		const container = mainWindow.document.createElement('div');
+		container.classList.add('chat-input-notification-container');
+		container.appendChild(widget.domNode);
+		store.add({ dispose: () => container.remove() });
+
+		// A fatal recovery notification opts in -> the container gets the class.
+		showNotification(notificationService, {
+			id: 'agentHost.worktreeCreationFailed',
+			severity: ChatInputNotificationSeverity.Error,
+			message: 'This chat can no longer be used.',
+			dismissible: false,
+			showWhenReadOnly: true,
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'New Session', commandId: 'workbench.action.sessions.newChat' }],
+		});
+		const optInPresent = container.classList.contains('show-when-read-only');
+
+		// Switching the active notification to an ordinary one (the mock returns
+		// the most-recently set) removes the opt-in class.
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Use', commandId: 'test.usePromo' }],
+		});
+		const ordinaryPresent = container.classList.contains('show-when-read-only');
+
+		// Deleting all notifications removes both classes.
+		notificationService.service.deleteNotification('promo');
+		notificationService.service.deleteNotification('agentHost.worktreeCreationFailed');
+		const afterDelete = {
+			showWhenReadOnly: container.classList.contains('show-when-read-only'),
+			hasNotification: container.classList.contains('has-notification'),
+		};
+
+		assert.deepStrictEqual({ optInPresent, ordinaryPresent, afterDelete }, {
+			optInPresent: true,
+			ordinaryPresent: false,
+			afterDelete: { showWhenReadOnly: false, hasNotification: false },
+		});
+	});
+
+	test('recovery notification renders a keyboard-operable action with a localized accessible name and no dismiss control', async () => {
+		const commandService = new TestCommandService();
+		const { notificationService, widget } = createWidget({ commandService });
+
+		// A fatal worktree-recovery notification: error severity, non-dismissible,
+		// a single command action that starts a fresh session.
+		showNotification(notificationService, {
+			id: '4d80fed0-c34d-4c22-9a3f-0d09c6dc482e',
+			severity: ChatInputNotificationSeverity.Error,
+			message: 'This chat can no longer be used.',
+			description: 'This session could not be created and is no longer available.',
+			dismissible: false,
+			showWhenReadOnly: true,
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'New Session', commandId: 'workbench.action.sessions.newChat' }],
+		});
+
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		assert.ok(button, 'the recovery action renders a button');
+
+		assert.deepStrictEqual({
+			// Shared Button component: focusable element exposing the button role.
+			role: button.getAttribute('role'),
+			focusable: button.tabIndex,
+			// Accessible name combines the notification title with the action label.
+			ariaLabel: button.ariaLabel,
+			// Non-dismissible: no X control is offered.
+			hasDismiss: !!widget.domNode.querySelector('.chat-input-notification-dismiss'),
+		}, {
+			role: 'button',
+			focusable: 0,
+			ariaLabel: 'This chat can no longer be used. New Session',
+			hasDismiss: false,
+		});
+
+		// Keyboard operable: Enter triggers the action's command.
+		const didDismiss = Event.toPromise(notificationService.service.onDidDismiss);
+		button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await didDismiss;
+		assert.deepStrictEqual(commandService.executed, [{ id: 'workbench.action.sessions.newChat', args: [] }]);
 	});
 });

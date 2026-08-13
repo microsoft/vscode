@@ -38,6 +38,22 @@ import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWor
  */
 export interface ISessionViewOptions extends IChatViewOptions { }
 
+/** Routes read-only untitled sessions to the transcript instead of the composer. */
+export function resolveSessionViewKind(
+	isCreated: boolean | undefined,
+	activeChatStatus: SessionStatus | undefined,
+	activeChatInteractivity: ChatInteractivity | undefined,
+): ChatViewKind {
+	const readOnly = activeChatInteractivity !== undefined && activeChatInteractivity !== ChatInteractivity.Full;
+	if (isCreated === undefined || (isCreated === false && !readOnly)) {
+		return 'newSession';
+	}
+	if (activeChatStatus === SessionStatus.Untitled && !readOnly) {
+		return 'newChatInSession';
+	}
+	return 'chat';
+}
+
 /**
  * A stable single-slot grid leaf that handles switching between concrete
  * chat views internally. `SessionsPart` delegates `openSession(...)` to
@@ -203,14 +219,12 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._openSessionDisposables.add(autorun(reader => {
-			let desiredKind: ChatViewKind;
-			if (session === undefined || session.isCreated.read(reader) === false) {
-				desiredKind = 'newSession';
-			} else if (session.activeChat.read(reader).status.read(reader) === SessionStatus.Untitled && session.activeChat.read(reader).interactivity.read(reader) === ChatInteractivity.Full) {
-				desiredKind = 'newChatInSession';
-			} else {
-				desiredKind = 'chat';
-			}
+			const activeChat = session?.activeChat.read(reader);
+			const desiredKind = resolveSessionViewKind(
+				session === undefined ? undefined : session.isCreated.read(reader),
+				activeChat === undefined ? undefined : activeChat.status.read(reader),
+				activeChat === undefined ? undefined : activeChat.interactivity.read(reader),
+			);
 
 			let view = this._currentView.value;
 

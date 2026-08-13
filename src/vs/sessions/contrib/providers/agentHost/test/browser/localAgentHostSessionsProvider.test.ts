@@ -40,6 +40,8 @@ import { ChatInteractivity, ChatOriginKind, getChatCapabilities, ISession, Sessi
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { AgentHostBackendCleanupState, IAgentHostUntitledProvisionalSessionService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter } from '../../browser/baseAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -80,6 +82,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedSessions: URI[] = [];
 	public onDisposeSession: ((session: URI) => void) | undefined;
 	public failDisposeSessionFor: string | undefined;
+	public disposeSessionFailures = 0;
+	public disposeSessionBarrier: DeferredPromise<void> | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
@@ -132,7 +136,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async disposeSession(session: URI): Promise<void> {
 		this.disposedSessions.push(session);
+		await this.disposeSessionBarrier?.p;
 		const rawId = AgentSession.id(session);
+		if (this.disposeSessionFailures > 0) {
+			this.disposeSessionFailures--;
+			throw new Error(`Failed to dispose ${rawId}`);
+		}
 		if (rawId === this.failDisposeSessionFor) {
 			throw new Error(`Failed to dispose ${rawId}`);
 		}
@@ -412,9 +421,49 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 	}();
 }
 
+/**
+ * Records the provider-owned backend-detach cleanup state published for the
+ * fatal worktree path, so tests can assert the None→Pending→Confirmed/Failed
+ * sequence and that a cleared state is never resurrected.
+ */
+class FakeProvisionalSessionService extends mock<IAgentHostUntitledProvisionalSessionService>() {
+	private readonly _states = new ResourceMap<ISettableObservable<AgentHostBackendCleanupState>>();
+	private readonly _cleared = new ResourceMap<boolean>();
+	readonly published: AgentHostBackendCleanupState[] = [];
+	/** Every resource passed to {@link clearBackendCleanupState}, in call order. */
+	readonly clearedResources: URI[] = [];
+
+	private _ensure(resource: URI): ISettableObservable<AgentHostBackendCleanupState> {
+		let state = this._states.get(resource);
+		if (!state) {
+			state = observableValue<AgentHostBackendCleanupState>('fakeCleanup', AgentHostBackendCleanupState.None);
+			this._states.set(resource, state);
+		}
+		return state;
+	}
+
+	override getBackendCleanupState(resource: URI): IObservable<AgentHostBackendCleanupState> {
+		return this._ensure(resource);
+	}
+
+	override publishBackendCleanupState(resource: URI, state: AgentHostBackendCleanupState): void {
+		if (this._cleared.get(resource)) {
+			return;
+		}
+		this.published.push(state);
+		this._ensure(resource).set(state, undefined);
+	}
+
+	override clearBackendCleanupState(resource: URI): void {
+		this.clearedResources.push(resource);
+		this._cleared.set(resource, true);
+		this._ensure(resource).set(AgentHostBackendCleanupState.None, undefined);
+	}
+}
+
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService; provisionalSessionService?: IAgentHostUntitledProvisionalSessionService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -467,6 +516,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override getActiveClient = (_sessionType: string, clientId: string) => ({ clientId, ...(options?.activeClient ?? { tools: [], customizations: [] }) });
 		override getCustomAgents = (_sessionType: string) => options?.activeClientAgents ?? constObservable([]);
 	}());
+	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, options?.provisionalSessionService ?? new FakeProvisionalSessionService());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
@@ -4563,7 +4613,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(committed.title.get(), 'Committed Late');
 	}));
 
-	test('sendRequest does not advertise a cached committed session alongside its draft', async () => {
+	test('sendRequest never publishes a pending draft row before commit', async () => {
+		// Inversion of N.0.2: the draft is view-local. No pre-commit
+		// `onDidChangeSessions.added` carries it and `getSessions()` never
+		// enumerates it; only the real committed row appears on success.
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
 			sendRequest: async (resource): Promise<ChatSendResult> => {
@@ -4577,32 +4630,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		const chat = await provider.createNewChat(session.sessionId);
-		const draftAdvertised = new DeferredPromise<void>();
+		let draftEverAdvertised = false;
+		let draftEverEnumerated = false;
 		disposables.add(provider.onDidChangeSessions(e => {
 			if (e.added.includes(session)) {
-				draftAdvertised.complete();
+				draftEverAdvertised = true;
+			}
+			if (provider.getSessions().includes(session)) {
+				draftEverEnumerated = true;
 			}
 		}));
-		agentHost.listSessionsBarrier = new DeferredPromise<void>();
-		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
-		await draftAdvertised.p;
-		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
-		agentHost.listSessionsBarrier.complete();
-		await request;
+		// The draft is directly resolvable by its owning view before commit.
+		const resolvedBeforeCommit = provider.getSessionByResource(session.resource) === session;
+		const enumeratedBeforeCommit = provider.getSessions().includes(session);
+
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual({
-			count: advertised.length,
-			isDraft: advertised[0] === session,
-			resources: advertised.map(candidate => candidate.resource.toString()),
+			resolvedBeforeCommit,
+			enumeratedBeforeCommit,
+			draftEverAdvertised,
+			draftEverEnumerated,
+			committedIsDraft: committed === session,
+			committedEnumerated: provider.getSessions().some(s => isEqual(s.resource, committed.resource)),
 		}, {
-			count: 1,
-			isDraft: true,
-			resources: [session.resource.toString()],
+			resolvedBeforeCommit: true,
+			enumeratedBeforeCommit: false,
+			draftEverAdvertised: false,
+			draftEverEnumerated: false,
+			committedIsDraft: false,
+			committedEnumerated: true,
 		});
 	});
 
-	test('sessionAdded does not advertise a committed session alongside its pending draft', async () => {
+	test('sessionAdded during a send publishes only the committed row, never the draft', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
 			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
@@ -4611,31 +4673,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		const chat = await provider.createNewChat(session.sessionId);
-		const draftAdvertised = new DeferredPromise<void>();
+		let draftEverAdvertised = false;
 		disposables.add(provider.onDidChangeSessions(e => {
 			if (e.added.includes(session)) {
-				draftAdvertised.complete();
+				draftEverAdvertised = true;
 			}
 		}));
 		agentHost.listSessionsBarrier = new DeferredPromise<void>();
 		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
-		await draftAdvertised.p;
+		await timeout(0);
 		const rawId = AgentSession.id(session.resource);
 		agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
 		fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
-		const advertised = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
 		agentHost.listSessionsBarrier.complete();
 		await request;
 
+		const enumerated = provider.getSessions().filter(candidate => isEqual(candidate.resource, session.resource));
 		assert.deepStrictEqual({
-			count: advertised.length,
-			isDraft: advertised[0] === session,
-			resources: advertised.map(candidate => candidate.resource.toString()),
+			draftEverAdvertised,
+			count: enumerated.length,
+			isDraft: enumerated[0] === session,
 		}, {
+			draftEverAdvertised: false,
 			count: 1,
-			isDraft: true,
-			resources: [session.resource.toString()],
+			isDraft: false,
 		});
 	});
 
@@ -4656,13 +4718,461 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 		provider.deleteNewSession(session.sessionId);
 		await rejection;
-		assert.deepStrictEqual(changes.map(change => ({
-			added: change.added.map(session => session.resource.toString()),
-			removed: change.removed.map(session => session.resource.toString()),
-		})), [
-			{ added: [session.resource.toString()], removed: [] },
-			{ added: [], removed: [session.resource.toString()] },
-		]);
+		// No optimistic pending row was published, so no add/remove pair for the
+		// draft is fired for the abandoned send.
+		assert.deepStrictEqual(changes.flatMap(change => [
+			...change.added.map(s => s.resource.toString()),
+			...change.removed.map(s => s.resource.toString()),
+		]).filter(resource => resource === session.resource.toString()), []);
+	});
+
+	// ---- Fatal worktree-creation-failure lifecycle (P3-T1) ----------------
+
+	function fatalSentResult(): ChatSendResult {
+		return {
+			kind: 'sent',
+			data: {
+				agent: {} as never,
+				responseCreatedPromise: Promise.resolve({ result: { errorDetails: { code: 'worktreeCreationFailed' } } } as never),
+				responseCompletePromise: Promise.resolve(),
+			},
+		} as ChatSendResult;
+	}
+
+	async function createDraftWithBackend(provider: LocalAgentHostSessionsProvider): Promise<{ session: ISession; chat: { resource: URI } }> {
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		// Let the eager createSession round-trip settle so a backend handle exists.
+		await timeout(0);
+		await timeout(0);
+		return { session, chat };
+	}
+
+	test('fatal worktree completion aborts the send view-locally, retaining an inert non-enumerable draft and detaching only the backend', async () => {
+		// Inversion of N.0.1/N.0.3: the classified completion wins without a
+		// timeout, the frontend draft is retained inert (never disposed/graduated
+		// /removed), and exactly one backend-only detach runs.
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			// Suppress `SessionAdded`; complete the response with the fatal code.
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		const disposedBefore = agentHost.disposedSessions.length;
+		const listAdds: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => e.added.forEach(s => listAdds.push(s.resource.toString()))));
+
+		const returned = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			sameSession: returned === session,
+			status: session.status.get(),
+			interactivity: session.mainChat.get().interactivity.get(),
+			loading: session.loading.get(),
+			worktreePending: session.worktreePending?.get() ?? false,
+			enumerated: provider.getSessions().includes(session),
+			viewAddressable: provider.getSessionByResource(session.resource) === session,
+			backendDetaches: agentHost.disposedSessions.length - disposedBefore,
+			cleanup: provisional.published,
+			publishedNoDraftAdd: listAdds.filter(r => r === session.resource.toString()),
+		}, {
+			sameSession: true,
+			status: SessionStatus.Untitled,
+			interactivity: ChatInteractivity.ReadOnly,
+			loading: false,
+			worktreePending: false,
+			enumerated: false,
+			viewAddressable: true,
+			backendDetaches: 1,
+			cleanup: [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Confirmed],
+			publishedNoDraftAdd: [],
+		});
+	});
+
+	test('fatal worktree sendRequest returns its read-only draft while backend cleanup is pending', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		agentHost.disposeSessionBarrier = new DeferredPromise<void>();
+		let settled = false;
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' }).then(result => {
+			settled = true;
+			return result;
+		});
+
+		await timeout(0);
+		const settledWhilePending = settled;
+		const stateWhilePending = provisional.published.slice();
+		agentHost.disposeSessionBarrier.complete();
+		const returned = await send;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			settledWhilePending,
+			stateWhilePending,
+			returnedSameDraft: returned === session,
+			stateAfterDetach: provisional.published,
+		}, {
+			settledWhilePending: true,
+			stateWhilePending: [AgentHostBackendCleanupState.Pending],
+			returnedSameDraft: true,
+			stateAfterDetach: [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Confirmed],
+		});
+	});
+
+	test('a late SessionAdded for a fatal-quarantined identity never publishes/graduates it and joins backend cleanup', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		await timeout(0);
+
+		const rawId = AgentSession.id(session.resource);
+		const disposedBefore = agentHost.disposedSessions.length;
+		const lateAdds: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => e.added.forEach(s => lateAdds.push(s.resource.toString()))));
+		agentHost.addSession(createSession(rawId, { summary: 'Late Commit' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Late Commit' });
+
+		assert.deepStrictEqual({
+			cachedCommit: provider.getSessions().some(s => isEqual(s.resource, session.resource) && s !== session),
+			lateAddPublished: lateAdds.filter(r => r === session.resource.toString()),
+			joinedCleanup: agentHost.disposedSessions.length > disposedBefore,
+		}, {
+			cachedCommit: false,
+			lateAddPublished: [],
+			joinedCleanup: true,
+		});
+	});
+
+	test('a late fatal identity with a mismatched backend URI is not disposed or listed', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+
+		const rawId = AgentSession.id(session.resource);
+		const disposedBefore = agentHost.disposedSessions.length;
+		fireSessionAdded(agentHost, rawId, { provider: 'other', title: 'Wrong Backend' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			destructiveCalls: agentHost.disposedSessions.length - disposedBefore,
+			cleanup: provisional.published.at(-1),
+			lateSessionListed: provider.getSessions().some(candidate => candidate.title.get() === 'Wrong Backend'),
+		}, {
+			destructiveCalls: 0,
+			cleanup: AgentHostBackendCleanupState.Failed,
+			lateSessionListed: false,
+		});
+	});
+
+	test('late fatal worktree signals join one pending cleanup and publish its confirmed state', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		await timeout(0);
+
+		const rawId = AgentSession.id(session.resource);
+		const disposedBefore = agentHost.disposedSessions.length;
+		agentHost.disposeSessionBarrier = new DeferredPromise<void>();
+		agentHost.addSession(createSession(rawId, { summary: 'Late Commit' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Late Commit' });
+		fireSessionSummaryChanged(agentHost, rawId, { title: 'Late Update' });
+		const cleanupWhilePending = provisional.published.slice(-1);
+		const disposeCallsWhilePending = agentHost.disposedSessions.length - disposedBefore;
+		agentHost.disposeSessionBarrier.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			disposeCallsWhilePending,
+			cleanupWhilePending,
+			cleanupAfterDetach: provisional.published.slice(-2),
+			lateSessionListed: provider.getSessions().some(candidate => isEqual(candidate.resource, session.resource)),
+			stillDraft: provider.getSessionByResource(session.resource) === session,
+		}, {
+			disposeCallsWhilePending: 1,
+			cleanupWhilePending: [AgentHostBackendCleanupState.Pending],
+			cleanupAfterDetach: [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Confirmed],
+			lateSessionListed: false,
+			stillDraft: true,
+		});
+	});
+
+	test('a failed late worktree cleanup publishes failed without a list row', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		await timeout(0);
+
+		const rawId = AgentSession.id(session.resource);
+		agentHost.disposeSessionFailures = 1;
+		agentHost.addSession(createSession(rawId, { summary: 'Late Commit' }));
+		fireSessionAdded(agentHost, rawId, { title: 'Late Commit' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			cleanup: provisional.published.slice(-2),
+			lateSessionListed: provider.getSessions().some(candidate => isEqual(candidate.resource, session.resource)),
+			stillDraft: provider.getSessionByResource(session.resource) === session,
+		}, {
+			cleanup: [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Failed],
+			lateSessionListed: false,
+			stillDraft: true,
+		});
+	});
+
+	test('a failed fatal detach retains the backend for an in-process retry on user close and never reports success', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		const rawId = AgentSession.id(session.resource);
+		agentHost.failDisposeSessionFor = rawId;
+
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		assert.deepStrictEqual(provisional.published, [AgentHostBackendCleanupState.Pending, AgentHostBackendCleanupState.Failed]);
+
+		// User close retries the detach; clearing the fault lets it succeed.
+		const disposedBefore = agentHost.disposedSessions.length;
+		agentHost.failDisposeSessionFor = undefined;
+		provider.deleteNewSession(session.sessionId);
+		await timeout(0);
+
+		assert.strictEqual(agentHost.disposedSessions.length > disposedBefore, true);
+	});
+
+	test('user close waits for pending fatal worktree cleanup before one failed-detach retry', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		const rawId = AgentSession.id(session.resource);
+		agentHost.disposeSessionFailures = 1;
+		agentHost.disposeSessionBarrier = new DeferredPromise<void>();
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		provider.deleteNewSession(session.sessionId);
+		const callsBeforeFirstSettles = agentHost.disposedSessions.filter(uri => AgentSession.id(uri) === rawId).length;
+		agentHost.disposeSessionBarrier.complete();
+		await send;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			callsBeforeFirstSettles,
+			totalCalls: agentHost.disposedSessions.filter(uri => AgentSession.id(uri) === rawId).length,
+			cleanupState: provisional.published,
+			draftResurrected: provider.getSessionByResource(session.resource) === session,
+		}, {
+			callsBeforeFirstSettles: 1,
+			totalCalls: 2,
+			cleanupState: [AgentHostBackendCleanupState.Pending],
+			draftResurrected: false,
+		});
+	});
+
+	test('user close during pending worktree cleanup does not retry a confirmed detach', async () => {
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		const rawId = AgentSession.id(session.resource);
+		agentHost.disposeSessionBarrier = new DeferredPromise<void>();
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		provider.deleteNewSession(session.sessionId);
+		const callsBeforeFirstSettles = agentHost.disposedSessions.filter(uri => AgentSession.id(uri) === rawId).length;
+		agentHost.disposeSessionBarrier.complete();
+		await send;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			callsBeforeFirstSettles,
+			totalCalls: agentHost.disposedSessions.filter(uri => AgentSession.id(uri) === rawId).length,
+			cleanupState: provisional.published,
+		}, {
+			callsBeforeFirstSettles: 1,
+			totalCalls: 1,
+			cleanupState: [AgentHostBackendCleanupState.Pending],
+		});
+	});
+
+	test('explicit deleteNewSession clears the shared backend cleanup state exactly once', async () => {
+		// Lifetime-bound clearing on the explicit close path.
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		assert.strictEqual(provisional.clearedResources.length, 0);
+
+		provider.deleteNewSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			clearsForDraft: provisional.clearedResources.filter(r => isEqual(r, session.resource)).length,
+			totalClears: provisional.clearedResources.length,
+		}, {
+			clearsForDraft: 1,
+			totalClears: 1,
+		});
+	});
+
+	test('connection-independent provider disposal clears the shared cleanup state for a retained fatal draft', async () => {
+		// A fatal draft disposed through provider shutdown (not an explicit
+		// delete) must still clear its shared cleanup state exactly once.
+		const provisional = new FakeProvisionalSessionService();
+		const providerStore = new DisposableStore();
+		const provider = createProvider(providerStore, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (): Promise<ChatSendResult> => fatalSentResult(),
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		assert.strictEqual(provisional.clearedResources.length, 0);
+
+		providerStore.dispose();
+
+		assert.deepStrictEqual({
+			clearsForDraft: provisional.clearedResources.filter(r => isEqual(r, session.resource)).length,
+			totalClears: provisional.clearedResources.length,
+		}, {
+			clearsForDraft: 1,
+			totalClears: 1,
+		});
+	});
+
+	test('a successful graduate clears only the draft resource and never disturbs non-None cleanup state', async () => {
+		// On success no fatal cleanup state is ever published, so the
+		// lifetime clear of the draft resource is a harmless None clear that
+		// does not touch any other resource's state.
+		const provisional = new FakeProvisionalSessionService();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			provisionalSessionService: provisional,
+			sendRequest: async (resource): Promise<ChatSendResult> => {
+				const rawId = AgentSession.id(resource);
+				agentHost.addSession(createSession(rawId, { summary: 'Committed Session' }));
+				fireSessionAdded(agentHost, rawId, { title: 'Committed Session' });
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			committedIsDraft: committed === session,
+			publishedFatalState: provisional.published,
+			clearsForDraft: provisional.clearedResources.filter(r => isEqual(r, session.resource)).length,
+			clearsForUnrelated: provisional.clearedResources.filter(r => !isEqual(r, session.resource)).length,
+		}, {
+			committedIsDraft: false,
+			publishedFatalState: [],
+			clearsForDraft: 1,
+			clearsForUnrelated: 0,
+		});
+	});
+
+	test('a non-fatal slow completion keeps waiting for a legitimate commit', async () => {
+		// Inversion guard: a normal completion must NOT win the race; the send
+		// waits for the real commit however late it arrives.
+		const commitBarrier = new DeferredPromise<void>();
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (resource): Promise<ChatSendResult> => {
+				// Complete the response normally (no fatal code), commit later.
+				void commitBarrier.p.then(() => {
+					const rawId = AgentSession.id(resource);
+					agentHost.addSession(createSession(rawId, { summary: 'Slow Commit' }));
+					fireSessionAdded(agentHost, rawId, { title: 'Slow Commit' });
+				});
+				return {
+					kind: 'sent',
+					data: {
+						agent: {} as never,
+						responseCreatedPromise: Promise.resolve({ result: {} } as never),
+						responseCompletePromise: Promise.resolve(),
+					},
+				} as ChatSendResult;
+			},
+		});
+		await timeout(0);
+		const { session, chat } = await createDraftWithBackend(provider);
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		// The non-fatal completion did not resolve the send.
+		let settled = false;
+		void send.then(() => settled = true, () => settled = true);
+		await timeout(0);
+		const settledBeforeCommit = settled;
+		commitBarrier.complete();
+		const committed = await send;
+
+		assert.deepStrictEqual({
+			settledBeforeCommit,
+			committedDifferentFromDraft: committed !== session,
+			interactivity: session.mainChat.get().interactivity.get(),
+		}, {
+			settledBeforeCommit: false,
+			committedDifferentFromDraft: true,
+			interactivity: ChatInteractivity.Full,
+		});
 	});
 
 	test('two concurrent same-type new-session sends each commit to their own session (no swap during a shared download window)', async () => {

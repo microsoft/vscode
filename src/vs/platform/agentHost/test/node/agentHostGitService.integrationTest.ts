@@ -15,7 +15,7 @@
 
 import assert from 'assert';
 import * as cp from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -42,6 +42,11 @@ function rmDirWithRetry(path: string | undefined): void {
 		return;
 	}
 	try { rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
+}
+
+/** Resolves symlinks (e.g. macOS /var -> /private/var) so path comparisons match git's canonical output. */
+function canonicalizeForCompare(path: string): string {
+	try { return realpathSync(path); } catch { return path; }
 }
 
 suite('AgentHostGitService - getSessionGitState (real git)', () => {
@@ -910,6 +915,67 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('getWorktreeEntries links each worktree path to its branch ref and HEAD, unlike getWorktreeRoots', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/entries-linkage', 'main');
+			const head = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim();
+
+			const entries = await svc!.getWorktreeEntries(URI.file(dir));
+			const roots = await svc!.getWorktreeRoots(URI.file(dir));
+			const added = entries.find(entry => canonicalizeForCompare(entry.path.fsPath) === canonicalizeForCompare(wtPath));
+
+			assert.deepStrictEqual({
+				entryFound: added !== undefined,
+				branch: added?.branch,
+				headMatches: added?.head === head,
+				detached: added?.detached,
+				locked: added?.locked,
+				// getWorktreeRoots surfaces the path but none of the linkage guarded rollback needs.
+				rootsCarryLinkage: roots.some(root => 'branch' in (root as object)),
+			}, {
+				entryFound: true,
+				branch: 'refs/heads/agents/entries-linkage',
+				headMatches: true,
+				detached: false,
+				locked: false,
+				rootsCarryLinkage: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/entries-linkage'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('getWorktreeEntries reports a detached worktree with no branch ref', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-detached-${Date.now()}`);
+		try {
+			const head = cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim();
+			cp.execFileSync('git', ['worktree', 'add', '--detach', wtPath, head], { cwd: dir, env, stdio: 'pipe' });
+
+			const entries = await svc!.getWorktreeEntries(URI.file(dir));
+			const detachedEntry = entries.find(entry => canonicalizeForCompare(entry.path.fsPath) === canonicalizeForCompare(wtPath));
+
+			assert.deepStrictEqual({
+				entryFound: detachedEntry !== undefined,
+				branch: detachedEntry?.branch,
+				detached: detachedEntry?.detached,
+				headMatches: detachedEntry?.head === head,
+			}, {
+				entryFound: true,
+				branch: undefined,
+				detached: true,
+				headMatches: true,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			rmDirWithRetry(wtPath);
 		}
 	});
 });

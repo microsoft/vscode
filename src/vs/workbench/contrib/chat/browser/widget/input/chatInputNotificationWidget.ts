@@ -117,12 +117,14 @@ export class ChatInputNotificationWidget extends Disposable {
 		// notifications are only spoken in a matching session (de-duped by the service).
 		this._notificationService.announceRendered(notification);
 		if (!notification) {
-			this.domNode.parentElement?.classList.remove('has-notification');
+			this.domNode.parentElement?.classList.remove('has-notification', 'show-when-read-only');
 			this._lastShownTelemetryData = undefined;
 			return;
 		}
 
 		this.domNode.parentElement?.classList.add('has-notification');
+		// Only opt-in notifications stay visible while the read-only composer is hidden.
+		this.domNode.parentElement?.classList.toggle('show-when-read-only', !!notification.showWhenReadOnly);
 		this._renderNotification(notification);
 		this._logShownTelemetry(notification);
 	}

@@ -23,12 +23,14 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { WORKTREE_CREATION_FAILED_ERROR_TYPE } from '../../../../../../platform/agentHost/common/meta/agentWorktreeFailureMeta.js';
 import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type ClientPluginCustomization, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -76,7 +78,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -85,13 +87,14 @@ import { ITerminalChatService, type ITerminalInstance } from '../../../../termin
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
-import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { AgentHostBackendCleanupState, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
+import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostProtectedResourcesService } from '../../../browser/agentSessions/agentHost/agentHostProtectedResourcesService.js';
@@ -654,7 +657,7 @@ class MockWorkingCopyService extends mock<IWorkingCopyService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = []) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>, provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>, isSessionsWindow = false, languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>, configOverrides?: Record<string, unknown>, chatSessionsServiceOverride?: Partial<IChatSessionsService>, chatDebugServiceOverride?: Partial<IChatDebugService>, remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>, customizationServiceOverride?: IAgentHostCustomizationService, agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>, languageModelsServiceOverride?: Partial<ILanguageModelsService>, workspaceFolders: readonly URI[] = [], notificationServiceOverride?: Partial<IChatInputNotificationService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -872,6 +875,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		getActiveNotification: () => undefined,
 		handleMessageSent: () => { },
 		announceRendered: () => { },
+		...notificationServiceOverride,
 	});
 	instantiationService.stub(IAgentHostCustomizationService, customizationServiceOverride ?? new NullAgentHostCustomizationService());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
@@ -883,6 +887,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		getOrCreate: async () => undefined,
 		tryRebind: async () => undefined,
 		disposeSession: async () => { },
+		getBackendCleanupState: () => constObservable(AgentHostBackendCleanupState.None),
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 	instantiationService.stub(IAgentHostImportConversationStore, {
@@ -947,8 +952,8 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[] }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; isSessionsWindow?: boolean; notificationServiceOverride?: Partial<IChatInputNotificationService> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, opts?.isSessionsWindow ?? false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders, opts?.notificationServiceOverride);
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -1106,7 +1111,7 @@ async function startTurn(
 		});
 	}
 
-	return { turnPromise, collected, chatSession, session, turnId, fire };
+	return { turnPromise, collected, chatSession, session, turnId, fire, sessionResource };
 }
 
 async function startDynamicAgentTurn(
@@ -5284,6 +5289,374 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
 			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
 		}));
+
+		test('worktreeCreationFailed error maps errorType to the response code with the bounded diagnostic', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			// A fatal initial-worktree failure surfaces on the generic (non-fetch)
+			// error path. The shared handler must copy `ErrorInfo.errorType` into
+			// `IChatResponseErrorDetails.code` so the frontend can classify it.
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
+					turnId,
+					error: { errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE, message: 'git worktree add failed: No space left on device' },
+				} as ChatAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
+
+			const result = await turnPromise;
+
+			assert.deepStrictEqual({
+				code: result.errorDetails?.code,
+				message: result.errorDetails?.message,
+			}, {
+				code: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+				// Bounded diagnostic appears verbatim (not wrapped in "Error: (type) …").
+				message: 'git worktree add failed: No space left on device',
+			});
+		}));
+
+		test('non-worktree generic error keeps the wrapped message and no code', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
+					turnId,
+					error: { errorType: 'workingDirectoryFailed', message: 'nope' },
+				} as ChatAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
+
+			const result = await turnPromise;
+
+			assert.deepStrictEqual({
+				code: result.errorDetails?.code,
+				message: result.errorDetails?.message,
+			}, {
+				code: undefined,
+				message: 'Error: (workingDirectoryFailed) nope',
+			});
+		}));
+
+		test('worktreeCreationFailed latches a backend-independent read-only state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { chatSession, turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			// The concrete session exposes the backend-independent latch inputs.
+			const agentSession = chatSession as unknown as { isReadOnly: IObservable<boolean>; setStateSubscriptions(s: undefined, c: undefined): void };
+
+			// Before the terminal error the new draft is interactive.
+			assert.strictEqual(agentSession.isReadOnly.get(), false);
+
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
+					turnId,
+					error: { errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE, message: 'git worktree add failed' },
+				} as ChatAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
+
+			await turnPromise;
+
+			// The fatal latch is set once `_invokeAgent` has observed the terminal
+			// turn and built the classified error result.
+			assert.strictEqual(agentSession.isReadOnly.get(), true);
+
+			// The latch does not derive from live host state: dropping every backend
+			// subscription must not clear the read-only state.
+			agentSession.setStateSubscriptions(undefined, undefined);
+			assert.strictEqual(agentSession.isReadOnly.get(), true);
+		}));
+
+		/**
+		 * Records the notifications a fatal capture pushes into the shared
+		 * {@link IChatInputNotificationService}, so tests can assert the single
+		 * session-scoped recovery notification's content, updates, and deletion.
+		 */
+		function createRecordingNotificationService() {
+			const active = new Map<string, IChatInputNotification>();
+			const setCalls: IChatInputNotification[] = [];
+			const deleted: string[] = [];
+			const service: Partial<IChatInputNotificationService> = {
+				setNotification(notification: IChatInputNotification) { active.set(notification.id, notification); setCalls.push(notification); },
+				deleteNotification(id: string) { if (active.delete(id)) { deleted.push(id); } },
+				dismissNotification() { },
+				announceRendered() { },
+				handleMessageSent() { },
+				getActiveNotification: () => undefined,
+			};
+			return { service, active, setCalls, deleted };
+		}
+
+		async function fireWorktreeFatal(
+			sessionHandler: AgentHostSessionHandler,
+			agentHostService: MockAgentHostService,
+			chatAgentService: MockChatAgentService,
+			cleanupState?: IObservable<AgentHostBackendCleanupState>,
+			cleanup?: 'complete' | 'incomplete' | 'notNeeded' | 'unverified',
+		) {
+			const { chatSession, turnPromise, session, turnId, sessionResource } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
+					turnId,
+					error: {
+						errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+						message: 'git worktree add failed: No space left on device',
+						...(cleanup ? { _meta: { worktreeFailure: { stage: 'addingWorktree', cleanup, cleanupDiagnostic: '/private/repository/branch' } } } : {}),
+					},
+				} as ChatAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
+			const result = await turnPromise;
+			return { chatSession, result, sessionResource };
+		}
+
+		test('worktreeCreationFailed shows one session-scoped recovery notification with the editor New Chat action', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const recorder = createRecordingNotificationService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				isSessionsWindow: false,
+				notificationServiceOverride: recorder.service,
+			});
+
+			const { sessionResource } = await fireWorktreeFatal(sessionHandler, agentHostService, chatAgentService);
+
+			assert.strictEqual(recorder.active.size, 1, 'exactly one recovery notification');
+			const notification = [...recorder.active.values()][0];
+			// Telemetry-bearing fields (`id`, `telemetryId`) are the only notification
+			// properties the widget forwards to telemetry; assert no session URI/path
+			// leaks into them and that the id is opaque while the telemetryId is stable.
+			const telemetryBearing = `${notification.id}\u0000${notification.telemetryId ?? ''}`;
+			assert.deepStrictEqual({
+				severity: notification.severity,
+				dismissible: notification.dismissible,
+				autoDismissOnMessage: notification.autoDismissOnMessage,
+				showWhenReadOnly: notification.showWhenReadOnly,
+				sessionScoped: notification.sessionResources?.length === 1,
+				sessionScopedResource: notification.sessionResources?.[0]?.toString() === sessionResource.toString(),
+				actionCount: notification.actions.length,
+				actionLabel: notification.actions[0]?.label,
+				commandId: (notification.actions[0] as { commandId?: string })?.commandId,
+				// Stable, low-cardinality telemetry id; opaque, sensitive-free instance id.
+				telemetryId: notification.telemetryId,
+				idHasSessionResource: notification.id.includes(sessionResource.toString()),
+				idHasScheme: notification.id.includes(sessionResource.scheme),
+				idHasPath: notification.id.includes(sessionResource.path),
+				telemetryLeaksSessionResource: telemetryBearing.includes(sessionResource.toString()) || telemetryBearing.includes(sessionResource.path),
+				// The exact Git diagnostic must NOT be duplicated into this surface.
+				leaksDiagnostic: JSON.stringify(notification).includes('No space left on device'),
+			}, {
+				severity: ChatInputNotificationSeverity.Error,
+				dismissible: false,
+				autoDismissOnMessage: false,
+				showWhenReadOnly: true,
+				sessionScoped: true,
+				sessionScopedResource: true,
+				actionCount: 1,
+				actionLabel: 'New Chat',
+				commandId: 'workbench.action.chat.newChat',
+				telemetryId: 'agentHost.worktreeCreationFailed',
+				idHasSessionResource: false,
+				idHasScheme: false,
+				idHasPath: false,
+				telemetryLeaksSessionResource: false,
+				leaksDiagnostic: false,
+			});
+		}));
+
+		test('worktreeCreationFailed uses the Agents-window New Session action', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const recorder = createRecordingNotificationService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				isSessionsWindow: true,
+				notificationServiceOverride: recorder.service,
+			});
+
+			await fireWorktreeFatal(sessionHandler, agentHostService, chatAgentService);
+
+			const notification = [...recorder.active.values()][0];
+			assert.deepStrictEqual({
+				actionLabel: notification.actions[0]?.label,
+				commandId: (notification.actions[0] as { commandId?: string })?.commandId,
+			}, {
+				actionLabel: 'New Session',
+				commandId: 'workbench.action.sessions.newChat',
+			});
+		}));
+
+		test('worktree cleanup uncertainty is shown only in the recovery notification', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			for (const cleanup of ['incomplete', 'unverified'] as const) {
+				const recorder = createRecordingNotificationService();
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					notificationServiceOverride: recorder.service,
+				});
+				const { result } = await fireWorktreeFatal(sessionHandler, agentHostService, chatAgentService, undefined, cleanup);
+				const notification = [...recorder.active.values()][0];
+				const description = typeof notification.description === 'string' ? notification.description : notification.description?.value;
+
+				assert.deepStrictEqual({
+					warning: description?.includes('Some Git worktree artifacts may remain.'),
+					diagnosticInNotification: JSON.stringify(notification).includes('No space left on device'),
+					pathInNotification: JSON.stringify(notification).includes('/private/repository/branch'),
+					transcript: result.errorDetails?.message,
+				}, {
+					warning: true,
+					diagnosticInNotification: false,
+					pathInNotification: false,
+					transcript: 'git worktree add failed: No space left on device',
+				});
+			}
+		}));
+
+		test('complete and not-needed worktree cleanup do not add an uncertainty warning', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			for (const cleanup of ['complete', 'notNeeded'] as const) {
+				const recorder = createRecordingNotificationService();
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+					notificationServiceOverride: recorder.service,
+				});
+				await fireWorktreeFatal(sessionHandler, agentHostService, chatAgentService, undefined, cleanup);
+				const notification = [...recorder.active.values()][0];
+				const description = typeof notification.description === 'string' ? notification.description : notification.description?.value;
+				assert.strictEqual(description?.includes('Some Git worktree artifacts may remain.'), false);
+			}
+		}));
+
+		test('backend cleanup state updates one recovery notification without mutating the transcript', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const recorder = createRecordingNotificationService();
+			const cleanupState = observableValue<AgentHostBackendCleanupState>('cleanup', AgentHostBackendCleanupState.None);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				isSessionsWindow: true,
+				notificationServiceOverride: recorder.service,
+				provisionalServiceOverride: { getBackendCleanupState: () => cleanupState },
+			});
+
+			const { result } = await fireWorktreeFatal(sessionHandler, agentHostService, chatAgentService, cleanupState);
+
+			// Snapshot the finalized terminal response before any cleanup transition.
+			const transcriptBefore = JSON.stringify(result.errorDetails);
+			const descriptionOf = () => {
+				const description = [...recorder.active.values()][0]?.description;
+				return typeof description === 'string' ? description : description?.value;
+			};
+			const noneDescription = descriptionOf();
+
+			cleanupState.set(AgentHostBackendCleanupState.Pending, undefined);
+			const pendingDescription = descriptionOf();
+			cleanupState.set(AgentHostBackendCleanupState.Confirmed, undefined);
+			const confirmedDescription = descriptionOf();
+			cleanupState.set(AgentHostBackendCleanupState.Failed, undefined);
+			const failedDescription = descriptionOf();
+
+			assert.deepStrictEqual({
+				// One notification id throughout: updated, never duplicated.
+				distinctIds: new Set(recorder.setCalls.map(n => n.id)).size,
+				activeCount: recorder.active.size,
+				// Each state renders a distinct, truthful line.
+				noneChanged: noneDescription !== pendingDescription,
+				pendingChanged: pendingDescription !== confirmedDescription,
+				failedClaimsSuccess: /removed\.$/.test(failedDescription ?? ''),
+				// The finalized transcript is never mutated by cleanup transitions.
+				transcriptUnchanged: JSON.stringify(result.errorDetails) === transcriptBefore,
+			}, {
+				distinctIds: 1,
+				activeCount: 1,
+				noneChanged: true,
+				pendingChanged: true,
+				failedClaimsSuccess: false,
+				transcriptUnchanged: true,
+			});
+		}));
+
+		test('disposing the frontend before fatal completion does not register a recovery notification', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const recorder = createRecordingNotificationService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				notificationServiceOverride: recorder.service,
+			});
+			const { chatSession, turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z',
+					turnId,
+					error: { errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE, message: 'git worktree add failed' },
+				} as ChatAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
+			chatSession.dispose();
+			const result = await turnPromise;
+
+			assert.deepStrictEqual({
+				settled: result.errorDetails?.code,
+				activeNotifications: recorder.active.size,
+				registeredNotifications: recorder.setCalls.length,
+			}, {
+				settled: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+				activeNotifications: 0,
+				registeredNotifications: 0,
+			});
+		}));
+
+		test('recovery notification is deleted when the frontend session is disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const recorder = createRecordingNotificationService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				notificationServiceOverride: recorder.service,
+			});
+
+			const { chatSession } = await fireWorktreeFatal(sessionHandler, agentHostService, chatAgentService);
+			assert.strictEqual(recorder.active.size, 1);
+			const id = [...recorder.active.keys()][0];
+
+			chatSession.dispose();
+
+			assert.deepStrictEqual({ active: recorder.active.size, deleted: recorder.deleted }, { active: 0, deleted: [id] });
+		}));
+	});
+
+	// ---- Accessibility help -------------------------------------------------
+
+	suite('accessibility help', () => {
+		// A stub keybinding service is all the pure help-text builder needs.
+		const keybindingService = { lookupKeybindings: () => [] } as unknown as IKeybindingService;
+
+		test('accessibility help explains the read-only worktree-fatal recovery per window', () => {
+			const editorHelp = getAccessibilityHelpText('agentView', keybindingService, true, /* isSessionsWindow */ false);
+			const sessionsHelp = getAccessibilityHelpText('agentView', keybindingService, true, /* isSessionsWindow */ true);
+
+			assert.deepStrictEqual({
+				editorMentionsReadOnly: /becomes read-only/.test(editorHelp),
+				editorOffersNewChat: editorHelp.includes('New Chat action'),
+				editorHidesNewSession: editorHelp.includes('New Session action'),
+				sessionsMentionsReadOnly: /becomes read-only/.test(sessionsHelp),
+				sessionsOffersNewSession: sessionsHelp.includes('New Session action'),
+				sessionsHidesNewChat: sessionsHelp.includes('New Chat action'),
+				// The exact diagnostic is deferred to the transcript, not repeated here.
+				bothPointToTranscript: editorHelp.includes('stays in the transcript') && sessionsHelp.includes('stays in the transcript'),
+			}, {
+				editorMentionsReadOnly: true,
+				editorOffersNewChat: true,
+				editorHidesNewSession: false,
+				sessionsMentionsReadOnly: true,
+				sessionsOffersNewSession: true,
+				sessionsHidesNewChat: false,
+				bothPointToTranscript: true,
+			});
+		});
 	});
 
 	// ---- Permission requests -----------------------------------------------

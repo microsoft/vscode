@@ -3045,6 +3045,45 @@ suite('SessionsManagementService', () => {
 			);
 		});
 	});
+
+	suite('discardNewSession', () => {
+		function untitledDraft(sessionId: string): ISession {
+			return stubSession({ sessionId, providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+		}
+
+		test('deletes an explicitly-supplied untitled draft whose new-session pointer was already cleared at send start', () => {
+			// N.0.5 inversion: after `_newSession` was cleared at send start (the
+			// worktree-fatal draft is retained view-locally, not as the current
+			// new session), an explicit close must still delete the provider draft.
+			const draft = untitledDraft('fatal-draft');
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+			}(draft);
+			const { service } = createSessionsManagementService(draft, disposables, provider);
+
+			const discarded: string[] = [];
+			disposables.add(service.onDidDiscardNewSession(s => discarded.push(s.sessionId)));
+
+			// `_newSession` is undefined here (never set / cleared at send start).
+			service.discardNewSession(draft);
+
+			assert.deepStrictEqual({ deleted, discarded }, { deleted: ['fatal-draft'], discarded: ['fatal-draft'] });
+		});
+
+		test('does not delete an unrelated created session', () => {
+			const created = stubSession({ sessionId: 'committed', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const deleted: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override deleteNewSession(sessionId: string): void { deleted.push(sessionId); }
+			}(created);
+			const { service } = createSessionsManagementService(created, disposables, provider);
+
+			service.discardNewSession(created);
+
+			assert.deepStrictEqual(deleted, []);
+		});
+	});
 });
 
 /**

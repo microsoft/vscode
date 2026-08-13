@@ -21,6 +21,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent, SubagentChatSignal } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { WORKTREE_CREATION_FAILED_ERROR_TYPE, WorktreeCreationStage, WorktreeGitCleanupOutcome } from '../../common/meta/agentWorktreeFailureMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
@@ -40,6 +41,7 @@ import { IAgentHostChangesetService, StaticChangesetKind } from '../../common/ag
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects, IAgentSideEffectsOptions } from '../../node/agentSideEffects.js';
+import { WorktreeCreationFailedError } from '../../node/shared/worktreeIsolation.js';
 import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import type { IAgentHostAskQuestionsToolInvokedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -846,6 +848,136 @@ suite('AgentSideEffects', () => {
 				creationFailed: true,
 				lifecycle: SessionLifecycle.CreationFailed,
 				sendMessageCalls: [],
+			});
+		});
+
+		test('unannounced fatal worktree-creation failure fails terminally without publishing or sending', async () => {
+			setupProvisionalSession();
+			const worktreeError = new WorktreeCreationFailedError(
+				'git worktree add failed: No space left on device',
+				WorktreeCreationStage.AddingWorktree,
+				WorktreeGitCleanupOutcome.Complete,
+				undefined,
+			);
+			let resolveCalls = 0;
+			const worktreeSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: {} as ISessionDataService,
+				resolveWorkingDirectoryBeforeSend: async () => { resolveCalls++; throw worktreeError; },
+				onTurnComplete: () => { },
+			});
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, turnStarted, { clientId: 'test', clientSeq: 1 });
+
+			const envelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			const notifications: INotification[] = [];
+			disposables.add(stateManager.onDidEmitNotification(n => notifications.push(n)));
+
+			worktreeSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForState(stateManager, () => envelopes.some(e => e.action.type === ActionType.SessionCreationFailed) || undefined);
+
+			const chatError = envelopes.find(e => e.action.type === ActionType.ChatError)?.action as { error: { errorType: string; message: string; _meta?: unknown } } | undefined;
+			const creationFailed = envelopes.find(e => e.action.type === ActionType.SessionCreationFailed)?.action as { error: { errorType: string; message: string } } | undefined;
+
+			assert.deepStrictEqual({
+				resolveCalls,
+				chatErrorCount: envelopes.filter(e => e.action.type === ActionType.ChatError).length,
+				creationFailedCount: envelopes.filter(e => e.action.type === ActionType.SessionCreationFailed).length,
+				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
+				activeTurn: stateManager.getChatState(defaultChatUri)?.activeTurn,
+				sessionAdded: notifications.some(n => n.type === 'root/sessionAdded'),
+				sendMessageCalls: agent.sendMessageCalls.length,
+				chatError: { errorType: chatError?.error.errorType, message: chatError?.error.message, meta: chatError?.error._meta },
+				creationError: { errorType: creationFailed?.error.errorType, message: creationFailed?.error.message },
+			}, {
+				resolveCalls: 1,
+				chatErrorCount: 1,
+				creationFailedCount: 1,
+				lifecycle: SessionLifecycle.CreationFailed,
+				activeTurn: undefined,
+				sessionAdded: false,
+				sendMessageCalls: 0,
+				chatError: {
+					errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+					message: 'git worktree add failed: No space left on device',
+					meta: { worktreeFailure: { stage: WorktreeCreationStage.AddingWorktree, cleanup: WorktreeGitCleanupOutcome.Complete } },
+				},
+				creationError: {
+					errorType: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+					message: 'git worktree add failed: No space left on device',
+				},
+			});
+		});
+
+		test('later turns on a failed-worktree session reject without re-resolving or sending', async () => {
+			setupProvisionalSession();
+			const worktreeError = new WorktreeCreationFailedError(
+				'git worktree add failed: No space left on device',
+				WorktreeCreationStage.AddingWorktree,
+				WorktreeGitCleanupOutcome.Complete,
+				undefined,
+			);
+			let resolveCalls = 0;
+			const worktreeSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: {} as ISessionDataService,
+				resolveWorkingDirectoryBeforeSend: async () => { resolveCalls++; throw worktreeError; },
+				onTurnComplete: () => { },
+			});
+
+			// First turn fails worktree creation terminally.
+			const firstTurn = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, firstTurn, { clientId: 'test', clientSeq: 1 });
+			const firstEnvelopes: ActionEnvelope[] = [];
+			const disp1 = disposables.add(stateManager.onDidEmitEnvelope(e => firstEnvelopes.push(e)));
+			worktreeSideEffects.handleAction(defaultChatUri, firstTurn);
+			await waitForState(stateManager, () => firstEnvelopes.some(e => e.action.type === ActionType.SessionCreationFailed) || undefined);
+			disp1.dispose();
+
+			assert.strictEqual(resolveCalls, 1);
+			assert.strictEqual(stateManager.getSessionState(sessionUri.toString())?.lifecycle, SessionLifecycle.CreationFailed);
+
+			// A later interactive turn on the same identity must be rejected
+			// deterministically, settle the attempted turn, and never re-resolve
+			// the worktree or send to the provider.
+			const secondTurn = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-2',
+				startedAt: '2025-01-01T00:00:01.000Z',
+				message: { text: 'again', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchClientAction(defaultChatUri, secondTurn, { clientId: 'test', clientSeq: 2 });
+			const secondEnvelopes: ActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => secondEnvelopes.push(e)));
+			worktreeSideEffects.handleAction(defaultChatUri, secondTurn);
+			await waitForState(stateManager, () => secondEnvelopes.some(e => e.action.type === ActionType.ChatError && e.action.turnId === 'turn-2') || undefined);
+
+			const rejection = secondEnvelopes.find(e => e.action.type === ActionType.ChatError && e.action.turnId === 'turn-2')?.action as { error: { errorType: string } } | undefined;
+			assert.deepStrictEqual({
+				resolveCalls,
+				sendMessageCalls: agent.sendMessageCalls.length,
+				rejectionErrorType: rejection?.error.errorType,
+				activeTurn: stateManager.getChatState(defaultChatUri)?.activeTurn,
+				lifecycle: stateManager.getSessionState(sessionUri.toString())?.lifecycle,
+			}, {
+				resolveCalls: 1,
+				sendMessageCalls: 0,
+				rejectionErrorType: WORKTREE_CREATION_FAILED_ERROR_TYPE,
+				activeTurn: undefined,
+				lifecycle: SessionLifecycle.CreationFailed,
 			});
 		});
 

@@ -34,6 +34,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { readAgentWorktreeFailureMeta, WORKTREE_CREATION_FAILED_ERROR_TYPE, WorktreeGitCleanupOutcome } from '../../../../../../platform/agentHost/common/meta/agentWorktreeFailureMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
@@ -102,8 +103,10 @@ import { IChatResponseFileChangesService } from '../../chatResponseFileChangesSe
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
-import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { AgentHostBackendCleanupState, IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 export { toolDataToDefinition };
@@ -573,6 +576,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
 	readonly isReadOnly: IObservable<boolean>;
+	/** Monotonic read-only state independent of backend subscriptions. */
+	private readonly _fatalLatch = observableValue<boolean>('agentHostFatalLatch', false);
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
 	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
@@ -608,6 +613,9 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 		this.setStateSubscriptions(sessionSubscription, chatSubscription);
 		this.isReadOnly = derived(this, reader => {
+			if (this._fatalLatch.read(reader)) {
+				return true;
+			}
 			const sessionArchived = Boolean((this._sessionState.read(reader).read(reader)?.status ?? 0) & SessionStatus.IsArchived);
 			return isChatReadOnly(this._chatState.read(reader).read(reader)?.interactivity, sessionArchived);
 		});
@@ -638,6 +646,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			this._sessionState.set(sessionSubscription ? observableFromSubscription(this, sessionSubscription) : constObservable(undefined), tx);
 			this._chatState.set(chatSubscription ? observableFromSubscription(this, chatSubscription) : constObservable(undefined), tx);
 		});
+	}
+
+	latchFatal(): void {
+		if (!this._fatalLatch.get()) {
+			this._fatalLatch.set(true, undefined);
+		}
 	}
 
 	override dispose(): void {
@@ -801,6 +815,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _inputNeededWatcherBackends = new ResourceMap<URI>();
 	/** One-shot per-session subscription reconciling client data after session state hydration. */
 	private readonly _activeClientRefreshSubscriptions = this._register(new DisposableResourceMap());
+	/** Per-frontend-session recovery notification watchers for fatal worktree failures. Disposal removes each session-scoped notification. */
+	private readonly _fatalRecoveryNotifications = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/**
@@ -910,6 +926,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._config = config;
@@ -1329,6 +1347,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			historySubagentObservations,
 			() => {
 				this._activeSessions.delete(sessionResource);
+				this._fatalRecoveryNotifications.deleteAndDispose(sessionResource);
 				this._activeClientRefreshSubscriptions.deleteAndDispose(sessionResource);
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
@@ -1582,6 +1601,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 			const errorDetails = this._getTurnErrorDetails(completedTurn);
 
+			// Latch inertness before ChatService stores the completed response.
+			if (errorDetails?.code === WORKTREE_CREATION_FAILED_ERROR_TYPE) {
+				const session = this._activeSessions.get(request.sessionResource);
+				if (session) {
+					session.latchFatal();
+					this._ensureFatalRecoveryNotification(request.sessionResource, readAgentWorktreeFailureMeta(completedTurn?.error)?.cleanup);
+				}
+			}
+
 			return {
 				timings: { firstProgress, totalElapsed: stopWatch.elapsed() },
 				...(details ? { details } : {}),
@@ -1627,8 +1655,80 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (turn?.state !== TurnState.Error || !turn.error) {
 			return undefined;
 		}
-		return getChatErrorDetailsFromMeta(turn.error, this._chatErrorContext())
-			?? { message: localize('agentHost.turnError', "Error: ({0}) {1}", turn.error.errorType, turn.error.message) };
+		const forwarded = getChatErrorDetailsFromMeta(turn.error, this._chatErrorContext());
+		if (forwarded) {
+			return forwarded;
+		}
+		// Preserve the fatal code and bounded diagnostic on the generic error path.
+		if (turn.error.errorType === WORKTREE_CREATION_FAILED_ERROR_TYPE) {
+			return { code: turn.error.errorType, message: turn.error.message };
+		}
+		return { message: localize('agentHost.turnError', "Error: ({0}) {1}", turn.error.errorType, turn.error.message) };
+	}
+
+	/**
+	 * Creates one session-scoped recovery notification for a fatal worktree failure.
+	 * The transcript retains the diagnostic while the notification tracks cleanup until frontend disposal.
+	 */
+	private _ensureFatalRecoveryNotification(sessionResource: URI, worktreeCleanup: WorktreeGitCleanupOutcome | undefined): void {
+		if (this._fatalRecoveryNotifications.has(sessionResource)) {
+			// The existing watcher updates this session's notification.
+			return;
+		}
+
+		const store = new DisposableStore();
+		// Keep this telemetry-bearing id opaque; sessionResources supplies scoping.
+		const id = generateUuid();
+
+		// Reuse the window-specific command that creates a fresh identity.
+		const action = this._environmentService.isSessionsWindow
+			? { kind: ChatInputNotificationActionKind.Command as const, label: localize('agentHost.worktreeFatal.newSession', "New Session"), commandId: 'workbench.action.sessions.newChat' }
+			: { kind: ChatInputNotificationActionKind.Command as const, label: localize('agentHost.worktreeFatal.newChat', "New Chat"), commandId: 'workbench.action.chat.newChat' };
+
+		const cleanupState = this._provisionalService.getBackendCleanupState(sessionResource);
+		store.add(autorun(reader => {
+			const state = cleanupState.read(reader);
+			this._chatInputNotificationService.setNotification({
+				id,
+				telemetryId: 'agentHost.worktreeCreationFailed',
+				severity: ChatInputNotificationSeverity.Error,
+				message: localize('agentHost.worktreeFatal.title', "This chat can no longer be used."),
+				description: this._describeCleanupState(state, worktreeCleanup),
+				actions: [action],
+				dismissible: false,
+				autoDismissOnMessage: false,
+				sessionResources: [sessionResource],
+				// Keep this recovery notification visible after the composer becomes read-only.
+				showWhenReadOnly: true,
+			});
+		}));
+		// Keep the notification bound to the frontend session lifetime.
+		store.add(toDisposable(() => this._chatInputNotificationService.deleteNotification(id)));
+
+		this._fatalRecoveryNotifications.set(sessionResource, store);
+	}
+
+	/** Returns a localized, path-free cleanup status without overstating success. */
+	private _describeBackendCleanupState(state: AgentHostBackendCleanupState): string {
+		switch (state) {
+			case AgentHostBackendCleanupState.Pending:
+				return localize('agentHost.worktreeFatal.cleanupPending', "Removing the failed session…");
+			case AgentHostBackendCleanupState.Confirmed:
+				return localize('agentHost.worktreeFatal.cleanupConfirmed', "The failed session was removed.");
+			case AgentHostBackendCleanupState.Failed:
+				return localize('agentHost.worktreeFatal.cleanupFailed', "The failed session could not be removed and may be retried.");
+			case AgentHostBackendCleanupState.None:
+			default:
+				return localize('agentHost.worktreeFatal.cleanupNone', "This session could not be created and is no longer available.");
+		}
+	}
+
+	private _describeCleanupState(state: AgentHostBackendCleanupState, worktreeCleanup: WorktreeGitCleanupOutcome | undefined): string {
+		const backend = this._describeBackendCleanupState(state);
+		if (worktreeCleanup === WorktreeGitCleanupOutcome.Incomplete || worktreeCleanup === WorktreeGitCleanupOutcome.Unverified) {
+			return localize('agentHost.worktreeFatal.gitCleanupUncertain', "{0} Some Git worktree artifacts may remain.", backend);
+		}
+		return backend;
 	}
 
 	/**

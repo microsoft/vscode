@@ -8,8 +8,8 @@ import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename } from '../../../../base/common/path.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, dirname, join } from '../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -17,10 +17,12 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { boundWorktreeDiagnostic, IAgentWorktreeFailureMeta, WORKTREE_CREATION_FAILED_ERROR_TYPE, WorktreeCreationStage, WorktreeGitCleanupOutcome } from '../../common/meta/agentWorktreeFailureMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
+import { IWorktreeEntry } from '../agentHostGitService.js';
 import { AGENT_BRANCH_PREFIX, AgentBranchNameGenerator, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { ICopilotApiService } from './copilotApiService.js';
 
@@ -37,7 +39,6 @@ const WORKTREE_META_BRANCH = 'copilot.worktree.branchName';
 const WORKTREE_META_PATH = 'copilot.worktree.path';
 export const WORKTREE_META_REPOSITORY_ROOT = 'copilot.worktree.repositoryRoot';
 const WORKTREE_META_CREATION_FAILURE = 'copilot.worktree.creationFailure';
-const MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH = 200;
 
 /** Thrown when a persisted session working directory is missing and cannot be repaired. */
 export class SessionWorkingDirectoryMissingError extends Error {
@@ -47,6 +48,52 @@ export class SessionWorkingDirectoryMissingError extends Error {
 			: localize('sessionWorkingDirectoryMissing', "This session couldn't be loaded because its working directory no longer exists: {0}", workingDirectory.fsPath));
 		this.name = 'SessionWorkingDirectoryMissingError';
 	}
+}
+
+/** Typed failure carrying the bounded diagnostic, creation stage, and cleanup outcome. */
+export class WorktreeCreationFailedError extends Error {
+	readonly errorType = WORKTREE_CREATION_FAILED_ERROR_TYPE;
+
+	constructor(
+		diagnostic: string | undefined,
+		readonly stage: WorktreeCreationStage,
+		readonly cleanup: WorktreeGitCleanupOutcome,
+		readonly cleanupDiagnostic: string | undefined,
+	) {
+		super(boundWorktreeDiagnostic(diagnostic) ?? localize('agentHost.worktreeCreationFailedGeneric', "Couldn't create the isolated worktree."));
+		this.name = 'WorktreeCreationFailedError';
+	}
+
+	toFailureMeta(): IAgentWorktreeFailureMeta {
+		return { stage: this.stage, cleanup: this.cleanup, cleanupDiagnostic: this.cleanupDiagnostic };
+	}
+}
+
+/** Bounded, in-memory evidence about a single live worktree-creation attempt. */
+interface IWorktreeAttemptContext {
+	readonly repositoryRoot: URI;
+	readonly worktree: URI;
+	readonly worktreesRoot: URI;
+	readonly branchRef: string;
+	readonly startPointOid: string | undefined;
+	readonly preAdd: {
+		readonly branchAbsent: boolean;
+		readonly pathAbsent: boolean;
+		readonly registrationAbsent: boolean;
+	};
+}
+
+/** Structural view of the optional richer worktree listing the concrete git service provides. */
+interface IWorktreeEntryReader {
+	getWorktreeEntries(repositoryRoot: URI): Promise<readonly IWorktreeEntry[]>;
+}
+
+function supportsWorktreeEntries(gitService: IAgentHostGitService): gitService is IAgentHostGitService & IWorktreeEntryReader {
+	return typeof (gitService as Partial<IWorktreeEntryReader>).getWorktreeEntries === 'function';
+}
+
+function isFileNotFoundError(error: unknown): error is NodeJS.ErrnoException {
+	return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 /** Default upper bound on branch names returned for the branch picker. */
@@ -128,15 +175,9 @@ export function buildWorktreeFailureNotification(diagnostic?: string): Extract<R
 	};
 }
 
-/** Normalizes an arbitrary worktree failure into a bounded single-line diagnostic. */
+/** Legacy warning-path alias for {@link boundWorktreeDiagnostic}. */
 export function normalizeWorktreeFailureDiagnostic(diagnostic: string | undefined): string | undefined {
-	const normalized = diagnostic?.replace(/\s+/g, ' ').trim();
-	if (!normalized) {
-		return undefined;
-	}
-	return normalized.length > MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH
-		? `${normalized.slice(0, MAX_WORKTREE_FAILURE_DIAGNOSTIC_LENGTH - 3)}...`
-		: normalized;
+	return boundWorktreeDiagnostic(diagnostic);
 }
 
 /**
@@ -579,34 +620,44 @@ export class WorktreeIsolation extends Disposable {
 			? config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
 		const selectedBranch = config[SessionConfigKey.Branch] as string;
+		const worktreeBranchTrack = config[SessionConfigKey.WorktreeBranchTrack] === true;
 		const { branchName, worktree, baseBranch } = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
-			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
-			const branchName = await this._branchNameGenerator.generateBranchName({
-				sessionId,
-				message: prompt,
-				githubToken,
-				branchPrefix: worktreeBranchPrefix,
-				branchNameCollides: async candidate => {
-					if (await this._gitService.branchExists(repositoryRoot, candidate).catch(() => true)) {
-						return true;
-					}
-					const candidateWorktree = URI.joinPath(worktreesRoot, getWorktreeName(candidate, worktreeBranchPrefix));
-					return fileExists(candidateWorktree.fsPath);
-				},
-			});
-			const worktree = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
-			const baseBranch = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
-			await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
+			let stage = WorktreeCreationStage.NamingBranch;
+			let context: IWorktreeAttemptContext | undefined;
+			try {
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.NamingBranch));
+				const branchName = await this._branchNameGenerator.generateBranchName({
+					sessionId,
+					message: prompt,
+					githubToken,
+					branchPrefix: worktreeBranchPrefix,
+					branchNameCollides: async candidate => {
+						if (await this._gitService.branchExists(repositoryRoot, candidate).catch(() => true)) {
+							return true;
+						}
+						const candidateWorktree = URI.joinPath(worktreesRoot, getWorktreeName(candidate, worktreeBranchPrefix));
+						return fileExists(candidateWorktree.fsPath);
+					},
+				});
+				const worktree = URI.joinPath(worktreesRoot, getWorktreeName(branchName, worktreeBranchPrefix));
+				stage = WorktreeCreationStage.ResolvingStartPoint;
+				const baseBranch = await this._resolveBranchStartPoint(repositoryRoot, selectedBranch);
+				stage = WorktreeCreationStage.PreparingWorktreesRoot;
+				await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 
-			// Git suppresses progress for the first couple of seconds, so name
-			// the phase up front rather than leaving the label stale until the
-			// first percentage arrives.
-			onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
+				// Git suppresses progress for the first couple of seconds, so name
+				// the phase up front rather than leaving the label stale until the
+				// first percentage arrives.
+				onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.CheckingOut));
 
-			const worktreeBranchTrack = config[SessionConfigKey.WorktreeBranchTrack] === true;
-			await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
-				this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, progress));
-			return { branchName, worktree, baseBranch };
+				stage = WorktreeCreationStage.AddingWorktree;
+				context = await this._captureAttemptContext(repositoryRoot, worktree, worktreesRoot, branchName, baseBranch);
+				await withPercentProgress(WorktreeCreationPhase.CheckingOut, onProgress, progress =>
+					this._gitService.addWorktree(repositoryRoot, worktree, branchName, baseBranch, worktreeBranchTrack, progress));
+				return { branchName, worktree, baseBranch };
+			} catch (error) {
+				throw await this._toWorktreeCreationFailure(sessionId, stage, context, error);
+			}
 		});
 		const worktreeIncludeFiles = Array.isArray(config[SessionConfigKey.WorktreeIncludeFiles])
 			&& config[SessionConfigKey.WorktreeIncludeFiles].every(pattern => typeof pattern === 'string')
@@ -963,6 +1014,165 @@ export class WorktreeIsolation extends Disposable {
 			: selectedBranch;
 	}
 
+	/** Captures the pre-add evidence needed for fail-closed rollback attribution. */
+	private async _captureAttemptContext(repositoryRoot: URI, worktree: URI, worktreesRoot: URI, branchName: string, startPoint: string): Promise<IWorktreeAttemptContext> {
+		const branchRef = `refs/heads/${branchName}`;
+		const [startPointOid, branchAbsent, pathAbsent, registrationAbsent] = await Promise.all([
+			this._gitService.revParse(repositoryRoot, startPoint).catch(() => undefined),
+			this._gitService.revParse(repositoryRoot, branchRef).then(oid => oid === undefined).catch(() => false),
+			// Only a genuine ENOENT proves absence; unreadable fails closed to "present".
+			this._probePath(worktree.fsPath).then(probe => probe === PathProbe.Absent),
+			this._readWorktreeEntries(repositoryRoot).then(entries => entries !== undefined && !entries.some(entry => canonicalPathEqual(entry.path, worktree))),
+		]);
+		return { repositoryRoot, worktree, worktreesRoot, branchRef, startPointOid, preAdd: { branchAbsent, pathAbsent, registrationAbsent } };
+	}
+
+	private async _toWorktreeCreationFailure(sessionId: string, stage: WorktreeCreationStage, context: IWorktreeAttemptContext | undefined, error: unknown): Promise<WorktreeCreationFailedError> {
+		if (error instanceof WorktreeCreationFailedError) {
+			return error;
+		}
+		let cleanup: WorktreeGitCleanupOutcome = WorktreeGitCleanupOutcome.NotNeeded;
+		let cleanupDiagnostic: string | undefined;
+		if (context) {
+			const result = await this._rollbackWorktreeCreation(sessionId, context)
+				.catch(rollbackError => ({ outcome: WorktreeGitCleanupOutcome.Unverified, diagnostic: errorMessage(rollbackError) }));
+			cleanup = result.outcome;
+			cleanupDiagnostic = result.diagnostic;
+		}
+		return new WorktreeCreationFailedError(errorMessage(error), stage, cleanup, cleanupDiagnostic);
+	}
+
+	/** Removes only residue mechanically attributable to this live add attempt. */
+	private async _rollbackWorktreeCreation(sessionId: string, context: IWorktreeAttemptContext): Promise<{ readonly outcome: WorktreeGitCleanupOutcome; readonly diagnostic?: string }> {
+		const preAddClean = context.preAdd.branchAbsent && context.preAdd.pathAbsent && context.preAdd.registrationAbsent;
+		const withinRoot = await this._isWithinWorktreesRoot(context.worktreesRoot, context.worktree);
+
+		const entries = await this._readWorktreeEntries(context.repositoryRoot);
+		const branchOid = await this._readRefOid(context.repositoryRoot, context.branchRef);
+		const pathProbe = await this._probePath(context.worktree.fsPath);
+		// An unreadable path/state can't be attributed; preserve rather than delete.
+		if (entries === undefined || branchOid === UNREADABLE || pathProbe === PathProbe.Unreadable) {
+			return { outcome: WorktreeGitCleanupOutcome.Unverified, diagnostic: localize('worktreeCleanupUnreadable', "Git state could not be read, so residue was preserved.") };
+		}
+		const pathExists = pathProbe === PathProbe.Present;
+
+		const registeredEntry = entries.find(entry => canonicalPathEqual(entry.path, context.worktree));
+		const branchPresent = branchOid !== undefined;
+		if (!registeredEntry && !pathExists && !branchPresent) {
+			return { outcome: WorktreeGitCleanupOutcome.NotNeeded };
+		}
+
+		const otherEntryUsesBranch = entries.some(entry => entry !== registeredEntry && entry.branch === context.branchRef);
+		const fullyAttributable = preAddClean
+			&& withinRoot
+			&& !!registeredEntry
+			&& registeredEntry.branch === context.branchRef
+			&& branchPresent
+			&& context.startPointOid !== undefined
+			&& branchOid === context.startPointOid
+			&& !otherEntryUsesBranch;
+		if (!fullyAttributable) {
+			this._logService.info(`[${this._logLabel}:${sessionId}] Preserving worktree residue: ownership could not be mechanically proven`);
+			return { outcome: WorktreeGitCleanupOutcome.Unverified, diagnostic: localize('worktreeCleanupAmbiguous', "Ownership of the leftover worktree could not be proven, so it was preserved.") };
+		}
+
+		try {
+			await this._gitService.removeWorktree(context.repositoryRoot, context.worktree, { force: true });
+		} catch (error) {
+			return { outcome: WorktreeGitCleanupOutcome.Incomplete, diagnostic: boundWorktreeDiagnostic(errorMessage(error)) };
+		}
+
+		const afterEntries = await this._readWorktreeEntries(context.repositoryRoot);
+		const afterProbe = await this._probePath(context.worktree.fsPath);
+		// Removal is only confirmed when the path is genuinely absent (ENOENT).
+		if (afterEntries === undefined || afterEntries.some(entry => canonicalPathEqual(entry.path, context.worktree)) || afterProbe !== PathProbe.Absent) {
+			return { outcome: WorktreeGitCleanupOutcome.Incomplete, diagnostic: localize('worktreeCleanupPathRemains', "The leftover worktree path or registration could not be confirmed removed.") };
+		}
+
+		const oidBeforeDelete = await this._readRefOid(context.repositoryRoot, context.branchRef);
+		if (oidBeforeDelete === UNREADABLE) {
+			return { outcome: WorktreeGitCleanupOutcome.Unverified };
+		}
+		if (oidBeforeDelete === undefined) {
+			return { outcome: WorktreeGitCleanupOutcome.Complete };
+		}
+		if (oidBeforeDelete !== context.startPointOid) {
+			return { outcome: WorktreeGitCleanupOutcome.Unverified, diagnostic: localize('worktreeCleanupRefMoved', "The leftover branch moved, so it was preserved.") };
+		}
+
+		try {
+			await this._gitService.deleteRefs(context.repositoryRoot, [context.branchRef]);
+		} catch (error) {
+			return { outcome: WorktreeGitCleanupOutcome.Incomplete, diagnostic: boundWorktreeDiagnostic(errorMessage(error)) };
+		}
+
+		const oidAfterDelete = await this._readRefOid(context.repositoryRoot, context.branchRef);
+		if (oidAfterDelete === undefined) {
+			return { outcome: WorktreeGitCleanupOutcome.Complete };
+		}
+		return { outcome: WorktreeGitCleanupOutcome.Incomplete, diagnostic: localize('worktreeCleanupRefRemains', "The leftover branch could not be confirmed deleted.") };
+	}
+
+	private async _readWorktreeEntries(repositoryRoot: URI): Promise<readonly IWorktreeEntry[] | undefined> {
+		if (!supportsWorktreeEntries(this._gitService)) {
+			return undefined;
+		}
+		return this._gitService.getWorktreeEntries(repositoryRoot).catch(() => undefined);
+	}
+
+	private async _readRefOid(repositoryRoot: URI, ref: string): Promise<string | undefined | typeof UNREADABLE> {
+		try {
+			return await this._gitService.revParse(repositoryRoot, ref);
+		} catch {
+			return UNREADABLE;
+		}
+	}
+
+	/** Injectable seam for `fs.access` so tests can force present/absent/unreadable states. */
+	protected _access(path: string): Promise<void> {
+		return fs.access(path);
+	}
+
+	/** Injectable seam for `fs.realpath` so tests can force a canonicalization error. */
+	protected _realpath(path: string): Promise<string> {
+		return fs.realpath(path);
+	}
+
+	/** Tri-state path probe: only a genuine ENOENT is absence; every other error is unreadable. */
+	private async _probePath(path: string): Promise<PathProbe> {
+		try {
+			await this._access(path);
+			return PathProbe.Present;
+		} catch (error) {
+			return isFileNotFoundError(error) ? PathProbe.Absent : PathProbe.Unreadable;
+		}
+	}
+
+	private async _canonicalize(uri: URI): Promise<URI | undefined> {
+		try {
+			return URI.file(await this._realpath(uri.fsPath));
+		} catch (error) {
+			if (!isFileNotFoundError(error)) {
+				return undefined;
+			}
+			try {
+				const parentReal = await this._realpath(dirname(uri.fsPath));
+				return URI.file(join(parentReal, basename(uri.fsPath)));
+			} catch {
+				return undefined;
+			}
+		}
+	}
+
+	private async _isWithinWorktreesRoot(worktreesRoot: URI, worktree: URI): Promise<boolean> {
+		const canonicalRoot = await this._canonicalize(worktreesRoot);
+		const canonicalWorktree = await this._canonicalize(worktree);
+		if (!canonicalRoot || !canonicalWorktree) {
+			return false;
+		}
+		return extUriBiasedIgnorePathCase.isEqualOrParent(canonicalWorktree, canonicalRoot) && !isEqual(canonicalWorktree, canonicalRoot);
+	}
+
 	private async _writeWorktreeMetadata(sessionUri: URI, metadata: { branchName: string; baseBranch: string | undefined; worktreePath: URI; repositoryRoot: URI }): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(sessionUri);
 		try {
@@ -1103,4 +1313,18 @@ async function fileExists(path: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+/** Tri-state result of a path probe: absence is proven only by a genuine ENOENT. */
+const enum PathProbe {
+	Present,
+	Absent,
+	Unreadable,
+}
+
+/** Sentinel distinguishing an unreadable ref probe from a genuinely absent ref. */
+const UNREADABLE = Symbol('unreadable');
+
+function canonicalPathEqual(a: URI, b: URI): boolean {
+	return extUriBiasedIgnorePathCase.isEqual(a, b);
 }

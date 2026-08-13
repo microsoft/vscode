@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -23,9 +23,11 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { MessageKind, TurnState, type AgentInfo, type RootState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { WORKTREE_CREATION_FAILED_ERROR_TYPE } from '../../../../../../platform/agentHost/common/meta/agentWorktreeFailureMeta.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import type { IChatModel } from '../../../common/model/chatModel.js';
+import { AgentHostBackendCleanupState, AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -49,6 +51,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
 	readonly disposeAttempts: URI[] = [];
 	createGate: DeferredPromise<void> | undefined;
+	disposeGate: DeferredPromise<void> | undefined;
+	disposeStarted: DeferredPromise<void> | undefined;
 	failNextCreate = false;
 	failNextDispose = false;
 	private readonly _onAgentHostStart = new Emitter<void>();
@@ -90,6 +94,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async disposeSession(session: URI): Promise<void> {
 		this.disposeAttempts.push(session);
+		this.disposeStarted?.complete();
+		const gate = this.disposeGate;
+		this.disposeGate = undefined;
+		if (gate) {
+			await gate.p;
+		}
 		if (this.failNextDispose) {
 			this.failNextDispose = false;
 			throw new Error('dispose failed');
@@ -121,7 +131,59 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 class MockChatService extends mock<IChatService>() {
 	declare readonly _serviceBrand: undefined;
-	override readonly onDidDisposeSession = Event.None;
+	private readonly _models = new Map<string, IChatModel>();
+	private readonly _onDidCreateModel = new Emitter<IChatModel>();
+	override readonly onDidCreateModel = this._onDidCreateModel.event;
+	private readonly _onDidDisposeSession = new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>();
+	override readonly onDidDisposeSession = this._onDidDisposeSession.event;
+
+	override getSession(sessionResource: URI): IChatModel | undefined {
+		return this._models.get(sessionResource.toString());
+	}
+
+	setSession(model: IChatModel): void {
+		this._models.set(model.sessionResource.toString(), model);
+		this._onDidCreateModel.fire(model);
+	}
+
+	fireDisposeSession(...sessionResources: URI[]): void {
+		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+	}
+
+	dispose(): void {
+		this._onDidCreateModel.dispose();
+		this._onDidDisposeSession.dispose();
+	}
+}
+
+/**
+ * Minimal {@link IChatModel} stand-in for capture-barrier tests. Only exposes
+ * the request/response surface the provisional owner observes to detect a
+ * completed `worktreeCreationFailed` response.
+ */
+class FakeChatModel {
+	private readonly _onDidChange = new Emitter<unknown>();
+	readonly onDidChange = this._onDidChange.event;
+	readonly onDidDispose = Event.None;
+	disposed = false;
+	private readonly _requests: { response?: { isComplete: boolean; result?: { errorDetails?: { code?: string; message: string } } } }[] = [];
+
+	constructor(readonly sessionResource: URI) { }
+
+	getRequests() {
+		return this._requests;
+	}
+
+	/** Appends a completed error response and fires the change the owner listens for. */
+	completeWithError(code: string | undefined, message = 'boom'): void {
+		this._requests.push({ response: { isComplete: true, result: { errorDetails: { code, message } } } });
+		this._onDidChange.fire(undefined);
+	}
+
+	dispose(): void {
+		this.disposed = true;
+		this._onDidChange.dispose();
+	}
 }
 
 // ---- Helpers ---------------------------------------------------------------
@@ -174,6 +236,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let isSessionsWindow: boolean;
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
+	let chatServiceMock: MockChatService;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -188,7 +251,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
 		insta.stub(ILogService, new NullLogService());
-		insta.stub(IChatService, new MockChatService());
+		chatServiceMock = ds.add(new MockChatService());
+		insta.stub(IChatService, chatServiceMock);
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
@@ -805,6 +869,346 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(provisional.get(ui), undefined);
 		assert.strictEqual(provisional.getResolvedConfig(ui), undefined);
 		assert.strictEqual(agentHost.disposed.length, 1);
+	});
+
+	// ---- Capture barrier + backend-only detach ------------------------------
+
+	function realChatUri(id: string): URI {
+		return URI.from({ scheme: 'agent-host-copilot', path: `/real-${id}` });
+	}
+
+	/**
+	 * Establish a rebound real backend for a fatal-flow test. When `model` is
+	 * provided it is registered before the rebind (the "already-created model"
+	 * case); otherwise the caller registers it afterwards (the "later-created
+	 * model" case).
+	 */
+	async function reboundBackend(id: string, model?: FakeChatModel): Promise<{ realUi: URI; backend: URI }> {
+		const ui = untitledChatUri(id);
+		const realUi = realChatUri(id);
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+		if (model) {
+			chatServiceMock.setSession(model as unknown as IChatModel);
+		}
+		const rebound = await provisional.tryRebind(ui, realUi, 'copilot', undefined);
+		assert.ok(rebound, 'rebind should establish a real backend');
+		const backend = provisional.get(realUi);
+		assert.ok(backend);
+		return { realUi, backend };
+	}
+
+	const disposedCount = (backend: URI) => agentHost.disposed.filter(uri => uri.toString() === backend.toString()).length;
+	const disposeAttemptCount = (backend: URI) => agentHost.disposeAttempts.filter(uri => uri.toString() === backend.toString()).length;
+
+	test('worktreeCreationFailed capture triggers backend-only detach after response capture, retaining the model (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-immediate'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-immediate', model);
+
+		// The capture barrier has not been crossed: no teardown of the real backend.
+		assert.strictEqual(disposedCount(backend), 0);
+
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		assert.deepStrictEqual({
+			disposed: disposedCount(backend),
+			mapping: provisional.get(realUi),
+			modelDisposed: model.disposed,
+		}, {
+			disposed: 1,
+			mapping: undefined,
+			modelDisposed: false,
+		});
+	});
+
+	test('worktreeCreationFailed capture on a later-created model triggers backend detach (disposal)', async () => {
+		const { realUi, backend } = await reboundBackend('fatal-late');
+		assert.strictEqual(disposedCount(backend), 0);
+
+		const model = new FakeChatModel(realUi);
+		cleanup.add(model);
+		chatServiceMock.setSession(model as unknown as IChatModel);
+		// Registering the model must not, by itself, detach the backend.
+		assert.strictEqual(disposedCount(backend), 0);
+
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		assert.deepStrictEqual({
+			disposed: disposedCount(backend),
+			mapping: provisional.get(realUi),
+		}, {
+			disposed: 1,
+			mapping: undefined,
+		});
+	});
+
+	test('a non-worktree completed error does not detach the backend (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('non-fatal'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('non-fatal', model);
+
+		model.completeWithError('workingDirectoryFailed');
+		await provisional.waitForPending(realUi);
+
+		assert.deepStrictEqual({
+			disposed: disposedCount(backend),
+			mapping: provisional.get(realUi)?.toString(),
+		}, {
+			disposed: 0,
+			mapping: backend.toString(),
+		});
+	});
+
+	test('a later worktreeCreationFailed response does not detach an already non-fatal backend (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('later-fatal'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('later-fatal', model);
+
+		model.completeWithError('workingDirectoryFailed');
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		assert.deepStrictEqual({
+			disposed: disposedCount(backend),
+			mapping: provisional.get(realUi)?.toString(),
+		}, {
+			disposed: 0,
+			mapping: backend.toString(),
+		});
+	});
+
+	test('duplicate worktreeCreationFailed capture and user close join a single backend detach (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-dup'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-dup', model);
+
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		// The user later closes the inert chat; this must not duplicate teardown.
+		chatServiceMock.fireDisposeSession(realUi);
+		await provisional.disposeSession(realUi);
+
+		assert.deepStrictEqual({
+			attempts: disposeAttemptCount(backend),
+			disposed: disposedCount(backend),
+			mapping: provisional.get(realUi),
+		}, {
+			attempts: 1,
+			disposed: 1,
+			mapping: undefined,
+		});
+	});
+
+	test('failed backend detach after capture retains ownership and retries on host start (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-retry'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-retry', model);
+
+		agentHost.failNextDispose = true;
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		// The detach was attempted but not confirmed; success is never reported.
+		assert.deepStrictEqual({
+			attempts: disposeAttemptCount(backend),
+			confirmed: disposedCount(backend),
+		}, {
+			attempts: 1,
+			confirmed: 0,
+		});
+
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+		assert.strictEqual(disposedCount(backend), 1);
+	});
+
+	test('worktreeCreationFailed capture reports pending then confirmed cleanup state (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-state'));
+		cleanup.add(model);
+		const { realUi } = await reboundBackend('fatal-state', model);
+
+		// Subscribe before the capture: the state starts at None.
+		const observed: AgentHostBackendCleanupState[] = [];
+		const state = provisional.getBackendCleanupState(realUi);
+		cleanup.add(autorun(reader => { observed.push(state.read(reader)); }));
+		assert.deepStrictEqual(observed, [AgentHostBackendCleanupState.None]);
+
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		// Pending is set after the capture barrier and before disposal; the
+		// confirmed disposal transitions to Confirmed. No success-before-detach.
+		assert.deepStrictEqual(observed, [
+			AgentHostBackendCleanupState.None,
+			AgentHostBackendCleanupState.Pending,
+			AgentHostBackendCleanupState.Confirmed,
+		]);
+
+		// A subscriber attaching after capture still reads the preserved state.
+		const late: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { late.push(provisional.getBackendCleanupState(realUi).read(reader)); }));
+		assert.deepStrictEqual(late, [AgentHostBackendCleanupState.Confirmed]);
+	});
+
+	test('worktreeCreationFailed failed detach reports failed then confirmed after host-start retry (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-state-retry'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-state-retry', model);
+
+		const observed: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { observed.push(provisional.getBackendCleanupState(realUi).read(reader)); }));
+
+		agentHost.failNextDispose = true;
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		// Failure is reported truthfully; success is never fabricated.
+		assert.deepStrictEqual(observed, [
+			AgentHostBackendCleanupState.None,
+			AgentHostBackendCleanupState.Pending,
+			AgentHostBackendCleanupState.Failed,
+		]);
+		assert.strictEqual(disposedCount(backend), 0);
+
+		// The same state is driven to Confirmed by the host-start retry.
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+
+		assert.strictEqual(disposedCount(backend), 1);
+		assert.deepStrictEqual(observed, [
+			AgentHostBackendCleanupState.None,
+			AgentHostBackendCleanupState.Pending,
+			AgentHostBackendCleanupState.Failed,
+			AgentHostBackendCleanupState.Confirmed,
+		]);
+	});
+
+	test('rapid host starts join one fatal detach retry (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-retry-join'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-retry-join', model);
+		const observed: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { observed.push(provisional.getBackendCleanupState(realUi).read(reader)); }));
+
+		agentHost.failNextDispose = true;
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		const gate = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.disposeGate = gate;
+		agentHost.disposeStarted = started;
+		agentHost.fireAgentHostStart();
+		agentHost.fireAgentHostStart();
+		await started.p;
+		assert.strictEqual(disposeAttemptCount(backend), 2);
+
+		gate.complete();
+		await timeout(0);
+		assert.deepStrictEqual(observed, [
+			AgentHostBackendCleanupState.None,
+			AgentHostBackendCleanupState.Pending,
+			AgentHostBackendCleanupState.Failed,
+			AgentHostBackendCleanupState.Confirmed,
+		]);
+		agentHost.fireAgentHostStart();
+		await timeout(0);
+		assert.strictEqual(disposeAttemptCount(backend), 2);
+	});
+
+	test('frontend disposal during a fatal detach does not resurrect cleanup state (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-close-pending'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-close-pending', model);
+		const gate = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.disposeGate = gate;
+		agentHost.disposeStarted = started;
+
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await started.p;
+		chatServiceMock.fireDisposeSession(realUi);
+		agentHost.fireAgentHostStart();
+		assert.strictEqual(disposeAttemptCount(backend), 1);
+
+		agentHost.failNextDispose = true;
+		gate.complete();
+		await timeout(0);
+		const afterClose: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { afterClose.push(provisional.getBackendCleanupState(realUi).read(reader)); }));
+		assert.deepStrictEqual(afterClose, [AgentHostBackendCleanupState.None]);
+		assert.strictEqual(disposeAttemptCount(backend), 1);
+	});
+
+	test('service disposal during a fatal retry does not resurrect cleanup state (disposal)', async () => {
+		const model = new FakeChatModel(realChatUri('fatal-service-dispose'));
+		cleanup.add(model);
+		const { realUi, backend } = await reboundBackend('fatal-service-dispose', model);
+
+		agentHost.failNextDispose = true;
+		model.completeWithError(WORKTREE_CREATION_FAILED_ERROR_TYPE);
+		await provisional.waitForPending(realUi);
+
+		const gate = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.disposeGate = gate;
+		agentHost.disposeStarted = started;
+		agentHost.fireAgentHostStart();
+		await started.p;
+		(provisional as AgentHostUntitledProvisionalSessionService).dispose();
+		gate.complete();
+		await timeout(0);
+
+		assert.strictEqual(disposeAttemptCount(backend), 2);
+		const afterServiceDispose: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { afterServiceDispose.push(provisional.getBackendCleanupState(realUi).read(reader)); }));
+		assert.deepStrictEqual(afterServiceDispose, [AgentHostBackendCleanupState.None]);
+	});
+
+	test('provider-owned publishBackendCleanupState surfaces state to the recovery watcher and clear prevents resurrection', () => {
+		// Contract A: a dedicated provider (Agents-window local/remote) that owns
+		// its own connection publishes cleanup state for the P2 watcher without
+		// this service performing any backend disposal.
+		const resource = realChatUri('provider-owned');
+		const observed: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { observed.push(provisional.getBackendCleanupState(resource).read(reader)); }));
+
+		provisional.publishBackendCleanupState(resource, AgentHostBackendCleanupState.Pending);
+		provisional.publishBackendCleanupState(resource, AgentHostBackendCleanupState.Confirmed);
+
+		provisional.clearBackendCleanupState(resource);
+		// A publish after clear must never resurrect a state.
+		provisional.publishBackendCleanupState(resource, AgentHostBackendCleanupState.Failed);
+
+		assert.deepStrictEqual(observed, [
+			AgentHostBackendCleanupState.None,
+			AgentHostBackendCleanupState.Pending,
+			AgentHostBackendCleanupState.Confirmed,
+			AgentHostBackendCleanupState.None,
+		]);
+	});
+
+	test('provider-owned publishBackendCleanupState is a no-op after the frontend session is disposed', () => {
+		const resource = realChatUri('provider-owned-disposed');
+		const observed: AgentHostBackendCleanupState[] = [];
+		cleanup.add(autorun(reader => { observed.push(provisional.getBackendCleanupState(resource).read(reader)); }));
+
+		provisional.publishBackendCleanupState(resource, AgentHostBackendCleanupState.Pending);
+		chatServiceMock.fireDisposeSession(resource);
+		// Disposed frontend: publishes must not resurrect state.
+		provisional.publishBackendCleanupState(resource, AgentHostBackendCleanupState.Failed);
+
+		assert.deepStrictEqual(observed, [
+			AgentHostBackendCleanupState.None,
+			AgentHostBackendCleanupState.Pending,
+		]);
 	});
 
 	test('failed re-resolve preserves the previous overlay', async () => {

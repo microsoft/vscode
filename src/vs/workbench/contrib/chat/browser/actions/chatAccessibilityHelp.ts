@@ -145,6 +145,11 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.planReviewEditor', 'When a plan is ready for review, open it from the chat response to edit the plan and add line comments. Use the editor toolbar to navigate, clear, or submit feedback. Choose an implementation action from the plan review in Chat.'));
 		content.push(localize('chat.focusTip', 'When a tip appears, toggle focus between the tip and the chat input{0}.', '<keybinding:workbench.action.chat.focusTip>'));
 		if (isSessionsWindow) {
+			content.push(localize('chat.worktreeFatal.sessions', "If a new session's isolated worktree cannot be created, the chat becomes read-only. The exact error stays in the transcript, and a recovery notification appears where the composer was: activate its New Session action to start a fresh session."));
+		} else {
+			content.push(localize('chat.worktreeFatal.editor', "If a new agent session's isolated worktree cannot be created, the chat becomes read-only. The exact error stays in the transcript, and a recovery notification appears where the composer was: activate its New Chat action to start a fresh chat."));
+		}
+		if (isSessionsWindow) {
 			content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
 		}
 	}

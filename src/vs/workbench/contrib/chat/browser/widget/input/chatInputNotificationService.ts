@@ -77,6 +77,11 @@ export interface IChatInputNotification {
 	/** Optional allow-list of concrete chat session resources that should display this notification. */
 	readonly sessionResources?: readonly URI[];
 	/**
+	 * Keeps this notification visible while a read-only chat hides its composer.
+	 * Defaults to false, so ordinary notifications remain hidden.
+	 */
+	readonly showWhenReadOnly?: boolean;
+	/**
 	 * Optional "mute" affordance rendered as a bell-slash icon button next to
 	 * the dismiss (X) button. Use for a "stop showing this entirely" action
 	 * that is distinct from a one-off dismissal. Omit to hide the button.
