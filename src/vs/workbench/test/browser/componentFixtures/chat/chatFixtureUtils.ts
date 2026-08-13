@@ -45,6 +45,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/c
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IVoiceModeOnboardingService } from '../../../../contrib/agentsVoice/browser/voiceModeOnboarding.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -207,6 +208,12 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override disposeRequest() { }
 		override acceptResponse() { }
 		override acceptElicitation() { }
+	}());
+	reg.defineInstance(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+		override registerProvider() { return Disposable.None; }
+		override getChangesForRequest() { return undefined; }
+		override getFileEditsForRequest() { return undefined; }
+		override openChangesForRequest() { }
 	}());
 	reg.defineInstance(IDictationOnboardingService, new class extends mock<IDictationOnboardingService>() {
 		override readonly isVisible = false;

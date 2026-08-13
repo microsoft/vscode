@@ -2038,14 +2038,14 @@ export class CopilotAgentSession extends Disposable {
 			if (turn && this._currentTurn === turn) {
 				this._clearActiveTurn();
 			}
-			throw err;
-		} finally {
 			this._hostInstructions = undefined;
+			throw err;
 		}
 	}
 
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined {
 		const additionalContext = this._hostInstructions?.join('\n\n');
+		this._hostInstructions = undefined;
 		return additionalContext ? { additionalContext } : undefined;
 	}
 	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined): Promise<void> {
