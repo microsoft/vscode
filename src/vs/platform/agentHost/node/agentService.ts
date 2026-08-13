@@ -1097,17 +1097,22 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Ensures each registered provider has attempted its own backfill sweep,
-	 * without letting one provider's failure hide sessions the registry
-	 * already has (from this or an earlier pass). Failures are logged and
-	 * swallowed here — {@link listSessions} must still return whatever the
-	 * registry holds; a provider that failed keeps its marker unset and is
-	 * simply retried by the next trigger (a later `listSessions` call, or its
-	 * own `onDidChangeChatList` signal).
+	 * Ensures each registered provider without a durable completion marker has
+	 * attempted its own backfill sweep, without letting one provider's failure
+	 * hide sessions the registry already has (from this or an earlier pass).
+	 * Failures are logged and swallowed here — {@link listSessions} must still
+	 * return whatever the registry holds; a provider that failed keeps its
+	 * marker unset and is simply retried by the next trigger (a later
+	 * `listSessions` call, or its own `onDidChangeChatList` signal).
 	 */
 	private async _ensureRegistryBackfilled(): Promise<void> {
 		const providers = [...this._providers.values()];
-		const results = await Promise.allSettled(providers.map(provider => this._ensureProviderBackfilled(provider)));
+		const results = await Promise.allSettled(providers.map(async provider => {
+			if (await this._sessionRegistry.isProviderBackfilled(provider.id)) {
+				return;
+			}
+			await this._ensureProviderBackfilled(provider);
+		}));
 		for (let i = 0; i < results.length; i++) {
 			const result = results[i];
 			if (result.status === 'rejected') {

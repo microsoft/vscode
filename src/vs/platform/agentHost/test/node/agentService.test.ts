@@ -2459,6 +2459,62 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('listSessions does not wait for a forced refresh after registry backfill', async () => {
+			const refreshGate = new DeferredPromise<void>();
+			class GatedRefreshAgent extends MockAgent {
+				listCalls = 0;
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					if (this.listCalls > 1) {
+						await refreshGate.p;
+					}
+					return super.listLegacyChats();
+				}
+
+				fireChatListChanged(): void {
+					this._onDidChangeChatList.fire();
+				}
+
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedRefreshAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.listSessions();
+
+			agent.fireChatListChanged();
+			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 2);
+
+			const listing = svc.listSessions();
+			let completed = false;
+			void listing.then(() => completed = true);
+			for (let i = 0; i < 20 && !completed; i++) {
+				await timeout(0);
+			}
+			const completedBeforeRefresh = completed;
+			refreshGate.complete();
+			const listed = await listing;
+
+			assert.deepStrictEqual({
+				completedBeforeRefresh,
+				sessions: listed.map(item => item.session.toString()),
+			}, {
+				completedBeforeRefresh: true,
+				sessions: [session.toString()],
+			});
+		});
+
 		test('listSessions retries registry backfill after a transient provider failure', async () => {
 			class TransientListFailureAgent extends MockAgent {
 				private _failList = true;
