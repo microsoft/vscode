@@ -82,6 +82,13 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._metadata.set(key, value);
 	}
 
+	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		for (const [key, value] of Object.entries(values)) {
+			this.setMetadataCalls.push({ key, value });
+			this._metadata.set(key, value);
+		}
+	}
+
 	async setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {
 		const key = chat.toString();
 		if (draft) {

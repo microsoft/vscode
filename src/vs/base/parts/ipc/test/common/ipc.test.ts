@@ -518,6 +518,17 @@ suite('Base IPC', function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
 		});
+
+		test('proxy is not a thenable', async function () {
+			// A proxy that answers `then` with a function is treated as a thenable,
+			// so awaiting it (or returning it from an `async` function) would hand
+			// the promise's resolve/reject callbacks to a remote `then` call that
+			// never invokes them, hanging the caller forever.
+			assert.strictEqual((ipcService as unknown as { then?: unknown }).then, undefined);
+
+			const awaited = await (async () => ipcService)();
+			assert.strictEqual(await awaited.marco(), 'polo');
+		});
 	});
 
 	suite('one to one (proxy, extra context)', function () {
