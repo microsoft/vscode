@@ -209,7 +209,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
 	}
 
-	private async _whenManagementReady(): Promise<void> {
+	private async _getManagementService(): Promise<IAgentHostManagementService> {
 		const protocolClient = this._requireClient();
 		const connectionState = protocolClient.connectionState;
 		if (connectionState === AgentHostClientState.Closed || connectionState === AgentHostClientState.Incompatible) {
@@ -224,6 +224,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				throw new Error('Local agent host is not connected.');
 			}
 		}
+
+		return this._getAvailableManagementService();
 	}
 
 	private _getAvailableManagementService(): IAgentHostManagementService {
@@ -233,11 +235,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return ProxyChannel.toService<IAgentHostManagementService>(this._messagePortClient.getChannel(AgentHostIpcChannels.Management));
 	}
 
-	// The management service is a `ProxyChannel` proxy, so it must be produced
-	// synchronously here rather than returned from an `async` function.
 	private async _callManagement<T>(callback: (management: IAgentHostManagementService) => Promise<T>): Promise<T> {
-		await this._whenManagementReady();
-		return callback(this._getAvailableManagementService());
+		return callback(await this._getManagementService());
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {
