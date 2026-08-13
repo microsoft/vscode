@@ -18,7 +18,7 @@ import { getEffectiveMcpServerCustomizations, McpCustomizationController, findMc
 function harness(store: Pick<DisposableStore, 'add'>, opts: {
 	customizations?: readonly Customization[];
 	desiredEnabled?: boolean;
-	pluginMcpServerSources?: ReadonlyMap<string, string>;
+	pluginMcpServerSources?: () => ReadonlyMap<string, string> | undefined;
 	resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
 } = {}) {
 	const actions: SessionAction[] = [];
@@ -179,7 +179,7 @@ suite('McpCustomizationController', () => {
 	test('passes a plugin MCP server source internally when it is temporarily surfaced top-level', () => {
 		let receivedOwner: string | undefined;
 		const { controller, actions } = harness(store, {
-			pluginMcpServerSources: new Map([['azure', 'file:///plugins/azure-skills']]),
+			pluginMcpServerSources: () => new Map([['azure', 'file:///plugins/azure-skills']]),
 			resolveEnablement: (_server, owningPluginUri) => {
 				receivedOwner = owningPluginUri;
 				return undefined;
@@ -203,7 +203,7 @@ suite('McpCustomizationController', () => {
 			{ kind: CustomizationEnablementKind.Global, enabled: false },
 		] as const;
 		const { controller, actions } = harness(store, {
-			pluginMcpServerSources: new Map([['azure', 'file:///plugins/azure-skills']]),
+			pluginMcpServerSources: () => new Map([['azure', 'file:///plugins/azure-skills']]),
 			resolveEnablement: () => enablement,
 		});
 		store.add(controller);
