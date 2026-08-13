@@ -250,30 +250,44 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	},
 
 	getShortcutAriaLabel(count) {
-		return localize('userDataMigrationShortcutAriaLabelWithCount', "User data, {0} customizations need migration", count);
+		return count === 1
+			? localize('userDataMigrationShortcutAriaLabelSingle', "User data, 1 customization needs migration")
+			: localize('userDataMigrationShortcutAriaLabelWithCount', "User data, {0} customizations need migration", count);
 	},
 
 	getCardDescription(customizations, harnessLabel) {
 		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
 		if (agentCount > 0 && instructionsCount > 0) {
 			return localize(
-				'userDataMigrationCardDescriptionAgentsAndInstructions',
-				"User data customizations are only used by VS Code. Found {0} files ({1} agents, {2} instructions) that {3} ignores. Move them to keep them available.",
-				totalCount, agentCount, instructionsCount, harnessLabel,
+				'userDataMigrationCardDescriptionMixed',
+				"User data customizations are only used by VS Code. Found {0} customizations that {1} ignores. Move them to keep them available.",
+				totalCount, harnessLabel,
 			);
 		}
 		if (agentCount > 0) {
-			return localize(
-				'userDataMigrationCardDescriptionAgents',
-				"User data customizations are only used by VS Code. Found {0} agents that {1} ignores. Move them to keep them available.",
-				agentCount, harnessLabel,
-			);
+			return agentCount === 1
+				? localize(
+					'userDataMigrationCardDescriptionAgent',
+					"User data customizations are only used by VS Code. Found 1 agent that {0} ignores. Move it to keep it available.",
+					harnessLabel,
+				)
+				: localize(
+					'userDataMigrationCardDescriptionAgents',
+					"User data customizations are only used by VS Code. Found {0} agents that {1} ignores. Move them to keep them available.",
+					agentCount, harnessLabel,
+				);
 		}
-		return localize(
-			'userDataMigrationCardDescriptionInstructions',
-			"User data customizations are only used by VS Code. Found {0} instruction files that {1} ignores. Move them to keep them available.",
-			instructionsCount, harnessLabel,
-		);
+		return instructionsCount === 1
+			? localize(
+				'userDataMigrationCardDescriptionInstruction',
+				"User data customizations are only used by VS Code. Found 1 instruction file that {0} ignores. Move it to keep it available.",
+				harnessLabel,
+			)
+			: localize(
+				'userDataMigrationCardDescriptionInstructions',
+				"User data customizations are only used by VS Code. Found {0} instruction files that {1} ignores. Move them to keep them available.",
+				instructionsCount, harnessLabel,
+			);
 	},
 
 	getBanner(customizations, harnessLabel) {
@@ -305,31 +319,50 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 		if (agentCount > 0 && instructionsCount > 0) {
 			return localize(
 				'userDataMigrationPageDescriptionAgentsAndInstructions',
-				"Found {0} customizations ({1} agents, {2} instructions) in user data that local VS Code can still use, but {3} ignores. Move them to the harness folders to keep them available. They keep their type and content.",
-				totalCount, agentCount, instructionsCount, harnessLabel,
+				"Found {0} customizations in user data that local VS Code can still use, but {1} ignores. Move them to the harness folders to keep their type and content.",
+				totalCount, harnessLabel,
 			);
 		}
 		if (agentCount > 0) {
-			return localize(
-				'userDataMigrationPageDescriptionAgents',
-				"Found {0} agents in user data that local VS Code can still use, but {1} ignores. Move them to the harness agents folder to keep them available.",
-				agentCount, harnessLabel,
-			);
+			return agentCount === 1
+				? localize(
+					'userDataMigrationPageDescriptionAgent',
+					"Found 1 agent in user data that local VS Code can still use, but {0} ignores. Move it to the harness agents folder to keep it available.",
+					harnessLabel,
+				)
+				: localize(
+					'userDataMigrationPageDescriptionAgents',
+					"Found {0} agents in user data that local VS Code can still use, but {1} ignores. Move them to the harness agents folder to keep them available.",
+					agentCount, harnessLabel,
+				);
 		}
-		return localize(
-			'userDataMigrationPageDescriptionInstructions',
-			"Found {0} instruction files in user data that local VS Code can still use, but {1} ignores. Move them to the harness instructions folder to keep them available.",
-			instructionsCount, harnessLabel,
-		);
+		return instructionsCount === 1
+			? localize(
+				'userDataMigrationPageDescriptionInstruction',
+				"Found 1 instruction file in user data that local VS Code can still use, but {0} ignores. Move it to the harness instructions folder to keep it available.",
+				harnessLabel,
+			)
+			: localize(
+				'userDataMigrationPageDescriptionInstructions',
+				"Found {0} instruction files in user data that local VS Code can still use, but {1} ignores. Move them to the harness instructions folder to keep them available.",
+				instructionsCount, harnessLabel,
+			);
 	},
 
 	getConfirmation(customizations, harnessLabel) {
-		const { agentCount, instructionsCount } = countUserDataTypes(customizations);
-		const detail = agentCount > 0 && instructionsCount > 0
-			? localize('userDataMigrationConfirmDetailAgentsAndInstructions', "This moves {0} agents and {1} instruction files out of user data.", agentCount, instructionsCount)
-			: agentCount > 0
-				? localize('userDataMigrationConfirmDetailAgents', "This moves {0} agents out of user data.", agentCount)
+		const { agentCount, instructionsCount, totalCount } = countUserDataTypes(customizations);
+		let detail: string;
+		if (agentCount > 0 && instructionsCount > 0) {
+			detail = localize('userDataMigrationConfirmDetailMixed', "This moves {0} customizations out of user data.", totalCount);
+		} else if (agentCount > 0) {
+			detail = agentCount === 1
+				? localize('userDataMigrationConfirmDetailAgent', "This moves 1 agent out of user data.")
+				: localize('userDataMigrationConfirmDetailAgents', "This moves {0} agents out of user data.", agentCount);
+		} else {
+			detail = instructionsCount === 1
+				? localize('userDataMigrationConfirmDetailInstruction', "This moves 1 instruction file out of user data.")
 				: localize('userDataMigrationConfirmDetailInstructions', "This moves {0} instruction files out of user data.", instructionsCount);
+		}
 		return {
 			message: localize('userDataMigrationConfirmMessage', "Migrate user data customizations to {0}?", harnessLabel),
 			detail,
@@ -339,13 +372,19 @@ const userDataMigrationCategory: ICustomizationMigrationCategory = {
 	},
 
 	getMigratedMessage(migratedCount) {
-		return localize('userDataMigrationCompleted', "Migrated {0} user data customizations.", migratedCount);
+		return migratedCount === 1
+			? localize('userDataMigrationCompletedSingle', "Migrated 1 user data customization.")
+			: localize('userDataMigrationCompleted', "Migrated {0} user data customizations.", migratedCount);
 	},
 
 	getFailedMessage(failedFileNames, hiddenFileCount) {
+		const failedCount = failedFileNames.length + hiddenFileCount;
+		if (failedCount === 1) {
+			return localize('userDataMigrationFileFailed', "Failed to migrate 1 user data customization: {0}.", failedFileNames[0]);
+		}
 		return hiddenFileCount > 0
-			? localize('userDataMigrationFilesFailedWithRemainder', "Failed to migrate {0} user data customizations: {1}, and {2} more.", failedFileNames.length + hiddenFileCount, failedFileNames.join(', '), hiddenFileCount)
-			: localize('userDataMigrationFilesFailed', "Failed to migrate {0} user data customizations: {1}.", failedFileNames.length, failedFileNames.join(', '));
+			? localize('userDataMigrationFilesFailedWithRemainder', "Failed to migrate {0} user data customizations: {1}, and {2} more.", failedCount, failedFileNames.join(', '), hiddenFileCount)
+			: localize('userDataMigrationFilesFailed', "Failed to migrate {0} user data customizations: {1}.", failedCount, failedFileNames.join(', '));
 	},
 };
 

@@ -53,6 +53,62 @@ suite('customizationMigration', () => {
 		});
 	});
 
+
+	test('uses singular copy for one User Data customization', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.UserData);
+		const harnessLabel = 'Copilot [Agent Host]';
+		const agent: IPromptPath = {
+			uri: URI.file('/user-data/prompts/reviewer.agent.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.agent,
+			source: PromptFileSource.UserData,
+		};
+		const instruction: IPromptPath = {
+			uri: URI.file('/user-data/prompts/style.instructions.md'),
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+
+		assert.deepStrictEqual({
+			shortcut: category.getShortcutAriaLabel(1),
+			agent: {
+				card: category.getCardDescription([agent], harnessLabel),
+				page: category.getPageDescription([agent], harnessLabel),
+				confirmation: category.getConfirmation([agent], harnessLabel).detail,
+			},
+			instruction: {
+				card: category.getCardDescription([instruction], harnessLabel),
+				page: category.getPageDescription([instruction], harnessLabel),
+				confirmation: category.getConfirmation([instruction], harnessLabel).detail,
+			},
+			mixed: {
+				card: category.getCardDescription([agent, instruction], harnessLabel),
+				confirmation: category.getConfirmation([agent, instruction], harnessLabel).detail,
+			},
+			migrated: category.getMigratedMessage(1),
+			failed: category.getFailedMessage(['reviewer.agent.md'], 0),
+		}, {
+			shortcut: 'User data, 1 customization needs migration',
+			agent: {
+				card: 'User data customizations are only used by VS Code. Found 1 agent that Copilot [Agent Host] ignores. Move it to keep it available.',
+				page: 'Found 1 agent in user data that local VS Code can still use, but Copilot [Agent Host] ignores. Move it to the harness agents folder to keep it available.',
+				confirmation: 'This moves 1 agent out of user data.',
+			},
+			instruction: {
+				card: 'User data customizations are only used by VS Code. Found 1 instruction file that Copilot [Agent Host] ignores. Move it to keep it available.',
+				page: 'Found 1 instruction file in user data that local VS Code can still use, but Copilot [Agent Host] ignores. Move it to the harness instructions folder to keep it available.',
+				confirmation: 'This moves 1 instruction file out of user data.',
+			},
+			mixed: {
+				card: 'User data customizations are only used by VS Code. Found 2 customizations that Copilot [Agent Host] ignores. Move them to keep them available.',
+				confirmation: 'This moves 2 customizations out of user data.',
+			},
+			migrated: 'Migrated 1 user data customization.',
+			failed: 'Failed to migrate 1 user data customization: reviewer.agent.md.',
+		});
+	});
+
 	test('migrates prompt headers into a skill file', () => {
 		const promptFile: IPromptPath = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
