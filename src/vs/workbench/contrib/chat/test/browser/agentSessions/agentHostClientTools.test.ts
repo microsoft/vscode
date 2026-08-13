@@ -1149,6 +1149,49 @@ suite('AgentHostClientTools', () => {
 			});
 		});
 
+		test('runs once when the same tool call is readied twice before invocation starts', async () => {
+			// A client tool call receives two `ChatToolCallReady` actions: one from
+			// the permission flow and one from the agent's stream mapper. They
+			// differ only in approval metadata and both arrive before
+			// `resolveToolInput` settles, so neither has armed
+			// `startedClientToolCalls` when the other is observed.
+			const firstInputURI = URI.parse('session-db:/tool-input-1');
+			const input = { uri: firstInputURI.toString(), contentType: 'application/json' };
+			const inputRead = new DeferredPromise<{ data: string; encoding: ContentEncoding }>();
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			connection.resourceReadResponses.set(firstInputURI.toString(), inputRead.p);
+
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chatURI = URI.parse(buildDefaultChatUri(backendSession));
+
+			applyReferencedRunTask(connection, chatURI, input, ToolCallConfirmationReason.NotNeeded);
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			const readyPayload = {
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				invocationMessage: 'Run Task',
+				toolInput: input,
+			};
+			// Both readies land while the referenced input read is still pending.
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', readyPayload);
+			applyRunningClientExecution(connection, chatURI.toString(), 'turn-1', readyPayload);
+			await timeout(0);
+			inputRead.complete({ data: '{"task":"only"}', encoding: ContentEncoding.Utf8 });
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				invocations: toolsService.invokedToolCalls.length,
+				parameters: toolsService.invokedToolCalls[0]?.parameters,
+			}, {
+				invocations: 1,
+				parameters: { task: 'only' },
+			});
+		});
+
 		test('does not re-execute when the request changes after invocation starts', async () => {
 			const invokeResult = new DeferredPromise<IToolResult>();
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool], { invokeResult });
