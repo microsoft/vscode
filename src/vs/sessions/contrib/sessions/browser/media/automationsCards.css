@@ -211,22 +211,11 @@
 	gap: 4px;
 	align-items: center;
 	flex: 0 0 auto;
-	position: relative;
 	opacity: 0;
 }
 
 .automations-card:hover .automations-card-actions,
-.automations-card:focus-within .automations-card-actions,
-.automations-card-actions.automation-running {
-	opacity: 1;
-}
-
-.automations-card-actions.automation-running .automations-card-secondary-action {
-	opacity: 0;
-}
-
-.automations-card:hover .automations-card-actions.automation-running .automations-card-secondary-action,
-.automations-card:focus-within .automations-card-actions.automation-running .automations-card-secondary-action {
+.automations-card:focus-within .automations-card-actions {
 	opacity: 1;
 }
 
@@ -258,59 +247,6 @@
 .automations-card-actions .monaco-button.automations-card-action-button.disabled {
 	opacity: 0.4;
 	cursor: default;
-}
-
-/* The run action keeps its slot reserved while running so the running label */
-/* can overlay it without changing the actions column footprint. */
-.automations-card-actions .monaco-button.automations-card-run-button-hidden {
-	visibility: hidden;
-}
-
-.automations-card-running-label {
-	position: absolute;
-	right: 28px;
-	top: 50%;
-	transform: translateY(-50%);
-	white-space: nowrap;
-	pointer-events: none;
-	font-style: italic;
-	font-size: var(--vscode-agents-fontSize-label1);
-	color: var(--vscode-descriptionForeground);
-}
-
-/* Shimmer sweep on the running label, matching the in-progress session title. */
-/* Gated behind @supports because some environments apply */
-/* `-webkit-text-fill-color: transparent` without honoring */
-/* `background-clip: text`. Also disabled under reduced motion. */
-@supports ((background-clip: text) or (-webkit-background-clip: text)) {
-	@media not (prefers-reduced-motion: reduce) {
-		.automations-card-running-label {
-			background: linear-gradient(
-				90deg,
-				var(--vscode-descriptionForeground) 0%,
-				var(--vscode-descriptionForeground) 30%,
-				var(--vscode-chat-thinkingShimmer) 50%,
-				var(--vscode-descriptionForeground) 70%,
-				var(--vscode-descriptionForeground) 100%
-			);
-			background-size: 400% 100%;
-			background-clip: text;
-			-webkit-background-clip: text;
-			-webkit-text-fill-color: transparent;
-			animation: automations-running-shimmer 6s steps(90, jump-none) infinite;
-		}
-	}
-}
-
-@keyframes automations-running-shimmer {
-	0% {
-		background-position: 120% 0;
-	}
-
-	50%,
-	100% {
-		background-position: -120% 0;
-	}
 }
 
 /* Empty State */
@@ -382,13 +318,6 @@
 	font-weight: 600;
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 8px;
-}
-
-/* Run cards grid — rectangular cards in a vertical list */
-.automations-run-cards-grid {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
 }
 
 .hc-black .automations-card,

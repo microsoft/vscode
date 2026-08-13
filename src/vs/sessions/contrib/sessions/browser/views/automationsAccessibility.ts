@@ -15,6 +15,7 @@ import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/autom
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -28,7 +29,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains automation cards followed by run history."),
 			localize('automationsCustomView.help.cards', "Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
-			localize('automationsCustomView.help.history', "Run history is grouped by date. Runs with an available session use the Sessions list: use Up Arrow and Down Arrow to navigate, Enter to open, and Tab to reach Stop or Delete actions. Runs without an available session report their Pending, Running, Completed, or Failed status in a separate row; terminal runs provide a Delete button to remove the history item after confirmation."),
+			localize('automationsCustomView.help.history', "Run history is grouped by date and uses the Sessions list. Use Up Arrow and Down Arrow to navigate, Enter to open, and Tab to reach Stop or Delete actions when available. Delete permanently deletes the session and removes it from run history after confirmation."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
@@ -51,11 +52,15 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const automationService = accessor.get(IAutomationService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
 			{ type: AccessibleViewType.View },
-			() => buildAutomationsAccessibleContent(automationService.automations.get(), automationService.runs.get()),
+			() => buildAutomationsAccessibleContent(
+				automationService.automations.get(),
+				automationService.runs.get().filter(run => !!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource)),
+			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
 		);

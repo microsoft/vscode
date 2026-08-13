@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -13,6 +13,7 @@ import { constObservable, IObservable, observableValue } from '../../../../../ba
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -44,6 +45,8 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -94,6 +97,10 @@ function dispatchKeydown(element: HTMLElement, init: KeyboardEventInit & { keyCo
 	element.dispatchEvent(event);
 }
 
+async function waitForSessionActions(): Promise<void> {
+	await timeout(100);
+}
+
 class FakeAutomationService extends mock<IAutomationService>() {
 	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
@@ -102,6 +109,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
 	deleteRunCalls = 0;
+	readonly deleteRunCompleted = new DeferredPromise<void>();
 
 	setAutomations(value: readonly IAutomationDescriptor[]): void {
 		this.automationValue.set(value, undefined);
@@ -179,6 +187,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override async deleteRun(runId: string): Promise<void> {
 		this.deleteRunCalls++;
 		this.setRuns(this.runValue.get().filter(run => run.id !== runId));
+		this.deleteRunCompleted.complete();
 	}
 }
 
@@ -419,6 +428,7 @@ suite('AutomationsCardsWidget', () => {
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IAutomationService, automationService);
 		instantiationService.stub(IAutomationDialogService, automationDialogService);
 		instantiationService.stub(IDialogService, dialogService);
@@ -480,21 +490,23 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('run changes preserve automation card identity and focus', () => {
+	test('automation updates preserve card identity and focus', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		const card = widget.element.querySelector('.automations-card');
 		const editButton = widget.element.querySelector<HTMLButtonElement>('.automations-card-main');
 		editButton?.focus();
 
-		automationService.setRuns([run({ status: 'running' })]);
+		automationService.setAutomations([automation({ prompt: 'Updated prompt' })]);
 
 		assert.deepStrictEqual({
 			sameCard: widget.element.querySelector('.automations-card') === card,
 			focusPreserved: document.activeElement === editButton,
+			prompt: widget.element.querySelector('.automations-card-prompt')?.textContent,
 		}, {
 			sameCard: true,
 			focusPreserved: true,
+			prompt: 'Updated prompt',
 		});
 	});
 
@@ -512,12 +524,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(todayList, 'today group should have a session list');
 
 		// Add a second run in same bucket — group identity should be preserved
-		const todayRun2 = run({ id: 'run-today-2', startedAt: new Date().toISOString(), sessionResource: URI.parse('vscode-sessions-dev:/sessions/run2') });
+		const todayRun2 = run({ id: 'run-today-2', startedAt: new Date().toISOString(), sessionResource: SECOND_SESSION_RESOURCE });
 		automationService.setRuns([todayRun, todayRun2]);
 
 		const todayGroupAfter = widget.element.querySelector('.automations-history-group');
-		assert.strictEqual(todayGroupAfter, todayGroup, 'group DOM element should be reused');
-		assert.strictEqual(todayGroupAfter?.querySelector('.automations-run-session-list'), todayList, 'session list should be reused');
+		assert.deepStrictEqual({
+			groupReused: todayGroupAfter === todayGroup,
+			listReused: todayGroupAfter?.querySelector('.automations-run-session-list') === todayList,
+			rowCount: todayGroupAfter?.querySelectorAll('.session-item').length,
+		}, {
+			groupReused: true,
+			listReused: true,
+			rowCount: 2,
+		});
 
 		// Remove all runs — group should be disposed and removed from DOM
 		automationService.setRuns([]);
@@ -525,22 +544,39 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
 	});
 
-	test('run button disables for 10 seconds after click', () => {
-		const { automationService, widget } = setup();
-		automationService.setAutomations([automation()]);
+	test('run button disables temporarily after click', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { automationService, widget } = setup();
+			automationService.setAutomations([automation()]);
 
-		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
-		assert.ok(runButton, 'run button should exist');
+			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
+			assert.ok(runButton);
+			assert.ok(runButton.querySelector('.codicon-play'));
+			runButton.click();
 
-		// Before click: enabled
-		assert.ok(runButton.querySelector('.codicon-play'), 'should show play icon');
-		assert.strictEqual(runButton.getAttribute('aria-disabled'), 'false');
+			const runningState = {
+				disabled: runButton.getAttribute('aria-disabled'),
+				label: runButton.getAttribute('aria-label'),
+			};
+			await timeout(10_000);
 
-		// Click
-		runButton.click();
-
-		// After click: disabled
-		assert.strictEqual(runButton.getAttribute('aria-disabled'), 'true');
+			assert.deepStrictEqual({
+				runningState,
+				restoredState: {
+					disabled: runButton.getAttribute('aria-disabled'),
+					label: runButton.getAttribute('aria-label'),
+				},
+			}, {
+				runningState: {
+					disabled: 'true',
+					label: 'Running',
+				},
+				restoredState: {
+					disabled: 'false',
+					label: 'Run now',
+				},
+			});
+		});
 	});
 
 	test('focus targets the view without selecting an automation card', () => {
@@ -604,7 +640,7 @@ suite('AutomationsCardsWidget', () => {
 		}, {
 			movedRight: true,
 			movedLeft: true,
-			runCalls: 2,
+			runCalls: 1,
 		});
 	});
 
@@ -741,14 +777,19 @@ suite('AutomationsCardsWidget', () => {
 			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 
-		widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read')?.click();
+		const markAllButton = widget.element.querySelector<HTMLButtonElement>('.automations-mark-all-read');
+		assert.ok(markAllButton);
+		markAllButton.click();
+		const disabledWhileMarking = markAllButton.getAttribute('aria-disabled');
 		await sessionsManagementService.markAllReadCompleted.p;
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
+			disabledWhileMarking,
 			firstIsRead: sessionsManagementService.isRead.get(),
 			secondIsRead: sessionsManagementService.secondIsRead.get(),
 		}, {
+			disabledWhileMarking: 'true',
 			firstIsRead: true,
 			secondIsRead: true,
 		});
@@ -757,6 +798,13 @@ suite('AutomationsCardsWidget', () => {
 	test('omits runs without a resolvable session from run history', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
+		automationService.setRuns([
+			run({ id: 'run-sessionless', sessionResource: undefined }),
+			run({ id: 'run-stale', sessionResource: URI.parse('vscode-chat-session://test/stale') }),
+		]);
+		const hiddenWithoutSessions = widget.element.querySelector<HTMLElement>('.automations-history')?.style.display === 'none';
+		const emptyGroups = widget.element.querySelectorAll('.automations-history-group').length;
+
 		automationService.setRuns([
 			run(),
 			run({ id: 'run-sessionless', sessionResource: undefined }),
@@ -769,11 +817,15 @@ suite('AutomationsCardsWidget', () => {
 			.sort();
 
 		assert.deepStrictEqual({
+			hiddenWithoutSessions,
+			emptyGroups,
 			lists: widget.element.querySelectorAll('.automations-run-session-list').length,
 			rows: widget.element.querySelectorAll('.automations-run-session-list .session-item').length,
 			fallbackRows: widget.element.querySelectorAll('.automations-run-card').length,
 			titles,
 		}, {
+			hiddenWithoutSessions: true,
+			emptyGroups: 0,
 			lists: 1,
 			rows: 2,
 			fallbackRows: 0,
@@ -781,11 +833,12 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('does not expose session deletion for an active run', () => {
-		const { automationService, instantiationService, sessionsManagementService, widget } = setup();
+	test('does not expose session deletion for an active run', async () => {
+		const { automationService, sessionsManagementService, widget } = setup();
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
+		await waitForSessionActions();
 
 		assert.deepStrictEqual({
 			deleteVisible: !!getSessionAction(widget, 'Delete'),
@@ -801,6 +854,7 @@ suite('AutomationsCardsWidget', () => {
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
+		await waitForSessionActions();
 
 		const stopButton = getSessionAction(widget, 'Stop');
 		assert.ok(stopButton);
@@ -826,6 +880,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 		sessionsManagementService.cancelError = new Error('stop failed');
+		await waitForSessionActions();
 
 		const stopButton = getSessionAction(widget, 'Stop');
 		assert.ok(stopButton);
@@ -846,12 +901,12 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
 		dialogService.confirmResult = { confirmed: true };
+		await waitForSessionActions();
 
 		const deleteButton = getSessionAction(widget, 'Delete');
 		assert.ok(deleteButton);
 		deleteButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		await automationService.deleteRunCompleted.p;
 
 		assert.deepStrictEqual({
 			confirmation: dialogService.confirmations[0],
@@ -880,13 +935,15 @@ suite('AutomationsCardsWidget', () => {
 			run({ id: 'run-2', sessionResource: SECOND_SESSION_RESOURCE }),
 		]);
 		dialogService.confirmResult = { confirmed: true };
+		await waitForSessionActions();
 
 		const deleteButton = getSessionAction(widget, 'Delete');
 		assert.ok(deleteButton);
-		deleteButton.focus();
+		const list = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list');
+		assert.ok(list);
+		list.focus();
 		deleteButton.click();
-		await Promise.resolve();
-		await Promise.resolve();
+		await automationService.deleteRunCompleted.p;
 		const remainingRow = widget.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
 
 		assert.deepStrictEqual({
@@ -902,6 +959,7 @@ suite('AutomationsCardsWidget', () => {
 		const { automationService, dialogService, sessionsManagementService, widget } = setup();
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
+		await waitForSessionActions();
 
 		getSessionAction(widget, 'Delete')?.click();
 		await Promise.resolve();
@@ -923,6 +981,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setRuns([run()]);
 		dialogService.confirmResult = { confirmed: true };
 		sessionsManagementService.deleteError = new Error('delete failed');
+		await waitForSessionActions();
 
 		getSessionAction(widget, 'Delete')?.click();
 		await dialogService.errorCalled.p;
@@ -938,11 +997,12 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('does not expose session deletion when the provider does not support it', () => {
+	test('does not expose session deletion when the provider does not support it', async () => {
 		const { automationService, sessionsManagementService, widget } = setup();
 		sessionsManagementService.setSupportsDelete(false);
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run()]);
+		await waitForSessionActions();
 
 		assert.strictEqual(getSessionAction(widget, 'Delete'), undefined);
 	});
@@ -1003,7 +1063,7 @@ suite('AutomationsCardsWidget', () => {
 		);
 	});
 
-	test('running run shows needs-input indicator when session status transitions to NeedsInput', () => {
+	test('running run shows needs-input indicator when session status transitions to NeedsInput', async () => {
 		const { automationService, sessionsManagementService, widget } = setup();
 		sessionsManagementService.sessionStatus.set(SessionStatus.InProgress, undefined);
 		automationService.setAutomations([automation()]);
@@ -1014,6 +1074,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(card.classList.contains('needs-input'), false);
 
 		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
+		await waitForSessionActions();
 
 		const updatedCard = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(updatedCard);

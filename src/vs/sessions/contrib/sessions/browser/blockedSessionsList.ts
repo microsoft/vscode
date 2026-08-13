@@ -17,8 +17,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { IApprovedSession, ISessionCIFixModel, SessionsFlatList } from './views/sessionsList.js';
-import { SessionItemStatusContext } from '../../../common/contextkeys.js';
+import { IApprovedSession, ISessionCIFixModel, SessionsFlatList, SessionItemStatusContext } from './views/sessionsList.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 
 export const IGNORE_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreInputNeeded';

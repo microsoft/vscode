@@ -119,6 +119,7 @@ class TestChatService extends mock<IChatService>() {
 	readonly cancelledResources: URI[] = [];
 	readonly loadedResources: URI[] = [];
 	disposedModelRefs = 0;
+	cancelError: Error | undefined;
 
 	override async acquireOrLoadSession(sessionResource: URI): Promise<IChatModelReference> {
 		this.loadedResources.push(sessionResource);
@@ -135,6 +136,9 @@ class TestChatService extends mock<IChatService>() {
 
 	override async cancelCurrentRequestForSession(sessionResource: URI): Promise<void> {
 		this.cancelledResources.push(sessionResource);
+		if (this.cancelError) {
+			throw this.cancelError;
+		}
 	}
 }
 
@@ -276,6 +280,24 @@ suite('SessionsManagementService', () => {
 		const { service, chatService } = createSessionsManagementService(session, disposables);
 
 		await service.cancelCurrentRequest(session);
+
+		assert.deepStrictEqual({
+			loaded: chatService.loadedResources,
+			cancelled: chatService.cancelledResources,
+			disposedModelRefs: chatService.disposedModelRefs,
+		}, {
+			loaded: [stubChat.resource],
+			cancelled: [stubChat.resource],
+			disposedModelRefs: 1,
+		});
+	});
+
+	test('cancelCurrentRequest disposes the loaded model when cancellation fails', async () => {
+		const session = stubSession({ sessionId: 'session', providerId: 'test' });
+		const { service, chatService } = createSessionsManagementService(session, disposables);
+		chatService.cancelError = new Error('cancel failed');
+
+		await assert.rejects(() => service.cancelCurrentRequest(session), /cancel failed/);
 
 		assert.deepStrictEqual({
 			loaded: chatService.loadedResources,
