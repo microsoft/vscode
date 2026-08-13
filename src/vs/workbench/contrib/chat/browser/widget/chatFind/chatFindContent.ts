@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { canceledName } from '../../../../../../base/common/errors.js';
+import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../../editor/common/languages.js';
@@ -33,6 +34,21 @@ function inlineReferenceLabel(part: { inlineReference: URI | Location | IWorkspa
 }
 
 /**
+ * Whether the response renders its error message verbatim. Mirrors the renderer, which drops the
+ * error part for canceled or non-final responses, and replaces the message with fixed copy for the
+ * quota and anonymous rate-limit variants.
+ */
+function isErrorDetailsRendered(item: IChatResponseViewModel): boolean {
+	const errorDetails = item.errorDetails;
+	if (!errorDetails?.message || errorDetails.isQuotaExceeded || errorDetails.isRateLimited) {
+		return false;
+	}
+	return item.model.response === item.model.entireResponse
+		&& !item.isCanceled
+		&& errorDetails.message !== canceledName;
+}
+
+/**
  * Extracts the text a response actually *renders*, for Find to index.
  *
  * Deliberately not the accessible view's extraction: that one describes a response to a screen
@@ -47,14 +63,19 @@ function inlineReferenceLabel(part: { inlineReference: URI | Location | IWorkspa
 export function getChatFindTextParts(item: IChatResponseViewModel): IChatFindTextPart[] {
 	const parts: IChatFindTextPart[] = [];
 
-	if (item.errorDetails?.message) {
-		parts.push({ partIndex: -1, text: item.errorDetails.message });
+	if (isErrorDetailsRendered(item)) {
+		// The message is rendered as markdown, so index its plaintext form rather than the raw
+		// source; otherwise syntax characters would be counted but absent from the DOM.
+		parts.push({ partIndex: -1, text: renderAsPlaintext(new MarkdownString(item.errorDetails!.message)) });
 	}
 
 	item.response.value.forEach((part, partIndex) => {
 		switch (part.kind) {
 			case 'markdownContent': {
-				const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true });
+				// No code fences or link formatting: the ``` markers are consumed by the code
+				// block, and an empty link renders as an empty anchor, so both would contribute
+				// text that is counted here but absent from the DOM.
+				const text = renderAsPlaintext(part.content);
 				if (text.trim()) {
 					parts.push({ partIndex, text });
 				}
