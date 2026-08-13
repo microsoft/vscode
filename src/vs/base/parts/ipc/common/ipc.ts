@@ -640,7 +640,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
 					doRequest();
-				});
+				}, () => { });
 			}
 
 			const cancel = () => {
@@ -693,7 +693,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					uninitializedPromise.then(() => {
 						uninitializedPromise = null;
 						doRequest();
-					});
+					}, () => { });
 				}
 			},
 			onDidRemoveLastListener: () => {
