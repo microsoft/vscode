@@ -52,7 +52,6 @@ const ROUTE_MAX_CHOICES = 6;
  * keep a hands-free/voice flow moving.
  */
 const ROUTE_AUTOSEND_DELAY_MS = 5000;
-const MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS = 10000;
 
 /** How long command review remains available before the command runs. */
 const COMMAND_AUTORUN_DELAY_MS = 5000;
@@ -930,9 +929,7 @@ export class ChatSessionRoutingController extends Disposable {
 		cts: CancellationTokenSource,
 	): void {
 		const targetWindow = dom.getWindow(badge);
-		const routeAutosendDelay = this._hasWorkspacePickerOptions()
-			? MULTI_ROOT_ROUTE_AUTOSEND_DELAY_MS
-			: ROUTE_AUTOSEND_DELAY_MS;
+		const routeAutosendDelay = ROUTE_AUTOSEND_DELAY_MS;
 		badge.classList.add('chat-routing-badge-ranked');
 
 		const labelById = new Map(candidates.map(candidate => [candidate.sessionId, candidate.label]));
