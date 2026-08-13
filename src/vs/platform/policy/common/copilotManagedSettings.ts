@@ -637,6 +637,12 @@ export interface IFileManagedSettingsService {
 	readonly managedSettings: ManagedSettingsData;
 	readonly onDidChangeRawManagedSettings: Event<RawManagedSettingsData>;
 	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	/**
+	 * Resolves once the initial `managed-settings.json` snapshot is available. Callers that make
+	 * decisions from file-delivered values at startup must await this, otherwise they can observe
+	 * an empty snapshot while the initial read (or its IPC round-trip) is still in flight.
+	 */
+	initialize(): Promise<ManagedSettingsData>;
 }
 
 export class NullFileManagedSettingsService implements IFileManagedSettingsService {
@@ -645,4 +651,6 @@ export class NullFileManagedSettingsService implements IFileManagedSettingsServi
 	readonly managedSettings: ManagedSettingsData = {};
 	readonly onDidChangeRawManagedSettings = Event.None;
 	readonly onDidChangeManagedSettings = Event.None;
+
+	async initialize(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }

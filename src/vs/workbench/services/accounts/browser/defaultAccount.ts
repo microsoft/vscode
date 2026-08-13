@@ -984,10 +984,16 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		} catch (error) {
 			this.logService.warn('[DefaultAccount] Failed to initialize native managed settings before resolving forceRemoteSettingsRefresh; using available values', getErrorMessage(error));
 		}
+		let fileManagedSettings = this.fileManagedSettingsService.managedSettings;
+		try {
+			fileManagedSettings = await this.fileManagedSettingsService.initialize();
+		} catch (error) {
+			this.logService.warn('[DefaultAccount] Failed to initialize file managed settings before resolving forceRemoteSettingsRefresh; using available values', getErrorMessage(error));
+		}
 		const forceRemoteSettingsRefresh = shouldForceRemoteSettingsRefresh(
 			nativeManagedSettings,
 			accountPolicyData?.policyData.managedSettings,
-			this.fileManagedSettingsService.managedSettings
+			fileManagedSettings
 		);
 		this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'pending' : 'inactive');
 		this.managedSettingsFetchAttemptedAccounts.add(accountId);

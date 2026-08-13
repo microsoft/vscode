@@ -279,7 +279,10 @@ suite('DefaultAccountProvider managed settings', () => {
 			managedSettings: nativeManagedSettings,
 			initialize: async () => nativeManagedSettings,
 		});
-		instantiationService.stub(IFileManagedSettingsService, { managedSettings: {} });
+		instantiationService.stub(IFileManagedSettingsService, {
+			managedSettings: {},
+			initialize: async () => ({}),
+		});
 
 		const provider = disposables.add(instantiationService.createInstance(DefaultAccountProvider, {
 			preferredExtensions: [],

@@ -40,6 +40,8 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 
 	private readonly throttledDelayer = this._register(new ThrottledDelayer(500));
 
+	private readonly initialRefresh: Promise<unknown>;
+
 	constructor(
 		private readonly file: URI,
 		@IFileService private readonly fileService: IFileService,
@@ -54,7 +56,13 @@ export class FileManagedSettingsService extends Disposable implements IFileManag
 		// Initial read — routed through the same delayer (with no delay) so it is serialized
 		// against change-triggered refreshes and can't be clobbered by a racing read. Non-blocking;
 		// IPC clients handle eventual data arrival.
-		this.throttledDelayer.trigger(() => this.refresh(), 0);
+		this.initialRefresh = this.throttledDelayer.trigger(() => this.refresh(), 0)
+			.catch(() => undefined); // cancelled because a newer refresh superseded this one
+	}
+
+	async initialize(): Promise<ManagedSettingsData> {
+		await this.initialRefresh;
+		return this._managedSettings;
 	}
 
 	private async refresh(): Promise<void> {
