@@ -83,6 +83,7 @@ import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
+import { setChatInputStackInputWorking } from './input/chatInputStack.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
@@ -852,7 +853,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			&& !this.accessibilityService.isMotionReduced()
 			&& !isInlineChat(this);
 		const inProgress = !!this.viewModel?.model.requestInProgress.get();
-		inputContainer.classList.toggle('working', enabled && inProgress);
+		const working = enabled && inProgress;
+		inputContainer.classList.toggle('working', working);
+		setChatInputStackInputWorking(inputContainer, working);
 	}
 
 	get inputEditor(): ICodeEditor {
