@@ -25,7 +25,7 @@ import { MarketplaceAuthRequiredError } from './extensionGalleryAccess.js';
  * re-request the same index. The memoized content is token-independent (the index body is the
  * same whether or not a bearer was needed to read it), so a cache hit ignores `accessToken`.
  */
-export class ExtensionGalleryServiceIndexService {
+export class ExtensionGalleryServiceIndexFetcher {
 
 	// Successful service-index fetches, keyed by serviceUrl. Cleared on `invalidate()` (called at
 	// the start of every validation generation, and on sign-out/config change) so a superseded

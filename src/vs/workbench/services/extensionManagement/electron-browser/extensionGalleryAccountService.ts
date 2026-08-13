@@ -23,7 +23,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ExtensionGalleryAccessProviderId, getEffectiveAuthProvider, ICachedAccess, isSafeTokenTarget, MarketplaceAuthRequiredError, MarketplaceMisconfiguredError } from './extensionGalleryAccess.js';
-import { ExtensionGalleryServiceIndexService } from './extensionGalleryServiceIndex.js';
+import { ExtensionGalleryServiceIndexFetcher } from './extensionGalleryServiceIndex.js';
 
 /**
  * Storage key for the last durable access verdict ({@link ICachedAccess}). `APPLICATION` scope +
@@ -164,7 +164,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	// Fetches and memoizes the service index. Fully owned by this service — both the live probe and
 	// the cached-verdict fast-path materialize the index through it, so a validation generation never
 	// re-requests the same index.
-	private readonly indexService: ExtensionGalleryServiceIndexService;
+	private readonly serviceIndexFetcher: ExtensionGalleryServiceIndexFetcher;
 
 	// Not an `@IAuthenticationService` constructor dependency: declaring it would introduce a service
 	// DI cycle — this service → IAuthenticationService → extensionService → extensionGalleryService →
@@ -189,7 +189,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	) {
 		super();
 		this.authProvider = getEffectiveAuthProvider(configurationService.getValue<string>(ExtensionGalleryAuthProviderConfigKey), !!productService.enableExtensionGalleryEntraAuth);
-		this.indexService = instantiationService.createInstance(ExtensionGalleryServiceIndexService);
+		this.serviceIndexFetcher = instantiationService.createInstance(ExtensionGalleryServiceIndexFetcher);
 
 		// The GitHub/default path resolves through IDefaultAccountService, which does not re-enter this
 		// service, so it can be wired here. The Microsoft path's change signal is wired later, once
@@ -256,7 +256,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		}
 		// Entitled → confirm reachability by fetching the index. A transient failure here propagates
 		// (no cache write) so the host surfaces "unreachable".
-		const manifest = await this.indexService.getServiceIndex(configuredServiceUrl, token);
+		const manifest = await this.serviceIndexFetcher.getServiceIndex(configuredServiceUrl, token);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -310,7 +310,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 
 		let manifest: IExtensionGalleryManifest;
 		try {
-			manifest = await this.indexService.getServiceIndex(configuredServiceUrl, token, session.accessToken);
+			manifest = await this.serviceIndexFetcher.getServiceIndex(configuredServiceUrl, token, session.accessToken);
 		} catch (error) {
 			if (error instanceof MarketplaceAuthRequiredError) {
 				return this.denyFromAuthError(error, session, configuredServiceUrl, token);
@@ -416,7 +416,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return undefined;
 		}
 		try {
-			const manifest = await this.indexService.getServiceIndex(configuredServiceUrl, token, current.token);
+			const manifest = await this.serviceIndexFetcher.getServiceIndex(configuredServiceUrl, token, current.token);
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
@@ -432,7 +432,7 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	 * host at the start of each validation generation and on config change.
 	 */
 	invalidateServiceIndexCache(): void {
-		this.indexService.invalidate();
+		this.serviceIndexFetcher.invalidate();
 	}
 
 	/**
