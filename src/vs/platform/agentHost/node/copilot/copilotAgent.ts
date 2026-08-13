@@ -4866,6 +4866,7 @@ class SessionPluginController extends Disposable {
 	/** Per-session action stream (reset + per-item updates). */
 	readonly onDidPublish = this._onDidPublish.event;
 	private readonly _enablementReady: Promise<void>;
+	private _isEnablementReady = false;
 
 	private readonly _previousDirectories: URI[] = [];
 	private _indexedDesiredCustomizations: readonly Customization[] | undefined;
@@ -4891,7 +4892,9 @@ class SessionPluginController extends Disposable {
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 	) {
 		super();
-		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString());
+		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
+			this._isEnablementReady = true;
+		});
 	}
 
 	public get directory(): URI | undefined {
@@ -5064,7 +5067,9 @@ class SessionPluginController extends Disposable {
 	 *   final view directly when the session materializes.
 	 */
 	public async sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }) {
-		await this._enablementReady;
+		if (!this._isEnablementReady) {
+			await this._enablementReady;
+		}
 		const quiet = options?.quiet === true;
 		let client = this._clients.get(clientId);
 		if (!client) {
@@ -5220,11 +5225,16 @@ class SessionPluginController extends Disposable {
 	}
 
 	private _publish(action: () => SessionAction): void {
-		void this._enablementReady.then(() => {
+		const publish = () => {
 			if (!this._store.isDisposed) {
 				this._onDidPublish.fire(action());
 			}
-		}).catch(error => this._logService.error('[Copilot:SessionPluginController] Failed to initialize customization enablement', error));
+		};
+		if (this._isEnablementReady) {
+			publish();
+		} else {
+			void this._enablementReady.then(publish).catch(error => this._logService.error('[Copilot:SessionPluginController] Failed to initialize customization enablement', error));
+		}
 	}
 
 	private _clientChildEnablement(): ReadonlyMap<string, Readonly<Record<string, readonly CustomizationEnablement[]>>> {
