@@ -489,9 +489,11 @@ class TestChatWidgetService extends mock<IChatWidgetService>() {
 	override readonly onDidChangeFocusedSession = Event.None;
 	override readonly onDidChangeWidgetVisibility = Event.None;
 	override readonly onDidAddWidget = Event.None;
+	override readonly onDidRemoveWidget: Event<IChatWidget>;
 	override lastFocusedWidget: IChatWidgetService['lastFocusedWidget'];
-	constructor(private readonly widgets: IChatWidget[] = []) {
+	constructor(private readonly widgets: IChatWidget[] = [], onDidRemoveWidget = Event.None) {
 		super();
+		this.onDidRemoveWidget = onDidRemoveWidget;
 	}
 
 	override getAllWidgets() { return this.widgets; }
@@ -4899,6 +4901,25 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.targetSession.get()?.toString(), materializedSession.toString());
 	});
 
+	test('stops tracking a removed chat widget', () => {
+		const voiceClientService = new TestVoiceClientService();
+		const initialSession = URI.parse('agent-host-copilotcli:/initial-session');
+		const removedSession = URI.parse('agent-host-copilotcli:/removed-session');
+		const widget = store.add(new MaterializingChatWidget(initialSession));
+		const widgetRemovals = store.add(new Emitter<IChatWidget>());
+		const chatWidgetService = new TestChatWidgetService([widget], widgetRemovals.event);
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, chatWidgetService,
+		);
+
+		widgetRemovals.fire(widget);
+		Reflect.set(controller, '_lastShownSessionId', undefined);
+		widget.materialize(removedSession);
+
+		assert.strictEqual(Reflect.get(controller, '_lastShownSessionId'), undefined);
+	});
+
 	test('plays responses for an omni-routed target without a pending indicator', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
@@ -6719,6 +6740,7 @@ suite('VoiceSessionController live transcription', () => {
 		instantiationService.stub(IChatWidgetService, {
 			lastFocusedWidget: undefined,
 			onDidAddWidget: Event.None,
+			onDidRemoveWidget: Event.None,
 			onDidChangeFocusedSession: Event.None,
 			onDidChangeWidgetVisibility: Event.None,
 			getAllWidgets: () => [],
