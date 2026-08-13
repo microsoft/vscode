@@ -136,6 +136,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly container: HTMLElement;
 	private readonly emptyContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
+	private readonly startingAutomations = new Map<string, number>();
 
 	constructor(
 		parent: HTMLElement,
@@ -220,15 +221,35 @@ class AutomationCardsSection extends Disposable {
 		const buttonBar = this.disposables.add(new ButtonBar(actions));
 		const runBtn = this.createIconButton(buttonBar, Codicon.play, localize('runNow', "Run now"), false);
 		runBtn.element.classList.add('automations-card-run-button');
-		this.disposables.add(autorun(reader => {
-			const runs = this.automationService.runs.read(reader);
-			const isRunning = runs.some(r => r.automationId === automation.id && (r.status === 'pending' || r.status === 'running'));
-			runningLabel.style.display = isRunning ? '' : 'none';
-			runBtn.element.classList.toggle('automations-card-run-button-hidden', isRunning);
-			actions.classList.toggle('automation-running', isRunning);
-			runBtn.enabled = !isRunning;
-		}));
-		this.disposables.add(runBtn.onDidClick(() => {
+		// Restore spinner state if a run was recently started (survives re-renders)
+		const startedAt = this.startingAutomations.get(automation.id);
+		if (startedAt !== undefined) {
+			const remaining = 5000 - (Date.now() - startedAt);
+			if (remaining > 0) {
+				runBtn.label = `$(${Codicon.loading.id}~spin)`;
+				runBtn.enabled = false;
+				const restoreTimer = setTimeout(() => {
+					this.startingAutomations.delete(automation.id);
+					runBtn.label = `$(${Codicon.play.id})`;
+					runBtn.enabled = true;
+				}, remaining);
+				this.disposables.add(toDisposable(() => clearTimeout(restoreTimer)));
+			} else {
+				this.startingAutomations.delete(automation.id);
+			}
+		}
+
+		this.disposables.add(runBtn.onDidClick((e) => {
+			e?.stopPropagation();
+			this.startingAutomations.set(automation.id, Date.now());
+			runBtn.label = `$(${Codicon.loading.id}~spin)`;
+			runBtn.enabled = false;
+			const timer = setTimeout(() => {
+				this.startingAutomations.delete(automation.id);
+				runBtn.label = `$(${Codicon.play.id})`;
+				runBtn.enabled = true;
+			}, 5000);
+			this.disposables.add(toDisposable(() => clearTimeout(timer)));
 			void this.runNow(automation);
 		}));
 

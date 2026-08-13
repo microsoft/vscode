@@ -527,32 +527,23 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
 	});
 
-	test('running automation replaces the run button with running text', () => {
+	test('clicking run button shows loading spinner', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
-		automationService.setRuns([run({ status: 'running' })]);
 
-		const actions = widget.element.querySelector<HTMLElement>('.automations-card-actions');
-		const runningLabel = widget.element.querySelector<HTMLElement>('.automations-card-running-label');
 		const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
+		assert.ok(runButton, 'run button should exist');
 
-		assert.deepStrictEqual({
-			actionsRunning: actions?.classList.contains('automation-running'),
-			label: runningLabel?.textContent,
-			labelVisible: runningLabel?.style.display,
-			labelBeforeRunButton: !!(runningLabel && runButton && (runningLabel.compareDocumentPosition(runButton) & Node.DOCUMENT_POSITION_FOLLOWING)),
-			runButtonHidden: runButton?.classList.contains('automations-card-run-button-hidden'),
-			runButtonInFlow: runButton?.style.display,
-			runButtonDisabled: runButton?.getAttribute('aria-disabled'),
-		}, {
-			actionsRunning: true,
-			label: 'Running',
-			labelVisible: '',
-			labelBeforeRunButton: true,
-			runButtonHidden: true,
-			runButtonInFlow: '',
-			runButtonDisabled: 'true',
-		});
+		// Before click: play icon
+		assert.ok(runButton.querySelector('.codicon-play'), 'should show play icon before click');
+		assert.strictEqual(runButton.getAttribute('aria-disabled'), 'false');
+
+		// Simulate click
+		runButton.click();
+
+		// After click: loading spinner
+		assert.ok(runButton.querySelector('.codicon-loading'), 'should show loading spinner after click');
+		assert.strictEqual(runButton.getAttribute('aria-disabled'), 'true');
 	});
 
 	test('focus targets the view without selecting an automation card', () => {
