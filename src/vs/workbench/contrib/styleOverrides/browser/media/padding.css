@@ -331,6 +331,10 @@
 	padding-block: var(--vscode-spacing-size80);
 }
 
+.style-override.monaco-workbench .part.panel .pane-body.integrated-terminal .xterm .xterm-helpers {
+	top: var(--vscode-spacing-size80);
+}
+
 .style-override.monaco-workbench .scm-view .monaco-list-row .resource-group .actions-container,
 .style-override.monaco-workbench .scm-view .monaco-list-row .resource .actions-container {
 	gap: var(--vscode-spacing-size20);
