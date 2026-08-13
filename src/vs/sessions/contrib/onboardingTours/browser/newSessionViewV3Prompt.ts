@@ -849,9 +849,9 @@ export class NewSessionViewV3PromptRunner {
 			? localize('sessions.onboarding.newSessionViewV3.options.githubIssue.title', "Tackle issue")
 			: candidate.strategy === 'githubMergeConflict'
 				? localize('sessions.onboarding.newSessionViewV3.options.githubConflicts.title', "Resolve conflicts")
-			: candidate.strategy === 'githubCiFailure'
-				? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI")
-				: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments");
+				: candidate.strategy === 'githubCiFailure'
+					? localize('sessions.onboarding.newSessionViewV3.options.githubCi.title', "Fix CI")
+					: localize('sessions.onboarding.newSessionViewV3.options.githubReview.title', "Address PR comments");
 		const icon = candidate.strategy === 'githubIssue'
 			? computeIssueIcon(GitHubIssueState.Open, undefined)
 			: computePullRequestIcon(GitHubPullRequestState.Open, {
@@ -907,9 +907,9 @@ export class NewSessionViewV3PromptRunner {
 			? localize('sessions.onboarding.newSessionViewV3.githubPrompt.mergeConflict', "The following pull request has merge conflicts: \"{0}\" ({1}). Resolve the conflicts and update the pull request.", candidate.title, candidate.url)
 			: candidate.strategy === 'githubCiFailure'
 				? localize('sessions.onboarding.newSessionViewV3.githubPrompt.ciFailure', "The following pull request has failing CI checks: \"{0}\" ({1}). Investigate the failures and resolve them.", candidate.title, candidate.url)
-			: candidate.strategy === 'githubReviewComments'
-				? localize('sessions.onboarding.newSessionViewV3.githubPrompt.reviewComments', "The following pull request has unresolved review comments that have not been addressed by a newer commit: \"{0}\" ({1}). Address the review comments and update the pull request.", candidate.title, candidate.url)
-				: localize('sessions.onboarding.newSessionViewV3.githubPrompt.issue', "Tackle the following issue and create a pull request for it: \"{0}\" ({1}).", candidate.title, candidate.url);
+				: candidate.strategy === 'githubReviewComments'
+					? localize('sessions.onboarding.newSessionViewV3.githubPrompt.reviewComments', "The following pull request has unresolved review comments that have not been addressed by a newer commit: \"{0}\" ({1}). Address the review comments and update the pull request.", candidate.title, candidate.url)
+					: localize('sessions.onboarding.newSessionViewV3.githubPrompt.issue', "Tackle the following issue and create a pull request for it: \"{0}\" ({1}).", candidate.title, candidate.url);
 		return {
 			prompt,
 			taskPlaceholder: '',
