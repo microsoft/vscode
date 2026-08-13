@@ -14,7 +14,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../../../platform/ac
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
 import { ModelPickerConfiguration, findModelPickerConfigProperty, resolveModelPickerConfigGroup } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
 
 /**
  * Builds a model whose schema advertises a Thinking Effort and a Context Size
@@ -327,17 +327,17 @@ suite('findModelPickerConfigProperty', () => {
 	const schema = {
 		properties: {
 			contextSize: {
-				type: 'number',
+				type: 'number' as const,
 				enum: [272_000, 1_000_000],
 				default: 272_000,
 			},
 			reasoningEffort: {
-				type: 'string',
+				type: 'string' as const,
 				enum: ['low', 'high'],
 				default: 'low',
 			},
 		},
-	};
+	} satisfies ILanguageModelConfigurationSchema;
 
 	test('treats ungrouped contextSize as visible for the tokens group', () => {
 		assert.strictEqual(resolveModelPickerConfigGroup('contextSize', undefined), 'tokens');

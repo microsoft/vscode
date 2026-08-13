@@ -3504,6 +3504,34 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('configSchema emits contextSize when billed default contextMax is missing but max_prompt_tokens is below long context', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_prompt_tokens: 272_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						longContext: { maxPromptTokens: 1_000_000, inputPrice: 2 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			const contextSize = models[0].configSchema?.properties.contextSize;
+			assert.strictEqual(contextSize?.type, 'number');
+			assert.deepStrictEqual(contextSize?.enum, [272_000, 1_000_000]);
+			assert.strictEqual(contextSize?.default, 272_000);
+			assert.deepStrictEqual(contextSize?.enumLabels, ['272K', '1M']);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('configSchema omits contextSize when long_context tier is missing or not larger', async () => {
 		const agent = createTestAgent(disposables, {
 			copilotClient: new TestCopilotClient([], [

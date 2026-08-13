@@ -109,8 +109,17 @@ export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscod
 	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
 		? contextSize
 		: useDefaultTierFallback ? endpoint.tokenPricing?.default.contextMax : undefined;
-	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
-		return endpoint.cloneWithTokenOverride(effectiveSize);
+	if (typeof effectiveSize === 'number' && effectiveSize > 0) {
+		if (effectiveSize < endpoint.modelMaxPromptTokens) {
+			return endpoint.cloneWithTokenOverride(effectiveSize);
+		}
+		// A fresh Local session may advertise a long-context window larger than
+		// the current request budget (`modelMaxPromptTokens`). Apply that
+		// selection instead of ignoring it. See microsoft/vscode#330481.
+		const longContextMax = endpoint.tokenPricing?.longContext?.contextMax ?? endpoint.tokenPricing?.longContextMax;
+		if (longContextMax !== undefined && effectiveSize === longContextMax && effectiveSize !== endpoint.modelMaxPromptTokens) {
+			return endpoint.cloneWithTokenOverride(effectiveSize);
+		}
 	}
 	return endpoint;
 }

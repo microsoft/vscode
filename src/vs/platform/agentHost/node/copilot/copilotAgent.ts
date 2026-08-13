@@ -1837,6 +1837,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Default and long-context windows for the Context Size picker.
+	 * Mirrors `getContextSizeOptions`: if billed `default.contextMax` is missing
+	 * (typical of a fresh Local session), fall back to `max_prompt_tokens` when
+	 * that budget is still below the long-context window.
+	 */
+	private _resolveContextSizeWindows(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): { defaultMax: number; longContextMax: number } | undefined {
+		const tokenPrices = billing?.tokenPrices;
+		const longContextMax = tokenPrices?.longContext?.contextMax;
+		const billedDefault = tokenPrices?.contextMax;
+		const promptBudget = m.capabilities?.limits?.max_prompt_tokens;
+		const defaultMax = billedDefault
+			?? ((longContextMax !== undefined && promptBudget !== undefined && promptBudget < longContextMax)
+				? promptBudget
+				: undefined);
+		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
+			return undefined;
+		}
+		return { defaultMax, longContextMax };
+	}
+
+	/**
 	 * Synthesize a `contextSize` config property when the model exposes a `long_context` pricing tier with a distinct
 	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
 	 * `extensions/copilot/src/extension/chat/vscode-node/languageModelAccess.ts`.
@@ -1846,13 +1867,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * two-valued `contextTier` at the SDK boundary by {@link getCopilotContextTier}, using the model's long-context
 	 * window from {@link _longContextWindowFor}.
 	 */
-	private _createContextSizeConfigSchemaProperty(billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
-		const tokenPrices = billing?.tokenPrices;
-		const defaultMax = tokenPrices?.contextMax;
-		const longContextMax = tokenPrices?.longContext?.contextMax;
-		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
+	private _createContextSizeConfigSchemaProperty(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigPropertySchema | undefined {
+		const windows = this._resolveContextSizeWindows(m, billing);
+		if (!windows) {
 			return undefined;
 		}
+		const { defaultMax, longContextMax } = windows;
 
 		// When both tiers cost the same and the user prefers long context, show only the long-context option as a non-switchable indicator. See microsoft/vscode#322950, microsoft/vscode#323116.
 		if (this._isPreferLongContextEnabled() && !hasLongContextSurcharge(billing)) {
@@ -1921,7 +1941,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (thinkingLevel) {
 			properties[ThinkingLevelConfigKey] = thinkingLevel;
 		}
-		const contextSize = this._createContextSizeConfigSchemaProperty(billing);
+		const contextSize = this._createContextSizeConfigSchemaProperty(m, billing);
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
@@ -2129,10 +2149,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
 			// A model has free long context (larger window, no surcharge), but only treat it as free when the user prefers long context.
-			const tokenPrices = billing?.tokenPrices;
-			const hasLargerLongContext = !!tokenPrices?.contextMax
-				&& !!tokenPrices.longContext?.contextMax
-				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
+			const hasLargerLongContext = !!this._resolveContextSizeWindows(m, billing);
 			if (preferLongContext && hasLargerLongContext && !hasLongContextSurcharge(billing)) {
 				this._freeLongContextModels.add(m.id);
 			}

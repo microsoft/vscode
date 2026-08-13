@@ -525,10 +525,19 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			throw new Error(`Endpoint not found for model ${model.id}`);
 		}
 
-		// Apply context size override if configured
+		// Apply context size override if configured. A fresh Local session may
+		// advertise a long-context window larger than the current request
+		// budget (`modelMaxPromptTokens`); still honor that selection.
 		const contextSize = options.modelConfiguration?.contextSize;
-		if (typeof contextSize === 'number' && contextSize < endpoint.modelMaxPromptTokens) {
-			endpoint = endpoint.cloneWithTokenOverride(contextSize);
+		if (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0) {
+			if (contextSize < endpoint.modelMaxPromptTokens) {
+				endpoint = endpoint.cloneWithTokenOverride(contextSize);
+			} else {
+				const longContextMax = endpoint.tokenPricing?.longContext?.contextMax ?? endpoint.tokenPricing?.longContextMax;
+				if (longContextMax !== undefined && contextSize === longContextMax && contextSize !== endpoint.modelMaxPromptTokens) {
+					endpoint = endpoint.cloneWithTokenOverride(contextSize);
+				}
+			}
 		}
 
 		return this._lmWrapper.provideLanguageModelResponse(endpoint, messages, {

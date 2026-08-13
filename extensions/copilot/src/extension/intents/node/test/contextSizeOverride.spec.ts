@@ -9,11 +9,11 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { applyContextSizeOverride } from '../agentIntent';
 
 describe('applyContextSizeOverride', () => {
-	function createEndpoint(modelMaxPromptTokens: number, defaultContextMax?: number, longContext?: { inputPrice: number }): { endpoint: IChatEndpoint; clonedWith: number[] } {
+	function createEndpoint(modelMaxPromptTokens: number, defaultContextMax?: number, longContext?: { inputPrice: number }, longContextMax?: number): { endpoint: IChatEndpoint; clonedWith: number[] } {
 		const clonedWith: number[] = [];
 		const endpoint = {
 			modelMaxPromptTokens,
-			tokenPricing: defaultContextMax === undefined ? undefined : { default: { contextMax: defaultContextMax }, longContext },
+			tokenPricing: defaultContextMax === undefined && longContextMax === undefined ? undefined : { default: { contextMax: defaultContextMax }, longContext, longContextMax },
 			cloneWithTokenOverride(tokens: number): IChatEndpoint {
 				clonedWith.push(tokens);
 				return createEndpoint(tokens).endpoint;
@@ -38,6 +38,12 @@ describe('applyContextSizeOverride', () => {
 		expect(applyContextSizeOverride(endpoint, createRequest(400_000))).toBe(endpoint);
 		expect(applyContextSizeOverride(endpoint, createRequest(500_000))).toBe(endpoint);
 		expect(clonedWith).toEqual([]);
+	});
+
+	test('applies an advertised long-context window larger than the request budget', () => {
+		const { endpoint, clonedWith } = createEndpoint(272_000, 272_000, undefined, 1_000_000);
+		expect(applyContextSizeOverride(endpoint, createRequest(1_000_000)).modelMaxPromptTokens).toBe(1_000_000);
+		expect(clonedWith).toEqual([1_000_000]);
 	});
 
 	test('does not clamp when context size is unset or non-numeric and the model has no default tier', () => {
