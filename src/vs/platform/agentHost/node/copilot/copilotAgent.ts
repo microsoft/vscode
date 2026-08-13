@@ -35,7 +35,7 @@ import { workspacelessScratchDir } from '../workspacelessScratchDir.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
@@ -602,6 +602,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _byokModels: readonly IAgentModelInfo[] = [];
+
+	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
+	private readonly _freeLongContextModels = new Set<string>();
 
 	/**
 	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
@@ -1894,11 +1897,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return undefined;
 		}
 
+		// Both options are always offered so the smaller window stays selectable. When the long
+		// context tier has no surcharge, default to the full window (free long context); otherwise
+		// default to the smaller tier so users opt into the surcharge. See microsoft/vscode#322950, microsoft/vscode#323116.
 		return {
 			type: 'number',
 			title: localize('copilot.modelContextSize.title', "Context Size"),
 			description: localize('copilot.modelContextSize.description', "Selects the context window size for this model."),
-			default: defaultMax,
+			default: hasLongContextSurcharge(billing) ? defaultMax : longContextMax,
 			enum: [defaultMax, longContextMax],
 			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
 			enumDescriptions: [
@@ -1922,6 +1928,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const windows = this._models.get().find(m => m.id === modelId)?.configSchema?.properties?.[ContextSizeConfigKey]?.enum;
 		const numericWindows = windows?.filter((w): w is number => typeof w === 'number');
 		return numericWindows && numericWindows.length > 0 ? Math.max(...numericWindows) : undefined;
+	}
+
+	/**
+	 * Whether the model has a long-context window available at no additional cost. When true, a
+	 * session with no explicit context-size selection defaults to the `long_context` tier while the
+	 * picker still offers the smaller window.
+	 */
+	private _isFreeLongContext(modelId: string | undefined): boolean {
+		return !!modelId && this._freeLongContextModels.has(modelId);
 	}
 
 	/**
@@ -2157,9 +2172,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list({ gitHubToken });
+		this._freeLongContextModels.clear();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
 			const configSchema = this._createModelConfigSchema(m, billing);
+			// A model has free long context when it offers a larger long-context window at no
+			// surcharge. Such models default to the full window while the picker keeps both options.
+			const tokenPrices = billing?.tokenPrices;
+			const hasLargerLongContext = !!tokenPrices?.contextMax
+				&& !!tokenPrices.longContext?.contextMax
+				&& tokenPrices.longContext.contextMax > tokenPrices.contextMax;
+			if (hasLargerLongContext && !hasLongContextSurcharge(billing)) {
+				this._freeLongContextModels.add(m.id);
+			}
 			return {
 				provider: this.id,
 				id: m.id,
@@ -2780,6 +2805,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				githubToken: this._githubToken,
 				model: provisional.model,
 				longContextWindow: this._longContextWindowFor(provisional.model?.id),
+				freeLongContext: this._isFreeLongContext(provisional.model?.id),
 				workspaceless: provisional.workspaceless,
 			};
 			const chatChannelUri = this._findBoundSessionChatUri(sdkSessionId) ?? sessionUri;
@@ -3267,7 +3293,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else if (options.sideChat) {
 				const sideChatSource = await this._ensureResolvedChatSession(this._resolveChatContext(options.sideChat.source, { configurationResource: this._resolveChatScope(options.sideChat.source), resource: this._resolveChatStorageScope(options.sideChat.source) }));
@@ -3296,7 +3322,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id) },
+					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -3313,6 +3339,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					githubToken: this._githubToken,
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
+					freeLongContext: this._isFreeLongContext(model?.id),
 				};
 			}
 
@@ -3690,7 +3717,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubToken: this._githubToken,
-					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id) },
+					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				await agentSession.initializeSession();
@@ -3765,6 +3792,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._queueChat(context.configurationId, context.sequencerKey, async () => {
 			const current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
+			const freeLongContext = this._isFreeLongContext(model.id);
 			// A `family` alias routes the host's prompt and tool profile only. The
 			// selected model's reasoning-effort override is resolved separately.
 			const provisional = this._provisionalSessions.get(current.configurationId);
@@ -3772,7 +3800,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				provisional.model = model;
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current);
-				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow));
+				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext));
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
 				if (current.resource.toString() === current.configurationResource.toString()) {
@@ -4145,6 +4173,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			fallback: {
 				model: storedMetadata.model,
 				longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
+				freeLongContext: this._isFreeLongContext(storedMetadata.model?.id),
 			},
 		};
 

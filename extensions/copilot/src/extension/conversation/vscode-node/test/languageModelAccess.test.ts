@@ -371,7 +371,7 @@ suite('LanguageModelAccess model info', () => {
 		}
 	});
 
-	test('publishes both context size options with the smaller window as default for a free long-context model', async () => {
+	test('publishes both context size options with the longer window as default for a free long-context model', async () => {
 		const endpoint = {
 			model: 'free-long-context',
 			name: 'Free Long Context',
@@ -429,7 +429,7 @@ suite('LanguageModelAccess model info', () => {
 			const model = modelInfo.find(m => m.id === 'free-long-context');
 			const contextSize = (model as unknown as { configurationSchema?: { properties?: Record<string, { enum?: unknown[]; default?: unknown }> } } | undefined)?.configurationSchema?.properties?.contextSize;
 			assert.deepStrictEqual(contextSize?.enum, [200_000, 1_000_000]);
-			assert.strictEqual(contextSize?.default, 200_000);
+			assert.strictEqual(contextSize?.default, 1_000_000);
 		} finally {
 			languageModelAccess.dispose();
 			await extensionContext.globalState.update(baseCountCacheKey, undefined);

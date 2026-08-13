@@ -557,7 +557,7 @@ describe('CopilotCLIModels', () => {
 			};
 		}
 
-		it('exposes both context sizes with the smaller as default for a free long-context model', async () => {
+		it('exposes both context sizes with the longer as default for a free long-context model', async () => {
 			// Default tier caps context at 200K while the full window is 1M, and there
 			// is no long-context surcharge, so the picker must offer both sizes.
 			const sdk = {
@@ -591,7 +591,7 @@ describe('CopilotCLIModels', () => {
 			const model = result.find((m: any) => m.id === 'free-long-context');
 			const contextSize = model?.configurationSchema?.properties?.contextSize;
 			expect(contextSize?.enum).toEqual([200_000, 1_000_000]);
-			expect(contextSize?.default).toBe(200_000);
+			expect(contextSize?.default).toBe(1_000_000);
 		});
 	});
 

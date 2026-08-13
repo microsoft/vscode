@@ -97,16 +97,18 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
  * Only clamps when the selection is strictly smaller than the model window so
  * the full tier ("Longer sessions") stays uncompacted.
  *
- * When no explicit selection is present, falls back to the default context-max tier.
+ * When no explicit selection is present, falls back to the default context-max tier, unless the
+ * long context tier has no surcharge, in which case the full native window is used (free long context).
  *
  * @internal - exported for testing
  */
 export function applyContextSizeOverride(endpoint: IChatEndpoint, request: vscode.ChatRequest): IChatEndpoint {
 	const contextSize = request.modelConfiguration?.contextSize;
-	// Prefer a valid explicit selection; otherwise fall back to the default tier. Guard against non-positive / non-finite selections (0, -1, NaN, Infinity).
+	// Prefer a valid explicit selection; otherwise fall back to the default tier. Guard against non-positive / non-finite selections (0, -1, NaN, Infinity). When the long context tier has no surcharge, skip the fallback and use the full window (free long context). See microsoft/vscode#322950, microsoft/vscode#323116.
+	const hasLongContextSurcharge = !!endpoint.tokenPricing?.longContext;
 	const effectiveSize = (typeof contextSize === 'number' && Number.isFinite(contextSize) && contextSize > 0)
 		? contextSize
-		: endpoint.tokenPricing?.default.contextMax;
+		: hasLongContextSurcharge ? endpoint.tokenPricing?.default.contextMax : undefined;
 	if (typeof effectiveSize === 'number' && effectiveSize > 0 && effectiveSize < endpoint.modelMaxPromptTokens) {
 		return endpoint.cloneWithTokenOverride(effectiveSize);
 	}

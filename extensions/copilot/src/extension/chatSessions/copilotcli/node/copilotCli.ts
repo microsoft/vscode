@@ -318,6 +318,11 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	const defaultContextMax = modelInfo.defaultContextMax;
 	const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
 	if (defaultContextMax && defaultContextMax < fullMax) {
+		// Both options are always offered so the smaller window stays selectable. When the long
+		// context tier has no surcharge, default to the full window (free long context); otherwise
+		// default to the smaller tier so users opt into the surcharge. See microsoft/vscode#322950, microsoft/vscode#323116.
+		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
+			|| modelInfo.longContextOutputCost !== undefined;
 		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
 			type: 'number',
 			title: l10n.t('Context Size'),
@@ -327,7 +332,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 				l10n.t('Default'),
 				l10n.t('Longer sessions'),
 			],
-			default: defaultContextMax,
+			default: hasLongContextSurcharge ? defaultContextMax : fullMax,
 			group: 'tokens',
 		};
 	}
@@ -704,12 +709,21 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 /**
  * Maps a user-selected numeric context size to the SDK's context tier.
  * Returns `'long_context'` when the selected size exceeds the default context
- * max, `'default'` when it is within the default tier, or `undefined` when
- * no context size was provided or the model has no tiered pricing.
+ * max, `'default'` when it is within the default tier. When no context size was
+ * provided, defaults to `'long_context'` for free long-context models (larger
+ * window, no surcharge) and otherwise `undefined` (SDK default tier).
  */
 export function resolveContextTier(contextSize: unknown, modelInfo: CopilotCLIModelInfo | undefined): 'default' | 'long_context' | undefined {
-	if (typeof contextSize !== 'number' || !modelInfo?.defaultContextMax) {
+	if (!modelInfo?.defaultContextMax) {
 		return undefined;
+	}
+	if (typeof contextSize !== 'number') {
+		// No explicit selection: default free long-context models (larger window, no
+		// surcharge) to the full window; leave surcharged models on the SDK default tier.
+		const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
+		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
+			|| modelInfo.longContextOutputCost !== undefined;
+		return modelInfo.defaultContextMax < fullMax && !hasLongContextSurcharge ? 'long_context' : undefined;
 	}
 	return contextSize > modelInfo.defaultContextMax ? 'long_context' : 'default';
 }

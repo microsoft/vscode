@@ -60,11 +60,17 @@ describe('applyContextSizeOverride', () => {
 		expect(clonedWith).toEqual([500_000]);
 	});
 
-	test('falls back to the default context-max tier when long context has no surcharge', () => {
+	test('uses the full window when long context has no surcharge and no selection is present (free long context)', () => {
 		const { endpoint, clonedWith } = createEndpoint(1_000_000, 200_000);
-		expect(applyContextSizeOverride(endpoint, createRequest(undefined)).modelMaxPromptTokens).toBe(200_000);
-		expect(applyContextSizeOverride(endpoint, createRequest('big')).modelMaxPromptTokens).toBe(200_000);
-		expect(clonedWith).toEqual([200_000, 200_000]);
+		expect(applyContextSizeOverride(endpoint, createRequest(undefined))).toBe(endpoint);
+		expect(applyContextSizeOverride(endpoint, createRequest('big'))).toBe(endpoint);
+		expect(clonedWith).toEqual([]);
+	});
+
+	test('an explicit selection is still respected when long context is free', () => {
+		const { endpoint, clonedWith } = createEndpoint(1_000_000, 200_000);
+		expect(applyContextSizeOverride(endpoint, createRequest(200_000)).modelMaxPromptTokens).toBe(200_000);
+		expect(clonedWith).toEqual([200_000]);
 	});
 
 	test('does not clamp when the default tier equals or exceeds the model window', () => {

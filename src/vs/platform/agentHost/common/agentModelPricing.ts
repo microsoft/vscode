@@ -225,7 +225,7 @@ export interface ICAPIModelBilling {
  * Converts a CAPI model's billing payload into an {@link IAgentModelPricingMeta} `_meta` bag. Long-context costs are
  * only emitted when there is an actual surcharge (at least one long-context price differs from the default tier).
  * When emitting, any missing long-context field falls back to the default-tier value so the hover table renders
- * complete rows.
+ * complete rows. See {@link hasLongContextSurcharge} for the surcharge detection logic.
  *
  * @param billing - The model's billing info, narrowed through {@link ICAPIModelBilling}.
  * @param priceCategory - An optional override for the price category (e.g. from `modelPickerPriceCategory` on the
@@ -262,4 +262,21 @@ export function createPricingMetaFromBilling(billing: ICAPIModelBilling | undefi
 		discountPercent: typeof billing?.discountPercent === 'number' ? billing.discountPercent : undefined,
 		promo: billing?.promo,
 	});
+}
+
+/**
+ * Whether the model's long-context tier has any cost that differs from its default tier.
+ * Used to decide whether the context-size picker should default to the smaller tier
+ * (surcharge → user opts in) or to the full window (free long context → default to it).
+ */
+export function hasLongContextSurcharge(billing: ICAPIModelBilling | undefined): boolean {
+	const tokenPrices = billing?.tokenPrices;
+	const longContext = tokenPrices?.longContext;
+	if (!longContext) {
+		return false;
+	}
+	return (longContext.inputPrice !== undefined && longContext.inputPrice !== tokenPrices?.inputPrice)
+		|| (longContext.outputPrice !== undefined && longContext.outputPrice !== tokenPrices?.outputPrice)
+		|| (longContext.cachePrice !== undefined && longContext.cachePrice !== tokenPrices?.cachePrice)
+		|| (longContext.cacheWritePrice !== undefined && longContext.cacheWritePrice !== tokenPrices?.cacheWritePrice);
 }
