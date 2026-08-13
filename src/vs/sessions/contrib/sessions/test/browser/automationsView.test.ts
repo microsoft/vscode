@@ -772,8 +772,8 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 		automationService.setRuns([run({ status: 'running' })]);
 		const contextKeyService = instantiationService.get(IContextKeyService);
-		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.AutomationsHistoryRunningItem, contextKeyService);
-		const menuItems = MenuRegistry.getMenuItems(Menus.AutomationsHistoryRunningItem);
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.AutomationsHistoryItem, contextKeyService);
+		const menuItems = MenuRegistry.getMenuItems(Menus.AutomationsHistoryItem);
 		assert.ok(getSessionAction(widget, 'Stop'), `${menuItems.length}/${contextKeyService.contextMatchesRules(menuItems[0]?.when)}/${menuActions.length}: ${widget.element.querySelector<HTMLElement>('.automations-run-session-list')?.dataset.toolbarMenuId}: ${widget.element.querySelector('.session-title-toolbar')?.innerHTML}`);
 
 		assert.deepStrictEqual({

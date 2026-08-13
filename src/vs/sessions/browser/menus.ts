@@ -39,10 +39,6 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
-	/** Actions shown on running session-backed Automation history rows. */
-	AutomationsHistoryRunningItem: new MenuId('SessionsAutomationsHistoryRunningItem'),
-	/** Actions shown on terminal session-backed Automation history rows. */
-	AutomationsHistoryTerminalItem: new MenuId('SessionsAutomationsHistoryTerminalItem'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
 	AutomationsHistoryItem: new MenuId('SessionsAutomationsHistoryItem'),
 
