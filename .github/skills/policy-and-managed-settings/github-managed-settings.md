@@ -82,8 +82,8 @@ the schema's nested
 | Schema property (path) | Type in schema | Composition (`x-composition.strategy`) |
 |------------------------|----------------|----------------------------------------|
 | `permissions.disableBypassPermissionsMode` | string enum `"disable"` | most-restrictive-wins (sticky once set) |
-| `model` | string (`auto`, a model family name, or a full model id) | top-level wins over the legacy nested `permissions.model` |
-| `permissions.model` | string (legacy location for `model`) | superseded by top-level `model` when both are present; retained for original-schema deployments |
+| `model` | string (`auto`, a model family name, or a full model id) | — |
+| `permissions.model` | string (legacy location for `model`) | — |
 | `forceRemoteSettingsRefresh` | boolean | MDM wins; controls the server cache rather than a configuration setting |
 | `enabledPlugins` | `{ "PLUGIN@MARKETPLACE": boolean }` | deny-wins (false beats true; enterprise denials immutable) |
 | `extraKnownMarketplaces` | `{ name: { source, autoUpdate? } }`, source `github` \| `git` \| `directory` | most-restrictive-wins (higher layer is the complete allowlist); explicit `autoUpdate` overrides the client's global plugin auto-update setting for that marketplace |

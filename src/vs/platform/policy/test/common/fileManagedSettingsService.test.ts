@@ -130,9 +130,6 @@ suite('normalizeManagedSettings', () => {
 	});
 
 	test('carries the top-level model setting as the `model` bag key', () => {
-		// The current managed-settings schema carries `model` at the top level; as a scalar leaf it
-		// flattens to the bag key `model`, which the ChatDefaultModel policy value callback reads
-		// with precedence over the legacy nested key.
 		const result = normalizeManagedSettings({
 			model: 'auto'
 		});
@@ -144,8 +141,6 @@ suite('normalizeManagedSettings', () => {
 	});
 
 	test('keeps top-level and legacy model keys distinct, with the top-level value winning', () => {
-		// A payload authored against both schema shapes flattens to two distinct bag keys; the
-		// policy value callback resolves the top-level one.
 		const result = normalizeManagedSettings({
 			model: 'opus',
 			permissions: { model: 'gemini' }
