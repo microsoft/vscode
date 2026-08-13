@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../blockedSessions/browser/blockedSessions.js';
-import { BlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
+import { IBlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
 import { OmniCIFailureProvider } from '../../browser/omniCIFailureContribution.js';
 import { ISessionCIFixState } from '../../browser/views/sessionsList.js';
 
@@ -26,7 +26,7 @@ suite('OmniCIFailureProvider', () => {
 		const ciFixModel = new TestCIFixModel();
 		const provider = store.add(new OmniCIFailureProvider(
 			blockedSessions as unknown as BlockedSessions,
-			ciFixModel as unknown as BlockedSessionsCIFixModel,
+			ciFixModel as unknown as IBlockedSessionsCIFixModel,
 			enabled,
 		));
 		return { provider, blockedSessions, ciFixModel };

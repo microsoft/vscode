@@ -696,8 +696,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		marker.appendChild(renderIcon(Codicon.gripper));
 		const label = dom.append(header, dom.$('span.chat-input-window-pending-label'));
 		const navigation = dom.append(header, dom.$('.chat-input-window-pending-navigation'));
-		const previous = this._appendPendingNavigationButton(navigation, Codicon.chevronLeft, localize('chatInputWindow.pending.previous', "Previous Request"));
-		const next = this._appendPendingNavigationButton(navigation, Codicon.chevronRight, localize('chatInputWindow.pending.next', "Next Request"));
+		const previous = this._appendPendingNavigationButton(navigation, Codicon.chevronLeft, localize('chatInputWindow.pending.previous', "Previous Item"));
+		const next = this._appendPendingNavigationButton(navigation, Codicon.chevronRight, localize('chatInputWindow.pending.next', "Next Item"));
 		const approvalFallback = dom.append(panel, dom.$('.chat-input-window-pending-approval-fallback'));
 		const approvalTitle = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-title'));
 		const approvalMessage = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-message'));
@@ -709,27 +709,33 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const ciDetail = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-detail', { 'aria-live': 'polite' }));
 		const ciActions = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-actions'));
 		const approvalActionDisposables = this._windowDisposables.add(new MutableDisposable<DisposableStore>());
+		const ciActionDisposables = this._windowDisposables.add(new MutableDisposable<DisposableStore>());
 		let lastActivatedApproval: string | undefined;
 		let displayedApproval: { readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined;
 		let displayedCIFailure: IChatInputWindowPendingCIFailure | undefined;
-		const fixCIButton = this._windowDisposables.add(new Button(ciActions, {
-			title: localize('chatInputWindow.pending.fixCITooltip', "Fix failing CI checks"),
-			...defaultButtonStyles,
-			small: true,
-			buttonBackground: asCssVariable(chartsOrange),
-			buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
-			buttonBorder: asCssVariable(chartsOrange),
-		}));
-		fixCIButton.label = localize('chatInputWindow.pending.fixCI', "Fix CI");
-		this._windowDisposables.add(fixCIButton.onDidClick(() => {
-			const entry = displayedCIFailure;
-			if (entry) {
-				entry.provider.fixCI(entry.failure.sessionResource);
-				this._widget?.focusInput();
-			}
-		}));
+		let renderedCIFailureId: string | undefined;
 		const renderCIFailure = (entry: IChatInputWindowPendingCIFailure | undefined) => {
 			displayedCIFailure = entry;
+			if (renderedCIFailureId !== entry?.id) {
+				renderedCIFailureId = entry?.id;
+				ciActionDisposables.value = new DisposableStore();
+				ciActions.replaceChildren();
+				if (entry) {
+					const button = ciActionDisposables.value.add(new Button(ciActions, {
+						title: localize('chatInputWindow.pending.fixCITooltip', "Fix failing CI checks"),
+						...defaultButtonStyles,
+						small: true,
+						buttonBackground: asCssVariable(chartsOrange),
+						buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+						buttonBorder: asCssVariable(chartsOrange),
+					}));
+					button.label = localize('chatInputWindow.pending.fixCI', "Fix CI");
+					ciActionDisposables.value.add(button.onDidClick(() => {
+						entry.provider.fixCI(entry.failure.sessionResource);
+						this._widget?.focusInput();
+					}));
+				}
+			}
 			if (!entry) {
 				ciTitle.textContent = '';
 				ciDetail.textContent = '';

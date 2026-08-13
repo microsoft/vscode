@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService } from '../../../../workbench/contrib/chat/common/chatInputWindow.js';
 import { BlockedSessionReason, BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
-import { BlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
+import { IBlockedSessionsCIFixModel } from './blockedSessionsCIFixModel.js';
 
 export class OmniCIFailureProvider extends Disposable implements IChatInputWindowCIFailureProvider {
 
@@ -19,7 +19,7 @@ export class OmniCIFailureProvider extends Disposable implements IChatInputWindo
 
 	constructor(
 		private readonly _blockedSessions: BlockedSessions,
-		private readonly _ciFixModel: BlockedSessionsCIFixModel,
+		private readonly _ciFixModel: IBlockedSessionsCIFixModel,
 		enabled: boolean,
 	) {
 		super();
@@ -79,11 +79,11 @@ export class OmniCIFailureContribution extends Disposable {
 		@IChatInputWindowService chatInputWindowService: IChatInputWindowService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
+		@IBlockedSessionsCIFixModel ciFixModel: IBlockedSessionsCIFixModel,
 	) {
 		super();
 
 		const blockedSessions = this._register(instantiationService.createInstance(BlockedSessions));
-		const ciFixModel = this._register(instantiationService.createInstance(BlockedSessionsCIFixModel));
 		const provider = this._register(new OmniCIFailureProvider(blockedSessions, ciFixModel, productService.quality !== 'stable'));
 		this._register(chatInputWindowService.registerCIFailureProvider(provider));
 	}
