@@ -32,7 +32,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
-import { ChatInteractivity, getSessionStatusMessage, IChat, ISession } from '../../../services/sessions/common/session.js';
+import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
@@ -45,6 +45,10 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBa
 import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 import { INewChatVoiceTargetService } from './newChatVoice.js';
 import { ISessionsChatViewStateService } from './chatViewStateService.js';
+
+export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
+	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
+}
 
 /**
  * A session view that hosts a {@link NewChatWidget} — the "new session" UI
@@ -215,11 +219,18 @@ export class ChatView extends AbstractChatView {
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
-				enableFind: true
+				enableFind: true,
+				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
 		));
 		this._widget.render(this.element);
+		this._register(autorun(reader => {
+			const sessionStatus = this._currentSessionObs.read(reader)?.status.read(reader);
+			if (!shouldShowSessionChatTip(sessionStatus)) {
+				this._widget.updateGettingStartedTip();
+			}
+		}));
 		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
@@ -363,6 +374,7 @@ export class ChatView extends AbstractChatView {
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
+		this._widget.setLoading(true);
 
 		// Capture the input draft before the load window opens so text typed
 		// during loading is preserved when the model binds. See #325323.
@@ -371,6 +383,9 @@ export class ChatView extends AbstractChatView {
 		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			if (token.isCancellationRequested || !ref || !isEqual(this._currentChatResource, resource)) {
 				ref?.dispose();
+				if (isEqual(this._currentChatResource, resource)) {
+					this._widget.setLoading(false);
+				}
 				return;
 			}
 			this._modelRef.value = ref;
@@ -380,6 +395,7 @@ export class ChatView extends AbstractChatView {
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
+			this._widget.setLoading(false);
 			// Expose the bound chat resource on the DOM so test automation
 			// can synchronize with the post-rebind state without polling timeouts.
 			// Set AFTER `setModel` so observers see the attribute only once the
@@ -392,6 +408,7 @@ export class ChatView extends AbstractChatView {
 			if (isEqual(this._currentChatResource, resource)) { // might have changed while we were waiting, only reset if it is still the same
 				this._currentChatResource = undefined;
 				this._currentChatResourceObs.set(undefined, undefined);
+				this._widget.setLoading(false);
 			}
 		});
 

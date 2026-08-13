@@ -1426,8 +1426,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
-						{ type: CustomizationType.Plugin, id: customizationId('file:///other/bar'), uri: 'file:///other/bar', name: 'Bar', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///other/bar'), uri: 'file:///other/bar', name: 'Bar', },
 					]
 				},
 			});
@@ -1513,8 +1513,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/bar'), uri: 'file:///plugins/bar', name: 'Bar', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/bar'), uri: 'file:///plugins/bar', name: 'Bar', },
 					]
 				},
 			});
@@ -1536,7 +1536,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
 					]
 				},
 			};
@@ -1597,7 +1597,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 					clientId: 'c1',
 					tools: [],
 					customizations: [
-						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', enabled: true },
+						{ type: CustomizationType.Plugin, id: customizationId('file:///plugins/foo'), uri: 'file:///plugins/foo', name: 'Foo', },
 					],
 				},
 			});

@@ -170,4 +170,5 @@ suite('NewChatWidget', () => {
 
 		assert.deepStrictEqual(eligibility, [false, false, true, true]);
 	});
+
 });

@@ -33,6 +33,7 @@ import { buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePa
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
@@ -49,6 +50,7 @@ import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js
 import type { SandboxPolicy } from '../../../node/codex/protocol/generated/v2/SandboxPolicy.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -194,6 +196,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
+	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
@@ -843,14 +846,14 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'local',
 				uri: URI.file('/plugin/.mcp.json'),
 				configuration: { type: McpServerType.LOCAL, command: 'node', args: ['server.js'] },
-				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', enabled: true, state: { kind: McpServerStatus.Starting } },
+				customization: { type: CustomizationType.McpServer, id: 'mcp', uri: 'file:///plugin/.mcp.json', name: 'local', state: { kind: McpServerStatus.Starting } },
 			}],
 		};
 		const unsafeSession = URI.from({ scheme: 'codex', path: '/../../codex-customization-victim' });
 		const { session } = await createSession(agent, { session: unsafeSession, workingDirectories: [repo], model: { id: COPILOT_TEST_MODEL }, agent: { uri: agentUri.toString() } });
 		const entry = agent['_sessions'].get(AgentSession.id(session))!;
 		entry.clientCustomizations.setClient('test', [{
-			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', enabled: true }, pluginDir },
+			synced: { customization: { type: CustomizationType.Plugin, id: 'plugin', uri: pluginDir.toString(), name: 'plugin', }, pluginDir },
 			parsed,
 		}]);
 

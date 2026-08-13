@@ -153,6 +153,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 			60_000,
 		);
 
+		await releaseAndRestoreSession(sessionUri);
 		await restartAndInitialize(`peer-persistence-reconnect-${config.provider}`, workspace);
 
 		const reopenedSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });

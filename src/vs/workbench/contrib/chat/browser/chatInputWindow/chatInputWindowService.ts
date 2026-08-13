@@ -6,6 +6,7 @@
 import './media/chatInputWindow.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -21,6 +22,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -56,7 +58,9 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { getQuickInputWidth } from '../../../../../platform/quickinput/browser/quickInputController.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { QuickInputService } from '../../../../services/quickinput/browser/quickInputService.js';
 import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
@@ -68,6 +72,7 @@ const CHAT_INPUT_WINDOW_ACTION_WIDGET_MARGIN = 4;
 const CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT = 44;
 const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
+const CHAT_INPUT_WINDOW_CONTEXT_PICKER_TRANSITION_DELAY = 100;
 
 type ChatInputActionWidgetPlacement = 'above' | 'right';
 
@@ -130,6 +135,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _actionWidgetWindowAnchorY = 0;
 	private _actionWidgetAnchorPosition = AnchorPosition.BELOW;
 	private _actionWidgetPlacement: ChatInputActionWidgetPlacement = 'above';
+	private readonly _contextPicker = this._register(new MutableDisposable<DisposableStore>());
 	/** Bounds of the window that invoked omni, captured before the auxiliary window opens. */
 	private _invokingWindowBounds: IRectangle = this._windowBounds(mainWindow);
 	private _invokingWindow = mainWindow;
@@ -424,7 +430,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			])
 		));
 
-		const widget = this._windowDisposables.add(scopedInstantiationService.createInstance(
+		const widget: ChatWidget = this._windowDisposables.add(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
 			{ isQuickChat: true },
@@ -434,6 +440,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				renderStyle: 'compact',
 				inputEditorMaxHeight: 250,
 				renderGettingStartedTip: false,
+				deferredNotificationsEnabled: false,
 				// Show only the input box — drop every response list item.
 				filter: () => false,
 				enableImplicitContext: false,
@@ -449,6 +456,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				inputPickerContainer: () => this._actionWidgetWindow.value?.container,
 				inputPickerAnchor: anchor => this._getActionWidgetAnchor(anchor),
 				inputPickerOpenOnMouseUp: true,
+				contextPicker: {
+					prepare: (): Promise<IQuickInputService> => this._prepareContextPicker(auxiliaryWindow, surface, scopedContextKeyService, widget),
+				},
 				editorOverflowWidgetsDomNode,
 			},
 			{
@@ -561,6 +571,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		let currentPosition = { x: openingBounds.x, y: openingBounds.y };
 		let pendingBounds: IRectangle | undefined;
 		let applyingBounds = false;
+		const getRowHeight = () => {
+			let contentHeight = Math.ceil(widget.contentHeight);
+			if (widget.attachmentModel.size > 0) {
+				contentHeight += Math.max(0, CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT - widget.input.inputRowHeight);
+			}
+			return Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, contentHeight);
+		};
 		const applyPendingBounds = async () => {
 			if (applyingBounds) {
 				return;
@@ -583,7 +600,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				return;
 			}
 			const width = this._defaultWidth();
-			const rowHeight = Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, Math.ceil(widget.contentHeight));
+			const rowHeight = getRowHeight();
 			const extraHeight = Array.from(surface.children)
 				.filter(child => child !== this._row)
 				.reduce((height, child) => {
@@ -623,7 +640,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				const available = Math.max(0, row.clientWidth - chrome - horizontalPadding);
 				parent.style.width = `${available}px`;
 				widget.input.layout(available);
-				widget.layoutForInputHeight(Math.max(CHAT_INPUT_WINDOW_INITIAL_SURFACE_HEIGHT, widget.contentHeight), available);
+				const rowHeight = getRowHeight();
+				row.style.height = `${rowHeight}px`;
+				widget.layoutForInputHeight(rowHeight, available);
 				fitWindowToInput();
 			} finally {
 				layingOut = false;
@@ -631,6 +650,12 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		};
 		layout();
 		this._windowDisposables.add(widget.onDidChangeContentHeight(() => fitWindowToInput()));
+		const updateAttachmentLayout = () => {
+			row.classList.toggle('has-attachments', widget.attachmentModel.size > 0);
+			layout();
+		};
+		this._windowDisposables.add(widget.attachmentModel.onDidChange(updateAttachmentLayout));
+		updateAttachmentLayout();
 		const scheduledInputLayout = this._windowDisposables.add(new MutableDisposable());
 		this._windowDisposables.add(widget.inputEditor.onDidChangeModelContent(() => {
 			// Submit controls change after the editor event; measure them in the
@@ -651,7 +676,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		// Refresh editor focus and transfer the voice capture lease back to omni
 		// when an in-progress omni turn regains OS focus.
 		this._windowDisposables.add(dom.addDisposableListener(auxiliaryWindow.window, 'focus', () => {
-			widget.focusInput();
+			const activeElement = auxiliaryWindow.window.document.activeElement;
+			if (!activeElement
+				|| activeElement === auxiliaryWindow.window.document.body
+				|| activeElement === auxiliaryWindow.window.document.documentElement
+				|| widget.inputEditor.getDomNode()?.contains(activeElement)) {
+				widget.focusInput();
+			}
 			if (this.voiceSessionController.omniInputActive.get()) {
 				this.voiceSessionController.setOmniInputActive(true);
 				this.voiceSessionController.setActiveWindow(auxiliaryWindow.window);
@@ -1146,6 +1177,108 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		});
 	}
 
+	private async _prepareContextPicker(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, contextKeyService: IContextKeyService, widget: ChatWidget): Promise<IQuickInputService> {
+		this._contextPicker.clear();
+		await this._setActionWidgetVisible(auxiliaryWindow, surface, undefined, true, 'above');
+
+		const actionWidgetWindow = this._actionWidgetWindow.value;
+		if (!actionWidgetWindow) {
+			throw new Error('Unable to open the chat input context picker window');
+		}
+
+		actionWidgetWindow.window.focus();
+		await timeout(0);
+
+		const pickerLayoutService: ILayoutService = {
+			_serviceBrand: undefined,
+			onDidLayoutMainContainer: Event.None,
+			onDidLayoutContainer: Event.None,
+			onDidLayoutActiveContainer: Event.None,
+			onDidAddContainer: Event.None,
+			onDidChangeActiveContainer: Event.None,
+			get mainContainerDimension() {
+				return { width: actionWidgetWindow.container.clientWidth, height: actionWidgetWindow.container.clientHeight };
+			},
+			get activeContainerDimension() {
+				return this.mainContainerDimension;
+			},
+			mainContainer: actionWidgetWindow.container,
+			activeContainer: actionWidgetWindow.container,
+			containers: [actionWidgetWindow.container],
+			getContainer: () => actionWidgetWindow.container,
+			whenContainerStylesLoaded: () => actionWidgetWindow.whenStylesHaveLoaded,
+			mainContainerOffset: { top: 0, quickPickTop: 0 },
+			activeContainerOffset: { top: 0, quickPickTop: 0 },
+			focus: () => actionWidgetWindow.window.focus(),
+		};
+		const services = new ServiceCollection(
+			[IContextKeyService, contextKeyService],
+			[ILayoutService, pickerLayoutService],
+		);
+		const scopedInstantiationService = this.instantiationService.createChild(services);
+		const store = new DisposableStore();
+		store.add(scopedInstantiationService);
+		const quickInputService = store.add(scopedInstantiationService.createInstance(QuickInputService));
+		services.set(IQuickInputService, quickInputService);
+
+		const pendingHide = store.add(new MutableDisposable());
+		const pendingLayout = store.add(new MutableDisposable());
+		let picker: HTMLElement | undefined;
+		const anchorPicker = () => {
+			pendingLayout.value = dom.scheduleAtNextAnimationFrame(actionWidgetWindow.window, () => {
+				if (picker) {
+					if (picker.style.top !== 'auto') {
+						picker.style.top = 'auto';
+					}
+					if (picker.style.bottom !== '0px') {
+						picker.style.bottom = '0';
+					}
+				}
+			});
+		};
+		const pickerObserver = new actionWidgetWindow.window.MutationObserver(mutations => {
+			for (const mutation of mutations) {
+				if (dom.isHTMLElement(mutation.target) && mutation.target.classList.contains('quick-input-widget')) {
+					picker = mutation.target;
+				}
+				for (const node of mutation.addedNodes) {
+					if (dom.isHTMLElement(node) && node.classList.contains('quick-input-widget')) {
+						picker = node;
+					}
+				}
+				for (const node of mutation.removedNodes) {
+					if (picker && (node === picker || node.contains(picker))) {
+						picker = undefined;
+					}
+				}
+			}
+			anchorPicker();
+		});
+		pickerObserver.observe(actionWidgetWindow.container, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+		store.add(toDisposable(() => pickerObserver.disconnect()));
+		store.add(quickInputService.onShow(() => {
+			pendingHide.clear();
+			anchorPicker();
+		}));
+		store.add(quickInputService.onHide(() => {
+			pendingHide.value = disposableTimeout(() => {
+				if (this._contextPicker.value === store) {
+					this._contextPicker.clear();
+				}
+			}, CHAT_INPUT_WINDOW_CONTEXT_PICKER_TRANSITION_DELAY);
+		}));
+		store.add(toDisposable(() => {
+			void this._setActionWidgetVisible(auxiliaryWindow, surface, undefined, false, 'above');
+			if (this._window === auxiliaryWindow) {
+				auxiliaryWindow.window.focus();
+				widget.focusInput();
+			}
+		}));
+		this._contextPicker.value = store;
+
+		return quickInputService;
+	}
+
 	private async _openActionWidgetWindow(auxiliaryWindow: IAuxiliaryWindow, surface: HTMLElement, anchor: HTMLElement | undefined, generation: number, placement: ChatInputActionWidgetPlacement): Promise<void> {
 		const sourceWindow = auxiliaryWindow.window;
 		const sourceSurfaceBounds = surface.getBoundingClientRect();
@@ -1225,6 +1358,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._lead = undefined;
 		this._trail = undefined;
 		this._activePendingSessionResource = undefined;
+		this._contextPicker.clear();
 		this._actionWidgetVisibilityCount = 0;
 		this._actionWidgetOwner = undefined;
 		this._actionWidgetOpenOperation = undefined;
@@ -1240,22 +1374,20 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _positionedBounds(width: number, height: number): IRectangle {
 		const invoking = this._invokingWindowBounds;
-		const stored = this.storageService.getObject<{ readonly offsetX: number; readonly offsetY: number }>(
+		const stored = this.storageService.getObject<{ readonly x: number; readonly y: number }>(
 			ChatInputWindowStorageKeys.WindowPosition,
 			StorageScope.WORKSPACE,
 		);
 		const centeredX = invoking.x + (invoking.width - width) / 2;
 		const centeredY = invoking.y + (invoking.height - height) / 2;
-		const maxX = invoking.x + Math.max(0, invoking.width - width);
-		const maxY = invoking.y + Math.max(0, invoking.height - height);
 		const hasStoredPosition = stored
-			&& Number.isFinite(stored.offsetX)
-			&& Number.isFinite(stored.offsetY);
-		const desiredX = hasStoredPosition ? invoking.x + stored.offsetX : centeredX;
-		const desiredY = hasStoredPosition ? invoking.y + stored.offsetY : centeredY;
+			&& Number.isFinite(stored.x)
+			&& Number.isFinite(stored.y);
+		const desiredX = hasStoredPosition ? stored.x : centeredX;
+		const desiredY = hasStoredPosition ? stored.y : centeredY;
 		return {
-			x: Math.round(Math.min(Math.max(desiredX, invoking.x), maxX)),
-			y: Math.round(Math.min(Math.max(desiredY, invoking.y), maxY)),
+			x: Math.round(desiredX),
+			y: Math.round(desiredY),
 			width,
 			height,
 		};
@@ -1269,8 +1401,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this.storageService.store(
 			ChatInputWindowStorageKeys.WindowPosition,
 			JSON.stringify({
-				offsetX: bounds.x - this._invokingWindowBounds.x,
-				offsetY: bounds.y - this._invokingWindowBounds.y,
+				x: bounds.x,
+				y: bounds.y,
 			}),
 			StorageScope.WORKSPACE,
 			StorageTarget.MACHINE,
