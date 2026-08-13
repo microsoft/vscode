@@ -1136,6 +1136,21 @@ suite('LayoutController (desktop)', () => {
 		});
 	});
 
+	test('[D9] Toggle Side Panel follows the panel controls in the session title bar', () => {
+		createController();
+		const sidePanelToggle = MenuRegistry.getMenuItems(Menus.TitleBarSessionMenu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.agentToggleSidePanel');
+
+		assert.deepStrictEqual({
+			group: sidePanelToggle?.group,
+			order: sidePanelToggle?.order,
+		}, {
+			group: 'navigation',
+			order: 11,
+		});
+	});
+
 	test('[D9] controller derives the toggling state from workbench events', () => {
 		const controller = createController();
 		const togglingStates: boolean[] = [];
