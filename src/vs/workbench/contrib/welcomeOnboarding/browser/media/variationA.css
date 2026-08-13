@@ -55,109 +55,6 @@
 	transform: scale(0.96) translateY(8px);
 }
 
-.onboarding-a-card.authentication-prototype {
-	width: min(720px, 92vw);
-	height: min(620px, 88vh);
-}
-
-/*
- * The provider step hides the wizard footer, so its body absorbs that space.
- * The card keeps one fixed size across every step to avoid resizing on Continue.
- */
-/* On the provider step the wizard's own Back/Continue pair is unused. */
-.onboarding-a-card.auth-prototype-step .onboarding-a-footer-right {
-	display: none;
-}
-
-.onboarding-a-auth-footer-slot:empty {
-	display: none;
-}
-
-/*
- * Secondary sits left of the primary on every step, so Continue keeps the
- * exact same position whether it is paired with Back or with the no-AI action.
- */
-.onboarding-a-auth-footer-slot {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
-	gap: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-body {
-	justify-content: center;
-	padding: var(--vscode-spacing-size320) var(--vscode-spacing-size320) var(--vscode-spacing-size240);
-
-	/* Lets the compatibility popover extend past the body without clipping. */
-	overflow: visible;
-}
-
-/*
- * Every prototype step shares one centered header with no divider rule, so
- * moving between slides reads as one surface instead of three layouts.
- */
-.onboarding-a-card.authentication-prototype .onboarding-a-step-title {
-	font-size: var(--vscode-fontSize-heading2);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	letter-spacing: -0.01em;
-	margin: 0;
-	text-align: center;
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-step-subtitle {
-	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size240);
-	padding-bottom: 0;
-	border-bottom: none;
-	font-size: var(--vscode-fontSize-label1);
-	text-align: center;
-}
-
-/* Content is centred in the fixed panel so no step carries a heavy chin. */
-.onboarding-a-card.authentication-prototype .onboarding-a-step-content {
-	justify-content: center;
-}
-
-/*
- * Right-aligned so the primary button's box is identical on every step; the
- * varying secondary label ("Back" vs "Continue without AI features") grows
- * leftwards instead of nudging Continue around.
- */
-.onboarding-a-card.authentication-prototype .onboarding-a-footer {
-	justify-content: flex-end;
-	padding: 0 var(--vscode-spacing-size320) var(--vscode-spacing-size320);
-	border-top: none;
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-footer-left:empty {
-	display: none;
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-footer-right {
-	gap: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-btn {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size200);
-	border-radius: var(--vscode-cornerRadius-medium);
-	font-size: var(--vscode-fontSize-body1);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-btn-primary {
-	min-width: 200px;
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-/* Back is a quiet companion to the primary action, not a competing button. */
-.onboarding-a-card.authentication-prototype .onboarding-a-btn-secondary {
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-btn-secondary:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
-	color: var(--vscode-editor-foreground);
-}
-
 .onboarding-a-header {
 	display: flex;
 	align-items: center;
@@ -359,12 +256,12 @@
 
 /* Sign-In step */
 .onboarding-a-signin {
-	display: grid;
-	grid-template-columns: auto auto;
+	display: flex;
+	flex-direction: column;
 	position: relative;
 	align-items: center;
 	justify-content: center;
-	gap: 34px;
+	gap: 16px;
 	width: 100%;
 	margin: 0 auto;
 	padding: 4px 0;
@@ -404,7 +301,8 @@
 	flex: 1;
 	min-height: 0;
 	min-width: 0;
-	max-width: 500px;
+	width: 100%;
+	max-width: 620px;
 }
 
 .onboarding-a-signin-content-main {
@@ -429,16 +327,204 @@
 	font-size: 14px;
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
 }
 
 .onboarding-a-signin-actions {
 	display: flex;
+	flex-direction: column;
 	align-items: stretch;
 	gap: 8px;
 	margin-top: 4px;
-	flex-wrap: nowrap;
 	min-width: 0;
+}
+
+/*
+ * Provider list. Every row is the same object at a different scale, so the
+ * comparison stays a comparison — the eye only has to weigh emphasis, not
+ * re-read a new layout on each line.
+ */
+.onboarding-a-provider-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 100%;
+}
+
+.onboarding-a-provider-row {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	box-sizing: border-box;
+	width: 100%;
+	padding: 12px 16px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.onboarding-a-provider-row:hover {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+}
+
+/* Copilot is the path we want most people to take, so it carries more weight. */
+.onboarding-a-provider-row.primary {
+	padding: 18px 16px;
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 32%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent);
+}
+
+.onboarding-a-provider-row.primary:hover {
+	border-color: color-mix(in srgb, var(--vscode-focusBorder) 52%, transparent);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 11%, transparent);
+}
+
+.onboarding-a-provider-row-mark {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 28px;
+	height: 28px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+	color: var(--vscode-editor-foreground);
+}
+
+.onboarding-a-provider-row-mark .codicon {
+	font-size: 16px;
+}
+
+/* Brand marks are masked so they inherit the theme's foreground colour. */
+.onboarding-a-provider-row-mark.openai::before {
+	content: '';
+	width: 16px;
+	height: 16px;
+	background-color: currentColor;
+	-webkit-mask-image: url('./openai-logo.svg');
+	mask-image: url('./openai-logo.svg');
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-size: contain;
+	mask-size: contain;
+}
+
+.onboarding-a-provider-row.primary .onboarding-a-provider-row-mark {
+	width: 36px;
+	height: 36px;
+}
+
+.onboarding-a-provider-row.primary .onboarding-a-provider-row-mark .codicon {
+	font-size: 20px;
+}
+
+.onboarding-a-provider-row-copy {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.onboarding-a-provider-row-name-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.onboarding-a-provider-row-name {
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--vscode-foreground);
+}
+
+.onboarding-a-provider-row.primary .onboarding-a-provider-row-name {
+	font-size: 15px;
+}
+
+.onboarding-a-provider-row-badge {
+	flex: 0 0 auto;
+	padding: 1px 7px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--vscode-focusBorder) 22%, transparent);
+	color: var(--vscode-foreground);
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.onboarding-a-provider-row-description {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-provider-row-alternates {
+	margin-top: 4px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.onboarding-a-provider-row-alternate {
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--vscode-textLink-foreground);
+	font: inherit;
+	cursor: pointer;
+}
+
+.onboarding-a-provider-row-alternate:hover {
+	text-decoration: underline;
+}
+
+.onboarding-a-provider-row-alternate:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+.onboarding-a-provider-row-action {
+	flex: 0 0 auto;
+	padding: 5px 14px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 120ms ease;
+}
+
+.onboarding-a-provider-row-action:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.onboarding-a-provider-row-action.primary {
+	padding: 7px 20px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.onboarding-a-provider-row-action.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.onboarding-a-provider-row-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .onboarding-a-signin-footer {
@@ -639,816 +725,13 @@
 	background-image: url('../../../chat/browser/chatSetup/media/google.svg');
 }
 
-/* Authentication prototype */
-.onboarding-a-auth-prototype {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	width: 100%;
-	max-width: 600px;
-	min-height: 0;
-	margin: 0 auto;
+.monaco-workbench.hc-light .onboarding-a-provider-mark.apple,
+.monaco-workbench.vs .onboarding-a-provider-mark.apple {
+	background-image: url('../../../chat/browser/chatSetup/media/apple-light.svg');
 }
 
-.onboarding-a-auth-vscode-icon {
-	flex: 0 0 var(--vscode-spacing-size400);
-	width: var(--vscode-spacing-size400);
-	height: var(--vscode-spacing-size400);
-	align-self: center;
-	margin-bottom: var(--vscode-spacing-size200);
-	background-image: url('./vscode-icon.svg');
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: contain;
-}
-
-.onboarding-a-auth-title {
-	margin: 0;
-	color: var(--vscode-editor-foreground);
-	font-size: var(--vscode-fontSize-heading1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	letter-spacing: -0.01em;
-	line-height: 1.3;
-	text-align: center;
-}
-
-.onboarding-a-auth-subtitle-row {
-	position: relative;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--vscode-spacing-size40);
-	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size240);
-}
-
-.onboarding-a-auth-subtitle {
-	margin: 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
-	line-height: 1.5;
-	text-align: center;
-}
-
-.onboarding-a-auth-help {
-	display: flex;
-	align-items: center;
-}
-
-.onboarding-a-auth-help-trigger {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	transition: background 120ms ease, color 120ms ease;
-}
-
-.onboarding-a-auth-help-trigger .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-help-trigger:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 10%, transparent);
-	color: var(--vscode-editor-foreground);
-}
-
-.onboarding-a-auth-help-trigger:focus-visible {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.onboarding-a-auth-help-popover {
-	position: absolute;
-	top: calc(100% + var(--vscode-spacing-size100));
-	left: 50%;
-	z-index: 4;
-	width: max-content;
-	max-width: 100%;
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-widget-border) 80%, transparent);
-	border-radius: var(--vscode-cornerRadius-xLarge);
-	background: var(--vscode-editorHoverWidget-background);
-	box-shadow: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size400) rgba(0, 0, 0, 0.32);
-	opacity: 0;
-	pointer-events: none;
-	transform: translate(-50%, calc(-1 * var(--vscode-spacing-size60))) scale(0.98);
-	transform-origin: top center;
-	transition: opacity 140ms ease, transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.onboarding-a-auth-help:hover ~ .onboarding-a-auth-help-popover,
-.onboarding-a-auth-help-popover:hover,
-.onboarding-a-auth-help-trigger:focus-visible ~ .onboarding-a-auth-help-popover {
-	opacity: 1;
-	pointer-events: auto;
-	transform: translate(-50%, 0) scale(1);
-}
-
-.onboarding-a-auth-help-title {
-	margin: 0;
-	color: var(--vscode-editor-foreground);
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	text-align: left;
-}
-
-.onboarding-a-auth-help-intro {
-	max-width: 380px;
-	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size120);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.5;
-	text-align: left;
-}
-
-.onboarding-a-auth-matrix {
-	width: 100%;
-	border-collapse: collapse;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.onboarding-a-auth-matrix th,
-.onboarding-a-auth-matrix td {
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	font-weight: var(--vscode-fontWeight-regular);
-	text-align: center;
-}
-
-.onboarding-a-auth-matrix thead th {
-	padding-bottom: var(--vscode-spacing-size80);
-	border-bottom: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editor-foreground) 10%, transparent);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-}
-
-.onboarding-a-auth-matrix thead th:first-child {
-	text-align: left;
-}
-
-.onboarding-a-auth-matrix tbody th {
-	padding-left: 0;
-	color: var(--vscode-editor-foreground);
-	text-align: left;
-	white-space: nowrap;
-}
-
-.onboarding-a-auth-matrix-provider {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-}
-
-.onboarding-a-auth-matrix-mark {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
-	opacity: 0.8;
-}
-
-.onboarding-a-auth-matrix-mark .codicon,
-.onboarding-a-auth-matrix td .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-matrix td .codicon {
-	opacity: 0.3;
-}
-
-.onboarding-a-auth-matrix tbody td.supported .codicon {
-	color: var(--vscode-charts-green);
-	opacity: 1;
-}
-
-.onboarding-a-auth-scan {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--vscode-spacing-size60);
-	min-height: var(--vscode-spacing-size200);
-	margin-bottom: var(--vscode-spacing-size120);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.onboarding-a-auth-scan .codicon,
-.onboarding-a-auth-provider-message .codicon,
-.onboarding-a-auth-prototype .monaco-button .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-/*
- * Copilot is the primary path, so it fills the left column at full height while
- * the alternatives stack on the right and total the same area.
- */
-.onboarding-a-auth-checklist.grid {
-	display: grid;
-	flex: 0 1 auto;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	min-height: 260px;
-	align-items: stretch;
-	box-sizing: border-box;
-	width: 100%;
-	min-height: 0;
-	padding: var(--vscode-spacing-size20);
-	margin: calc(-1 * var(--vscode-spacing-size20));
-	gap: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-auth-secondary {
-	display: grid;
-	grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr);
-	min-width: 0;
-	gap: var(--vscode-spacing-size120);
-}
-
-/*
- * All three cards share one structure: toggle + mark on a line, then title,
- * then description, with the account or brand strip pinned to the bottom.
- * Only the scale differs, so the columns stay visually aligned.
- */
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider {
-	justify-content: flex-start;
-}
-
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider-header {
-	flex: 1;
-	flex-direction: column;
-	align-items: stretch;
-	min-width: 0;
-}
-
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider-selector {
-	align-items: flex-start;
-	flex: 0 0 auto;
-	flex-direction: column;
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
-	gap: var(--vscode-spacing-size80);
-}
-
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider-toggle {
-	order: 1;
-}
-
-/* Sits on the toggle line so every card has the same anchor row. */
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider-mark {
-	position: absolute;
-	top: var(--vscode-spacing-size120);
-	left: calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size320) + var(--vscode-spacing-size120));
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	opacity: 1;
-}
-
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider-copy {
-	order: 2;
-	flex-direction: column;
-	align-items: flex-start;
-	width: 100%;
-	gap: var(--vscode-spacing-size20);
-}
-
-/* Descriptions earn their place in a card, so they are not hover-only here. */
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-provider-description {
-	flex: 0 0 auto;
-	margin: 0;
-	opacity: 1;
-	text-align: left;
-	white-space: normal;
-}
-
-.onboarding-a-auth-checklist.grid .onboarding-a-auth-account-chip {
-	align-self: flex-start;
-	margin: auto var(--vscode-spacing-size160) var(--vscode-spacing-size120);
-}
-
-/* Primary card: same parts, larger type and more room. */
-.onboarding-a-auth-checklist.grid > .onboarding-a-auth-provider .onboarding-a-auth-provider-selector {
-	padding: var(--vscode-spacing-size160);
-	gap: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-auth-checklist.grid > .onboarding-a-auth-provider .onboarding-a-auth-provider-mark {
-	top: var(--vscode-spacing-size160);
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
-}
-
-.onboarding-a-auth-checklist.grid > .onboarding-a-auth-provider .onboarding-a-auth-provider-mark .codicon {
-	font-size: 20px;
-}
-
-.onboarding-a-auth-checklist.grid > .onboarding-a-auth-provider .onboarding-a-auth-provider-title {
-	font-size: var(--vscode-fontSize-heading3);
-}
-
-.onboarding-a-auth-checklist.grid > .onboarding-a-auth-provider .onboarding-a-auth-provider-copy {
-	gap: var(--vscode-spacing-size40);
-}
-
-.onboarding-a-auth-checklist.grid > .onboarding-a-auth-provider .onboarding-a-auth-account-chip {
-	margin-bottom: var(--vscode-spacing-size160);
-}
-
-/* Services a personal key can reach. */
-.onboarding-a-auth-brands {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size60);
-	margin: auto var(--vscode-spacing-size160) var(--vscode-spacing-size120);
-}
-
-.onboarding-a-auth-brand {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	border-radius: var(--vscode-cornerRadius-small);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
-	color: var(--vscode-editor-foreground);
-	opacity: 0.75;
-}
-
-.onboarding-a-auth-brand .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-brand-more {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.onboarding-a-auth-provider {
-	position: relative;
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-large);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
-	transition: background 120ms ease, border-color 120ms ease;
-}
-
-.onboarding-a-auth-provider:hover {
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
-}
-
-.onboarding-a-auth-provider.selected {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
-	background: color-mix(in srgb, var(--vscode-focusBorder) 7%, transparent);
-}
-
-.onboarding-a-auth-provider.selected:hover {
-	border-color: color-mix(in srgb, var(--vscode-focusBorder) 48%, transparent);
-}
-
-.onboarding-a-auth-provider-header {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-}
-
-.onboarding-a-auth-provider-selector {
-	display: flex;
-	flex: 1;
-	align-items: center;
-	min-width: 0;
-	gap: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
-	cursor: pointer;
-}
-
-/* The real input stays in the accessibility tree; the tile below is its skin. */
-.onboarding-a-auth-provider-checkbox {
-	position: absolute;
-	width: var(--vscode-strokeThickness);
-	height: var(--vscode-strokeThickness);
-	margin: 0;
-	opacity: 0;
-	pointer-events: none;
-}
-
-/*
- * Toggle switch. The real input stays in the accessibility tree with
- * role="switch"; this track/knob pair is its visual skin.
- */
-.onboarding-a-auth-provider-toggle {
-	position: relative;
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	box-sizing: border-box;
-	width: var(--vscode-spacing-size320);
-	height: var(--vscode-spacing-size200);
-	padding: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
-	transition: background 140ms ease;
-}
-
-/*
- * The knob must read against both the neutral and accent track, so it uses the
- * button foreground rather than the editor background (which is dark on dark).
- */
-.onboarding-a-auth-provider-toggle-knob {
-	width: var(--vscode-spacing-size160);
-	height: var(--vscode-spacing-size160);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: var(--vscode-button-foreground, #ffffff);
-	box-shadow: 0 var(--vscode-spacing-size20) var(--vscode-spacing-size40) rgba(0, 0, 0, 0.25);
-	transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.onboarding-a-auth-provider:hover .onboarding-a-auth-provider-toggle {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 32%, transparent);
-}
-
-.onboarding-a-auth-provider.selected .onboarding-a-auth-provider-toggle {
-	background: var(--vscode-button-background);
-}
-
-.onboarding-a-auth-provider.selected:hover .onboarding-a-auth-provider-toggle {
-	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-}
-
-.onboarding-a-auth-provider.selected .onboarding-a-auth-provider-toggle-knob {
-	transform: translateX(var(--vscode-spacing-size120));
-}
-
-.onboarding-a-auth-provider-checkbox:focus-visible + .onboarding-a-auth-provider-toggle {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.onboarding-a-auth-provider-mark {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	color: var(--vscode-editor-foreground);
-	opacity: 0.75;
-	transition: opacity 120ms ease;
-}
-
-.onboarding-a-auth-provider.selected .onboarding-a-auth-provider-mark {
-	opacity: 1;
-}
-
-.onboarding-a-auth-provider-mark .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-provider-copy {
-	display: flex;
-	flex: 1;
-	align-items: baseline;
-	min-width: 0;
-	gap: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-auth-provider-title {
-	flex: 0 0 auto;
-	margin: 0;
-	color: var(--vscode-editor-foreground);
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 1.4;
-}
-
-.onboarding-a-auth-provider-description {
-	flex: 1 1 auto;
-	min-width: 0;
-	margin: 0 0 0 auto;
-	overflow: hidden;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.4;
-	text-align: right;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	opacity: 0;
-	transition: opacity 120ms ease;
-}
-
-.onboarding-a-auth-provider:hover .onboarding-a-auth-provider-description {
-	opacity: 1;
-}
-
-.onboarding-a-auth-provider-badge {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	align-self: center;
-	gap: var(--vscode-spacing-size60);
-	margin-right: var(--vscode-spacing-size120);
-	padding: 0;
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1.4;
-	white-space: nowrap;
-}
-
-.onboarding-a-auth-provider-badge::before {
-	flex: 0 0 auto;
-	width: var(--vscode-spacing-size60);
-	height: var(--vscode-spacing-size60);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 26%, transparent);
-	content: '';
-}
-
-.onboarding-a-auth-provider-badge.detected::before,
-.onboarding-a-auth-provider-badge.signed-in::before {
-	background: var(--vscode-charts-green);
-}
-
-.onboarding-a-auth-provider-badge.error {
-	color: var(--vscode-inputValidation-errorForeground);
-}
-
-.onboarding-a-auth-provider-badge.error::before {
-	background: var(--vscode-inputValidation-errorBorder);
-}
-
-.onboarding-a-auth-account-chip {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	align-self: center;
-	gap: var(--vscode-spacing-size60);
-	margin-right: var(--vscode-spacing-size80);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.4;
-	white-space: nowrap;
-}
-
-.onboarding-a-auth-account-avatar {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	overflow: hidden;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
-}
-
-.onboarding-a-auth-account-avatar img {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-}
-
-.onboarding-a-auth-account-avatar.monogram {
-	color: var(--vscode-editor-foreground);
-	font-size: var(--vscode-fontSize-label3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: 1;
-}
-
-/*
- * The switch control stays out of the way until the row is hovered or the
- * button itself is focused, so a settled list reads as names, not controls.
- */
-.onboarding-a-auth-account-switch {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	opacity: 0;
-	transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
-}
-
-.onboarding-a-auth-account-switch .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-provider:hover .onboarding-a-auth-account-switch,
-.onboarding-a-auth-account-switch:focus-visible {
-	opacity: 1;
-}
-
-.onboarding-a-auth-account-switch:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
-	color: var(--vscode-editor-foreground);
-}
-
-.onboarding-a-auth-account-switch:focus-visible {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
-}
-
-.onboarding-a-auth-provider-setup {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	margin: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size120) calc(var(--vscode-spacing-size160) + var(--vscode-spacing-size280) + (2 * var(--vscode-spacing-size120)));
-}
-
-.onboarding-a-auth-provider-setup:empty {
-	display: none;
-}
-
-.onboarding-a-auth-no-ai-button.monaco-button,
-.onboarding-a-auth-provider-setup .monaco-button,
-.onboarding-a-auth-enterprise-submit .monaco-button {
-	display: flex;
-	align-items: center;
-	width: auto;
-	gap: var(--vscode-spacing-size40);
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size100);
-	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-small);
-	font-family: inherit;
-	font-size: var(--vscode-fontSize-label1);
-	text-decoration: none;
-	cursor: pointer;
-}
-
-.onboarding-a-auth-provider-setup .monaco-button.secondary {
-	padding-inline: var(--vscode-spacing-size60);
-	border-color: transparent;
-	background: transparent;
-	color: var(--vscode-textLink-foreground);
-}
-
-.onboarding-a-auth-provider-setup .monaco-button.secondary:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
-.onboarding-a-auth-google-button.monaco-button::before {
-	width: var(--vscode-codiconFontSize);
-	height: var(--vscode-codiconFontSize);
-	background-image: url('../../../chat/browser/chatSetup/media/google.svg');
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: contain;
-	content: '';
-}
-
-.onboarding-a-auth-google-button.monaco-button .codicon {
-	display: none;
-}
-
-.onboarding-a-auth-prototype .monaco-button:focus-visible {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
-}
-
-.onboarding-a-auth-prototype .monaco-button.disabled {
-	opacity: 0.4;
-	cursor: default;
-}
-
-.onboarding-a-auth-enterprise-form {
-	display: grid;
-	flex: 1 0 100%;
-	grid-template-columns: minmax(0, 1fr) auto;
-	width: 100%;
-	gap: var(--vscode-spacing-size80);
-}
-
-.onboarding-a-auth-enterprise-label,
-.onboarding-a-auth-enterprise-form .onboarding-a-signin-ghe-message {
-	grid-column: 1 / -1;
-}
-
-.onboarding-a-auth-enterprise-label {
-	color: var(--vscode-editor-foreground);
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.onboarding-a-auth-enterprise-input {
-	box-sizing: border-box;
-	min-width: 0;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
-	border: var(--vscode-strokeThickness) solid var(--vscode-input-border);
-	border-radius: var(--vscode-cornerRadius-small);
-	background: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
-	font-family: inherit;
-	font-size: var(--vscode-fontSize-body1);
-}
-
-.onboarding-a-auth-enterprise-input:focus-visible {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
-}
-
-.onboarding-a-auth-enterprise-input.error {
-	border-color: var(--vscode-inputValidation-errorBorder);
-}
-
-.onboarding-a-auth-outcome {
-	margin: var(--vscode-spacing-size120) 0 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.5;
-	text-align: center;
-	opacity: 0.85;
-}
-
-/* Matches the wizard primary button box exactly so Continue never shifts. */
-.onboarding-a-auth-continue-button.monaco-button {
-	flex: 0 0 auto;
-	box-sizing: border-box;
-	justify-content: center;
-	width: 200px;
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size200);
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-medium);
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	line-height: normal;
-}
-
-.onboarding-a-auth-no-ai {
-	display: flex;
-	order: -1;
-	justify-content: center;
-
-	/* Neutralize the secondary button chrome applied inline by the button widget. */
-	--vscode-button-secondaryBackground: transparent;
-	--vscode-button-secondaryBorder: transparent;
-	--vscode-button-secondaryHoverBackground: transparent;
-	--vscode-button-secondaryForeground: var(--vscode-descriptionForeground);
-}
-
-.onboarding-a-auth-no-ai-button.monaco-button.secondary {
-	padding: 0;
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.onboarding-a-auth-no-ai-button.monaco-button.secondary:hover {
-	color: var(--vscode-editor-foreground);
-	text-decoration: underline;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.onboarding-a-auth-provider,
-	.onboarding-a-auth-provider-toggle,
-	.onboarding-a-auth-provider-toggle-knob,
-	.onboarding-a-auth-provider-description {
-		transition: none;
-	}
-}
-
-.onboarding-a-auth-provider-setup .onboarding-a-signin-ghe-message {
-	margin: 0;
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-textBlockQuote-background);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
-	line-height: 1.5;
+.onboarding-a-provider-mark.apple {
+	background-image: url('../../../chat/browser/chatSetup/media/apple-dark.svg');
 }
 
 /* Personalize step */
@@ -1491,19 +774,6 @@
 	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 	margin-bottom: 2px;
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-personalize {
-	justify-content: center;
-	gap: var(--vscode-spacing-size160);
-}
-
-/* Two columns give the wide theme previews enough presence to fill the fixed panel. */
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-grid,
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-grid.theme-grid-expanded {
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: var(--vscode-spacing-size200);
-	padding: var(--vscode-spacing-size40);
 }
 
 .onboarding-a-theme-grid {
@@ -1565,35 +835,13 @@
 }
 
 .onboarding-a-theme-preview {
-	aspect-ratio: 280 / 168;
 	overflow: hidden;
-	background-position: center;
-	background-repeat: no-repeat;
-	background-size: 100% 100%;
 }
 
-.onboarding-a-theme-preview.theme-preview-dark-2026 {
-	background-image: url('./theme-preview-dark-2026.svg');
-}
-
-.onboarding-a-theme-preview.theme-preview-hc-dark {
-	background-image: url('./theme-preview-hc-dark.svg');
-}
-
-.onboarding-a-theme-preview.theme-preview-solarized-dark {
-	background-image: url('./theme-preview-solarized-dark.svg');
-}
-
-.onboarding-a-theme-preview.theme-preview-light-2026 {
-	background-image: url('./theme-preview-light-2026.svg');
-}
-
-.onboarding-a-theme-preview.theme-preview-hc-light {
-	background-image: url('./theme-preview-hc-light.svg');
-}
-
-.onboarding-a-theme-preview.theme-preview-solarized-light {
-	background-image: url('./theme-preview-solarized-light.svg');
+.onboarding-a-theme-preview-img {
+	display: block;
+	width: 100%;
+	height: auto;
 }
 
 .onboarding-a-theme-label {
@@ -2040,402 +1288,4 @@
 	.onboarding-a-theme-card {
 		transition: none !important;
 	}
-}
-
-/* Prototype closing step */
-.onboarding-a-sessions-prototype {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	justify-content: center;
-	gap: var(--vscode-spacing-size160);
-	min-height: 0;
-}
-
-.onboarding-a-sessions-lineup {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-sessions-lineup-mark {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
-	color: var(--vscode-editor-foreground);
-}
-
-.onboarding-a-sessions-lineup-mark .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-sessions-prototype .onboarding-a-sessions-docs {
-	display: flex;
-	justify-content: center;
-	margin-top: var(--vscode-spacing-size40);
-}
-
-/* Prototype theme cards: a soft ring reads calmer than a heavy 2px stroke. */
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-card {
-	border-width: var(--vscode-strokeThickness);
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
-	transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-card:hover {
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 24%, transparent);
-	box-shadow: 0 0 0 calc(2 * var(--vscode-strokeThickness)) color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
-	transform: none;
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-card.selected:hover {
-	border-color: var(--vscode-focusBorder);
-	box-shadow: 0 0 0 calc(2 * var(--vscode-strokeThickness)) color-mix(in srgb, var(--vscode-focusBorder) 24%, transparent);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-card.selected {
-	border-color: var(--vscode-focusBorder);
-	box-shadow: 0 0 0 calc(2 * var(--vscode-strokeThickness)) color-mix(in srgb, var(--vscode-focusBorder) 24%, transparent);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-label {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size60);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.onboarding-a-card.authentication-prototype .onboarding-a-theme-card.selected .onboarding-a-theme-label {
-	color: var(--vscode-editor-foreground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-/* Prototype feature cards share the row surface language from step one. */
-.onboarding-a-card.authentication-prototype .onboarding-a-feature-card {
-	border-color: transparent;
-	border-radius: var(--vscode-cornerRadius-large);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
-}
-
-/* Custom endpoint setup */
-.onboarding-a-auth-custom-form {
-	display: grid;
-	flex: 1 0 100%;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-	align-items: end;
-	width: 100%;
-	gap: var(--vscode-spacing-size80);
-}
-
-.onboarding-a-auth-custom-field {
-	display: flex;
-	grid-column: 1 / -1;
-	flex-direction: column;
-	min-width: 0;
-	gap: var(--vscode-spacing-size20);
-}
-
-/* Format and key sit side by side; the URL keeps the full width. */
-.onboarding-a-auth-custom-field.half {
-	grid-column: auto;
-}
-
-.onboarding-a-auth-custom-form select.onboarding-a-auth-enterprise-input {
-	appearance: none;
-	background-image: none;
-	cursor: pointer;
-}
-
-.onboarding-a-auth-custom-form .onboarding-a-signin-ghe-message {
-	grid-column: 1;
-	margin: 0;
-	padding: 0;
-	background: transparent;
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.4;
-}
-
-.onboarding-a-auth-custom-form .onboarding-a-auth-enterprise-submit {
-	grid-column: 2;
-	justify-self: end;
-}
-
-.onboarding-a-auth-custom-form .onboarding-a-auth-enterprise-label {
-	font-size: var(--vscode-fontSize-label2);
-}
-
-.onboarding-a-auth-custom-form .onboarding-a-auth-enterprise-input {
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-label1);
-}
-
-.onboarding-a-auth-account-avatar.glyph {
-	color: var(--vscode-editor-foreground);
-}
-
-.onboarding-a-auth-account-avatar.glyph .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-/* Quiet scrollbar: the list only scrolls when a setup form is expanded. */
-.onboarding-a-auth-checklist {
-	scrollbar-width: thin;
-	scrollbar-color: color-mix(in srgb, var(--vscode-editor-foreground) 20%, transparent) transparent;
-}
-
-.onboarding-a-auth-checklist::-webkit-scrollbar {
-	width: var(--vscode-spacing-size60);
-}
-
-.onboarding-a-auth-checklist::-webkit-scrollbar-track {
-	background: transparent;
-}
-
-.onboarding-a-auth-checklist::-webkit-scrollbar-thumb {
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 18%, transparent);
-}
-
-.onboarding-a-auth-checklist::-webkit-scrollbar-thumb:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 30%, transparent);
-}
-
-/* Custom endpoints step */
-.onboarding-a-auth-endpoints .onboarding-a-auth-subtitle {
-	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size200);
-}
-
-/*
- * Sizes to its rows and only scrolls past a few entries. `min-height: 0` would
- * let this collapse to zero inside the flex column and clip every row.
- */
-.onboarding-a-auth-endpoint-list {
-	display: flex;
-	flex: 0 0 auto;
-	flex-direction: column;
-	max-height: 168px;
-	margin-bottom: var(--vscode-spacing-size160);
-	gap: var(--vscode-spacing-size60);
-	overflow-y: auto;
-}
-
-.onboarding-a-auth-endpoint-empty {
-	margin: 0;
-	padding: var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) dashed color-mix(in srgb, var(--vscode-editor-foreground) 16%, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	text-align: center;
-}
-
-.onboarding-a-auth-endpoint-row {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid transparent;
-	border-radius: var(--vscode-cornerRadius-large);
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
-}
-
-.onboarding-a-auth-endpoint-row:hover {
-	border-color: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
-}
-
-.onboarding-a-auth-endpoint-mark {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	color: var(--vscode-editor-foreground);
-	opacity: 0.75;
-}
-
-.onboarding-a-auth-endpoint-mark .codicon,
-.onboarding-a-auth-endpoint-remove .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-endpoint-copy {
-	display: flex;
-	flex: 1;
-	align-items: baseline;
-	min-width: 0;
-	gap: var(--vscode-spacing-size80);
-}
-
-.onboarding-a-auth-endpoint-host {
-	overflow: hidden;
-	color: var(--vscode-editor-foreground);
-	font-size: var(--vscode-fontSize-body1);
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.onboarding-a-auth-endpoint-meta {
-	flex: 0 0 auto;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-}
-
-/* Remove stays quiet until the row is hovered or the button is focused. */
-.onboarding-a-auth-endpoint-remove {
-	display: flex;
-	flex: 0 0 auto;
-	align-items: center;
-	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	opacity: 0;
-	transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
-}
-
-.onboarding-a-auth-endpoint-row:hover .onboarding-a-auth-endpoint-remove,
-.onboarding-a-auth-endpoint-remove:focus-visible {
-	opacity: 1;
-}
-
-.onboarding-a-auth-endpoint-remove:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
-	color: var(--vscode-editor-foreground);
-}
-
-.onboarding-a-auth-endpoint-remove:focus-visible {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
-}
-
-.onboarding-a-auth-endpoints .onboarding-a-auth-custom-form {
-	padding-top: var(--vscode-spacing-size160);
-	border-top: var(--vscode-strokeThickness) solid color-mix(in srgb, var(--vscode-editor-foreground) 10%, transparent);
-}
-
-/* The endpoints step is a working surface, so it stacks from the top. */
-.onboarding-a-auth-prototype.onboarding-a-auth-endpoints {
-	justify-content: flex-start;
-	max-width: 520px;
-}
-
-.onboarding-a-auth-endpoints .onboarding-a-auth-title {
-	font-size: var(--vscode-fontSize-heading2);
-}
-
-/*
- * The shared form uses `flex: 1 0 100%` so it can fill an expanded provider
- * row. Here it is a normal block, so it must size to its own content.
- */
-.onboarding-a-auth-endpoints .onboarding-a-auth-custom-form {
-	flex: 0 0 auto;
-	align-items: start;
-	row-gap: var(--vscode-spacing-size120);
-	margin-top: var(--vscode-spacing-size40);
-}
-
-.onboarding-a-auth-endpoints .onboarding-a-auth-enterprise-submit {
-	grid-column: 1 / -1;
-	justify-self: start;
-}
-
-.onboarding-a-auth-endpoints .onboarding-a-signin-ghe-message:empty {
-	display: none;
-}
-
-/*
- * Stacked layout. Full-width rows keep each provider on one line, so the width
- * carries the copy instead of the card height.
- */
-.onboarding-a-auth-checklist.stacked {
-	display: flex;
-	flex: 0 1 auto;
-	flex-direction: column;
-	box-sizing: border-box;
-	width: 100%;
-	min-height: 0;
-	padding: var(--vscode-spacing-size20);
-	margin: calc(-1 * var(--vscode-spacing-size20));
-	gap: var(--vscode-spacing-size80);
-	overflow-y: auto;
-}
-
-.onboarding-a-auth-checklist.stacked .onboarding-a-auth-provider-selector {
-	align-items: center;
-	gap: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
-}
-
-.onboarding-a-auth-checklist.stacked .onboarding-a-auth-provider-copy {
-	align-items: baseline;
-	gap: var(--vscode-spacing-size120);
-}
-
-/* There is room on the line here, so the description is always visible. */
-.onboarding-a-auth-checklist.stacked .onboarding-a-auth-provider-description {
-	opacity: 1;
-}
-
-.onboarding-a-auth-checklist.stacked .onboarding-a-auth-brands {
-	margin: 0 var(--vscode-spacing-size160) var(--vscode-spacing-size120) calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size200) + var(--vscode-spacing-size240));
-}
-
-/* Prototype-only control for comparing the two layouts. */
-.onboarding-a-auth-layout-switch {
-	display: flex;
-	justify-content: center;
-	margin-top: var(--vscode-spacing-size120);
-}
-
-.onboarding-a-auth-layout-button {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
-	border: none;
-	border-radius: var(--vscode-cornerRadius-circle);
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	font-family: inherit;
-	font-size: var(--vscode-fontSize-label3);
-	cursor: pointer;
-	opacity: 0.7;
-	transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
-}
-
-.onboarding-a-auth-layout-button .codicon {
-	font-family: codicon;
-	font-size: var(--vscode-codiconFontSize-compact);
-	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 1;
-}
-
-.onboarding-a-auth-layout-button:hover {
-	background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
-	color: var(--vscode-editor-foreground);
-	opacity: 1;
-}
-
-.onboarding-a-auth-layout-button:focus-visible {
-	outline: calc(2 * var(--vscode-strokeThickness)) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
 }

@@ -6,6 +6,7 @@
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
+import '../viewsWelcome/media/chatProviderSetup.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -47,7 +48,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
@@ -82,6 +83,7 @@ import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
+import { ChatProviderSetupPart } from '../viewsWelcome/chatProviderSetupPart.js';
 import { IChatTipService } from '../chatTipService.js';
 import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
@@ -322,6 +324,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
+	private readonly providerSetupPart: MutableDisposable<ChatProviderSetupPart> = this._register(new MutableDisposable());
 
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 	private _gettingStartedTipPartRef: ChatTipContentPart | undefined;
@@ -527,6 +530,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
 
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.renderWelcomeViewContentIfNeeded()));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderWelcomeViewContentIfNeeded()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.tips.enabled')) {
@@ -1180,6 +1185,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
+	 * True while the user has no way to run a model yet: signed out, with no
+	 * bring-your-own-key models configured, and with AI features still visible.
+	 */
+	private shouldShowProviderSetup(): boolean {
+		return this.chatEntitlementService.entitlement === ChatEntitlement.Unknown
+			&& !this.chatEntitlementService.hasByokModels
+			&& !this.chatEntitlementService.sentiment.hidden;
+	}
+
+	/**
 	 * Renders the welcome view content when needed.
 	 */
 	private renderWelcomeViewContentIfNeeded() {
@@ -1202,6 +1217,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const numItems = this.viewModel?.getItems().length ?? 0;
 			if (!numItems) {
+				// Before any provider exists, the panel's job is to help the user
+				// get models — not to introduce chat they cannot use yet.
+				if (this.shouldShowProviderSetup()) {
+					if (!this.providerSetupPart.value) {
+						dom.clearNode(this.welcomeMessageContainer);
+						this.welcomePart.clear();
+						this.providerSetupPart.value = this.instantiationService.createInstance(ChatProviderSetupPart);
+						dom.append(this.welcomeMessageContainer, this.providerSetupPart.value.element);
+					}
+					this.updateChatViewVisibility();
+					return;
+				}
+
+				if (this.providerSetupPart.value) {
+					this.providerSetupPart.clear();
+					dom.clearNode(this.welcomeMessageContainer);
+				}
+
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 				let additionalMessage: string | IMarkdownString | undefined;
 				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed) {

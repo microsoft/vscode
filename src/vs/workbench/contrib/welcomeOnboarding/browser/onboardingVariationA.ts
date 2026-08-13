@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { $, append, addDisposableListener, EventType, clearNode, getActiveWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, append, addDisposableListener, EventType, clearNode, getActiveWindow } from '../../../../base/browser/dom.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isWindows, isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { assertDefined } from '../../../../base/common/types.js';
+import { FileAccess } from '../../../../base/common/network.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { Button, IButton } from '../../../../base/browser/ui/button/button.js';
-import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -28,7 +27,7 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../platform/defaul
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import product from '../../../../platform/product/common/product.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -49,6 +48,7 @@ import {
 	parseGheInstanceInput,
 } from '../common/onboardingTypes.js';
 import { IOnboardingService } from '../common/onboardingService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../chat/common/constants.js';
 
 type OnboardingStepViewClassification = {
 	owner: 'cwebster-99';
@@ -77,39 +77,17 @@ type OnboardingActionEvent = {
 };
 
 type EnterpriseSignInUiState = 'options' | 'instance' | 'progress';
-type AuthenticationPrototypeProvider = 'copilot' | 'chatgpt' | 'ownKey';
-type AuthenticationPrototypeHarness = 'copilot' | 'codex' | 'claude';
-/** Request shapes a custom endpoint can speak; it need not be OpenAI-compatible. */
-type AuthenticationPrototypeEndpointFormat = 'chat-completions' | 'responses' | 'messages';
 
-interface IAuthenticationPrototypeEndpoint {
-	url: string;
-	key: string;
-	format: AuthenticationPrototypeEndpointFormat;
-}
-type AuthenticationPrototypeProviderStatus = 'idle' | 'scanning' | 'detected' | 'connecting' | 'signed-in' | 'error';
-
-interface IAuthenticationPrototypeAccount {
-	readonly label: string;
-	readonly detail?: string;
-	readonly avatarUrl?: string;
-}
-
-interface IAuthenticationPrototypeProviderState {
-	selected: boolean;
-	status: AuthenticationPrototypeProviderStatus;
-	account?: IAuthenticationPrototypeAccount;
-}
-
-/** Provider layouts the prototype can compare. */
-type AuthenticationPrototypeLayout = 'grid' | 'stacked';
-
-export interface IAuthenticationPrototypeOptions {
-	readonly layout?: AuthenticationPrototypeLayout;
-	readonly accounts?: Partial<Record<AuthenticationPrototypeProvider, IAuthenticationPrototypeAccount>>;
-	readonly themes?: readonly IOnboardingThemeOption[];
-	/** Holds the provider scan in its in-progress state so it can be inspected. */
-	readonly holdScanning?: boolean;
+/** One row in the sign-in step's provider list. */
+interface IOnboardingProviderRow {
+	readonly id: string;
+	/** Set for providers that ship a brand mark instead of a codicon. */
+	readonly markClass?: string;
+	readonly icon?: ThemeIcon;
+	readonly name: string;
+	readonly description: string;
+	readonly actionLabel: string;
+	readonly run: () => void;
 }
 
 assertDefined(product.defaultChatAgent, 'Onboarding requires a default chat agent product configuration.');
@@ -123,7 +101,7 @@ const defaultChat = product.defaultChatAgent;
  * tab. When dismissed, the welcome tab is revealed underneath.
  *
  * Steps:
- * 1. Sign In — sessions-style sign-in hero with provider options
+ * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
  * 2. Personalize — Theme selection grid + keymap pills
  * 3. Agent Sessions — Feature cards showcasing AI capabilities
  */
@@ -149,7 +127,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private nextButton: HTMLButtonElement | undefined;
 	private closeButton: HTMLButtonElement | undefined;
 	private footerLeft: HTMLElement | undefined;
-	private prototypeFooterSlot: HTMLElement | undefined;
 	private _footerSignInBtn: HTMLButtonElement | undefined;
 
 	private currentStepIndex = 0;
@@ -158,7 +135,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private readonly stepDisposables = this._register(new DisposableStore());
 	private previouslyFocusedElement: HTMLElement | undefined;
 	private _isShowing = false;
-	private authenticationPrototype = false;
 
 	private readonly footerFocusableElements: HTMLElement[] = [];
 	private readonly stepFocusableElements: HTMLElement[] = [];
@@ -166,24 +142,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private selectedKeymapId = 'vscode';
 	private _detectedEditorIds: Set<string> | undefined;
 	private _userSignedIn = false;
-	private prototypeAuthenticationSelected = false;
-	private prototypeProviderScanStarted = false;
-	private prototypeProviderScanComplete = false;
-	private activePrototypeProvider: AuthenticationPrototypeProvider | undefined;
-	private renderingPrototypeProvider: AuthenticationPrototypeProvider | undefined;
-	private prototypeThemes: readonly IOnboardingThemeOption[] | undefined;
-	private prototypeHoldScanning = false;
-	private prototypeLayout: AuthenticationPrototypeLayout = 'grid';
-	private readonly prototypeCustomEndpoints: IAuthenticationPrototypeEndpoint[] = [];
-	private prototypeEndpointDraft: IAuthenticationPrototypeEndpoint = { url: '', key: '', format: 'chat-completions' };
-	private prototypeView: 'providers' | 'endpoints' = 'providers';
-	private readonly prototypeDetectedProviders = new Set<AuthenticationPrototypeProvider>();
-	private readonly prototypeProviderElements = new Map<AuthenticationPrototypeProvider, { container: HTMLElement; checkbox: HTMLInputElement; firstAction?: HTMLElement; accountChip?: HTMLElement }>();
-	private readonly prototypeProviderStates: Record<AuthenticationPrototypeProvider, IAuthenticationPrototypeProviderState> = {
-		copilot: { selected: true, status: 'idle' },
-		chatgpt: { selected: false, status: 'idle' },
-		ownKey: { selected: false, status: 'idle' },
-	};
 	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 	private enterpriseSignInUiState: EnterpriseSignInUiState = 'options';
 	private enterpriseInstanceValue = '';
@@ -221,18 +179,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		return this._isShowing;
 	}
 
-	enableAuthenticationPrototype(options?: IAuthenticationPrototypeOptions): void {
-		this.authenticationPrototype = true;
-		this.prototypeDetectedProviders.add('copilot');
-		this.prototypeDetectedProviders.add('chatgpt');
-		this.prototypeThemes = options?.themes;
-		this.prototypeHoldScanning = options?.holdScanning ?? false;
-		this.prototypeLayout = options?.layout ?? 'grid';
-		for (const provider of this._getPrototypeProviders()) {
-			this.prototypeProviderStates[provider].account = options?.accounts?.[provider];
-		}
-	}
-
 	show(): void {
 		if (this.overlay) {
 			return;
@@ -251,7 +197,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		// Card
 		this.card = append(this.overlay, $('.onboarding-a-card'));
-		this.card.classList.toggle('authentication-prototype', this.authenticationPrototype);
 
 		// Close button (upper-right corner of card)
 		this.closeButton = append(this.card, $<HTMLButtonElement>('button.onboarding-a-close-btn'));
@@ -277,10 +222,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const footer = append(this.card, $('.onboarding-a-footer'));
 
 		this.footerLeft = append(footer, $('.onboarding-a-footer-left'));
-
-		// The provider step renders its own actions here so the primary button
-		// lands in the same place on every step.
-		this.prototypeFooterSlot = append(footer, $('.onboarding-a-auth-footer-slot'));
 
 		const footerRight = append(footer, $('.onboarding-a-footer-right'));
 
@@ -443,46 +384,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		);
 	}
 
-	/**
-	 * Prototype-only step titles that continue the narrative started on the
-	 * provider step. Returns `undefined` to fall back to the shipped copy.
-	 */
-	private _getPrototypeStepTitle(stepId: OnboardingStepId): string | undefined {
-		if (!this.authenticationPrototype) {
-			return undefined;
-		}
-		switch (stepId) {
-			case OnboardingStepId.Personalize:
-				return localize('onboarding.authPrototype.step.personalize', "Make It Yours");
-			case OnboardingStepId.AgentSessions:
-				return localize('onboarding.authPrototype.step.agentSessions', "Built Around Your Agents");
-			default:
-				return undefined;
-		}
-	}
-
-	private _getPrototypeStepSubtitle(stepId: OnboardingStepId): string | undefined {
-		if (!this.authenticationPrototype) {
-			return undefined;
-		}
-		switch (stepId) {
-			case OnboardingStepId.Personalize:
-				return localize('onboarding.authPrototype.step.personalize.subtitle', "Pick a look that's easy on your eyes. You can change it anytime.");
-			case OnboardingStepId.AgentSessions: {
-				const connected = this._getPrototypeProviders().filter(provider => this.prototypeProviderStates[provider].selected && this.prototypeProviderStates[provider].status === 'signed-in');
-				if (connected.length === 0) {
-					return localize('onboarding.authPrototype.step.agentSessions.subtitle.none', "Connect a provider anytime to start running agents.");
-				}
-				if (connected.length === 1) {
-					return localize('onboarding.authPrototype.step.agentSessions.subtitle.one', "{0} is ready. Here's where you'll work with it.", this._getPrototypeProviderDescriptor(connected[0]).label);
-				}
-				return localize('onboarding.authPrototype.step.agentSessions.subtitle', "{0} providers are ready. Here's where you'll work with them.", connected.length);
-			}
-			default:
-				return undefined;
-		}
-	}
-
 	private _renderStep(): void {
 		if (!this.titleEl || !this.subtitleEl || !this.contentEl) {
 			return;
@@ -493,19 +394,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const stepId = this.steps[this.currentStepIndex];
 		const useSignInHero = stepId === OnboardingStepId.SignIn;
-		const isPrototypeProviderStep = this.authenticationPrototype && stepId === OnboardingStepId.SignIn;
-		this.card?.classList.toggle('auth-prototype-step', isPrototypeProviderStep);
-		if (this.prototypeFooterSlot && !isPrototypeProviderStep) {
-			clearNode(this.prototypeFooterSlot);
-		}
 		this.titleEl.style.display = useSignInHero ? 'none' : '';
 		this.subtitleEl.style.display = useSignInHero ? 'none' : '';
-		this.titleEl.textContent = this._getPrototypeStepTitle(stepId) ?? getOnboardingStepTitle(stepId);
-		const prototypeSubtitle = this._getPrototypeStepSubtitle(stepId);
-		if (prototypeSubtitle) {
-			clearNode(this.subtitleEl);
-			this.subtitleEl.textContent = prototypeSubtitle;
-		} else if (stepId === OnboardingStepId.AgentSessions) {
+		this.titleEl.textContent = getOnboardingStepTitle(stepId);
+		if (stepId === OnboardingStepId.AgentSessions) {
 			this._renderAgentSessionsSubtitle(this.subtitleEl);
 		} else if (stepId === OnboardingStepId.Personalize) {
 			this._renderPersonalizeSubtitle(this.subtitleEl);
@@ -541,33 +433,23 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 	private _updateButtonStates(): void {
 		if (this.backButton) {
-			if (this.authenticationPrototype && this.currentStepIndex === 0) {
-				this.backButton.style.display = 'none';
-			} else {
-				const showEnterpriseBack = this.currentStepIndex === 0 && this.enterpriseSignInUiState === 'instance';
-				this.backButton.style.display = (this.currentStepIndex === 0 && !showEnterpriseBack) ? 'none' : '';
-			}
+			const showEnterpriseBack = this.currentStepIndex === 0 && this.enterpriseSignInUiState === 'instance';
+			this.backButton.style.display = (this.currentStepIndex === 0 && !showEnterpriseBack) ? 'none' : '';
 		}
 		if (this.nextButton) {
 			if (this.currentStepIndex === 0) {
-				if (this.authenticationPrototype) {
-					this.nextButton.style.display = 'none';
-				} else if (this._userSignedIn) {
-					this.nextButton.style.display = '';
+				if (this._userSignedIn) {
 					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
 					this.nextButton.textContent = localize('onboarding.continue', "Continue");
 				} else {
-					this.nextButton.style.display = '';
 					// Sign-in step: secondary "Continue without Signing In"
 					this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
 					this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
 				}
 			} else if (this._isLastStep()) {
-				this.nextButton.style.display = '';
 				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
 				this.nextButton.textContent = localize('onboarding.getStarted', "Get Started");
 			} else {
-				this.nextButton.style.display = '';
 				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
 				this.nextButton.textContent = localize('onboarding.next', "Continue");
 			}
@@ -575,7 +457,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		if (this.footerLeft) {
 			if (this._isLastStep()) {
 				// Show sign-in nudge in footer
-				if (!this._footerSignInBtn && !this._userSignedIn && !this.prototypeAuthenticationSelected) {
+				if (!this._footerSignInBtn && !this._userSignedIn) {
 					this._footerSignInBtn = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn'));
 					this._footerSignInBtn.type = 'button';
 					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in to use GitHub Copilot");
@@ -601,11 +483,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	// =====================================================================
 
 	private _renderSignInStep(container: HTMLElement): void {
-		if (this.authenticationPrototype) {
-			this._renderAuthenticationPrototype(container);
-			return;
-		}
-
 		const wrapper = append(container, $('.onboarding-a-signin'));
 		const brand = append(wrapper, $('.onboarding-a-signin-brand'));
 		const brandIcon = append(brand, $('span.onboarding-a-signin-brand-icon'));
@@ -615,10 +492,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const content = append(wrapper, $('.onboarding-a-signin-content'));
 		const contentMain = append(content, $('.onboarding-a-signin-content-main'));
 		const title = append(contentMain, $('h2.onboarding-a-signin-title'));
-		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
+		title.textContent = localize('onboarding.signIn.heroTitle', "How do you want to use AI?");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to use GitHub Copilot.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "GitHub Copilot is the fastest way to start. You can add other providers now or later.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -638,7 +515,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					this._renderEnterpriseSignInProgress(actions);
 					break;
 				default:
-					this._renderDefaultSignInActions(actions);
+					this._renderProviderList(actions);
 					break;
 			}
 		}
@@ -662,961 +539,124 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.suffix', " anytime."));
 	}
 
-	private _renderAuthenticationPrototype(container: HTMLElement): void {
-		this._startPrototypeProviderScan();
-
-		if (this.prototypeView === 'endpoints') {
-			this._renderPrototypeEndpointsView(container);
-			return;
-		}
-
-		const wrapper = append(container, $('.onboarding-a-auth-prototype'));
-		const brand = append(wrapper, $('.onboarding-a-auth-vscode-icon'));
-		brand.setAttribute('aria-hidden', 'true');
-
-		const title = append(wrapper, $('h2.onboarding-a-auth-title'));
-		title.textContent = localize('onboarding.authPrototype.title', "Where should your models come from?");
-		const subtitleRow = append(wrapper, $('.onboarding-a-auth-subtitle-row'));
-		const subtitle = append(subtitleRow, $('p.onboarding-a-auth-subtitle'));
-		subtitle.textContent = localize('onboarding.authPrototype.subtitle', "Turn on everything you want to use. You can pick more than one.");
-		this._renderPrototypeCompatibilityHelp(subtitleRow);
-
-		if (!this.prototypeProviderScanComplete) {
-			this._renderPrototypeScanStatus(wrapper);
-		}
-
-		const checklist = append(wrapper, $('.onboarding-a-auth-checklist'));
-		checklist.classList.add(this.prototypeLayout);
-		checklist.setAttribute('role', 'group');
-		checklist.setAttribute('aria-label', localize('onboarding.authPrototype.providers.aria', "AI providers"));
-
-		this.prototypeProviderElements.clear();
-		if (this.prototypeLayout === 'stacked') {
-			for (const provider of this._getPrototypeProviders()) {
-				this._renderPrototypeProvider(checklist, provider);
-			}
-		} else {
-			// Copilot is the primary path, so it owns a full-height column; the
-			// remaining options share the other column and the same total space.
-			this._renderPrototypeProvider(checklist, 'copilot');
-			const secondary = append(checklist, $('.onboarding-a-auth-secondary'));
-			for (const provider of this._getPrototypeProviders().filter(provider => provider !== 'copilot')) {
-				this._renderPrototypeProvider(secondary, provider);
-			}
-		}
-
-		this._renderPrototypeChecklistFooter(wrapper);
-		this._renderPrototypeLayoutSwitch(wrapper);
-
-		// Keep an expanded setup form fully visible when the list has to scroll.
-		const expanded = this._getPrototypeProviders().find(provider => this._isPrototypeProviderExpanded(provider));
-		if (expanded) {
-			this.prototypeProviderElements.get(expanded)?.container.scrollIntoView({ block: 'nearest' });
-		}
-	}
-
 	/**
-	 * Prototype-only control for comparing the two provider layouts side by
-	 * side. It is not part of the proposed onboarding UI.
+	 * The provider list is the whole decision surface. Every row shares one
+	 * structure — mark, name, description, action — so the eye can compare them
+	 * without re-learning the layout. Only Copilot is scaled up, because it is
+	 * the path we want most people to take.
 	 */
-	private _renderPrototypeLayoutSwitch(parent: HTMLElement): void {
-		const stacked = this.prototypeLayout === 'stacked';
-		const row = append(parent, $('.onboarding-a-auth-layout-switch'));
-		const button = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-auth-layout-button')), { secondary: true });
-		button.type = 'button';
-		button.appendChild(renderIcon(stacked ? Codicon.layout : Codicon.listUnordered));
-		const label = append(button, $('span'));
-		label.textContent = stacked
-			? localize('onboarding.authPrototype.layout.toGrid', "Try grid layout")
-			: localize('onboarding.authPrototype.layout.toStacked', "Try stacked layout");
-		button.setAttribute('aria-label', label.textContent);
-
-		this.stepDisposables.add(addDisposableListener(button, EventType.CLICK, () => {
-			this.prototypeLayout = stacked ? 'grid' : 'stacked';
-			this._logAction('switchPrototypeLayout', undefined, this.prototypeLayout);
-			status(stacked
-				? localize('onboarding.authPrototype.layout.grid.aria', "Grid layout.")
-				: localize('onboarding.authPrototype.layout.stacked.aria', "Stacked layout."));
-			this._renderStep();
-			this._updateButtonStates();
-		}));
-	}
-
-	private _isPrototypeProviderExpanded(provider: AuthenticationPrototypeProvider): boolean {
-		const state = this.prototypeProviderStates[provider];
-		return state.selected && state.status !== 'scanning' && state.status !== 'signed-in';
-	}
-
-	/**
-	 * A quiet "?" affordance that reveals which harness each provider can drive.
-	 * The matrix is the honest way to show this: Copilot models run in every
-	 * harness, ChatGPT and Claude only drive their own, and a personal API key
-	 * is limited to the Copilot harness.
-	 */
-	private _renderPrototypeCompatibilityHelp(parent: HTMLElement): void {
-		const wrapper = append(parent, $('.onboarding-a-auth-help'));
-		const trigger = this._registerStepFocusable(append(wrapper, $<HTMLButtonElement>('button.onboarding-a-auth-help-trigger')), { secondary: true });
-		trigger.type = 'button';
-		trigger.appendChild(renderIcon(Codicon.question));
-		trigger.setAttribute('aria-label', localize('onboarding.authPrototype.help.aria', "Which harnesses can each provider run in?"));
-
-		// The popover is a sibling of the help trigger so it can be centred on
-		// the whole subtitle row; anchoring it to the small icon pushed the
-		// matrix outside the panel.
-		const popover = append(parent, $('.onboarding-a-auth-help-popover'));
-		popover.id = 'onboarding-a-auth-help-popover';
-		trigger.setAttribute('aria-describedby', popover.id);
-
-		const heading = append(popover, $('p.onboarding-a-auth-help-title'));
-		heading.textContent = localize('onboarding.authPrototype.help.title', "Which harnesses each provider can run in");
-
-		const intro = append(popover, $('p.onboarding-a-auth-help-intro'));
-		intro.textContent = localize('onboarding.authPrototype.help.intro', "A harness is what does the work: it plans, edits files, and runs commands. Each one supports its own set of models.");
-
-		const harnesses: readonly AuthenticationPrototypeHarness[] = ['copilot', 'codex', 'claude'];
-		const table = append(popover, $('table.onboarding-a-auth-matrix'));
-		const headRow = append(append(table, $('thead')), $('tr'));
-		append(headRow, $('th')).textContent = localize('onboarding.authPrototype.help.provider', "Provider");
-		for (const harness of harnesses) {
-			const cell = append(headRow, $('th'));
-			cell.textContent = this._getPrototypeHarnessLabel(harness);
-			cell.setAttribute('scope', 'col');
-		}
-
-		const body = append(table, $('tbody'));
-		for (const provider of this._getPrototypeProviders()) {
-			const support = this._getPrototypeProviderSupport(provider);
-			const descriptor = this._getPrototypeProviderDescriptor(provider);
-			const row = append(body, $('tr'));
-			const label = append(row, $('th'));
-			label.setAttribute('scope', 'row');
-			const labelInner = append(label, $('.onboarding-a-auth-matrix-provider'));
-			const mark = append(labelInner, $('.onboarding-a-auth-matrix-mark'));
-			mark.setAttribute('aria-hidden', 'true');
-			mark.appendChild(renderIcon(descriptor.icon));
-			append(labelInner, $('span')).textContent = descriptor.label;
-			for (const harness of harnesses) {
-				const cell = append(row, $('td'));
-				const supported = support[harness];
-				cell.classList.toggle('supported', supported);
-				cell.appendChild(renderIcon(supported ? Codicon.check : Codicon.dash));
-				cell.setAttribute('aria-label', supported
-					? localize('onboarding.authPrototype.help.supported', "Supported")
-					: localize('onboarding.authPrototype.help.unsupported', "Not supported"));
-			}
-		}
-	}
-
-	private _startPrototypeProviderScan(): void {
-		if (this.prototypeProviderScanStarted) {
-			return;
-		}
-
-		this.prototypeProviderScanStarted = true;
-		for (const provider of this._getPrototypeProviders()) {
-			if (provider !== 'ownKey') {
-				this.prototypeProviderStates[provider].status = 'scanning';
-			}
-		}
-
-		if (this.prototypeHoldScanning) {
-			return;
-		}
-
-		const targetWindow = getActiveWindow();
-		const handle = targetWindow.setTimeout(() => {
-			for (const provider of this._getPrototypeProviders()) {
-				const state = this.prototypeProviderStates[provider];
-				if (state.status !== 'scanning') {
-					continue;
-				}
-				if (this.prototypeDetectedProviders.has(provider)) {
-					state.selected = true;
-					state.status = 'signed-in';
-				} else {
-					state.status = 'idle';
-				}
-			}
-			this.prototypeProviderScanComplete = true;
-			const detectedCount = this.prototypeDetectedProviders.size;
-			status(localize('onboarding.authPrototype.scan.complete.aria', "Provider scan complete. Found {0} existing accounts or local setups.", detectedCount));
-			this._rerenderAuthenticationPrototype(this._getFocusedPrototypeProvider());
-		}, 800);
-		this.disposables.add(toDisposable(() => targetWindow.clearTimeout(handle)));
-	}
-
-	private _renderPrototypeScanStatus(parent: HTMLElement): void {
-		const scan = append(parent, $('.onboarding-a-auth-scan'));
-		scan.setAttribute('aria-live', 'polite');
-		scan.appendChild(renderIcon(Codicon.search));
-		const label = append(scan, $('span'));
-		label.textContent = localize('onboarding.authPrototype.scan.progress', "Looking for existing provider accounts on this device…");
-	}
-
-	private _getPrototypeProviders(): readonly AuthenticationPrototypeProvider[] {
-		return ['copilot', 'chatgpt', 'ownKey'];
-	}
-
-	private _getPrototypeProviderDescriptor(provider: AuthenticationPrototypeProvider): { label: string; description: string; icon: ThemeIcon } {
-		switch (provider) {
-			case 'copilot':
-				return {
-					label: localize('onboarding.authPrototype.provider.copilot', "GitHub Copilot"),
-					description: localize('onboarding.authPrototype.provider.copilot.description', "Inline suggestions and every harness"),
-					icon: Codicon.copilotLarge,
-				};
-			case 'chatgpt':
-				return {
-					label: localize('onboarding.authPrototype.provider.chatGpt', "ChatGPT"),
-					description: localize('onboarding.authPrototype.provider.chatGpt.description', "OpenAI models in the Codex harness"),
-					icon: Codicon.openai,
-				};
-			case 'ownKey':
-				return {
-					label: localize('onboarding.authPrototype.provider.ownKey', "Your Own Key"),
-					description: localize('onboarding.authPrototype.provider.ownKey.description', "Bring a key from any provider"),
-					icon: Codicon.key,
-				};
-		}
-	}
-
-	/**
-	 * Which harness each provider's models can run in. Copilot works everywhere;
-	 * ChatGPT and Claude only drive their own harness; a personal API key is
-	 * limited to the Copilot harness.
-	 */
-	private _getPrototypeProviderSupport(provider: AuthenticationPrototypeProvider): Record<AuthenticationPrototypeHarness, boolean> {
-		switch (provider) {
-			case 'copilot':
-				return { copilot: true, codex: true, claude: true };
-			case 'chatgpt':
-				return { copilot: false, codex: true, claude: false };
-			case 'ownKey':
-				return { copilot: true, codex: false, claude: true };
-		}
-	}
-
-	private _getPrototypeHarnessLabel(harness: AuthenticationPrototypeHarness): string {
-		switch (harness) {
-			case 'copilot':
-				return localize('onboarding.authPrototype.harness.copilot', "Copilot");
-			case 'codex':
-				return localize('onboarding.authPrototype.harness.codex', "Codex");
-			case 'claude':
-				return localize('onboarding.authPrototype.harness.claude', "Claude Code");
-		}
-	}
-
-	private _renderPrototypeProvider(parent: HTMLElement, provider: AuthenticationPrototypeProvider): void {
-		const state = this.prototypeProviderStates[provider];
-		const descriptor = this._getPrototypeProviderDescriptor(provider);
-		const item = append(parent, $('.onboarding-a-auth-provider'));
-		item.dataset.provider = provider;
-		item.classList.toggle('selected', state.selected);
-		item.classList.toggle('ready', state.status === 'signed-in');
-
-		const header = append(item, $('.onboarding-a-auth-provider-header'));
-		const selector = append(header, $('label.onboarding-a-auth-provider-selector'));
-		const checkbox = this._registerStepFocusable(append(selector, $<HTMLInputElement>('input.onboarding-a-auth-provider-checkbox')));
-		checkbox.type = 'checkbox';
-		checkbox.checked = state.selected;
-		// A switch role matches the toggle affordance and reads as on/off.
-		checkbox.setAttribute('role', 'switch');
-		checkbox.setAttribute('aria-label', localize('onboarding.authPrototype.provider.select.aria', "Use {0}", descriptor.label));
-
-		const toggle = append(selector, $('.onboarding-a-auth-provider-toggle'));
-		toggle.setAttribute('aria-hidden', 'true');
-		append(toggle, $('.onboarding-a-auth-provider-toggle-knob'));
-
-		const mark = append(selector, $('.onboarding-a-auth-provider-mark'));
-		mark.setAttribute('aria-hidden', 'true');
-		mark.appendChild(renderIcon(descriptor.icon));
-
-		const copy = append(selector, $('.onboarding-a-auth-provider-copy'));
-		const heading = append(copy, $('h3.onboarding-a-auth-provider-title'));
-		heading.textContent = descriptor.label;
-		const description = append(copy, $('p.onboarding-a-auth-provider-description'));
-		description.id = `onboarding-a-auth-provider-description-${provider}`;
-		description.textContent = descriptor.description;
-		checkbox.setAttribute('aria-describedby', description.id);
-		this.prototypeProviderElements.set(provider, { container: item, checkbox });
-
-		const badge = this._renderPrototypeProviderBadge(header, provider, state);
-		if (badge) {
-			badge.id = `onboarding-a-auth-provider-status-${provider}`;
-			checkbox.setAttribute('aria-describedby', `${description.id} ${badge.id}`);
-		}
-
-		if (provider === 'ownKey') {
-			this._renderPrototypeOwnKeyBrands(item);
-		}
-
-		this.stepDisposables.add(addDisposableListener(checkbox, EventType.CHANGE, () => {
-			state.selected = checkbox.checked;
-			if (!state.selected && this.activePrototypeProvider === provider) {
-				this.activePrototypeProvider = undefined;
-			} else if (state.selected && state.status === 'idle') {
-				this.activePrototypeProvider = provider;
-			}
-			this._logAction(state.selected ? 'selectAuthenticationProvider' : 'deselectAuthenticationProvider', undefined, provider);
-			status(state.selected
-				? localize('onboarding.authPrototype.provider.selected', "{0} selected.", descriptor.label)
-				: localize('onboarding.authPrototype.provider.deselected', "{0} deselected.", descriptor.label));
-			this._rerenderAuthenticationPrototype(provider, state.selected && state.status !== 'scanning');
-		}));
-
-		if (this._isPrototypeProviderExpanded(provider)) {
-			this.renderingPrototypeProvider = provider;
-			try {
-				this._renderPrototypeProviderSetup(item, provider, state);
-			} finally {
-				this.renderingPrototypeProvider = undefined;
-			}
-		}
-	}
-
-	private _renderPrototypeAccountChip(parent: HTMLElement, provider: AuthenticationPrototypeProvider, account: IAuthenticationPrototypeAccount): HTMLElement {
-		const descriptor = this._getPrototypeProviderDescriptor(provider);
-		const chip = append(parent, $('.onboarding-a-auth-account-chip'));
-
-		const avatar = append(chip, $('.onboarding-a-auth-account-avatar'));
-		avatar.setAttribute('aria-hidden', 'true');
-		if (account.avatarUrl) {
-			const image = append(avatar, $<HTMLImageElement>('img'));
-			image.src = account.avatarUrl;
-			image.alt = '';
-		} else if (provider === 'ownKey') {
-			// A custom endpoint is a host, not a person, so avoid a fake monogram.
-			avatar.classList.add('glyph');
-			avatar.appendChild(renderIcon(descriptor.icon));
-		} else {
-			avatar.classList.add('monogram');
-			avatar.textContent = account.label.charAt(0).toUpperCase();
-		}
-
-		const name = append(chip, $('span.onboarding-a-auth-account-name'));
-		name.textContent = account.label;
-
-		const switchButton = this._registerStepFocusable(append(chip, $<HTMLButtonElement>('button.onboarding-a-auth-account-switch')), { secondary: true });
-		switchButton.type = 'button';
-		switchButton.appendChild(renderIcon(provider === 'ownKey' ? Codicon.edit : Codicon.arrowSwap));
-		switchButton.setAttribute('aria-label', provider === 'ownKey'
-			? localize('onboarding.authPrototype.custom.edit.aria', "Edit custom endpoint. Currently using {0}.", account.label)
-			: localize('onboarding.authPrototype.account.switch.aria', "Switch {0} account. Currently signed in as {1}.", descriptor.label, account.label));
-		this.prototypeProviderElements.get(provider)!.accountChip = switchButton;
-
-		this.stepDisposables.add(addDisposableListener(switchButton, EventType.CLICK, event => {
-			event.preventDefault();
-			event.stopPropagation();
-			this._logAction('switchAuthenticationAccount', undefined, provider);
-			if (provider === 'ownKey') {
-				this.prototypeView = 'endpoints';
-				this._renderStep();
-				this._updateButtonStates();
-				return;
-			}
-			this._useAnotherPrototypeProviderAccount(provider);
-		}));
-
-		return chip;
-	}
-
-	/**
-	 * Shows which services a personal key can reach. Anthropic and Azure use
-	 * their shipped marks; Foundry and OpenRouter fall back to neutral glyphs
-	 * because VS Code does not ship those brand icons yet.
-	 */
-	private _renderPrototypeOwnKeyBrands(parent: HTMLElement): void {
-		const brands: readonly { label: string; icon: ThemeIcon }[] = [
-			{ label: localize('onboarding.authPrototype.brand.claude', "Anthropic Claude"), icon: Codicon.claude },
-			{ label: localize('onboarding.authPrototype.brand.foundry', "Microsoft Foundry"), icon: Codicon.beaker },
-			{ label: localize('onboarding.authPrototype.brand.openRouter', "OpenRouter"), icon: Codicon.compass },
-			{ label: localize('onboarding.authPrototype.brand.azure', "Azure"), icon: Codicon.azure },
-		];
-
-		const row = append(parent, $('.onboarding-a-auth-brands'));
-		row.setAttribute('aria-label', localize('onboarding.authPrototype.brands.aria', "Works with {0}", brands.map(brand => brand.label).join(', ')));
-		for (const brand of brands) {
-			const chip = append(row, $('.onboarding-a-auth-brand'));
-			chip.title = brand.label;
-			chip.setAttribute('aria-hidden', 'true');
-			chip.appendChild(renderIcon(brand.icon));
-		}
-		const more = append(row, $('span.onboarding-a-auth-brand-more'));
-		more.setAttribute('aria-hidden', 'true');
-		more.textContent = localize('onboarding.authPrototype.brands.more', "and more");
-	}
-
-	private _renderPrototypeProviderBadge(parent: HTMLElement, provider: AuthenticationPrototypeProvider, state: IAuthenticationPrototypeProviderState): HTMLElement | undefined {
-		if (state.status === 'signed-in' && state.account) {
-			return this._renderPrototypeAccountChip(parent, provider, state.account);
-		}
-		if (provider === 'ownKey' && state.status === 'idle') {
-			return undefined;
-		}
-		let label: string | undefined;
-		switch (state.status) {
-			case 'scanning':
-				label = localize('onboarding.authPrototype.provider.scanning', "Scanning");
-				break;
-			case 'detected':
-				label = localize('onboarding.authPrototype.provider.detected', "Ready");
-				break;
-			case 'connecting':
-				label = localize('onboarding.authPrototype.provider.connecting', "Signing in");
-				break;
-			case 'signed-in':
-				label = localize('onboarding.authPrototype.provider.signedIn', "Ready");
-				break;
-			case 'idle':
-				label = localize('onboarding.authPrototype.provider.notDetected', "Not detected");
-				break;
-			case 'error':
-				label = localize('onboarding.authPrototype.provider.error', "Needs attention");
-				break;
-		}
-		if (!label) {
-			return undefined;
-		}
-		const badge = append(parent, $('.onboarding-a-auth-provider-badge'));
-		badge.classList.add(state.status);
-		badge.textContent = label;
-		return badge;
-	}
-
-	private _renderPrototypeProviderSetup(parent: HTMLElement, provider: AuthenticationPrototypeProvider, state: IAuthenticationPrototypeProviderState): void {
-		const setup = append(parent, $('.onboarding-a-auth-provider-setup'));
-		switch (state.status) {
-			case 'scanning': {
-				break;
-			}
-			case 'detected': {
-				break;
-			}
-			case 'connecting': {
-				break;
-			}
-			case 'signed-in': {
-				break;
-			}
-			case 'error':
-				this._createPrototypeProviderButton(setup, localize('onboarding.authPrototype.provider.retry', "Try Again"), Codicon.refresh, () => this._useAnotherPrototypeProviderAccount(provider), false);
-				break;
-			case 'idle':
-				this._renderPrototypeManualProviderSetup(setup, provider);
-				break;
-		}
-	}
-
-	private _renderPrototypeManualProviderSetup(parent: HTMLElement, provider: AuthenticationPrototypeProvider): void {
-		if (provider === 'copilot') {
-			if (this.activePrototypeProvider !== 'copilot') {
-				this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.copilot.chooseMethod', "Choose Sign-In Method"), Codicon.signIn, () => {
-					this.activePrototypeProvider = 'copilot';
-					this._rerenderAuthenticationPrototype('copilot', true);
-				}, false);
-				return;
-			}
-			if (this.enterpriseSignInUiState === 'instance') {
-				this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.enterprise.back', "Back to Sign-In Methods"), Codicon.arrowLeft, () => {
-					this.enterpriseSignInUiState = 'options';
-					this._rerenderAuthenticationPrototype('copilot', true);
-				}, true);
-				this._renderPrototypeEnterpriseInstanceForm(parent);
-				return;
-			}
-			this._renderPrototypeCopilotSignInOptions(parent);
-			return;
-		}
-
-		if (provider === 'ownKey') {
-			this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.custom.setUp', "Add Keys"), Codicon.server, () => {
-				this.prototypeView = 'endpoints';
-				this._renderStep();
-				this._updateButtonStates();
-			}, false);
-			return;
-		}
-
-		const descriptor = this._getPrototypeProviderDescriptor(provider);
-		this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.provider.signIn', "Sign In with {0}", descriptor.label), Codicon.signIn, () => this._beginPrototypeProviderConnection(provider), false);
-	}
-
-	/** Request shapes a custom endpoint can speak. */
-	private _getPrototypeEndpointFormats(): readonly { id: AuthenticationPrototypeEndpointFormat; label: string }[] {
-		return [
-			{ id: 'chat-completions', label: localize('onboarding.authPrototype.custom.format.chat', "Chat completions") },
-			{ id: 'responses', label: localize('onboarding.authPrototype.custom.format.responses', "Responses") },
-			{ id: 'messages', label: localize('onboarding.authPrototype.custom.format.messages', "Messages (Anthropic)") },
-		];
-	}
-
-	/**
-	 * Dedicated endpoints step. Custom endpoints are a list rather than a single
-	 * account, so they get their own surface instead of expanding a provider row.
-	 */
-	private _renderPrototypeEndpointsView(container: HTMLElement): void {
-		const wrapper = append(container, $('.onboarding-a-auth-prototype.onboarding-a-auth-endpoints'));
-
-		const title = append(wrapper, $('h2.onboarding-a-auth-title'));
-		title.textContent = localize('onboarding.authPrototype.endpoints.title', "Add Your Own Keys");
-		const subtitle = append(wrapper, $('p.onboarding-a-auth-subtitle'));
-		subtitle.textContent = localize('onboarding.authPrototype.endpoints.subtitle', "Anthropic, Microsoft Foundry, OpenRouter, Azure, or a model on your own machine. Add as many as you need.");
-
-		const list = append(wrapper, $('.onboarding-a-auth-endpoint-list'));
-		list.setAttribute('role', 'list');
-		list.setAttribute('aria-label', localize('onboarding.authPrototype.endpoints.list.aria', "Your keys"));
-		if (this.prototypeCustomEndpoints.length === 0) {
-			const empty = append(list, $('p.onboarding-a-auth-endpoint-empty'));
-			empty.textContent = localize('onboarding.authPrototype.endpoints.empty', "No keys yet.");
-		}
-		for (const [index, endpoint] of this.prototypeCustomEndpoints.entries()) {
-			this._renderPrototypeEndpointRow(list, endpoint, index);
-		}
-
-		this._renderPrototypeEndpointForm(wrapper);
-		this._renderPrototypeEndpointsFooter();
-	}
-
-	private _renderPrototypeEndpointRow(parent: HTMLElement, endpoint: IAuthenticationPrototypeEndpoint, index: number): void {
-		const row = append(parent, $('.onboarding-a-auth-endpoint-row'));
-		row.setAttribute('role', 'listitem');
-
-		const mark = append(row, $('.onboarding-a-auth-endpoint-mark'));
-		mark.setAttribute('aria-hidden', 'true');
-		mark.appendChild(renderIcon(Codicon.server));
-
-		const copy = append(row, $('.onboarding-a-auth-endpoint-copy'));
-		const host = append(copy, $('span.onboarding-a-auth-endpoint-host'));
-		host.textContent = this._getPrototypeEndpointHost(endpoint);
-		const meta = append(copy, $('span.onboarding-a-auth-endpoint-meta'));
-		meta.textContent = this._getPrototypeEndpointFormats().find(format => format.id === endpoint.format)?.label ?? endpoint.format;
-
-		const remove = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-auth-endpoint-remove')), { secondary: true });
-		remove.type = 'button';
-		remove.appendChild(renderIcon(Codicon.trash));
-		remove.setAttribute('aria-label', localize('onboarding.authPrototype.endpoints.remove', "Remove {0}", host.textContent));
-		this.stepDisposables.add(addDisposableListener(remove, EventType.CLICK, () => {
-			this.prototypeCustomEndpoints.splice(index, 1);
-			this._syncPrototypeCustomEndpointState();
-			this._logAction('removeCustomEndpoint');
-			status(localize('onboarding.authPrototype.endpoints.removed', "Key removed."));
-			this._renderStep();
-			this._updateButtonStates();
-		}));
-	}
-
-	private _renderPrototypeEndpointForm(parent: HTMLElement): void {
-		const form = append(parent, $('.onboarding-a-auth-custom-form'));
-
-		const urlField = append(form, $('.onboarding-a-auth-custom-field'));
-		const urlLabel = append(urlField, $('label.onboarding-a-auth-enterprise-label'));
-		urlLabel.textContent = localize('onboarding.authPrototype.custom.url', "Endpoint URL");
-		const urlInput = this._registerStepFocusable(append(urlField, $<HTMLInputElement>('input.onboarding-a-auth-enterprise-input')));
-		urlInput.type = 'text';
-		urlInput.placeholder = 'https://my-model-host.example/v1';
-		urlInput.value = this.prototypeEndpointDraft.url;
-		urlInput.setAttribute('aria-label', urlLabel.textContent);
-
-		const formatField = append(form, $('.onboarding-a-auth-custom-field.half'));
-		const formatLabel = append(formatField, $('label.onboarding-a-auth-enterprise-label'));
-		formatLabel.textContent = localize('onboarding.authPrototype.custom.format', "API Format");
-		const formatSelect = this._registerStepFocusable(append(formatField, $<HTMLSelectElement>('select.onboarding-a-auth-enterprise-input')));
-		formatSelect.setAttribute('aria-label', formatLabel.textContent);
-		for (const format of this._getPrototypeEndpointFormats()) {
-			const option = append(formatSelect, $<HTMLOptionElement>('option'));
-			option.value = format.id;
-			option.textContent = format.label;
-			option.selected = format.id === this.prototypeEndpointDraft.format;
-		}
-
-		const keyField = append(form, $('.onboarding-a-auth-custom-field.half'));
-		const keyLabel = append(keyField, $('label.onboarding-a-auth-enterprise-label'));
-		keyLabel.textContent = localize('onboarding.authPrototype.custom.key', "API Key");
-		const keyInput = this._registerStepFocusable(append(keyField, $<HTMLInputElement>('input.onboarding-a-auth-enterprise-input')));
-		keyInput.type = 'password';
-		keyInput.placeholder = localize('onboarding.authPrototype.custom.key.placeholder', "Paste your key");
-		keyInput.value = this.prototypeEndpointDraft.key;
-		keyInput.setAttribute('aria-label', keyLabel.textContent);
-
-		const message = append(form, $('.onboarding-a-signin-ghe-message'));
-		const actions = append(form, $('.onboarding-a-auth-enterprise-submit'));
-		const addButton = this._createPrototypeButton(actions, localize('onboarding.authPrototype.endpoints.add', "Add Key"), undefined, () => submit(), true);
-
-		const validate = (): boolean => {
-			this.prototypeEndpointDraft = {
-				url: urlInput.value.trim(),
-				key: keyInput.value,
-				format: formatSelect.value as AuthenticationPrototypeEndpointFormat,
-			};
-			const { url, key } = this.prototypeEndpointDraft;
-			message.classList.remove('error', 'info');
-			urlInput.classList.remove('error');
-
-			if (!url) {
-				message.textContent = '';
-				addButton.enabled = false;
-				return false;
-			}
-			if (!/^https?:\/\/\S+$/i.test(url)) {
-				urlInput.classList.add('error');
-				message.classList.add('error');
-				message.textContent = localize('onboarding.authPrototype.custom.invalidUrl', "Enter a full URL, such as https://my-model-host.example/v1.");
-				addButton.enabled = false;
-				return false;
-			}
-			if (this.prototypeCustomEndpoints.some(endpoint => endpoint.url === url)) {
-				message.classList.add('error');
-				message.textContent = localize('onboarding.authPrototype.endpoints.duplicate', "That endpoint is already added.");
-				addButton.enabled = false;
-				return false;
-			}
-			if (!key) {
-				message.classList.add('info');
-				message.textContent = localize('onboarding.authPrototype.custom.needKey', "Add the API key for this endpoint. Local servers often accept any value.");
-				addButton.enabled = false;
-				return false;
-			}
-			message.textContent = '';
-			addButton.enabled = true;
-			return true;
-		};
-
-		const submit = (): void => {
-			if (!validate()) {
-				return;
-			}
-			this.prototypeCustomEndpoints.push(this.prototypeEndpointDraft);
-			this.prototypeEndpointDraft = { url: '', key: '', format: this.prototypeEndpointDraft.format };
-			this._syncPrototypeCustomEndpointState();
-			this._logAction('addCustomEndpoint');
-			status(localize('onboarding.authPrototype.endpoints.added', "Key added. {0} total.", this.prototypeCustomEndpoints.length));
-			this._renderStep();
-			this._updateButtonStates();
-		};
-
-		this.stepDisposables.add(addDisposableListener(formatSelect, EventType.CHANGE, validate));
-		for (const input of [urlInput, keyInput]) {
-			this.stepDisposables.add(addDisposableListener(input, EventType.INPUT, validate));
-			this.stepDisposables.add(addDisposableListener(input, EventType.KEY_DOWN, event => {
-				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.keyCode === KeyCode.Enter) {
-					event.preventDefault();
-					submit();
-				}
-			}));
-		}
-		validate();
-	}
-
-	private _renderPrototypeEndpointsFooter(): void {
-		const footer = this.prototypeFooterSlot;
-		if (!footer) {
-			return;
-		}
-		clearNode(footer);
-
-		const back = append(footer, $('.onboarding-a-auth-no-ai'));
-		const backButton = this._createPrototypeButton(back, localize('onboarding.authPrototype.endpoints.back', "Back"), undefined, () => {
-			this.prototypeView = 'providers';
-			this._renderStep();
-			this._updateButtonStates();
-		}, true);
-		backButton.element.classList.add('onboarding-a-auth-no-ai-button');
-
-		const doneButton = this._createPrototypeButton(footer, localize('onboarding.authPrototype.endpoints.done', "Done"), undefined, () => {
-			this.prototypeView = 'providers';
-			this._renderStep();
-			this._updateButtonStates();
-		}, false);
-		doneButton.enabled = this.prototypeCustomEndpoints.length > 0;
-		doneButton.element.classList.add('onboarding-a-auth-continue-button');
-	}
-
-	private _syncPrototypeCustomEndpointState(): void {
-		const state = this.prototypeProviderStates.ownKey;
-		const count = this.prototypeCustomEndpoints.length;
-		state.status = count > 0 ? 'signed-in' : 'idle';
-		state.account = count > 0
-			? {
-				label: count === 1
-					? this._getPrototypeEndpointHost(this.prototypeCustomEndpoints[0])
-					: localize('onboarding.authPrototype.endpoints.count', "{0} keys", count)
-			}
-			: undefined;
-	}
-
-	private _getPrototypeEndpointHost(endpoint: IAuthenticationPrototypeEndpoint): string {
-		try {
-			return new URL(endpoint.url).host;
-		} catch {
-			return endpoint.url;
-		}
-	}
-
-	private _renderPrototypeCopilotSignInOptions(parent: HTMLElement): void {
-		this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.github', "Continue with GitHub"), Codicon.github, () => this._beginPrototypeProviderConnection('copilot', 'github'), false);
-		const google = this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.google', "Continue with Google"), Codicon.account, () => this._beginPrototypeProviderConnection('copilot', 'google'), true);
-		google.element.classList.add('onboarding-a-auth-google-button');
-		this._createPrototypeProviderButton(parent, localize('onboarding.authPrototype.githubEnterprise', "GitHub Enterprise"), Codicon.server, () => {
-			this.enterpriseSignInUiState = 'instance';
-			this._rerenderAuthenticationPrototype('copilot', true);
-		}, true);
-	}
-
-	private _renderPrototypeEnterpriseInstanceForm(parent: HTMLElement): void {
-		const form = append(parent, $('.onboarding-a-auth-enterprise-form'));
-		const label = append(form, $('label.onboarding-a-auth-enterprise-label'));
-		label.textContent = this._getEnterpriseInstancePromptLabel();
-
-		const input = this._registerStepFocusable(append(form, $<HTMLInputElement>('input.onboarding-a-auth-enterprise-input')));
-		this._registerPrototypeProviderAction(input, true);
-		input.type = 'text';
-		input.placeholder = label.textContent ?? '';
-		input.setAttribute('aria-label', label.textContent ?? '');
-
-		const message = append(form, $('.onboarding-a-signin-ghe-message'));
-		const submitContainer = append(form, $('.onboarding-a-auth-enterprise-submit'));
-		const submitButton = this._createPrototypeButton(
-			submitContainer,
-			localize('onboarding.authPrototype.enterprise.continue', "Continue"),
-			Codicon.arrowRight,
-			() => submit(),
-			false
-		);
-		this._registerPrototypeProviderAction(submitButton.element);
-
-		const validate = (): boolean => {
-			this.enterpriseInstanceValue = input.value;
-			message.classList.remove('error', 'info');
-			input.classList.remove('error');
-
-			const result = parseGheInstanceInput(input.value);
-			switch (result.kind) {
-				case GheParseResultKind.Empty:
-					message.textContent = this._getEnterpriseInstancePromptLabel();
-					submitButton.enabled = false;
-					return false;
-				case GheParseResultKind.SingleWord:
-					message.classList.add('info');
-					message.textContent = localize('onboarding.authPrototype.enterprise.resolve', "Will resolve to {0}", result.resolvedUri);
-					submitButton.enabled = true;
-					return true;
-				case GheParseResultKind.FullUri:
-					message.textContent = '';
-					submitButton.enabled = true;
-					return true;
-				case GheParseResultKind.Invalid:
-					input.classList.add('error');
-					message.classList.add('error');
-					message.textContent = localize('onboarding.authPrototype.enterprise.invalid', 'Enter a valid {0} instance, such as "octocat" or "https://octocat.ghe.com".', defaultChat.provider.enterprise.name);
-					submitButton.enabled = false;
-					return false;
-			}
-		};
-
-		const submit = (): void => {
-			if (validate()) {
-				this._beginPrototypeProviderConnection('copilot', 'github-enterprise');
-			}
-		};
-
-		this.stepDisposables.add(addDisposableListener(input, EventType.INPUT, validate));
-		this.stepDisposables.add(addDisposableListener(input, EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.keyCode === KeyCode.Enter) {
-				event.preventDefault();
-				submit();
-			}
-		}));
-		validate();
-	}
-
-	private _createPrototypeProviderButton(parent: HTMLElement, label: string, icon: ThemeIcon, onClick: () => void, secondary: boolean): IButton {
-		const button = this._createPrototypeButton(parent, label, icon, onClick, secondary);
-		this._registerPrototypeProviderAction(button.element);
-		return button;
-	}
-
-	private _registerPrototypeProviderAction<T extends HTMLElement>(element: T, preferred = false): T {
-		element.dataset.providerAction = 'true';
-		if (this.renderingPrototypeProvider) {
-			const elements = this.prototypeProviderElements.get(this.renderingPrototypeProvider);
-			if (elements && (preferred || !elements.firstAction)) {
-				elements.firstAction = element;
-			}
-		}
-		return element;
-	}
-
-	private _useAnotherPrototypeProviderAccount(provider: AuthenticationPrototypeProvider): void {
-		const state = this.prototypeProviderStates[provider];
-		state.status = 'idle';
-		state.selected = true;
-		this.activePrototypeProvider = provider;
-		if (provider === 'copilot') {
-			this.enterpriseSignInUiState = 'options';
-		}
-		this._rerenderAuthenticationPrototype(provider, true);
-		status(localize('onboarding.authPrototype.provider.manualSetup.aria', "Showing manual setup for {0}.", this._getPrototypeProviderDescriptor(provider).label));
-	}
-
-	private _beginPrototypeProviderConnection(provider: AuthenticationPrototypeProvider, method?: 'github' | 'google' | 'github-enterprise'): void {
-		const state = this.prototypeProviderStates[provider];
-		state.selected = true;
-		state.status = 'connecting';
-		this.activePrototypeProvider = provider;
-		this._logAction('connectAuthenticationProvider', undefined, method ?? provider);
-		this._rerenderAuthenticationPrototype(provider);
-
-		const targetWindow = getActiveWindow();
-		const handle = targetWindow.setTimeout(() => {
-			state.status = 'signed-in';
-			this.activePrototypeProvider = this._getNextPrototypeProviderRequiringSetup();
-			const descriptor = this._getPrototypeProviderDescriptor(provider);
-			status(localize('onboarding.authPrototype.provider.connected.aria', "{0} is signed in.", descriptor.label));
-			this._rerenderAuthenticationPrototype(this.activePrototypeProvider ?? provider, this.activePrototypeProvider !== undefined);
-		}, 450);
-		this.disposables.add(toDisposable(() => targetWindow.clearTimeout(handle)));
-	}
-
-	private _getNextPrototypeProviderRequiringSetup(): AuthenticationPrototypeProvider | undefined {
-		return this._getPrototypeProviders().find(provider => {
-			const state = this.prototypeProviderStates[provider];
-			return state.selected && state.status !== 'signed-in';
+	private _renderProviderList(actions: HTMLElement): void {
+		const list = append(actions, $('.onboarding-a-provider-list'));
+		list.setAttribute('role', 'group');
+		list.setAttribute('aria-label', localize('onboarding.signIn.providers.aria', "Ways to use AI"));
+
+		this._renderCopilotProviderRow(list);
+
+		this._renderProviderRow(list, {
+			id: 'chatgpt',
+			markClass: 'openai',
+			name: localize('onboarding.signIn.chatgpt.name', "ChatGPT"),
+			description: localize('onboarding.signIn.chatgpt.description', "Use your OpenAI account or API key."),
+			actionLabel: localize('onboarding.signIn.chatgpt.action', "Sign in"),
+			run: () => this._handleProviderSetup('chatgpt'),
+		});
+
+		this._renderProviderRow(list, {
+			id: 'byok',
+			icon: Codicon.key,
+			name: localize('onboarding.signIn.byok.name', "Your own key"),
+			description: localize('onboarding.signIn.byok.description', "Anthropic, Azure, Foundry, OpenRouter, Ollama and more."),
+			actionLabel: localize('onboarding.signIn.byok.action', "Configure"),
+			run: () => this._handleProviderSetup('byok'),
 		});
 	}
 
 	/**
-	 * Explains what pressing Continue will actually do: which provider becomes the
-	 * default for chat, and that the rest stay a model-picker away.
+	 * Copilot uses the same row anatomy as the others, just at a larger scale
+	 * with a filled action. Its alternate sign-in routes sit inside the row so
+	 * they stay associated with Copilot rather than floating as global options.
 	 */
-	private _renderPrototypeOutcomeSummary(parent: HTMLElement, selectedProviders: readonly AuthenticationPrototypeProvider[], allReady: boolean): void {
-		if (!allReady || selectedProviders.length === 0) {
-			return;
-		}
+	private _renderCopilotProviderRow(list: HTMLElement): void {
+		const row = append(list, $('.onboarding-a-provider-row.primary'));
 
-		const [defaultProvider, ...secondaryProviders] = selectedProviders;
-		const defaultLabel = this._getPrototypeProviderDescriptor(defaultProvider).label;
-		const summary = append(parent, $('p.onboarding-a-auth-outcome'));
-		summary.textContent = secondaryProviders.length === 0
-			? localize('onboarding.authPrototype.outcome.single', "Chat and inline suggestions will use {0}.", defaultLabel)
-			: localize('onboarding.authPrototype.outcome.default', "{0} powers chat to start. Pick a different model whenever you like.", defaultLabel);
-	}
+		const mark = append(row, $('span.onboarding-a-provider-row-mark'));
+		mark.appendChild(renderIcon(Codicon.github));
+		mark.setAttribute('aria-hidden', 'true');
 
-	private _renderPrototypeChecklistFooter(parent: HTMLElement): void {
-		const selectedProviders = this._getPrototypeProviders().filter(provider => this.prototypeProviderStates[provider].selected);
-		const readyProviders = selectedProviders.filter(provider => this.prototypeProviderStates[provider].status === 'signed-in');
-		const allReady = selectedProviders.length > 0 && readyProviders.length === selectedProviders.length;
+		const copy = append(row, $('.onboarding-a-provider-row-copy'));
+		const nameRow = append(copy, $('.onboarding-a-provider-row-name-row'));
+		const name = append(nameRow, $('h3.onboarding-a-provider-row-name'));
+		name.textContent = localize('onboarding.signIn.copilot.name', "GitHub Copilot");
+		const badge = append(nameRow, $('span.onboarding-a-provider-row-badge'));
+		badge.textContent = localize('onboarding.signIn.copilot.badge', "Recommended");
 
-		this._renderPrototypeOutcomeSummary(parent, selectedProviders, allReady);
+		const description = append(copy, $('p.onboarding-a-provider-row-description'));
+		description.textContent = localize('onboarding.signIn.copilot.description', "Free to start with your GitHub account. Works with every agent, plus inline suggestions.");
 
-		// Actions live in the card footer so Continue keeps its position across steps.
-		const footer = this.prototypeFooterSlot;
-		if (!footer) {
-			return;
-		}
-		clearNode(footer);
-
-		const noAi = append(footer, $('.onboarding-a-auth-no-ai'));
-		const noAiButton = this._createPrototypeButton(
-			noAi,
-			localize('onboarding.authPrototype.noAi', "Continue without AI features"),
-			undefined,
-			() => {
-				this.prototypeAuthenticationSelected = true;
-				this._logAction('selectAuthenticationProvider', undefined, 'no-ai');
-				status(localize('onboarding.authPrototype.selected.noAi', "Continuing without AI features."));
-				this._nextStep();
-			},
-			true
-		);
-		noAiButton.element.classList.add('onboarding-a-auth-no-ai-button');
-
-		const continueButton = this._createPrototypeButton(
-			footer,
-			allReady
-				? localize('onboarding.authPrototype.continue', "Continue")
-				: localize('onboarding.authPrototype.continue.pending', "Finish Provider Setup"),
-			undefined,
-			() => {
-				this.prototypeAuthenticationSelected = true;
-				this._logAction('completeAuthenticationProviders', undefined, selectedProviders.join(','));
-				this._nextStep();
-			},
-			false
-		);
-		continueButton.enabled = allReady;
-		continueButton.element.classList.add('onboarding-a-auth-continue-button');
-	}
-
-	private _getFocusedPrototypeProvider(): AuthenticationPrototypeProvider | undefined {
-		const activeElement = getActiveWindow().document.activeElement;
-		if (!isHTMLElement(activeElement)) {
-			return undefined;
-		}
-		for (const [provider, elements] of this.prototypeProviderElements) {
-			if (elements.container.contains(activeElement)) {
-				return provider;
-			}
-		}
-		return undefined;
-	}
-
-	private _rerenderAuthenticationPrototype(provider?: AuthenticationPrototypeProvider, focusAction = false): void {
-		if (this.steps[this.currentStepIndex] !== OnboardingStepId.SignIn) {
-			return;
-		}
-		this._renderStep();
-		this._updateButtonStates();
-		if (!provider) {
-			return;
-		}
-		const elements = this.prototypeProviderElements.get(provider);
-		(focusAction ? elements?.firstAction : elements?.checkbox)?.focus();
-	}
-
-	private _createPrototypeButton(parent: HTMLElement, label: string, icon: ThemeIcon | undefined, onClick: () => void, secondary: boolean): IButton {
-		const button = this.stepDisposables.add(new Button(parent, {
-			...defaultButtonStyles,
-			secondary,
-			small: true,
-			supportIcons: true,
-			ariaLabel: label,
-		}));
-		button.label = icon ? localize('onboarding.authPrototype.labelWithIcon', "$({0}) {1}", icon.id, label) : label;
-		this.stepDisposables.add(button.onDidClick(onClick));
-		this._registerStepFocusable(button.element);
-		return button;
-	}
-
-	private _renderDefaultSignInActions(actions: HTMLElement): void {
-		const githubBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github', localize('onboarding.signIn.github', "Continue with GitHub"), {
-			emphasized: true,
-			label: localize('onboarding.signIn.github.aria', "Continue with GitHub")
-		}));
-		this.stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'github');
-			this._handleSignIn();
-		}));
-
-		const googleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'google', localize('onboarding.signIn.google', "Continue with Google"), {
-			iconOnly: true,
-			label: localize('onboarding.signIn.google', "Continue with Google")
-		}));
+		const alternates = append(copy, $('.onboarding-a-provider-row-alternates'));
+		alternates.append(localize('onboarding.signIn.copilot.alternatesPrefix', "or continue with "));
+		const googleBtn = this._registerStepFocusable(append(alternates, $<HTMLButtonElement>('button.onboarding-a-provider-row-alternate')));
+		googleBtn.type = 'button';
+		googleBtn.textContent = localize('onboarding.signIn.copilot.google', "Google");
 		this.stepDisposables.add(addDisposableListener(googleBtn, EventType.CLICK, () => {
 			this._logAction('signIn', undefined, 'google');
-			this._handleSignIn('google');
+			void this._handleSignIn('google');
 		}));
-
-		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
-			textOnly: true,
-			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
-		}));
+		alternates.append(' · ');
+		const gheBtn = this._registerStepFocusable(append(alternates, $<HTMLButtonElement>('button.onboarding-a-provider-row-alternate')));
+		gheBtn.type = 'button';
+		gheBtn.textContent = localize('onboarding.signIn.copilot.ghe', "GitHub Enterprise");
 		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
 			this._logAction('signIn', undefined, 'github-enterprise');
 			void this._handleEnterpriseSignIn();
 		}));
+
+		const action = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-provider-row-action.primary')));
+		action.type = 'button';
+		action.textContent = localize('onboarding.signIn.copilot.action', "Sign in");
+		action.setAttribute('aria-label', localize('onboarding.signIn.copilot.action.aria', "Sign in with GitHub to use GitHub Copilot"));
+		this.stepDisposables.add(addDisposableListener(action, EventType.CLICK, () => {
+			this._logAction('signIn', undefined, 'github');
+			void this._handleSignIn();
+		}));
+	}
+
+	private _renderProviderRow(list: HTMLElement, descriptor: IOnboardingProviderRow): void {
+		const row = append(list, $('.onboarding-a-provider-row'));
+
+		const mark = append(row, $('span.onboarding-a-provider-row-mark'));
+		if (descriptor.markClass) {
+			mark.classList.add(descriptor.markClass);
+		} else if (descriptor.icon) {
+			mark.appendChild(renderIcon(descriptor.icon));
+		}
+		mark.setAttribute('aria-hidden', 'true');
+
+		const copy = append(row, $('.onboarding-a-provider-row-copy'));
+		const name = append(copy, $('h3.onboarding-a-provider-row-name'));
+		name.textContent = descriptor.name;
+		const description = append(copy, $('p.onboarding-a-provider-row-description'));
+		description.textContent = descriptor.description;
+
+		const action = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-provider-row-action')));
+		action.type = 'button';
+		action.textContent = descriptor.actionLabel;
+		action.setAttribute('aria-label', localize('onboarding.signIn.provider.action.aria', "{0} — {1}", descriptor.name, descriptor.actionLabel));
+		this.stepDisposables.add(addDisposableListener(action, EventType.CLICK, () => {
+			this._logAction('signIn', undefined, descriptor.id);
+			descriptor.run();
+		}));
+	}
+
+	/**
+	 * Non-Copilot providers are configured through the chat model management
+	 * surface, so the modal hands off rather than duplicating that flow. The
+	 * onboarding closes because the next decision belongs to the chat panel.
+	 */
+	private _handleProviderSetup(provider: string): void {
+		this._logAction('providerSetup', undefined, provider);
+		this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID);
+		this._dismiss('skip');
 	}
 
 	private static readonly GHE_INPUT_ACTION_PADDING = 28;
@@ -1731,33 +771,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 	}
 
-	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
-		const isCompact = options?.iconOnly || options?.textOnly;
-		const btn = append(parent, $<HTMLButtonElement>(isCompact ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
-		btn.type = 'button';
-		btn.title = options?.label ?? label;
-		btn.setAttribute('aria-label', options?.label ?? label);
-		if (options?.emphasized) {
-			btn.classList.add('primary');
-		}
-
-		if (!options?.textOnly) {
-			const mark = append(btn, $('span.onboarding-a-provider-mark'));
-			mark.classList.add(providerClass);
-			mark.setAttribute('aria-hidden', 'true');
-			if (providerClass === 'github' || providerClass === 'github-enterprise') {
-				mark.appendChild(renderIcon(Codicon.github));
-			}
-		}
-
-		if (!options?.iconOnly) {
-			const labelEl = append(btn, $('span.onboarding-a-signin-btn-label'));
-			labelEl.textContent = label;
-		}
-
-		return btn;
-	}
-
 	private async _handleSignIn(socialProvider?: string): Promise<void> {
 		const provider = socialProvider ?? 'github';
 		const watch = StopWatch.create();
@@ -1862,22 +875,19 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private _renderPersonalizeStep(container: HTMLElement): void {
 		const wrapper = append(container, $('.onboarding-a-personalize'));
 
-		// Theme section. In prototype mode the step subtitle already frames the
-		// choice, so the redundant section label and hint are dropped.
-		if (!this.authenticationPrototype) {
-			const themeLabel = append(wrapper, $('div.onboarding-a-section-label'));
-			themeLabel.textContent = localize('onboarding.personalize.theme', "Color Theme");
+		// Theme section
+		const themeLabel = append(wrapper, $('div.onboarding-a-section-label'));
+		themeLabel.textContent = localize('onboarding.personalize.theme', "Color Theme");
 
-			const themeHint = append(wrapper, $('div.onboarding-a-theme-hint'));
-			themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
-		}
+		const themeHint = append(wrapper, $('div.onboarding-a-theme-hint'));
+		themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
 
 		const themeGrid = append(wrapper, $('.onboarding-a-theme-grid'));
 		themeGrid.setAttribute('role', 'radiogroup');
 		themeGrid.setAttribute('aria-label', localize('onboarding.personalize.themeLabel', "Choose a color theme"));
 
 		const hasOtherEditors = this._hasOtherEditors();
-		const allThemes = this.prototypeThemes ?? product.onboardingThemes ?? [];
+		const allThemes = product.onboardingThemes ?? [];
 		// When other editors are detected, show a compact set (exclude solarized variants).
 		const themes: readonly IOnboardingThemeOption[] = hasOtherEditors
 			? allThemes.filter(t => !t.id.startsWith('solarized'))
@@ -1972,10 +982,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			card.classList.add('selected');
 		}
 
-		// SVG preview image, resolved through CSS so it works in every bundle.
+		// SVG preview image
 		const preview = append(card, $('div.onboarding-a-theme-preview'));
-		preview.classList.add(`theme-preview-${theme.id}`);
-		preview.setAttribute('aria-hidden', 'true');
+		const img = append(preview, $<HTMLImageElement>('img.onboarding-a-theme-preview-img'));
+		img.alt = '';
+		img.src = FileAccess.asBrowserUri(`vs/workbench/contrib/welcomeOnboarding/browser/media/theme-preview-${theme.id}.svg`).toString(true);
 
 		// Label
 		const label = append(card, $('div.onboarding-a-theme-label'));
@@ -2183,11 +1194,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _renderAgentSessionsStep(container: HTMLElement): void {
-		if (this.authenticationPrototype) {
-			this._renderPrototypeAgentSessionsStep(container);
-			return;
-		}
-
 		const wrapper = append(container, $('.onboarding-a-sessions'));
 
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
@@ -2221,50 +1227,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			localize('onboarding.sessions.customize.desc', "Tailor Copilot to your project with custom instructions and agents, skills, reusable prompts, and MCP servers that connect to the tools and context you rely on."));
 
 		// Tutorial link at bottom of content, above footer
-		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));
-		this._createDocLink(docsRow, localize('onboarding.sessions.agentsTutorial', "Agents tutorial"), 'https://code.visualstudio.com/docs/agents/agents-tutorial?referrer=in-product', 'agentsTutorial');
-	}
-
-	/**
-	 * Prototype closing step. The provider step promised flexibility, so this
-	 * pays that off: the connected providers are shown as a row of marks, and
-	 * the Agents window is the headline rather than a single assistant.
-	 */
-	private _renderPrototypeAgentSessionsStep(container: HTMLElement): void {
-		const wrapper = append(container, $('.onboarding-a-sessions.onboarding-a-sessions-prototype'));
-		const connected = this._getPrototypeProviders().filter(provider => this.prototypeProviderStates[provider].selected && this.prototypeProviderStates[provider].status === 'signed-in');
-
-		if (connected.length > 0) {
-			const lineup = append(wrapper, $('.onboarding-a-sessions-lineup'));
-			lineup.setAttribute('aria-label', localize('onboarding.authPrototype.sessions.lineup.aria', "Connected providers"));
-			for (const provider of connected) {
-				const descriptor = this._getPrototypeProviderDescriptor(provider);
-				const mark = append(lineup, $('.onboarding-a-sessions-lineup-mark'));
-				mark.title = descriptor.label;
-				mark.appendChild(renderIcon(descriptor.icon));
-			}
-		}
-
-		const grid = append(wrapper, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
-
-		this._createFeatureCard(grid, Codicon.layers,
-			localize('onboarding.authPrototype.sessions.window', "The Agents Window"),
-			localize('onboarding.authPrototype.sessions.window.desc', "A dedicated space to start agents, watch them work side by side, and review their changes before you keep them."));
-
-		this._createFeatureCard(grid, Codicon.arrowSwap,
-			localize('onboarding.authPrototype.sessions.models', "Switch Models Freely"),
-			connected.length > 1
-				? localize('onboarding.authPrototype.sessions.models.desc.multi', "Your {0} providers are all in the model picker. Each harness runs the models it supports.", connected.length)
-				: localize('onboarding.authPrototype.sessions.models.desc', "Add another provider anytime. Each harness runs the models it supports."));
-
-		this._createFeatureCard(grid, Codicon.rocket,
-			localize('onboarding.authPrototype.sessions.anywhere', "Run Agents Anywhere"),
-			localize('onboarding.authPrototype.sessions.anywhere.desc', "Work with an agent locally, hand long tasks to the background, or send them to the cloud to come back as a pull request."));
-
-		this._createFeatureCard(grid, Codicon.settingsGear,
-			localize('onboarding.authPrototype.sessions.customize', "Make Them Yours"),
-			localize('onboarding.authPrototype.sessions.customize.desc', "Custom instructions, skills, reusable prompts, and MCP servers shape how every agent works on your project."));
-
 		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));
 		this._createDocLink(docsRow, localize('onboarding.sessions.agentsTutorial', "Agents tutorial"), 'https://code.visualstudio.com/docs/agents/agents-tutorial?referrer=in-product', 'agentsTutorial');
 	}
@@ -2388,17 +1350,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _focusCurrentStepElement(): void {
-		const tabbable = this.stepFocusableElements.filter(element => this._isTabbable(element));
-		// Secondary affordances (help, switch account) stay tabbable but should
-		// never steal the initial focus from the step's primary control.
-		const stepFocusable = tabbable.find(element => element.dataset.secondaryFocus !== 'true') ?? tabbable[0];
+		const stepFocusable = this.stepFocusableElements.find(element => this._isTabbable(element));
 		(stepFocusable ?? this.nextButton ?? this.closeButton)?.focus();
 	}
 
-	private _registerStepFocusable<T extends HTMLElement>(element: T, options?: { secondary?: boolean }): T {
-		if (options?.secondary) {
-			element.dataset.secondaryFocus = 'true';
-		}
+	private _registerStepFocusable<T extends HTMLElement>(element: T): T {
 		this.stepFocusableElements.push(element);
 		return element;
 	}
