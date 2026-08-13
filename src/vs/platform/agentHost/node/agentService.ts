@@ -5,7 +5,7 @@
 
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DeferredPromise, disposableTimeout, Limiter, ResourceQueue } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, Limiter, Promises, ResourceQueue } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -5033,10 +5033,13 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const provider of this._providers.values()) {
 			promises.push(provider.shutdown());
 		}
-		await Promise.all(promises);
-		await this._orchestratorDatabase.close();
-		this._sessionToProvider.clear();
-		this._downloadProgressInterest.clear();
+		try {
+			await Promises.settled(promises);
+		} finally {
+			await this._orchestratorDatabase.close();
+			this._sessionToProvider.clear();
+			this._downloadProgressInterest.clear();
+		}
 	}
 
 	/**
