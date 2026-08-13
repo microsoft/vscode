@@ -432,23 +432,7 @@ export class SinglePaneWorkbench extends Workbench {
 	}
 
 	protected override _handleAllEditorsClosed(): void {
-		if (!this.partVisibility.editor && !this.partVisibility.auxiliaryBar) {
-			return;
-		}
-		if (this.partVisibility.editor) {
-			this.rememberAttachedEditorMaximizedState();
-		}
-		const suppress = this.suppressEditorPartAutoVisibility();
-		try {
-			if (this.partVisibility.editor) {
-				this.setEditorHidden(true);
-			}
-			if (this.partVisibility.auxiliaryBar) {
-				this.setAuxiliaryBarHidden(true);
-			}
-		} finally {
-			suppress.dispose();
-		}
+		// Lifecycle strategies own empty-group behavior in the single-pane layout.
 	}
 
 }

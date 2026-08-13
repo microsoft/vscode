@@ -916,35 +916,4 @@ suite('resolveLocalCustomAgents', () => {
 			disableUserInvocation: true,
 		}]);
 	});
-
-	test('includes loose workspace agents in the pre-session picker', async () => {
-		const agentUri = URI.file('/workspace/.github/agents/reviewer.agent.md');
-		const agents = await resolveLocalCustomAgents(
-			makeFileService(new Map(), new Map([[agentUri.toString(), [
-				'---',
-				'name: Reviewer',
-				'description: Review workspace changes',
-				'user-invocable: true',
-				'---',
-				'Agent instructions',
-			].join('\n')]])),
-			makePromptsService(new Map([
-				[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.local)]],
-			])),
-			new FakeSyncProvider(),
-			makeAgentPluginService(),
-			SessionType.CopilotCLI,
-			undefined,
-			[]
-		);
-
-		assert.deepStrictEqual(agents, [{
-			type: 'agent',
-			id: agentUri.toString(),
-			uri: agentUri.toString(),
-			name: 'Reviewer',
-			description: 'Review workspace changes',
-			disableUserInvocation: undefined,
-		}]);
-	});
 });

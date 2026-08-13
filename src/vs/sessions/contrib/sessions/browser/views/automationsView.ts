@@ -934,6 +934,8 @@ export class AutomationsCustomViewContribution extends Disposable {
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(AutomationsCustomView),
 			actions: { style: 'buttonBar', menuId: Menus.CustomViewAutomations },
+		}, {
+			restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
 		}));
 
 		const automationContextKeys = new Set([ChatAutomationsEnabledContext.key]);

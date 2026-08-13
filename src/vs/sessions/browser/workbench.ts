@@ -178,6 +178,9 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	 */
 	toggleSidePane(): boolean;
 
+	/** Hides the side pane as one semantic transition. */
+	hideSidePane(): void;
+
 	readonly onDidChangeEditorMaximized: Event<void>;
 
 	/**
@@ -195,6 +198,9 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	 * returned handle to release the suppression. Calls nest via a counter.
 	 */
 	suppressEditorPartAutoVisibility(): IDisposable;
+
+	/** Whether programmatic editor operations currently suppress automatic side-pane visibility. */
+	isEditorPartAutoVisibilitySuppressed(): boolean;
 
 	/**
 	 * Changes docked detail visibility in response to a sash resize without
@@ -1361,6 +1367,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this._onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible });
 	}
 
+	isEditorPartAutoVisibilitySuppressed(): boolean {
+		return this._isEditorPartAutoVisibilitySuppressed;
+	}
+
 	protected get _isEditorPartAutoVisibilitySuppressed(): boolean {
 		return this._editorPartAutoVisibilitySuppressionCount > 0;
 	}
@@ -2216,8 +2226,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 					this._setAuxiliaryBarHidden(!restore.auxiliaryBar, undefined, true);
 				} else {
 					this._sidePaneStateBeforeHide = this._getSidePaneState();
-					this._setAuxiliaryBarHidden(true, undefined, true);
 					this.setEditorHidden(true);
+					this._setAuxiliaryBarHidden(true, undefined, true);
 				}
 			} finally {
 				suppressEditorPartAutoVisibility.dispose();
@@ -2243,6 +2253,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.focusPart(Parts.SESSIONS_PART);
 		}
 		return visible;
+	}
+
+	hideSidePane(): void {
+		if (this.isSidePaneVisible()) {
+			this.toggleSidePane();
+		}
 	}
 
 	private _getSidePaneState(): ISidePaneState {

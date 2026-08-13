@@ -126,6 +126,7 @@ function resolveCurrentPermissionMode(
  *     surfaced via `requestPermission` / `requestUserInput`.
  */
 export class ClaudeAgentSession extends Disposable {
+	private _hostInstructions: readonly string[] | undefined;
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
 	private _chatChannelUri: URI;
@@ -585,6 +586,7 @@ export class ClaudeAgentSession extends Disposable {
 				agent: agentName,
 				telemetry,
 				traceContext,
+				getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -695,6 +697,7 @@ export class ClaudeAgentSession extends Disposable {
 						agent: rebuildAgentName,
 						telemetry,
 						traceContext,
+						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
 					},
 					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -906,7 +909,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[]): Promise<void> {
 		const pipeline = this._requirePipeline();
 		if (workingDirectories) {
 			this._replaceDesiredWorkingDirectories(workingDirectories);
@@ -929,7 +932,12 @@ export class ClaudeAgentSession extends Disposable {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._inheritedPermissionMode, this._permissionModeFallback));
 		}
 		await this._reconcileMcpServerEnablement();
-		return pipeline.send(prompt, turnId);
+		this._hostInstructions = hostInstructions;
+		try {
+			await pipeline.send(prompt, turnId);
+		} finally {
+			this._hostInstructions = undefined;
+		}
 	}
 
 	private _replaceDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {

@@ -47,6 +47,8 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly numTurns?: number;
+		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
+		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 	};
 }
 
@@ -627,8 +629,16 @@ suite('CodexAgent createChat', () => {
 				config: {},
 			});
 			const start = await readNextRequest(peer.outbound);
+			const connection = agent['_connection'];
+			assert.strictEqual(connection.kind, 'ready');
+			if (connection.kind !== 'ready') {
+				throw new Error('Expected ready Codex connection');
+			}
+			agent['_handleMcpStartupStatus'](connection.client, 'additional-thread', 'early-mcp', 'starting', null);
+			assert.strictEqual(agent['_pendingMcpStartupStatuses'].has('additional-thread'), true);
 			peer.push({ id: start.id, result: { thread: { id: 'additional-thread', cwd: folder.fsPath } } });
 			const created = await creating;
+			const earlyMcpState = agent['_mcpInventory'].forThread('additional-thread').get('early-mcp')?.state.kind;
 
 			// A repeated create for the same chat must hand the exact same
 			// backing back; a second thread/start here would orphan the first.
@@ -652,6 +662,7 @@ suite('CodexAgent createChat', () => {
 				recreatedBackingSession: recreated?.backingSession?.toString(),
 				boundSessionId: agent['_sessionIdByChatUri'].get(additionalChat.toString()),
 				sessionRuntimeUntouched: agent['_sessions'].get('session-additional')?.threadId,
+				earlyMcpState,
 				peerMcp: peerCustomizations.filter(customization => customization.type === CustomizationType.McpServer).map(customization => customization.name),
 				configurationResource: agent['_sessions'].get('additional-thread')?.configurationResource.toString(),
 			}, {
@@ -662,7 +673,8 @@ suite('CodexAgent createChat', () => {
 				recreatedBackingSession: AgentSession.uri('codex', 'additional-thread').toString(),
 				boundSessionId: 'additional-thread',
 				sessionRuntimeUntouched: 'session-thread',
-				peerMcp: ['peer-mcp'],
+				earlyMcpState: McpServerStatus.Starting,
+				peerMcp: ['early-mcp', 'peer-mcp'],
 				configurationResource: sessionUri.toString(),
 			});
 		} finally {
@@ -774,10 +786,18 @@ suite('CodexAgent createChat', () => {
 			const entry = agent['_sessions'].get('session-prewarm')!;
 			await entry.materializePromise;
 
-			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1');
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, {
+				configurationResource: sessionUri,
+				resource: chat,
+				hostInstructions: ['Rename with exact casing'],
+			});
 			const turn = await readNextRequest(peer.outbound);
 			assert.strictEqual(turn.method, 'turn/start');
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
+			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
+			assert.deepStrictEqual(turn.params.additionalContext, {
+				'vscode.agentHost': { kind: 'application', value: 'Rename with exact casing' },
+			});
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 		} finally {

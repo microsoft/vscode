@@ -358,14 +358,9 @@ Every `ISession` wrapper must delegate optional provider-owned observables such 
    → Management fires onWillSendRequest(session); the view follows the send to
      keep the newest chat active in the visible slot
   → ChatView clears the embedded ChatWidget before loading a different chat,
-    while its session-target picker keeps the destination chat's exact type
-    (including extension-host Copilot CLI); before any chat is assigned it
-    defaults to Agent Host Copilot. Chat input context keys also derive model
-    targeting from that delegated type while the model resource is absent, so
-    the model picker remains mounted during loading. Before clearing the old
-    model, the view locks to the destination contributed chat session type (for
-    example agent-host-codex), keeping the Agent Host mode and permission
-    pickers mounted too; follow-up turns therefore route to the owning provider
+    then locks it to the contributed chat session type (for example
+    agent-host-codex) before setting the model, so follow-up turns keep routing
+    to the provider that owns the session; local chat sessions unlock
    → Delegates to provider.sendRequest(sessionId, chatResource, options)
    → Provider sends request, returns committed session
    → Management fires onDidStartSession(committedSession) + onDidSendRequest(...)
@@ -386,17 +381,24 @@ the sent chat the active chat by reacting to the send events. When
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
 
-When fixing transient picker state during chat loading, keep the fallback in
-`ChatView`'s reactive session-type delegate; it announces the destination as
-soon as `setChat` assigns it, and the rendered target picker and chat input
-context keys react before the model loads. Changing the shared picker's defaults
-or visibility would alter intentional behavior outside that transition.
-All chat-input context derived from the session type must use the same effective
-type (the scoped delegate when provided, otherwise the model resource), or
-individual picker slots can disappear during the handoff.
-Likewise, update the widget's coding-agent lock from the destination type before
-clearing the old model; waiting for the new model to load transiently hides
-Agent Host-only mode and permission actions.
+Every `onDidSendRequest` also emits `agents/requestSent`. The event distinguishes
+the first message in a new session (`isNewSession: true`, `isNewChat: true`), the
+first message in an additional chat (`false`, `true`), and a follow-up message in
+an existing chat (`false`, `false`). The shared chat submit event carries the
+submitted attachment context so mirrored follow-up telemetry retains the same
+attachment counts and kinds as requests sent through the sessions service.
+
+`ChatView` must **not** pass a `sessionTypePickerDelegate` to its `ChatWidget`.
+That option means "the user picks the session type here" (the welcome view and
+the automations dialog, which have no chat model of their own). `ChatInputPart`
+listens to `onDidChangeActiveSessionProvider` and reconciles the model and mode
+for the newly picked type, so a delegate that merely announces the displayed
+chat makes every navigation re-apply the remembered per-session-type model —
+while the input is still bound to the outgoing chat, which persists the wrong
+model into that chat's input state. A previous attempt to reduce picker flicker
+during loading did exactly this and desynchronized the model picker from the
+session; see the revert of #329889. Fix transient picker state during loading
+some other way.
 
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
@@ -875,7 +877,14 @@ Each invocation creates a **fresh** side chat (there is no "reuse the last side
 chat" behavior). After creating the chat, it activates that peer chat through
 the normal `ISessionsService.openChat(session, sideChat.resource)` flow so the
 standard session/chat focus behavior applies, then sends the prompt on that
-chat through the normal foreground send path. When the slash command has
+chat through the normal foreground send path. Its first request preserves
+explicitly attached context from the originating composer, including pasted
+text attachments. Agent Host sends pasted text as an embedded textual resource,
+then snapshots it into the session attachment directory before reducing the
+turn so synchronized state and later replay retain only the resource reference.
+Every chat in that Agent Host session may read the shared attachment directory
+without an additional permission confirmation; other sessions remain excluded.
+When the slash command has
 already been selected in the input UI, the remaining prompt is only the
 question text; `/btw` must not be inserted a second time.
 
@@ -1068,6 +1077,20 @@ independent — renaming the session no longer moves the default chat tab and
 vice-versa. Auto-titling from the first message
 titles the _session_ for the default chat and the _chat itself_ (via
 `updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
+
+Agent-host rename tools persist the title and its source in one session-database
+transaction before publishing live state, so a failed write changes neither key
+nor the visible title. Tool schemas and runtime validation reject titles over 200
+Unicode code points. Normalization decodes entities, collapses whitespace, removes
+outer quoting/punctuation, and humanizes no-whitespace slugs without changing
+explicit casing such as GitHub, TypeScript, AppKit, or OAuth.
+
+The active-agent rename reminder travels in transient `IAgentChatContext.hostInstructions`,
+never in the user prompt. Copilot and Claude project it through their user-prompt
+hooks' hidden additional context, while Codex uses `turn/start.additionalContext`;
+provider history, replay, restore, and forks therefore retain only the original
+user message. Destructive deletion and idle eviction clear title-controller state
+for the session and every peer chat after pending session metadata writes settle.
 
 Single-chat providers implement `renameSession` by renaming their single main
 chat. `renameSession` is a mandatory
