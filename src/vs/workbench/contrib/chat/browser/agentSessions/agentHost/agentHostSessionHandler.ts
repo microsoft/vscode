@@ -1264,7 +1264,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// session closing while we await our subscriptions does not tear down
 		// the shared session subscription (which would strand us forever).
 		const hydrationKey = resolvedSession.toString();
-		this._ensureActiveClientEntry(sessionResource);
+		// New sessions can create their active-client entry now: their scope roots
+		// derive from the current workspace / picked folder and are correct before
+		// hydration. Existing sessions derive their scope from their own persisted
+		// working directories, which are only known once the subscription has
+		// hydrated, so defer their entry to `_configureActiveClientReconciliation`
+		// below to avoid seeding the scope with workspace-expanded roots.
+		if (isNewSession) {
+			this._ensureActiveClientEntry(sessionResource);
+		}
 		this._hydratingChatSessions.set(hydrationKey, (this._hydratingChatSessions.get(hydrationKey) ?? 0) + 1);
 		try {
 			if (!isNewSession) {
@@ -5423,9 +5431,37 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Scope roots always describe a concrete customization lookup. This differs
 	 * from `_resolveRequestedWorkingDirectories`: its `undefined` is protocol
 	 * meaningful and lets the host choose working directories for createSession.
+	 *
+	 * An existing session's roots are fixed at creation and persisted in its
+	 * state, so they are read from there rather than recomputed from the current
+	 * workspace — otherwise a single-folder session opened inside a multi-root
+	 * workspace would pick up the other workspace folders. New sessions have no
+	 * state yet, so they fall back to the workspace-derived set they will be
+	 * created with.
 	 */
 	private _resolveCustomizationScopeRoots(sessionResource: URI): readonly URI[] {
+		if (!this._isNewSessionResource(sessionResource)) {
+			const own = this._existingSessionWorkingDirectories(sessionResource);
+			if (own) {
+				return own;
+			}
+		}
 		return this._resolveRequestedWorkingDirectories(sessionResource) ?? [];
+	}
+
+	/**
+	 * The working directories an already-created session was started with, read
+	 * from its authoritative (hydrated) state. Returns `undefined` when the
+	 * session has no state yet or no working directories, so callers fall back to
+	 * the workspace-derived set.
+	 */
+	private _existingSessionWorkingDirectories(sessionResource: URI): readonly URI[] | undefined {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const dirs = this._getRawSessionState(backendSession.toString())?.workingDirectories;
+		if (!dirs || dirs.length === 0) {
+			return undefined;
+		}
+		return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
 	}
 
 	/**
