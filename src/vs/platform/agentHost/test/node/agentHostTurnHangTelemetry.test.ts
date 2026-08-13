@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,7 +16,7 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agent.js';
 import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ChatInputQuestionKind, MessageKind, ResponsePartKind, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
@@ -25,6 +26,7 @@ import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
@@ -176,6 +178,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const telemetryService = disposables.add(new AgentHostTelemetryService(telemetry));
 		const sessionDataService = createNullSessionDataService();
+		const customizationEnablementService = { onDidChange: Event.None } as IAgentHostCustomizationEnablementService;
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
@@ -185,7 +188,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
 		), /*strict*/ true));
-		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, {
+		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
@@ -250,7 +253,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hangReason: 'stalledAfterProgress',
 			isExpected: false,
 			hadAnyProgress: true,
-			lastActivityKind: ActionType.ChatDelta,
+			lastActivityKind: 'chat.delta',
 		}]);
 	});
 

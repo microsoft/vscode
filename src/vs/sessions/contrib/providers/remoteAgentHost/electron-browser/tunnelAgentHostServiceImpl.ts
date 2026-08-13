@@ -66,7 +66,10 @@ export function selectEditorGatewayEndpoint(inventory: ITunnelGatewayInventory):
 /**
  * Deterministic dedicated-agent-host selection: reuse the first live
  * standalone instance if one exists, otherwise request a new dedicated one.
- * Never selects an `editor` endpoint.
+ *
+ * Callers must not reach this on a delegated tunnel — {@link resolveGatewaySelection}
+ * short-circuits before any dedicated fallback, since a dedicated host behind
+ * an editor-bound tunnel would outlive the tunnel and be unreachable.
  */
 export function selectDedicatedGatewayFallback(inventory: ITunnelGatewayInventory): ITunnelGatewaySelection {
 	const standalone = sortedGatewayEndpoints(inventory, 'standalone')[0];
@@ -79,7 +82,8 @@ export function selectDedicatedGatewayFallback(inventory: ITunnelGatewayInventor
  * the endpoint we asked for is gone, typically an `editor` endpoint whose
  * agent host exited while its registry entry lingered. Picks a dedicated
  * host exactly like {@link selectDedicatedGatewayFallback}, but never the
- * instance that was just rejected.
+ * instance that was just rejected. A delegated tunnel instead retries only
+ * its bound endpoint: it must never select or spawn a dedicated host.
  *
  * Returns `undefined` when there is nothing meaningful left to try: the
  * rejected selection was itself a request for a brand new dedicated
@@ -87,6 +91,9 @@ export function selectDedicatedGatewayFallback(inventory: ITunnelGatewayInventor
  * reach an existing one, and retrying would just fail the same way.
  */
 export function selectGatewayFallbackAfterRejection(rejected: ITunnelGatewaySelection, inventory: ITunnelGatewayInventory): ITunnelGatewaySelection | undefined {
+	if (inventory.delegatedInstanceId) {
+		return { instanceId: inventory.delegatedInstanceId };
+	}
 	if (!hasKey(rejected, { instanceId: true })) {
 		return undefined;
 	}
@@ -136,6 +143,11 @@ export async function resolveGatewaySelection(
 	request: IGatewaySelectionRequest,
 ): Promise<ITunnelGatewaySelection | undefined> {
 	const { hostKey, hostLabel, productName, inventory, userInitiated } = request;
+	// A dedicated host behind an editor-bound tunnel would be orphaned when
+	// that editor exits, so this tunnel may only use its delegated endpoint.
+	if (inventory.delegatedInstanceId) {
+		return { instanceId: inventory.delegatedInstanceId };
+	}
 	const editor = selectEditorGatewayEndpoint(inventory);
 	const preference = locationPreferenceService.getPreference(hostKey);
 
@@ -409,7 +421,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 	/**
 	 * Send `selection` over the prepared gateway session and, if the gateway
-	 * *rejects* it, transparently retry once against a dedicated agent host.
+	 * *rejects* it, transparently retry once using a fresh inventory.
 	 *
 	 * A rejection (see {@link isTunnelGatewaySelectionRejectedError}) is the
 	 * one failure that proves the tunnel itself is healthy: the CLI answered,
@@ -419,7 +431,9 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 	 * detached editor agent host may not do promptly), so the inventory keeps
 	 * advertising it and every reconnect would otherwise pick it again and
 	 * fail — the connection stays down for the whole backoff window instead
-	 * of failing over. Retrying here fails over within the same attempt.
+	 * of failing over. Undelegated tunnels can fail over to a dedicated host
+	 * within the same attempt; delegated tunnels retry only their bound editor
+	 * host, which prevents creating an orphaned dedicated host.
 	 *
 	 * Every other failure means the tunnel is unreachable, and is rethrown so
 	 * the caller keeps retrying the same destination and selection unchanged.
@@ -439,7 +453,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 				throw err;
 			}
 			const wasEditor = isEditorGatewaySelection(selection, session.inventory);
-			this._logService.warn(`${LOG_PREFIX} Gateway rejected the selected agent host for tunnel '${tunnel.name}', falling back to a dedicated agent host: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`${LOG_PREFIX} Gateway rejected the selected agent host for tunnel '${tunnel.name}', retrying an allowed agent host: ${err instanceof Error ? err.message : String(err)}`);
 
 			// The rejected attempt consumed the gateway socket, so a fresh
 			// session is needed — which also yields a fresh inventory to pick

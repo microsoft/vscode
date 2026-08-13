@@ -41,6 +41,7 @@ export enum ChatConfiguration {
 	UtilitySmallModel = 'chat.utilitySmallModel',
 	BYOKUtilityModelDefault = 'chat.byokUtilityModelDefault',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
+	SaveBeforeSend = 'chat.saveBeforeSend',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
@@ -256,6 +257,9 @@ export namespace ChatAgentLocation {
  */
 const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeChatEditor,
+	// Chat's own read-only resources, such as a pasted-text artifact: their
+	// contents already reach the model through the attachment they belong to.
+	Schemas.vscodeChatResponseResource,
 	Schemas.walkThrough,
 	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
@@ -265,6 +269,13 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	'ccreq',
 	'openai-codex', // Codex session custom editor scheme
 ]);
+
+/** Schemes whose models are chat input editors. */
+export const chatInputSchemes: readonly string[] = [Schemas.vscodeChatInput, Schemas.sessionsChatInput];
+
+export function isChatInputModel(uri: URI): boolean {
+	return chatInputSchemes.includes(uri.scheme);
+}
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
 	const chatService = accessor.get(IChatSessionsService);
@@ -329,13 +340,14 @@ export function isNewChatSessionTypeUsable(
 	sessionType: string,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled = true,
 ): boolean {
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace);
 	}
 	if (isAgentHostTarget(sessionType)) {
-		return true;
+		return agentHostEnabled;
 	}
 	return isVisibleEditorChatSessionType(sessionType, configurationService, chatSessionsService, workspace);
 }
@@ -366,12 +378,12 @@ export function getDefaultNewChatSessionType(
 		return localChatSessionType;
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
 	if (remembered) {
 		return remembered;
 	}
 
-	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace)) {
+	if (options?.currentSessionType && isNewChatSessionTypeUsable(options.currentSessionType, configurationService, chatSessionsService, workspace, agentHostEnabled)) {
 		return options.currentSessionType;
 	}
 
@@ -396,7 +408,7 @@ export function resolveDefaultNewChatSessionType(
 		return { sessionType: localChatSessionType };
 	}
 
-	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace);
+	const remembered = getUsableRememberedSessionType(storageService, configurationService, chatSessionsService, workspace, agentHostEnabled);
 	if (remembered && remembered !== localChatSessionType) {
 		return { sessionType: remembered };
 	}
@@ -414,10 +426,11 @@ function getUsableRememberedSessionType(
 	storageService: IStorageService,
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
-	workspace: IWorkspace
+	workspace: IWorkspace,
+	agentHostEnabled: boolean,
 ): string | undefined {
 	const remembered = getRememberedSessionType(storageService);
-	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace) ? remembered : undefined;
+	return remembered && isNewChatSessionTypeUsable(remembered, configurationService, chatSessionsService, workspace, agentHostEnabled) ? remembered : undefined;
 }
 
 export function getDefaultNewChatSessionResource(

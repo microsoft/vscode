@@ -24,7 +24,8 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actions/configureVoiceInstructionsAction.js';
-import { ChatInputOnboarding, ChatInputOnboardingCard, IChatInputOnboardingBanner, IChatInputOnboardingContext } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputOnboarding, IChatInputOnboardingBanner, IChatInputOnboardingContext, IChatInputOnboardingHostOptions } from '../../chat/browser/widget/input/chatInputOnboarding.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../chat/browser/widget/input/chatInputNoticeWidget.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, asCssVariableWithDefault, selectBackground, selectListBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -384,6 +385,7 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	private width = 0;
 	private height = 0;
 	private running = false;
+	private suspended = false;
 	private level = 0;
 	/** Timestamp of the previous frame, for the elapsed-time each draw eases over. */
 	private lastTimestamp: number | undefined;
@@ -435,12 +437,24 @@ class VoiceModeOnboardingAnimator extends Disposable {
 	}
 
 	private updateMotion(): void {
-		if (this.accessibilityService.isMotionReduced()) {
+		if (this.suspended || this.accessibilityService.isMotionReduced()) {
 			this.stop();
 			this.draw(dom.getWindow(this.container).performance.now());
 		} else {
 			this.start();
 		}
+	}
+
+	/**
+	 * Pause while the card is put away for higher-precedence content, so an
+	 * invisible introduction is not still painting every frame.
+	 */
+	setSuspended(suspended: boolean): void {
+		if (this.suspended === suspended) {
+			return;
+		}
+		this.suspended = suspended;
+		this.updateMotion();
 	}
 
 	private start(): void {
@@ -662,12 +676,10 @@ interface IVoiceElement {
  * afterwards. The leading icon carries that story: play before the click,
  * animating bars while it speaks, then a check once it is yours.
  */
-export class VoiceModeOnboardingBanner extends Disposable implements IChatInputOnboardingBanner {
+export class VoiceModeOnboardingBanner extends ChatInputNoticeWidget implements IChatInputOnboardingBanner {
 
-	readonly domNode: HTMLElement;
-
-	private readonly card: ChatInputOnboardingCard;
 	private readonly player: VoiceSamplePlayer;
+	private animator: VoiceModeOnboardingAnimator | undefined;
 	private readonly options: IVoiceModeOnboardingBannerOptions;
 	private readonly microphonePicker = this._register(new MutableDisposable<DisposableStore>());
 	private microphoneOptions: IMicrophoneOption[] = [];
@@ -697,12 +709,9 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super();
-
-		this.options = options;
-
-		this.card = this._register(new ChatInputOnboardingCard({
+		super({
 			container: options.container,
+			variant: ChatInputNoticeVariant.Onboarding,
 			className: 'voice-mode-onboarding-banner',
 			ariaLabel: localize('voiceMode.onboarding.region', "Voice Mode introduction"),
 			ariaDescription: localize('voiceMode.onboarding.regionDescription', "Choose how your agent speaks to you. Adjust settings anytime."),
@@ -710,14 +719,15 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 				this.logAction('escape');
 				this.options.onDismiss();
 			},
-		}));
-		this.domNode = this.card.domNode;
+		});
+
+		this.options = options;
 		this.localizedVoice = localizedVoiceForLanguage(this.resolveSpokenLanguage());
 		this.player = this._register(instantiationService.createInstance(VoiceSamplePlayer, this.domNode, options.audioFactory));
 		this._register(this.player.onDidChangePlayingVoice(voiceId => this.updatePlaying(voiceId)));
 
 		const copy = dom.append(this.domNode, dom.$('.voice-mode-onboarding-copy'));
-		const title = dom.append(copy, dom.$('.voice-mode-onboarding-title'));
+		const title = dom.append(copy, dom.$('.chat-input-notice-title.voice-mode-onboarding-title'));
 		title.textContent = localize('voiceMode.onboarding.title', "Welcome to Voice Mode");
 		this.renderDescription(copy);
 
@@ -753,14 +763,14 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 		const wave = dom.append(this.domNode, dom.$('.voice-mode-onboarding-wave'));
 		const canvas = dom.append(wave, dom.$('canvas.voice-mode-onboarding-canvas')) as HTMLCanvasElement;
 		canvas.setAttribute('aria-hidden', 'true');
-		this._register(instantiationService.createInstance(VoiceModeOnboardingAnimator, canvas, wave, {
+		this.animator = this._register(instantiationService.createInstance(VoiceModeOnboardingAnimator, canvas, wave, {
 			getLevel: () => this.player.getLevel(),
 			getSignature: () => this.currentSignature(),
 		}));
 	}
 
 	private renderMicrophonePicker(): void {
-		this.microphonePickerContainer = dom.append(this.domNode, dom.$('.voice-mode-onboarding-microphone-picker'));
+		this.microphonePickerContainer = dom.append(this.domNode, dom.$('.chat-input-notice-picker.voice-mode-onboarding-microphone-picker'));
 		this.microphoneOptions = [{
 			deviceId: '',
 			label: localize('voiceMode.onboarding.systemDefault', "System default"),
@@ -1004,7 +1014,7 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	 * concatenated onto the end.
 	 */
 	private renderDescription(container: HTMLElement): void {
-		const description = dom.append(container, dom.$('.voice-mode-onboarding-description'));
+		const description = dom.append(container, dom.$('.chat-input-notice-description.voice-mode-onboarding-description'));
 		const text = localize({
 			key: 'voiceMode.onboarding.description',
 			comment: [
@@ -1048,16 +1058,24 @@ export class VoiceModeOnboardingBanner extends Disposable implements IChatInputO
 	 * ever "I am done here" - and closing is what hands the session back.
 	 */
 	private renderClose(): void {
-		this.card.addAction({
+		this.addDismissAction({
 			className: 'voice-mode-onboarding-close',
 			ariaLabel: localize('voiceMode.onboarding.close', "Close the introduction"),
-			icon: Codicon.closeCompact,
 			onActivate: () => this.finish(),
 		});
 	}
 
-	announce(): void {
-		this.card.announce();
+	/**
+	 * Stops the sample and the waveform while the card is put away for a
+	 * notification, so an invisible introduction is not still playing audio or
+	 * painting every frame.
+	 */
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this.animator?.setSuspended(!visible);
+		if (!visible) {
+			this.player.stop();
+		}
 	}
 
 	private selectVoice(voice: IVoiceModeVoice): void {
@@ -1163,15 +1181,8 @@ export interface IVoiceModeOnboardingService {
 	/**
 	 * Register a container that can host the banner (a chat input). The most
 	 * recently focused host wins when the banner is shown.
-	 *
-	 * @param container the element the banner is appended to.
-	 * @param focusRoot the element whose focus marks this host as the active one
-	 * (typically the chat input part the container lives in).
-	 * @param focus hands focus back to this host's input when the banner closes.
-	 * Passed explicitly because `focusRoot` is a container, not a control - the
-	 * host knows where its caret belongs and this service does not.
 	 */
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable;
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable;
 
 	/**
 	 * Show the introduction if the user has never seen it. Marks it as seen on
@@ -1200,12 +1211,11 @@ export class VoiceModeOnboardingService extends Disposable implements IVoiceMode
 
 		this.onboarding = this._register(this.instantiationService.createInstance(ChatInputOnboarding, {
 			storageKey: AgentsVoiceStorageKeys.IntroBannerShown,
-			hostClass: 'has-voice-mode-onboarding',
 		}));
 	}
 
-	registerHost(container: HTMLElement, focusRoot: HTMLElement, focus: () => void, tipContainer?: HTMLElement, onDidChangeVisible?: (visible: boolean) => void): IDisposable {
-		return this.onboarding.registerHost(container, focusRoot, focus, tipContainer, onDidChangeVisible);
+	registerHost(options: IChatInputOnboardingHostOptions): IDisposable {
+		return this.onboarding.registerHost(options);
 	}
 
 	showIfNeeded(): void {

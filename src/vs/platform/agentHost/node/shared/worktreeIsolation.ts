@@ -5,6 +5,7 @@
 
 import * as fs from 'fs/promises';
 import { RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -13,8 +14,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentSession, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentSession, IAgentSessionProjectInfo } from '../../common/agent.js';
 import { getBranchCompletions, IAgentHostGitService, IDefaultBranch, IWorktreeFileProgress, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../../common/agentHostGitService.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { ISchemaProperty, schemaProperty } from '../../common/agentHostSchema.js';
@@ -23,6 +25,14 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, AgentBranchNameGenerator, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
 import { ICopilotApiService } from './copilotApiService.js';
+
+export const IAgentHostWorktreeIsolation = createDecorator<IAgentHostWorktreeIsolation>('agentHostWorktreeIsolation');
+
+export interface IAgentHostWorktreeIsolation {
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeWorkingDirectoryPending: Event<string>;
+	isWorkingDirectoryPending(sessionId: string): boolean;
+}
 
 /**
  * Per-session-database metadata keys under which the worktree an agent
@@ -323,7 +333,8 @@ export interface IResolveWorkingDirectoryRequest {
  * (`_materializedWorktrees`, pending markers, pending announcements) is keyed by the
  * globally-unique sessionId, so sharing one instance across agents is safe.
  */
-export class WorktreeIsolation extends Disposable {
+export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeIsolation {
+	declare readonly _serviceBrand: undefined;
 
 	/** Worktrees materialized during this host process, keyed by sessionId. */
 	private readonly _materializedWorktrees = new Map<string, ISessionWorktree>();
@@ -348,6 +359,8 @@ export class WorktreeIsolation extends Disposable {
 	 * on disk and their persisted working directory already points at it.
 	 */
 	private readonly _pending = new Set<string>();
+	private readonly _onDidChangeWorkingDirectoryPending = this._register(new Emitter<string>());
+	readonly onDidChangeWorkingDirectoryPending: Event<string> = this._onDidChangeWorkingDirectoryPending.event;
 
 	/** Fixed log label; one host-owned instance serves every agent. */
 	private readonly _logLabel = 'AgentHost';
@@ -382,12 +395,17 @@ export class WorktreeIsolation extends Disposable {
 	 * resolved config selects `worktree` isolation.
 	 */
 	notePending(sessionId: string): void {
-		this._pending.add(sessionId);
+		if (!this._pending.has(sessionId)) {
+			this._pending.add(sessionId);
+			this._onDidChangeWorkingDirectoryPending.fire(sessionId);
+		}
 	}
 
 	/** Clears a pending marker when a session will not materialize a worktree. */
 	clearPending(sessionId: string): void {
-		this._pending.delete(sessionId);
+		if (this._pending.delete(sessionId)) {
+			this._onDidChangeWorkingDirectoryPending.fire(sessionId);
+		}
 	}
 
 	/**
@@ -885,19 +903,51 @@ export class WorktreeIsolation extends Disposable {
 	 * deletes the user-owned worktree. Returns `true` when metadata was recorded.
 	 */
 	async adoptExistingWorktreeMetadata(sessionUri: URI, workingDirectory: URI): Promise<boolean> {
-		const worktreeRoot = await this._gitService.getRepositoryRoot(workingDirectory).catch(() => undefined);
-		if (!worktreeRoot) {
+		const linkedWorktree = await this._resolveLinkedWorktree(workingDirectory);
+		if (!linkedWorktree) {
 			return false;
 		}
-		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
-		// A primary checkout (not a linked worktree) resolves to itself; nothing to bridge.
-		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
-			return false;
-		}
+		const { worktreeRoot, primaryRoot, baseBranch } = linkedWorktree;
 		const branchName = await this._gitService.getCurrentBranch(worktreeRoot).catch(() => undefined) ?? 'HEAD';
-		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
 		await this._writeWorktreeMetadata(sessionUri, { branchName, baseBranch, worktreePath: worktreeRoot, repositoryRoot: primaryRoot });
 		return true;
+	}
+
+	/**
+	 * Records repository identity for an externally-owned linked worktree without taking ownership of its lifecycle.
+	 */
+	async recordExternalWorktreeProject(sessionUri: URI, workingDirectory: URI): Promise<IAgentSessionProjectInfo | undefined> {
+		const linkedWorktree = await this._resolveLinkedWorktree(workingDirectory);
+		if (!linkedWorktree) {
+			return undefined;
+		}
+		const { primaryRoot, baseBranch } = linkedWorktree;
+		const dbRef = this._sessionDataService.openDatabase(sessionUri);
+		try {
+			const work: Promise<void>[] = [
+				dbRef.object.setMetadata(WORKTREE_META_REPOSITORY_ROOT, primaryRoot.toString()),
+			];
+			if (baseBranch) {
+				work.push(dbRef.object.setMetadata(META_DIFF_BASE_BRANCH, baseBranch));
+			}
+			await Promise.all(work);
+		} finally {
+			dbRef.dispose();
+		}
+		return projectFromRepositoryRoot(primaryRoot);
+	}
+
+	private async _resolveLinkedWorktree(workingDirectory: URI): Promise<{ worktreeRoot: URI; primaryRoot: URI; baseBranch: string | undefined } | undefined> {
+		const worktreeRoot = await this._gitService.getRepositoryRoot(workingDirectory).catch(() => undefined);
+		if (!worktreeRoot) {
+			return undefined;
+		}
+		const primaryRoot = await tryResolvePrimaryWorktreeRoot(this._gitService, worktreeRoot).catch(() => undefined);
+		if (!primaryRoot || isEqual(primaryRoot, worktreeRoot)) {
+			return undefined;
+		}
+		const baseBranch = (await this._gitService.getDefaultBranch(primaryRoot).catch(() => undefined))?.name;
+		return { worktreeRoot, primaryRoot, baseBranch };
 	}
 
 	/**

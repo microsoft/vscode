@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 
@@ -26,6 +29,22 @@ export const enum ChatInputWindowStorageKeys {
 
 export const IChatInputWindowService = createDecorator<IChatInputWindowService>('chatInputWindowService');
 
+/** A session whose pull request has failing CI checks. */
+export interface IChatInputWindowCIFailure {
+	readonly sessionResource: URI;
+	readonly occurrenceId: string;
+	readonly label: string;
+	readonly failed: number;
+	readonly pending: number;
+	readonly updatedAt: number;
+}
+
+/** Supplies actionable failing-CI sessions to the floating chat input. */
+export interface IChatInputWindowCIFailureProvider {
+	readonly failures: IObservable<readonly IChatInputWindowCIFailure[]>;
+	fixCI(sessionResource: URI): void;
+}
+
 export interface IChatInputWindowService {
 	readonly _serviceBrand: undefined;
 
@@ -40,6 +59,11 @@ export interface IChatInputWindowService {
 	 * Fires when the window opens or closes.
 	 */
 	readonly onDidChangeOpen: Event<boolean>;
+
+	/**
+	 * Registers failing CI sessions to show in the floating input's attention panel.
+	 */
+	registerCIFailureProvider(provider: IChatInputWindowCIFailureProvider): IDisposable;
 
 	/** Routes voice input through omni when its auxiliary window owns focus. */
 	acceptVoiceInput(text: string): Promise<boolean>;
