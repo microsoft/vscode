@@ -35,6 +35,26 @@ interface ITunnelLoginCredentials {
 	readonly token: string;
 }
 
+/** The tunnel the current intents resolve to. */
+interface ITunnelTarget {
+	readonly mode: TunnelProcessMode;
+	readonly login: ITunnelLoginCredentials | undefined;
+	readonly logLevel: LogLevel;
+}
+
+/**
+ * A launched process's inputs, kept so a later intent update can tell whether
+ * it would produce the same process or genuinely needs a new one.
+ */
+interface ILaunchDescription {
+	readonly mode: TunnelProcessMode;
+	readonly tunnelName: string;
+	readonly providerId: string | undefined;
+	readonly token: string | undefined;
+	readonly logLevel: LogLevel;
+	readonly preventSleep: boolean;
+}
+
 /** A line emitted by a CLI invocation owned by the coordinator. */
 export interface ITunnelProcessOutput {
 	readonly mode: TunnelProcessMode;
@@ -53,6 +73,7 @@ export interface ITunnelProcessMachineStatus {
 export interface ITunnelProcessStatus {
 	readonly mode: TunnelProcessMode;
 	readonly tunnelName: string | undefined;
+	readonly tunnelId?: string;
 	readonly connectionState: TunnelProcessConnectionState;
 	readonly serviceInstallFailed: boolean;
 }
@@ -114,7 +135,9 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	 * idea an uninstall was owed. Cleared only once an uninstall succeeds.
 	 */
 	private _uninstallServicePending = false;
-	private _status: ITunnelProcessStatus = { mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
+	/** Inputs of the currently running process, or undefined when none runs. */
+	private _launched: ILaunchDescription | undefined;
+	private _status: ITunnelProcessStatus = { mode: 'none', tunnelName: undefined, tunnelId: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
 
 	constructor(
 		tunnelCliFactory: TunnelCliFactory | undefined,
@@ -170,14 +193,63 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 	private _schedule(uninstallService: boolean, forceRestart = false): Promise<void> {
 		this._uninstallServicePending ||= uninstallService;
+
+		// Checked before stopping anything: `_reconcile` can only observe a
+		// process this method already stopped, so a no-op update would
+		// otherwise tear down a perfectly healthy tunnel.
+		if (!forceRestart && !this._uninstallServicePending && this._isTargetSatisfied()) {
+			return Promise.resolve();
+		}
+
 		const generation = ++this._generation;
 		void this._currentProcess?.stop();
-		const operation = this._queue.then(() => this._reconcile(generation, forceRestart));
+		const operation = this._queue.then(() => this._reconcile(generation));
 		this._queue = operation.catch(() => { });
 		return operation;
 	}
 
-	private async _reconcile(generation: number, forceRestart: boolean): Promise<void> {
+	/**
+	 * Whether the running process was launched from exactly the inputs the
+	 * current intent resolves to. Compares the full launch description, not
+	 * just mode and name: callers also update the session token, log level and
+	 * sleep prevention, and each of those has to reach a new process.
+	 */
+	private _isTargetSatisfied(): boolean {
+		const target = this._getTarget();
+		if (target.mode === 'none') {
+			return this._status.mode === 'none';
+		}
+		// A run that already reported failure cannot satisfy anything: a token
+		// error cancels the child and marks us disconnected before it exits, so
+		// treating it as healthy would skip the reconcile and leave nothing
+		// running once the cancelled child finally goes away.
+		if (!this._currentProcess || this._status.connectionState === 'disconnected') {
+			return false;
+		}
+		const launched = this._launched;
+		const wanted = this._describeLaunch(target);
+		return !!launched
+			&& launched.mode === wanted.mode
+			&& launched.tunnelName === wanted.tunnelName
+			&& launched.providerId === wanted.providerId
+			&& launched.token === wanted.token
+			&& launched.logLevel === wanted.logLevel
+			&& launched.preventSleep === wanted.preventSleep;
+	}
+
+	/** Everything that changes what a launched tunnel process actually does. */
+	private _describeLaunch(target: ITunnelTarget): ILaunchDescription {
+		return {
+			mode: target.mode,
+			tunnelName: this._getTunnelName(),
+			providerId: target.login?.providerId,
+			token: target.login?.token,
+			logLevel: target.logLevel,
+			preventSleep: this._preventSleep(),
+		};
+	}
+
+	private async _reconcile(generation: number): Promise<void> {
 		await this._stopCurrentProcess();
 		if (generation !== this._generation) {
 			return;
@@ -195,34 +267,31 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 		const target = this._getTarget();
 		const tunnelName = target.mode === 'none' ? undefined : this._getTunnelName();
-		if (!forceRestart && this._status.mode === target.mode && this._status.tunnelName === tunnelName && this._currentProcess) {
-			return;
-		}
 
 		if (target.mode === 'none') {
 			await this._runTransient('kill', ['tunnel', 'kill'], 'none', generation);
 			if (generation === this._generation) {
-				this._setStatus({ mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false });
+				this._setStatus({ mode: 'none', tunnelName: undefined, tunnelId: undefined, connectionState: 'disconnected', serviceInstallFailed: false });
 			}
 			return;
 		}
 
-		this._setStatus({ mode: target.mode, tunnelName, connectionState: 'connecting', serviceInstallFailed: false });
+		this._setStatus({ mode: target.mode, tunnelName, tunnelId: undefined, connectionState: 'connecting', serviceInstallFailed: false });
 		const isServiceInstalled = target.mode === 'service' || target.mode === 'remoteAccess'
 			? await this._isServiceInstalled(generation)
 			: false;
 		if (generation !== this._generation) {
 			return;
 		}
-		if (target.mode === 'service') {
-			let serviceInstallFailed = false;
-			if (!isServiceInstalled) {
-				serviceInstallFailed = await this._installService(target.logLevel, tunnelName!, generation) === false;
+		if (target.mode === 'service' && !isServiceInstalled) {
+			const serviceInstallFailed = await this._installService(target.logLevel, tunnelName!, generation) === false;
+			if (generation !== this._generation) {
+				return;
 			}
-			if (generation === this._generation) {
-				this._setStatus({ ...this._status, serviceInstallFailed });
-			}
-			return;
+			// A failed install is not fatal: the session tunnel below still
+			// runs, matching the pre-CLI behaviour of falling back to hosting
+			// in-session and reporting the failure alongside it.
+			this._setStatus({ ...this._status, serviceInstallFailed });
 		}
 
 		if (target.login) {
@@ -249,9 +318,10 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 			args.push('--accept-server-license-terms', '--log', LogLevelToString(target.logLevel));
 			args.push('--user-data-dir', this.environmentService.userDataPath, '--delegate-to-editor', '--name', tunnelName!, '--parent-process-id', String(process.pid));
 		}
-		if (target.mode === 'remoteAccess' && this._preventSleep()) {
+		if (target.mode !== 'agentHost' && this._preventSleep()) {
 			args.push('--no-sleep');
 		}
+		this._launched = this._describeLaunch(target);
 		this._startTunnel(args, target.mode, generation);
 	}
 
@@ -260,7 +330,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	 * {@link IRemoteTunnelSession}: agent host sharing has no session, only a
 	 * token, and fabricating one with empty ids would misrepresent that.
 	 */
-	private _getTarget(): { mode: TunnelProcessMode; login: ITunnelLoginCredentials | undefined; logLevel: LogLevel } {
+	private _getTarget(): ITunnelTarget {
 		if (this._remoteAccess.mode.active) {
 			const session = this._remoteAccess.mode.session;
 			return {
@@ -305,24 +375,16 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	private _startTunnel(args: readonly string[], mode: TunnelProcessMode, generation: number): void {
 		const tunnelRun = this._tunnelCli.run('tunnel', args, (message, isError) => this._fireOutput(mode, message, isError, true, () => tunnelRun.result.cancel(), generation), { VSCODE_CLI_MACHINE_STATUS: '1' });
 		this._currentProcess = tunnelRun;
-		void tunnelRun.result.then(
-			() => {
-				if (this._currentProcess === tunnelRun) {
-					this._currentProcess = undefined;
-					if (generation === this._generation) {
-						this._setStatus({ ...this._status, connectionState: 'disconnected' });
-					}
+		const onSettled = () => {
+			if (this._currentProcess === tunnelRun) {
+				this._currentProcess = undefined;
+				this._launched = undefined;
+				if (generation === this._generation) {
+					this._setStatus({ ...this._status, connectionState: 'disconnected' });
 				}
-			},
-			() => {
-				if (this._currentProcess === tunnelRun) {
-					this._currentProcess = undefined;
-					if (generation === this._generation) {
-						this._setStatus({ ...this._status, connectionState: 'disconnected' });
-					}
-				}
-			},
-		);
+			}
+		};
+		void tunnelRun.result.then(onSettled, onSettled);
 	}
 
 	private async _runTransient(logLabel: string, args: readonly string[], mode: TunnelProcessMode, generation: number, env?: Record<string, string>, onOutput?: CodeTunnelCliOutput): Promise<number> {
@@ -350,6 +412,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		await run.stop();
 		if (this._currentProcess === run) {
 			this._currentProcess = undefined;
+			this._launched = undefined;
 		}
 	}
 
@@ -359,7 +422,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 			const status = parseTunnelMachineStatus(message);
 			if (status) {
 				if (status.type === 'connected' && this._status.mode === mode) {
-					this._setStatus({ ...this._status, connectionState: 'connected' });
+					this._setStatus({ ...this._status, tunnelId: status.tunnelId, connectionState: 'connected' });
 				}
 				this._onDidMachineStatus.fire({ mode, status, cancel });
 			}
@@ -369,6 +432,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	private _setStatus(status: ITunnelProcessStatus): void {
 		if (this._status.mode === status.mode
 			&& this._status.tunnelName === status.tunnelName
+			&& this._status.tunnelId === status.tunnelId
 			&& this._status.connectionState === status.connectionState
 			&& this._status.serviceInstallFailed === status.serviceInstallFailed) {
 			return;
