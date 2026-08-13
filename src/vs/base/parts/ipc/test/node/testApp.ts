@@ -28,7 +28,7 @@ async function runDeferredCancellationTest(): Promise<void> {
 }
 
 if (process.env['VSCODE_IPC_TEST_DEFERRED_CANCELLATION']) {
-	runDeferredCancellationTest();
+	runDeferredCancellationTest().catch(() => process.exit(1));
 } else {
 	const server = new Server('test');
 	const service = new TestService();
