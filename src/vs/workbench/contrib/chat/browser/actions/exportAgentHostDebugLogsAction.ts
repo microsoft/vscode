@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { VSBuffer, newWriteableBufferStream, streamToBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -62,6 +63,14 @@ export interface IActiveAgentHostSessionForExport {
 export type IAgentHostDebugLogFile =
 	| { readonly path: string; readonly contents: string }
 	| { readonly path: string; readonly resource: URI; readonly size: number };
+
+/**
+ * How long to wait for host-side log collection before giving up and falling
+ * back to client-side discovery. Generous enough for a real collection (which
+ * zips the host's logs), short enough that an unreachable host does not make
+ * the command appear to do nothing.
+ */
+const AGENT_HOST_COLLECTION_TIMEOUT_MS = 20_000;
 
 export interface IAgentHostDebugLogsExport {
 	readonly files: IAgentHostDebugLogFile[];
@@ -175,13 +184,25 @@ export async function collectAgentHostDebugLogs(
 	const connection = sessionResolution?.connection ?? (!activeSession ? agentHostConnectionsService.ambientConnection : undefined);
 	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
 	if (connection?.collectDebugLogs) {
+		// Host-side collection is an optimization, never a hard requirement, so it
+		// must not be able to hold the export hostage. A host that is unreachable
+		// (e.g. an agent host that never finishes connecting) leaves this request
+		// pending forever, so bound it and fall back to client-side discovery.
+		const collection = connection.collectDebugLogs(sessionResolution?.backendSession, exportService.hostArtifactKind);
 		try {
-			hostArtifact = await connection.collectDebugLogs(sessionResolution?.backendSession, exportService.hostArtifactKind);
-			onDidCreateHostArtifact(hostArtifact);
+			hostArtifact = await raceTimeout(collection, AGENT_HOST_COLLECTION_TIMEOUT_MS);
+			if (hostArtifact) {
+				onDidCreateHostArtifact(hostArtifact);
+			} else {
+				logService.warn(`[ExportAgentHostDebugLogs] Host-side log collection timed out after ${AGENT_HOST_COLLECTION_TIMEOUT_MS}ms; using compatibility collection.`);
+				// The request may still land later. Nothing is watching it by then,
+				// so discard whatever it produced instead of leaking a temp artifact.
+				collection.then(
+					artifact => fileService.del(artifact.resource, { recursive: artifact.kind === 'directory' }),
+					() => undefined,
+				).catch(() => undefined);
+			}
 		} catch (error) {
-			// Host-side collection is an optimization, never a hard requirement:
-			// fall back to client-side discovery so an export still produces the
-			// renderer/shared/AHP logs we own.
 			if (error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound) {
 				logService.info('[ExportAgentHostDebugLogs] Connected Agent Host does not support host-side log collection; using compatibility collection.');
 			} else {
