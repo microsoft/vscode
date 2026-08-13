@@ -43,7 +43,7 @@ import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentChatUri, ChatOriginKind, getInlineToolInput, getToolSubagentContent, isChatReadOnly, isMessageHiddenFromTranscript, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, parseChatUri, mergeSessionWithDefaultChat, readUsageInfoMeta, withMessageHiddenFromTranscript, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type SessionState, type StringOrMarkdown, type ToolCallResponsePart, type ToolCallState, type ToolInput, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -119,6 +119,17 @@ const CHAT_ACTIVITY_PROGRESS_ID = 'agentHost.chatActivity';
 
 export const UNOBSERVED_CLIENT_TOOL_GRACE_MS = 5000;
 type AgentHostInvocationFailureStage = 'resolveSession' | 'provisionalSession' | 'sessionState' | 'authentication' | 'createSession' | 'subscribeSession' | 'prepareTurn' | 'dispatchTurn' | 'observeTurn';
+
+function isSessionNotFoundError(error: unknown): boolean {
+	if (error instanceof ProtocolError && error.code === AHP_SESSION_NOT_FOUND) {
+		return true;
+	}
+	if (getErrorCode(error) === String(AHP_SESSION_NOT_FOUND)) {
+		return true;
+	}
+	const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+	return /session not found on backend/i.test(message);
+}
 
 interface IRestoredSubagentState extends IDisposable {
 	readonly onDidChange: Event<void>;
@@ -1264,11 +1275,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// session closing while we await our subscriptions does not tear down
 		// the shared session subscription (which would strand us forever).
 		const hydrationKey = resolvedSession.toString();
+		let existingSessionHydrated = false;
 		this._ensureActiveClientEntry(sessionResource);
 		this._hydratingChatSessions.set(hydrationKey, (this._hydratingChatSessions.get(hydrationKey) ?? 0) + 1);
 		try {
 			if (!isNewSession) {
 				try {
+					const inflight = this._config.connection.getInflightSessionCreate?.(resolvedSession);
+					if (inflight) {
+						try {
+							await inflight;
+						} catch {
+							// Create failed — fall through; a missing backend session
+							// is handled as a new session below (issue #330531).
+						}
+					}
 					const sub = this._ensureSessionSubscription(resolvedSession.toString());
 					sessionSubscription = sub;
 					// Wait for both the session summary and its default-chat
@@ -1281,8 +1302,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					// so the real reason (e.g. the working directory no longer
 					// exists) is logged and rendered instead of a generic message.
 					if (sub.value instanceof Error) {
-						throw sub.value;
-					}
+						if (isSessionNotFoundError(sub.value)) {
+							// Materialized/new sessions in the Agents window are not
+							// always flagged as new, so we may subscribe before the
+							// backend session exists. Don't treat that as a hard load
+							// failure — first send will createSession (issue #330531).
+							this._releaseErroredSessionSubscription(resolvedSession.toString());
+							sessionSubscription = undefined;
+						} else {
+							throw sub.value;
+						}
+					} else {
 					const rawState = this._getRawSessionState(resolvedSession.toString());
 					if (!rawState) {
 						throw new Error(`Session state did not hydrate for ${resolvedSession.toString()}`);
@@ -1374,8 +1404,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 						}
 					}
+					existingSessionHydrated = true;
+					}
 				} catch (err) {
-					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+					if (isSessionNotFoundError(err)) {
+						this._releaseErroredSessionSubscription(resolvedSession.toString());
+						sessionSubscription = undefined;
+					} else {
+						this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 					// Surface a hard load failure as a visible chat error instead of
 					// a silently empty session. Only when nothing else rendered, so a
 					// partially-hydrated history isn't clobbered. A bare response is
@@ -1399,6 +1435,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							participant: this._config.agentId,
 							errorDetails: { message: unwrapSessionLoadErrorMessage(err) ?? localize('agentHost.sessionLoadFailed', "This session couldn't be loaded.") },
 						});
+					}
 					}
 				}
 			}
@@ -1479,9 +1516,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			throw err;
 		}
 		this._activeSessions.set(sessionResource, session);
-		this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
+		if (sessionSubscription && !(sessionSubscription.value instanceof Error)) {
+			this._configureActiveClientReconciliation(sessionResource, resolvedSession, sessionSubscription);
+		}
 
-		if (!isNewSession) {
+		if (existingSessionHydrated) {
 			// Only wire up pending-message/draft sync once the chat URI has been
 			// resolved. When hydration failed (see the catch above), `chatURI`
 			// stays undefined; subscribing anyway would later invoke
@@ -1598,10 +1637,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const resolvedSession = this._resolveSessionUri(request.sessionResource);
 			const sessionKey = resolvedSession.toString();
-			const provisionalBackend = this._provisionalService.get(request.sessionResource);
-			if (provisionalBackend) {
-				this._ensureSessionSubscription(sessionKey);
-			}
 
 			failureStage = 'sessionState';
 			// The sessions provider may have eagerly created this session at
@@ -4952,10 +4987,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		onFailureStage?.('authentication');
 		const protectedResources = await this._ensureRequiredAuthentication(model);
 
-		const activeClientEntry = this._ensureActiveClientEntry(sessionResource);
-		if (activeClientEntry) {
-			await activeClientEntry.whenSettled();
-		}
+		this._ensureActiveClientEntry(sessionResource);
+		// Do not await ActiveClientEntry.whenSettled() before createSession:
+		// that waits for backend reconciliation and hangs when the session
+		// does not yet exist (issue #330531). Pass the current snapshot;
+		// `_configureActiveClientReconciliation` runs after subscribe.
 		const activeClient = this._getCurrentActiveClient(sessionResource);
 
 		// Opt in to bring-up progress (chiefly the lazy first-use SDK download)
@@ -5015,7 +5051,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Subscribe to the new session's state
 		onFailureStage?.('subscribeSession');
-		const newSub = this._ensureSessionSubscription(session.toString());
+		let newSub = this._ensureSessionSubscription(session.toString());
 		this._configureActiveClientReconciliation(sessionResource, session, newSub);
 		if (!this._getSessionState(session.toString())) {
 			// Wait for the subscription to hydrate. `_whenSubscriptionHydrated`
@@ -5028,6 +5064,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// `onDidChange`, so an `onDidChange`-only wait would hang for the
 			// full turn timeout (issue #5242).
 			await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
+		}
+		if (newSub.value instanceof Error && isSessionNotFoundError(newSub.value)) {
+			// First subscribe may have raced ahead of createSession (issue #330531).
+			// Evict the failed subscription and retry once now that the backend
+			// session exists. A second failure fails the turn promptly.
+			newSub = this._ensureSessionSubscription(session.toString());
+			this._configureActiveClientReconciliation(sessionResource, session, newSub);
+			if (!this._getSessionState(session.toString())) {
+				await this._whenSubscriptionHydrated(newSub, CancellationToken.None);
+			}
+		}
+		if (newSub.value instanceof Error) {
+			throw newSub.value;
 		}
 
 		const rawState = this._requireRawSessionState(session.toString());
@@ -6039,6 +6088,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}));
 		}
 		return ref.object;
+	}
+
+	private _releaseErroredSessionSubscription(sessionUri: string): void {
+		const ref = this._sessionSubscriptions.get(sessionUri);
+		if (!ref || !(ref.object.value instanceof Error)) {
+			return;
+		}
+		this._sessionSubscriptions.delete(sessionUri);
+		ref.dispose();
+		this._workingDirectoryRegistrations.deleteAndDispose(sessionUri);
 	}
 
 	/**

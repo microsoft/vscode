@@ -45,6 +45,7 @@ export class NullAgentHostService implements IAgentHostService {
 	getSubscription<T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
 	getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, _resource: URI): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
 	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined { return undefined; }
+	trackSessionCreate(_resource: URI, _promise: Promise<unknown>): void { }
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
 	dispatch(_channel: string, _action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void { notSupported(); }
 

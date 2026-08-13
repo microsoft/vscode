@@ -243,6 +243,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
+	public inflightCreates = new Map<string, Promise<unknown>>();
+
+	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined {
+		return this.inflightCreates.get(resource.toString());
+	}
+
+	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+		this.inflightCreates.set(resource.toString(), promise);
+		void promise.finally(() => {
+			if (this.inflightCreates.get(resource.toString()) === promise) {
+				this.inflightCreates.delete(resource.toString());
+			}
+		}).catch(() => { });
+	}
 
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
@@ -420,7 +434,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope | undefined; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope | undefined; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; trustBarrier?: Promise<void>; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -428,7 +442,10 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
-		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
+		override async getUriTrustInfo(uri: URI) {
+			await options?.trustBarrier;
+			return { uri, trusted: options?.workspaceTrusted ?? true };
+		}
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
 	instantiationService.stub(IFileDialogService, {});
@@ -3510,6 +3527,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 			[`createSession:${backendKey}`, `subscribe:${backendKey}`],
 			'createSession must complete before subscribe is issued',
 		);
+	});
+
+	test('tracks in-flight createSession before workspace trust resolves so subscribe can wait (issue #330531)', async () => {
+		const trustGate = new DeferredPromise<void>();
+		const provider = createProvider(disposables, agentHost, undefined, { trustBarrier: trustGate.p });
+		const session = provider.createNewSession(URI.parse('file:///home/user/proj'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		const rawId = session.resource.path.substring(1);
+		const backendUri = AgentSession.uri(provider.sessionTypes[0].id, rawId);
+		assert.ok(
+			agentHost.getInflightSessionCreate(backendUri),
+			'createSession must be tracked before trust resolves so a racing subscribe waits',
+		);
+		assert.strictEqual(agentHost.createdSessionUris.length, 0, 'createSession must not have been sent yet');
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(backendUri.toString()), undefined, 'subscribe must not precede createSession');
+
+		trustGate.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			agentHost.createdSessionUris.map(u => u.toString()),
+			[backendUri.toString()],
+		);
+		assert.strictEqual(agentHost.sessionSubscribeCounts.get(backendUri.toString()), 1);
 	});
 
 	test('no subscription is opened if eager createSession fails', async () => {

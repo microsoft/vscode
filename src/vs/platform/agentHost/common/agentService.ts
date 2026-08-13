@@ -1012,6 +1012,16 @@ export interface IAgentConnection {
 	getInflightSessionCreate(resource: URI): Promise<unknown> | undefined;
 
 	/**
+	 * Register an in-flight `createSession` Promise so a concurrent
+	 * `getSubscription` waits for create to finish before issuing `subscribe`.
+	 * Used to close the gap between deciding to create a session and the
+	 * `createSession` RPC actually being sent (workspace trust, customization
+	 * resolution). Optional: connections that do not multiplex create/subscribe
+	 * may omit this.
+	 */
+	trackSessionCreate?(resource: URI, promise: Promise<unknown>): void;
+
+	/**
 	 * Read-only descriptors of every active resource subscription on this
 	 * connection, for inspection/debug surfaces. Excludes the always-live
 	 * {@link rootState}.

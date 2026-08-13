@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -1987,8 +1987,13 @@ class NewSession extends Disposable {
 	 * Failures are non-fatal: the legacy first-message path in
 	 * `AgentHostSessionHandler._invokeAgent` re-issues `createSession` if
 	 * no session state exists at send time.
+	 *
+	 * @param ensureTrusted When provided, awaited before `createSession`. The
+	 * in-flight create is registered *before* this await so a racing
+	 * `subscribe` waits instead of hitting `AHP_SESSION_NOT_FOUND`
+	 * (issue #330531).
 	 */
-	eagerCreate(connection: IAgentConnection): void {
+	eagerCreate(connection: IAgentConnection, ensureTrusted?: () => Promise<boolean>): void {
 		const backendUri = this._backendSessionUri;
 		if (this._backendUri?.toString() === backendUri.toString() || this._subscription) {
 			return;
@@ -1996,10 +2001,22 @@ class NewSession extends Disposable {
 		this._backendUri = backendUri;
 		this._connection = connection;
 
+		// Register before workspace-trust / customization awaits so
+		// `getSubscription` waits for create instead of subscribing first.
+		const created = new DeferredPromise<void>();
+		connection.trackSessionCreate?.(backendUri, created.p);
+
 		void (async () => {
 			try {
+				if (ensureTrusted && !await ensureTrusted()) {
+					this.setLoading(false);
+					return;
+				}
+				if (this.cancellationToken.isCancellationRequested || this._backendUri?.toString() !== backendUri.toString()) {
+					return;
+				}
 				await this._activeClientScope?.whenResolved();
-				if (this._backendUri?.toString() !== backendUri.toString()) {
+				if (this.cancellationToken.isCancellationRequested || this._backendUri?.toString() !== backendUri.toString()) {
 					return;
 				}
 				const activeClient = this._activeClientScope?.activeClient(connection.clientId).get();
@@ -2029,7 +2046,14 @@ class NewSession extends Disposable {
 					this._backendUri = undefined;
 					this._connection = undefined;
 				}
+				if (!created.isSettled) {
+					created.error(err);
+				}
 				return;
+			} finally {
+				if (!created.isSettled) {
+					created.complete();
+				}
 			}
 
 			// Bail if the user switched workspaces, graduated this session,
@@ -2913,26 +2937,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (AgentHostSessionHandler), so in the normal flow the folder is
 		// already trusted here. This guards alternate entry points (e.g.
 		// delegation). No-op for providers that don't require trust (remote).
-		if (newSession.requiresWorkspaceTrust && newSession.workspaceUri) {
-			const workspaceUri = newSession.workspaceUri;
-			void (async () => {
-				const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workspaceUri);
-				// Bail if the draft was abandoned/replaced while we awaited
-				// trust info (e.g. deleteNewSession, connection drop) — don't
-				// spawn a backend session for a stale entry.
-				if (this._newSessions.get(newSession.sessionId) !== newSession) {
-					return;
-				}
-				if (!trusted) {
-					this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${workspaceUri.toString()}`);
-					newSession.setLoading(false);
-					return;
-				}
-				newSession.eagerCreate(connection);
-			})();
-			return;
-		}
-		newSession.eagerCreate(connection);
+		//
+		// Trust is awaited *inside* `eagerCreate` after the in-flight create
+		// is registered, so a racing first send waits for create (or skip)
+		// instead of subscribing to a session the backend does not have
+		// (issue #330531).
+		newSession.eagerCreate(connection, async () => {
+			if (!newSession.requiresWorkspaceTrust || !newSession.workspaceUri) {
+				return true;
+			}
+			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(newSession.workspaceUri);
+			if (this._newSessions.get(newSession.sessionId) !== newSession || newSession.cancellationToken.isCancellationRequested) {
+				return false;
+			}
+			if (!trusted) {
+				this._logService.trace(`[${this.id}] Skipping eager createSession for untrusted folder ${newSession.workspaceUri.toString()}`);
+			}
+			return trusted;
+		});
 	}
 
 	/**

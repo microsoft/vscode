@@ -195,6 +195,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getInflightSessionCreate(resource);
 	}
 
+	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+		this._protocolClient?.trackSessionCreate(resource, promise);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}

@@ -288,6 +288,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getInflightSessionCreate(resource);
 	}
 
+	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+		this._protocolClient?.trackSessionCreate(resource, promise);
+	}
+
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
