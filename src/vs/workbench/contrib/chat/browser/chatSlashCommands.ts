@@ -77,29 +77,32 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}, async () => {
 			chatPetService.toggle();
 		}));
-		const clearCommandRegistration = this._register(new MutableDisposable());
-		const registerClearCommand = () => {
-			const wording = getChatSessionArchiveActionWording(configurationService);
-			clearCommandRegistration.clear();
-			clearCommandRegistration.value = slashCommandService.registerSlashCommand({
-				command: 'clear',
-				detail: wording === ChatSessionArchiveActionWording.MarkAsDone
-					? nls.localize('clear.markDone', "Start a new chat and mark the current one as done")
-					: nls.localize('clear.archive', "Start a new chat and archive the current one"),
-				sortText: 'z2_clear',
-				executeImmediately: true,
-				locations: [ChatAgentLocation.Chat]
-			}, async (_prompt, _progress, _history, _location, sessionResource) => {
-				agentSessionsService.getSession(sessionResource)?.setArchived(true);
-				commandService.executeCommand(ACTION_ID_NEW_CHAT);
-			});
-		};
-		registerClearCommand();
-		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
-				registerClearCommand();
-			}
-		}));
+		// The Agents window registers its own `/clear` in `sessions/contrib/chat/browser/clearSlashCommand.contribution.ts`.
+		if (!this.environmentService.isSessionsWindow) {
+			const clearCommandRegistration = this._register(new MutableDisposable());
+			const registerClearCommand = () => {
+				const wording = getChatSessionArchiveActionWording(configurationService);
+				clearCommandRegistration.clear();
+				clearCommandRegistration.value = slashCommandService.registerSlashCommand({
+					command: 'clear',
+					detail: wording === ChatSessionArchiveActionWording.MarkAsDone
+						? nls.localize('clear.markDone', "Start a new chat and mark the current one as done")
+						: nls.localize('clear.archive', "Start a new chat and archive the current one"),
+					sortText: 'z2_clear',
+					executeImmediately: true,
+					locations: [ChatAgentLocation.Chat]
+				}, async (_prompt, _progress, _history, _location, sessionResource) => {
+					agentSessionsService.getSession(sessionResource)?.setArchived(true);
+					commandService.executeCommand(ACTION_ID_NEW_CHAT);
+				});
+			};
+			registerClearCommand();
+			this._register(configurationService.onDidChangeConfiguration(event => {
+				if (event.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
+					registerClearCommand();
+				}
+			}));
+		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'hooks',
 			detail: nls.localize('hooks', "Configure hooks"),
