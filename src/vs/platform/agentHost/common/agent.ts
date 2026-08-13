@@ -1080,8 +1080,8 @@ export interface IAgent {
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
 
-	/** Optional push signal for providers that can require re-authentication after startup. */
-	readonly onDidRequireAuth?: Event<Omit<AuthRequiredParams, 'channel'>>;
+	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
+	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;
 
 	/** Optional endpoint list when the provider owns probeable network traffic. */
 	getNetworkDiagnosticsEndpoints?(): Promise<readonly IAgentHostNetworkEndpoint[]>;

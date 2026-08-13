@@ -29,7 +29,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
-import { ActionType, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -62,6 +62,7 @@ import { IOutputService } from '../../../../../services/output/common/output.js'
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostContribution, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
@@ -11276,19 +11277,28 @@ suite('AgentHostChatContribution', () => {
 
 	suite('auth dedupe', () => {
 
+		const protectedResource = (): ProtectedResourceMetadata => ({
+			resource: 'https://api.github.com',
+			resource_name: 'GitHub',
+			authorization_servers: ['https://github.com/login/oauth'],
+			scopes_supported: ['read:user'],
+			required: true,
+		});
+
 		const protectedAgents = (): AgentInfo[] => [{
 			provider: 'copilot',
 			displayName: 'Agent Host - Copilot',
 			description: 'test',
 			models: [],
-			protectedResources: [{
-				resource: 'https://api.github.com',
-				resource_name: 'GitHub',
-				authorization_servers: ['https://github.com/login/oauth'],
-				scopes_supported: ['read:user'],
-				required: true,
-			}],
+			protectedResources: [protectedResource()],
 		}];
+
+		const authRequiredNotification = (resource: ProtectedResourceMetadata, reason?: AuthRequiredReason): INotification => ({
+			type: 'auth/required',
+			channel: 'ahp-root://',
+			resource,
+			...(reason !== undefined ? { reason } : {}),
+		});
 
 		function tokenAuthService(tokenRef: { current: string }): Partial<IAuthenticationService> {
 			// Always returns whatever token is in tokenRef.current. Returning a session
@@ -11352,17 +11362,254 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
-			agentHostService.fireNotification({
-				type: 'auth/required',
-				channel: 'ahp-root://',
-				resource: 'https://api.github.com',
-			});
+			agentHostService.fireNotification(authRequiredNotification(protectedResource()));
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, [
 				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
 				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
 			]);
+		});
+
+		test('authenticates an exact required resource that is not advertised by root agents', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.example.com/session',
+				authorization_servers: ['https://auth.example.com'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.authenticateCalls.length = 0;
+			agentHostService.fireNotification(authRequiredNotification(sessionResource));
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{
+				resource: 'https://api.example.com/session',
+				scopes: ['session:read'],
+				token: 'tok-1',
+			}]);
+		});
+
+		test('resends the current token once for duplicate expired authentication notifications without prompting', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.authenticateCalls.length = 0;
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [{
+					resource: 'https://api.github.com/session',
+					scopes: ['session:read'],
+					token: 'tok-1',
+				}],
+			});
+		});
+
+		test('prompts once and forwards after a second completed same-token challenge', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			commandService.result = { success: true, dialogSkipped: false };
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 1,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+				],
+			});
+		});
+
+		test('forwards and records the post-sign-in token when authentication repopulates the cache during setup', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+			let promptCount = 0;
+			commandService.executeCommand = async <R>() => {
+				promptCount++;
+				tokenRef.current = 'tok-2';
+				await (contribution as unknown as { readonly _authTokenCache: AgentHostAuthTokenCache })._authTokenCache.authenticate(
+					sessionResource.resource,
+					sessionResource.scopes_supported,
+					tokenRef.current,
+					() => agentHostService.authenticate({ resource: sessionResource.resource, scopes: sessionResource.scopes_supported, token: tokenRef.current }),
+				);
+				return { success: true, dialogSkipped: false } as R;
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				promptCount,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				promptCount: 1,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-2' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-2' },
+				],
+			});
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			assert.strictEqual(promptCount, 2);
+		});
+
+		test('does not prompt after a silently rotated token on a second challenge', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			tokenRef.current = 'tok-2';
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-2' },
+				],
+			});
+		});
+
+		test('does not claim or retry a canceled interactive authentication until a later challenge', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			commandService.result = undefined;
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 1,
+				authenticateCalls: [{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' }],
+			});
+		});
+
+		test('sends a silently rotated current token for an expired authentication notification', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.authenticateCalls.length = 0;
+			tokenRef.current = 'tok-2';
+			const sessionResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+
+			agentHostService.fireNotification(authRequiredNotification(sessionResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [{
+					resource: 'https://api.github.com/session',
+					scopes: ['session:read'],
+					token: 'tok-2',
+				}],
+			});
+		});
+
+		test('does not conflate authentication challenges with the same resource and distinct scopes', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { instantiationService, agentHostService, commandService } = createTestServices(disposables, undefined, tokenAuthService(tokenRef));
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			commandService.calls.length = 0;
+			agentHostService.authenticateCalls.length = 0;
+
+			const readResource: ProtectedResourceMetadata = {
+				resource: 'https://api.github.com/session',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['session:read'],
+			};
+			const writeResource: ProtectedResourceMetadata = {
+				...readResource,
+				scopes_supported: ['session:write'],
+			};
+			agentHostService.fireNotification(authRequiredNotification(readResource, AuthRequiredReason.Expired));
+			agentHostService.fireNotification(authRequiredNotification(writeResource, AuthRequiredReason.Expired));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				commandCalls: commandService.calls.length,
+				authenticateCalls: agentHostService.authenticateCalls,
+			}, {
+				commandCalls: 0,
+				authenticateCalls: [
+					{ resource: 'https://api.github.com/session', scopes: ['session:read'], token: 'tok-1' },
+					{ resource: 'https://api.github.com/session', scopes: ['session:write'], token: 'tok-1' },
+				],
+			});
 		});
 
 		test('forwards missing-token state once when no token is resolvable', async () => {
