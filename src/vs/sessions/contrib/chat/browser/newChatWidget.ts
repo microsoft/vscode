@@ -10,7 +10,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -52,8 +52,8 @@ import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } fro
 
 // #region --- New Chat Widget ---
 
-/** Minimum number of started sessions required before showing tips. */
-const MIN_SESSIONS_FOR_TIPS = 2;
+/** Minimum number of started sessions required before showing tips and promotions. */
+const MIN_SESSIONS_FOR_FIRST_RUN_NOTICES = 2;
 
 export class NewChatWidget extends Disposable {
 
@@ -197,6 +197,11 @@ export class NewChatWidget extends Disposable {
 		});
 		const hasFeedback = derived(this, reader => this._feedbackItems.read(reader).length > 0);
 		const canSubmitWithoutSession = derived(this, reader => !this._session.read(reader) && hasFeedback.read(reader));
+		const deferredNotificationsEnabled = observableFromEvent(
+			this,
+			this.storageService.onDidChangeValue(StorageScope.APPLICATION, TOTAL_SESSIONS_KEY, this._store),
+			() => this._hasEnoughSessionsForFirstRunNotices(),
+		);
 
 		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
 			session: this._session,
@@ -212,6 +217,7 @@ export class NewChatWidget extends Disposable {
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
+			deferredNotificationsEnabled,
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
@@ -407,7 +413,7 @@ export class NewChatWidget extends Disposable {
 				// Tips also stay away until the user has actually started a couple of
 				// sessions, so a first-run composer is not busy.
 				isEligible: () => !chatWidgetContent.classList.contains('no-agent-host')
-					&& this._hasEnoughSessionsForTips()
+					&& this._hasEnoughSessionsForFirstRunNotices()
 					&& this.contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key) === 0,
 				focusInput: () => this.focusInput(),
 			},
@@ -475,9 +481,8 @@ export class NewChatWidget extends Disposable {
 		this._chatTipPresenter.value?.clear();
 	}
 
-	/** Tips only start showing once the user has actually run a few sessions. */
-	private _hasEnoughSessionsForTips(): boolean {
-		return this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) >= MIN_SESSIONS_FOR_TIPS;
+	private _hasEnoughSessionsForFirstRunNotices(): boolean {
+		return this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) >= MIN_SESSIONS_FOR_FIRST_RUN_NOTICES;
 	}
 
 	/**
