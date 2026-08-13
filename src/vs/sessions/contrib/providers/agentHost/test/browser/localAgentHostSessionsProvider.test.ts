@@ -420,7 +420,7 @@ function createSchemaDefaultConfigurationService(): TestConfigurationService {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope | undefined; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope | undefined; storageService?: IStorageService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -428,7 +428,13 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override isWorkspaceTrusted(): boolean { return options?.workspaceTrusted ?? true; }
-		override async getUriTrustInfo(uri: URI) { return { uri, trusted: options?.workspaceTrusted ?? true }; }
+		override async getUriTrustInfo(uri: URI) {
+			await options?.workspaceTrustBarrier?.p;
+			if (options?.workspaceTrustError) {
+				throw options.workspaceTrustError;
+			}
+			return { uri, trusted: options?.workspaceTrusted ?? true };
+		}
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options?.isSessionsWindow ?? true } as IWorkbenchEnvironmentService);
 	instantiationService.stub(IFileDialogService, {});
@@ -2766,6 +2772,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('createNewSession forwards seeded config to eager createSession', async () => {
 		const config = new TestConfigurationService();
 		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: {} },
+			values: { autoApprove: 'autoApprove' },
+		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
@@ -2870,6 +2880,99 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sentConfig: { isolation: 'folder' },
 				title: 'Config Resolved',
 			},
+		});
+	});
+
+	test('first send waits for trusted eager backend creation', async () => {
+		const workspaceTrustBarrier = new DeferredPromise<void>();
+		let sendCalls = 0;
+		let statusAtLoad: SessionStatus | undefined;
+		let wireOpsAtLoad: string[] | undefined;
+		let wireOpsAtSend: string[] = [];
+		const sessionRef: { value?: ISession } = {};
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			workspaceTrustBarrier,
+			acquireOrLoadSession: async () => {
+				statusAtLoad = sessionRef.value?.status.get();
+				wireOpsAtLoad = [...agentHost.wireOps];
+				return undefined;
+			},
+			sendRequest: async (): Promise<ChatSendResult> => {
+				sendCalls++;
+				wireOpsAtSend = [...agentHost.wireOps];
+				agentHost.addSession(createSession('eager-created-send', { summary: 'Eager Created' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		sessionRef.value = session;
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+
+		const pending = {
+			sendCalls,
+			statusAtLoad,
+			wireOpsAtLoad,
+			wireOps: [...agentHost.wireOps],
+		};
+
+		workspaceTrustBarrier.complete();
+		const committed = await send;
+		const backendKey = AgentSession.uri(provider.sessionTypes[0].id, session.resource.path.substring(1)).toString();
+
+		assert.deepStrictEqual({
+			pending,
+			resolved: {
+				sendCalls,
+				statusAtLoad,
+				wireOpsAtLoad: wireOpsAtLoad?.filter(op => op.endsWith(backendKey)),
+				wireOpsAtSend: wireOpsAtSend.filter(op => op.endsWith(backendKey)),
+				title: committed.title.get(),
+			},
+		}, {
+			pending: {
+				sendCalls: 0,
+				statusAtLoad: undefined,
+				wireOpsAtLoad: undefined,
+				wireOps: [],
+			},
+			resolved: {
+				sendCalls: 1,
+				statusAtLoad: SessionStatus.InProgress,
+				wireOpsAtLoad: [`createSession:${backendKey}`, `subscribe:${backendKey}`],
+				wireOpsAtSend: [`createSession:${backendKey}`, `subscribe:${backendKey}`],
+				title: 'Eager Created',
+			},
+		});
+	});
+
+	test('first send falls back when eager workspace trust lookup fails', async () => {
+		let sendCalls = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			workspaceTrustError: new Error('trust lookup failed'),
+			sendRequest: async (): Promise<ChatSendResult> => {
+				sendCalls++;
+				agentHost.addSession(createSession('trust-fallback-send', { summary: 'Trust Fallback' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+		const chat = await provider.createNewChat(session.sessionId);
+		const committed = await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			sendCalls,
+			eagerCreateCalls: agentHost.createdSessionUris.length,
+			title: committed.title.get(),
+		}, {
+			sendCalls: 1,
+			eagerCreateCalls: 0,
+			title: 'Trust Fallback',
 		});
 	});
 
