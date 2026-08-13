@@ -87,6 +87,7 @@ export interface IChatSetupRunOptions {
 	readonly disableCloseButton?: boolean;
 	readonly dialogExtraClasses?: readonly string[];
 	readonly renderDialogFooter?: (container: HTMLElement) => IDisposable | undefined;
+	readonly onDidDismissDialog?: () => void;
 	readonly onSignInStarted?: (cancel: () => void) => void;
 }
 

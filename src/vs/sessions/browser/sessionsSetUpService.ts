@@ -122,6 +122,9 @@ class SessionsSetUpWidget extends Disposable {
 	}
 
 	private _onSessionTypesChanged(): void {
+		if (this._initialSetupFlow) {
+			return;
+		}
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
 		if (conditionalAuthState(this._accountResolved, signedIn) === ConditionalAuthState.SignedOut) {
 			this._reevaluateSignedOut();
@@ -136,6 +139,9 @@ class SessionsSetUpWidget extends Disposable {
 	 * sign-in.
 	 */
 	private _onAllowSignedOutWhenUsableChanged(): void {
+		if (this._initialSetupFlow) {
+			return;
+		}
 		// Only act once the account has resolved AND the user is signed out; while
 		// unresolved or signed in, the sign-in watch owns the decision.
 		const signedIn = this.defaultAccountService.currentDefaultAccount !== null;
@@ -165,13 +171,8 @@ class SessionsSetUpWidget extends Disposable {
 				return;
 			}
 			this._accountResolved = true;
-			// A setting change during the unresolved window was ignored above. If
-			// the opt-in is on, replay it now so a signed-out user is let in rather
-			// than stranded on a sign-in dialog nothing else retires — the web path
-			// has no post-resolution re-check of its own (the native paths re-read
-			// the opt-in after they await the account). With the opt-in off, the
-			// initial setup flow still owns the dialog, so there is nothing to replay.
-			if (this._allowSignedOutWhenUsable.get()) {
+			// The initial setup flow re-reads the setting after this account promise.
+			if (!this._initialSetupFlow && this._allowSignedOutWhenUsable.get()) {
 				this._onAllowSignedOutWhenUsableChanged();
 			}
 		});
@@ -410,12 +411,6 @@ class SessionsSetUpWidget extends Disposable {
 			if (this._store.isDisposed) {
 				return;
 			}
-			const signedOutGate = account ? undefined : this._signedOutWindowGate();
-			if (signedOutGate === SignedOutWindowGate.Unresolved) {
-				this._waitingForSessionTypes = true;
-				return;
-			}
-
 			overlay.element.classList.add('sessions-loading-dismissed');
 			this.dialogRef.value.add(disposableTimeout(() => overlay.element.remove(), 200));
 
@@ -433,13 +428,16 @@ class SessionsSetUpWidget extends Disposable {
 				}
 
 				await this._showWelcomeDialog();
-			} else if (signedOutGate === SignedOutWindowGate.Proceed) {
-				// Signed-out first launch, but the opt-in permits proceeding.
-				this.dialogRef.clear();
-				await this._proceedWithoutGitHub();
-				return;
 			} else {
-				await this._showSignInDialog();
+				const allowContinueWithoutSignIn = this._allowSignedOutWhenUsable.get();
+				const continueWithoutSignIn = await this._showSignInDialog(allowContinueWithoutSignIn);
+				if (continueWithoutSignIn) {
+					this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+					this.serviceMarkDone();
+					this.dialogRef.clear();
+					await this._proceedWithoutGitHub();
+					return;
+				}
 			}
 		} else {
 			await this._showSignInDialog();
@@ -459,7 +457,7 @@ class SessionsSetUpWidget extends Disposable {
 		return { element: overlay, dispose: () => overlay.remove() };
 	}
 
-	private async _showSignInDialog(): Promise<void> {
+	private async _showSignInDialog(allowContinueWithoutSignIn = false): Promise<boolean> {
 		if (this._initialSetupFlow) {
 			this.onInitialSignInDialogShown();
 		}
@@ -471,12 +469,17 @@ class SessionsSetUpWidget extends Disposable {
 			const attemptDisposables = new DisposableStore();
 			const signingInDialogRef = attemptDisposables.add(new MutableDisposable<SessionsSigningInDialog>());
 			let canceled = false;
+			let continueWithoutSignIn = false;
 			const showReturnToVSCodeEditor = !isWeb && (await this.commandService.executeCommand<boolean>(SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID)) === true;
+			const onContinueWithoutSignIn = () => {
+				continueWithoutSignIn = true;
+				setupCancellation.cancel();
+			};
 
 			let success: boolean | undefined;
 			try {
 				success = await this.commandService.executeCommand<boolean>('workbench.action.chat.triggerSetup', undefined, {
-					...createSessionsSignInDialogOptions(this.commandService, showReturnToVSCodeEditor),
+					...createSessionsSignInDialogOptions(this.commandService, showReturnToVSCodeEditor, allowContinueWithoutSignIn, onContinueWithoutSignIn),
 					cancellationToken: setupCancellation.token,
 					onSignInStarted: (cancel: () => void) => {
 						signingInDialogRef.value = this.instantiationService.createInstance(SessionsSigningInDialog, () => {
@@ -488,10 +491,15 @@ class SessionsSetUpWidget extends Disposable {
 			} finally {
 				attemptDisposables.dispose();
 			}
+			if (continueWithoutSignIn) {
+				this.logService.info('[sessions welcome] User chose to continue without GitHub sign-in');
+				this.signInSetupCancellation.clear();
+				return true;
+			}
 			if (setupCancellation.token.isCancellationRequested) {
 				this.logService.info('[sessions welcome] Sign-in dialog retired because another agent became usable');
 				this.signInSetupCancellation.clear();
-				return;
+				return false;
 			}
 
 			if (canceled) {
@@ -507,7 +515,7 @@ class SessionsSetUpWidget extends Disposable {
 				this.logService.info('[sessions welcome] Sign-in was canceled or failed');
 			}
 			this.signInSetupCancellation.clear();
-			return;
+			return false;
 		}
 	}
 

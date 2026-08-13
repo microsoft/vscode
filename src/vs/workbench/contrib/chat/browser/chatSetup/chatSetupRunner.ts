@@ -136,7 +136,11 @@ export class ChatSetupDialog extends Disposable {
 	}
 }
 
-export async function showChatSetupDialogWithCancellation(dialog: Pick<ChatSetupDialog, 'show' | 'dispose'>, cancellationToken: CancellationToken | undefined): Promise<ChatSetupStrategy> {
+export async function showChatSetupDialogWithCancellation(
+	dialog: Pick<ChatSetupDialog, 'show' | 'dispose'>,
+	cancellationToken: CancellationToken | undefined,
+	onDidDismissDialog?: () => void,
+): Promise<ChatSetupStrategy> {
 	let canceled = false;
 	const cancellationListener = cancellationToken?.onCancellationRequested(() => {
 		canceled = true;
@@ -147,7 +151,11 @@ export async function showChatSetupDialogWithCancellation(dialog: Pick<ChatSetup
 			canceled = true;
 			dialog.dispose();
 		}
-		return canceled ? ChatSetupStrategy.Canceled : await dialog.show();
+		const strategy = canceled ? ChatSetupStrategy.Canceled : await dialog.show();
+		if (!canceled && strategy === ChatSetupStrategy.Canceled) {
+			onDidDismissDialog?.();
+		}
+		return strategy;
 	} finally {
 		cancellationListener?.dispose();
 		dialog.dispose();
@@ -397,7 +405,7 @@ export class ChatSetup {
 			extraClasses: options?.dialogExtraClasses,
 			renderFooter: options?.renderDialogFooter,
 		});
-		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken);
+		return showChatSetupDialogWithCancellation(dialog, options?.cancellationToken, options?.onDidDismissDialog);
 	}
 
 	private getDialogTitle(options?: IChatSetupRunOptions): string {

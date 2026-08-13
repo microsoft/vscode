@@ -96,6 +96,7 @@ suite('Chat setup dialog cancellation', () => {
 	test('disposes an open dialog when the caller cancels', async () => {
 		const cancellation = new CancellationTokenSource();
 		let disposed = false;
+		let dismissed = false;
 		let resolveShow: ((value: ChatSetupStrategy) => void) | undefined;
 		const dialog = {
 			show: () => new Promise<ChatSetupStrategy>(resolve => resolveShow = resolve),
@@ -107,12 +108,34 @@ suite('Chat setup dialog cancellation', () => {
 			},
 		};
 
-		const result = showChatSetupDialogWithCancellation(dialog, cancellation.token);
+		const result = showChatSetupDialogWithCancellation(dialog, cancellation.token, () => dismissed = true);
 		cancellation.cancel();
 
-		assert.strictEqual(await result, ChatSetupStrategy.Canceled);
-		assert.strictEqual(disposed, true);
+		assert.deepStrictEqual({
+			result: await result,
+			disposed,
+			dismissed,
+		}, {
+			result: ChatSetupStrategy.Canceled,
+			disposed: true,
+			dismissed: false,
+		});
 		cancellation.dispose();
+	});
+
+	test('reports an explicit dialog dismissal', async () => {
+		let dismissed = false;
+		const dialog = {
+			show: async () => ChatSetupStrategy.Canceled,
+			dispose: () => { },
+		};
+
+		const result = await showChatSetupDialogWithCancellation(dialog, undefined, () => dismissed = true);
+
+		assert.deepStrictEqual({ result, dismissed }, {
+			result: ChatSetupStrategy.Canceled,
+			dismissed: true,
+		});
 	});
 
 	test('cancels in-flight setup when the caller cancels', async () => {

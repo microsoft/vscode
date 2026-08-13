@@ -17,20 +17,39 @@ import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../workbench/services/layout/browser/layoutService.js';
 import { RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
 
-export function createSessionsSignInDialogOptions(commandService: ICommandService, showReturnToVSCodeEditor: boolean) {
+export function createSessionsSignInDialogOptions(
+	commandService: ICommandService,
+	showReturnToVSCodeEditor: boolean,
+	allowContinueWithoutSignIn = false,
+	onContinueWithoutSignIn: () => void = () => { },
+) {
 	return {
 		forceSignInDialog: true,
 		dialogIcon: Codicon.agent,
 		dialogTitle: localize('sessions.signIn', "Sign in to use Agents"),
-		disableCloseButton: true,
+		disableCloseButton: !allowContinueWithoutSignIn,
 		dialogExtraClasses: ['sessions-welcome-dialog'],
-		renderDialogFooter: showReturnToVSCodeEditor ? (footer: HTMLElement) => createDialogAction(
-			footer,
-			localize('sessions.returnToVSCodeEditor', "Return to VS Code Editor"),
-			() => {
-				void commandService.executeCommand<void>(RETURN_TO_VSCODE_EDITOR_COMMAND_ID).catch(onUnexpectedError);
+		renderDialogFooter: showReturnToVSCodeEditor || allowContinueWithoutSignIn ? (footer: HTMLElement) => {
+			const disposables = new DisposableStore();
+			if (showReturnToVSCodeEditor) {
+				disposables.add(createDialogAction(
+					footer,
+					localize('sessions.returnToVSCodeEditor', "Return to VS Code Editor"),
+					() => {
+						void commandService.executeCommand<void>(RETURN_TO_VSCODE_EDITOR_COMMAND_ID).catch(onUnexpectedError);
+					}
+				));
 			}
-		) : undefined,
+			if (allowContinueWithoutSignIn) {
+				disposables.add(createDialogAction(
+					footer,
+					localize('sessions.continueWithoutSigningIn', "Continue without signing in"),
+					onContinueWithoutSignIn,
+				));
+			}
+			return disposables;
+		} : undefined,
+		onDidDismissDialog: allowContinueWithoutSignIn ? onContinueWithoutSignIn : undefined,
 	};
 }
 
