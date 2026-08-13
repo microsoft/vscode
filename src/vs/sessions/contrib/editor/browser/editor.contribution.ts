@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../../../workbench/contrib/styleOverrides/browser/media/tabs.css';
-import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './media/editorBreadcrumbs.css';
 import './media/editorHeader.css';
+import '../../../../workbench/services/themes/browser/modernTabColorCustomizations.js';
 import './diffEditor.sessions.contribution.js';
 import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from './addTabActions.js';
 import { localize2 } from '../../../../nls.js';

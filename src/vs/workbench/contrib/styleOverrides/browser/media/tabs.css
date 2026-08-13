@@ -105,6 +105,7 @@
 		inset var(--vscode-strokeThickness) 0 var(--modern-ui-editor-tab-last-pinned-border);
 }
 
+/* Reuses the last-pinned-border color for the horizontal divider between the pinned and normal tab rows. */
 .modern-ui-tabs.monaco-workbench .part.editor .title.two-tab-bars > .tabs-and-actions-container:first-child {
 	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--modern-ui-editor-tab-last-pinned-border);
 }
