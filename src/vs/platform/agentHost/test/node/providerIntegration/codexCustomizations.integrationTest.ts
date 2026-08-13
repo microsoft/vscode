@@ -74,9 +74,12 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 			this.skip();
 		}
 		userHomeDir = await mkdtemp(join(tmpdir(), 'codex-customizations-home-'));
+		const codexHomeDir = join(userHomeDir, '.codex');
+		await mkdir(codexHomeDir, { recursive: true });
 		server = await startRealServer({
 			mockLlm: true,
 			codexSdkRoot: CODEX_SDK_ROOT,
+			codexHomeDir,
 			homeDir: userHomeDir,
 			userDataDir: join(userHomeDir, 'user-data'),
 		});
@@ -254,9 +257,12 @@ suite('Agent Host Provider Integration — Codex Customizations', function () {
 		this.timeout(120_000);
 		const runtimeHomeDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-home-'));
 		const workspaceDir = await mkdtemp(join(tmpdir(), 'codex-runtime-enablement-'));
+		const runtimeCodexHomeDir = join(runtimeHomeDir, '.codex');
+		await mkdir(runtimeCodexHomeDir, { recursive: true });
 		const runtimeServer = await startRealServer({
 			mockLlm: true,
 			codexSdkRoot: CODEX_SDK_ROOT,
+			codexHomeDir: runtimeCodexHomeDir,
 			codexAgentEnabled: false,
 			homeDir: runtimeHomeDir,
 			userDataDir: join(runtimeHomeDir, 'user-data'),
