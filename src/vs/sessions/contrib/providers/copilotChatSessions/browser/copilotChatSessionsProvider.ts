@@ -665,11 +665,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		return nwo && nwo.includes('/') ? nwo : undefined;
 	}
 
-	/** The base branch chosen for this session, when the user picked one. */
-	get baseRef(): string | undefined {
-		const branch = this.selectedOptions.get(BRANCH_OPTION_ID);
-		return branch?.id || undefined;
-	}
 	get chatMode(): IChatMode | undefined { return undefined; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
@@ -1064,7 +1059,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		throw new Error('Method not implemented.');
 	}
 	setUseSandbox(useSandbox: boolean): void {
-		throw new Error('Method not implemented.');
+		// Where a committed session runs is already decided.
 	}
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		transaction(tx => {
@@ -2086,6 +2081,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
+	 * Resolves the contribution that owns sandbox environments. A seam, because the contribution
+	 * registry is global — tests substitute a stub rather than standing one up.
+	 */
+	protected _getCloudSandboxContribution(): Pick<CloudSandboxAgentHostContribution, 'provisionSession'> {
+		return getWorkbenchContribution<CloudSandboxAgentHostContribution>(CloudSandboxAgentHostContribution.ID);
+	}
+
+	/**
 	 * Commit a cloud new-session into a GitHub-managed sandbox instead of the server-run cloud
 	 * agent: provision the sandbox, then hand the session over to the remote-agent-host provider
 	 * that owns it and send the first turn there.
@@ -2104,10 +2107,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._onDidChangeSessions.fire({ added: [placeholder], removed: [], changed: [] });
 
 		try {
-			const contribution = getWorkbenchContribution<CloudSandboxAgentHostContribution>(CloudSandboxAgentHostContribution.ID);
-			const provisioned = await contribution.provisionSession({
+			const provisioned = await this._getCloudSandboxContribution().provisionSession({
 				repoNwo,
-				baseRef: session.baseRef,
+				// No `baseRef`: cloud sessions have no branch picker, so Mission Control picks the
+				// repository's default branch — the same branch the server-run cloud agent uses.
 				prompt: options.query,
 			}, CancellationToken.None);
 

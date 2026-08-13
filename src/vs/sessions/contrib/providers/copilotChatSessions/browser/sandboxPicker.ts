@@ -14,7 +14,7 @@ import { CheckboxChip } from '../../../chat/browser/checkboxChip.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { CopilotChatSessionsProvider, ICopilotChatSession } from './copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider, ICopilotChatSession, RemoteNewSession } from './copilotChatSessionsProvider.js';
 
 /**
  * "Sandbox" checkbox for a new cloud session: when checked, the session runs in a GitHub-managed
@@ -53,7 +53,9 @@ export class SandboxPicker extends Disposable {
 			const session = this._session.read(reader);
 			const providerSession = session ? this._getSession(session) : undefined;
 			providerSession?.useSandbox.read(reader);
-			this._hasRepository = !!providerSession && !!session?.workspace.read(reader)?.folders.length;
+			// Exactly what the send path requires, so the chip can never promise a sandbox the
+			// send would silently decline to provision. `repoNwo` is fixed at construction.
+			this._hasRepository = providerSession instanceof RemoteNewSession && !!providerSession.repoNwo;
 			this._update();
 		}));
 	}

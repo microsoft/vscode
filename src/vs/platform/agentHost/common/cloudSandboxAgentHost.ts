@@ -11,11 +11,25 @@
 // to reach an agent host over one transport; it does not define a new kind of agent host.
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
+
+/**
+ * Whether cloud sandbox sessions can be created or connected to.
+ *
+ * A sandbox is reached over the remote-agent-host relay, so it needs *both* its own setting and
+ * remote agent hosts as a whole. Every entry point must agree on this, or a surface that offers the
+ * choice hands work to a path that refuses it.
+ */
+export function isCloudSandboxEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(CloudSandboxEnabledSettingId) === true
+		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
+}
 
 /** Prefix for the synthesized display address of a cloud sandbox connection. */
 export const CLOUD_SANDBOX_ADDRESS_PREFIX = 'cloudsandbox:';
@@ -56,6 +70,37 @@ export function cloudSandboxEnvironmentId(address: string): string | undefined {
  * setting keeps that from reaching everyone before the overlap is resolved.
  */
 export const CLOUD_SANDBOX_AGENT_SLUG = 'copilot-developer-cli';
+
+/**
+ * Sentinel environment id that asks Mission Control to provision a fresh sandbox VM instead of
+ * binding the new task to an existing environment. It is never a real environment: the concrete id
+ * comes back on the created session, and everything afterwards (relay connect, credential refresh)
+ * must address that one — see {@link ICloudSandboxCreatedSession.environmentId}.
+ */
+export const CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID = 'github-sandbox';
+
+/** What to provision a sandbox session for. */
+export interface ICloudSandboxCreateSessionRequest {
+	/** Repository to bind the sandbox to, as `owner/name`. Omitted for a repo-less sandbox. */
+	readonly repoNwo?: string;
+	/** Base branch the sandbox's worktree starts from. The host names the working branch. */
+	readonly baseRef?: string;
+	/**
+	 * First user turn. Mission Control persists it on the session but starts no run for an
+	 * environment-bound task, so the client still has to send it over the relay.
+	 */
+	readonly prompt: string;
+}
+
+/** A freshly provisioned sandbox task/session pair, bound to a concrete environment. */
+export interface ICloudSandboxCreatedSession {
+	/** Mission Control task id owning the session; the key its persisted AHP history is under. */
+	readonly taskId: string;
+	/** Session id, issued as `ahp-session:/<sessionId>` and listed back by the host under that id. */
+	readonly sessionId: string;
+	/** The sandbox VM Mission Control bound, never {@link CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID}. */
+	readonly environmentId: string;
+}
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
 export interface ICloudSandboxDiscoveredSession {
@@ -217,6 +262,15 @@ export interface ICloudSandboxApiService {
 
 	/** Enumerate the caller's sandbox-backed cloud sessions, enough to seed session entries. */
 	listSessions(token: CancellationToken): Promise<ICloudSandboxDiscoveryResult>;
+
+	/**
+	 * Provision a new sandbox task and its bound session, without starting a run.
+	 *
+	 * Mission Control does not run environment-bound tasks, so this only produces the session the
+	 * client then connects to and drives — the caller still has to send {@link
+	 * ICloudSandboxCreateSessionRequest.prompt} over the relay itself.
+	 */
+	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession>;
 
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state.

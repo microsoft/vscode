@@ -8,7 +8,7 @@
 // CloudSandboxAgentHostService, and wires the live connection to the provider so the native session
 // machinery can enumerate and render the host's sessions.
 
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -22,7 +22,10 @@ import {
 	cloudSandboxAddress,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
+	isCloudSandboxEnabled,
 	type ICloudSandboxConnectOptions,
+	type ICloudSandboxCreateSessionRequest,
+	type ICloudSandboxCreatedSession,
 	type ICloudSandboxDiscoveryResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
@@ -39,6 +42,7 @@ import { IWorkbenchContribution } from '../../../../../workbench/common/contribu
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionSchemeAlias, IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
@@ -82,6 +86,15 @@ function discoveredSessionProject(repoName: string | undefined): IAgentSessionMe
 	return { uri: URI.parse(`https://github.com/${repoName}`), displayName: repoName };
 }
 
+/**
+ * A sandbox session that has just been created, connected, and surfaced on its provider — enough
+ * for the caller to send the first turn into it.
+ */
+export interface ICloudSandboxProvisionedSession extends ICloudSandboxCreatedSession {
+	readonly provider: RemoteAgentHostSessionsProvider;
+	readonly session: ISession;
+}
+
 export class CloudSandboxAgentHostContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.cloudSandboxAgentHost';
 
@@ -92,6 +105,12 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	private readonly _environments = new Map<string, ICloudSandboxEnvironment>();
 	/** In-flight connects keyed by address, so concurrent opens share one attempt. */
 	private readonly _pendingConnects = new Map<string, Promise<string>>();
+	/**
+	 * Addresses being provisioned right now. A task we just created is not yet visible to a
+	 * discovery pass that started before it existed, so reconciliation would see a brand-new
+	 * environment as one that has vanished and tear it down mid-provision.
+	 */
+	private readonly _provisioning = new Set<string>();
 	/**
 	 * Read-only content providers standing in for unreachable environments, keyed by session type.
 	 * Disposed when the environment becomes reachable again.
@@ -275,7 +294,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 		// Only a complete scan is authoritative — a partial one is missing entries that still exist.
 		if (result.kind === 'complete') {
 			for (const address of [...this._environments.keys()]) {
-				if (present.has(address)) {
+				if (present.has(address) || this._provisioning.has(address)) {
 					continue;
 				}
 				const connected = this._remoteAgentHostService.connections.some(c => c.address === address);
@@ -299,6 +318,69 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 			await this._remoteAgentHostService.removeRemoteAgentHost(address);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Failed to disconnect ${address}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/**
+	 * Provision a brand-new sandbox session and make it usable: create the Mission Control task,
+	 * seed it into a per-environment provider, and connect the relay.
+	 *
+	 * From the seed onward this is deliberately identical to {@link _doDiscoverAndSeed} — a created
+	 * task is just a discovered one we happen to know about first — so a later discovery pass
+	 * reconciles against it instead of duplicating it. Mission Control starts no run for an
+	 * environment-bound task, so the caller still owns sending the first turn.
+	 */
+	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxProvisionedSession> {
+		if (!this._isEnabled()) {
+			throw new Error('Copilot cloud sandbox connections are not enabled.');
+		}
+		const created = await this._apiService.createSession(request, token);
+		const name = request.repoNwo ?? created.taskId;
+		const address = cloudSandboxAddress(created.environmentId);
+		// The feature can be disabled while the create is in flight, and `_teardownAll` has
+		// already snapshotted the environments it knows about — so registering a provider now
+		// would leave one behind that nothing reconciles.
+		if (!this._isEnabled() || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		this._provisioning.add(address);
+		try {
+			this._ensureProvider({ environmentId: created.environmentId, sessionId: created.sessionId, taskId: created.taskId, name });
+
+			const provider = this._providerInstances.get(address);
+			if (!provider) {
+				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
+			}
+			const now = Date.now();
+			const project = discoveredSessionProject(request.repoNwo);
+			provider.seedSessions([{
+				// Same identity discovery seeds under: Mission Control issues the session as
+				// `ahp-session:/<id>` and the host lists that id back, so this reconciles on connect.
+				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, created.sessionId),
+				startTime: now,
+				modifiedTime: now,
+				summary: name,
+				...(project ? { project } : {}),
+			}]);
+
+			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name });
+
+			// Connecting can take minutes while the sandbox wakes, and the feature can be disabled
+			// (or the environment torn down) in the meantime — in which case `provider` is disposed
+			// and unregistered, and handing it back would send into nothing.
+			if (!this._isEnabled() || this._providerInstances.get(address) !== provider) {
+				throw new CancellationError();
+			}
+
+			// The adapter `seedSessions` created addresses the session by its raw id, which is the
+			// session id Mission Control just returned.
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === created.sessionId);
+			if (!session) {
+				throw new Error(`Provisioned sandbox session ${created.sessionId} did not surface on its provider`);
+			}
+			return { ...created, provider, session };
+		} finally {
+			this._provisioning.delete(address);
 		}
 	}
 
@@ -563,8 +645,7 @@ export class CloudSandboxAgentHostContribution extends Disposable implements IWo
 	}
 
 	private _isEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(CloudSandboxEnabledSettingId)
-			&& this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		return isCloudSandboxEnabled(this._configurationService);
 	}
 
 	/** Create the sessions provider for an environment if it doesn't exist yet. */

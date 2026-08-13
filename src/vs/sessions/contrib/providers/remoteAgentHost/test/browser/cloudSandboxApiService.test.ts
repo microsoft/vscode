@@ -10,7 +10,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -165,5 +165,122 @@ suite('CloudSandboxApiService repository resolution', () => {
 			// issues a second lookup for the task that shares the repository.
 			repoLookups: 2,
 		});
+	});
+});
+
+interface ICreateCall {
+	readonly url: string;
+	readonly type: string;
+	readonly body: unknown;
+}
+
+function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, response: unknown, statusCode = 200, options?: { readonly failDelete?: boolean }): { service: CloudSandboxApiService; calls: ICreateCall[] } {
+	const calls: ICreateCall[] = [];
+	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
+		override async request(opts: { url?: string; type?: string; data?: string }): Promise<IRequestContext> {
+			calls.push({ url: opts.url ?? '', type: opts.type ?? '', body: opts.data === undefined ? undefined : JSON.parse(opts.data) });
+			if (opts.type === 'DELETE' && options?.failDelete) {
+				throw new Error('delete failed');
+			}
+			return jsonResponse(response, statusCode);
+		}
+	}());
+	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+		override async getSessions() { return [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]; }
+		override readonly onDidChangeSessions = Event.None;
+	}());
+	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
+		override reportRequest(): void { }
+	}());
+	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls };
+}
+
+suite('CloudSandboxApiService session creation', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('posts the on-demand sentinel and returns the bound environment', async () => {
+		const { service, calls } = createServiceForCreate(store, {
+			id: 'task-1',
+			sessions: [{ id: 'sess-1', environment_id: 'env-concrete' }],
+		});
+
+		const created = await service.createSession({ repoNwo: 'osortega/simple-server', baseRef: 'main', prompt: 'fix it' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			created,
+			type: calls[0].type,
+			endsWithTasks: calls[0].url.endsWith('/agents/tasks'),
+			body: calls[0].body,
+		}, {
+			created: { taskId: 'task-1', sessionId: 'sess-1', environmentId: 'env-concrete' },
+			type: 'POST',
+			endsWithTasks: true,
+			body: {
+				environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+				prompt: 'fix it',
+				repositories: [{ owner: 'osortega', name: 'simple-server' }],
+				base_ref: 'main',
+			},
+		});
+	});
+
+	test('omits the repository and base ref when they are not supplied', async () => {
+		const { service, calls } = createServiceForCreate(store, {
+			id: 'task-2',
+			sessions: [{ id: 'sess-2', environment_id: 'env-2' }],
+		});
+
+		await service.createSession({ prompt: 'hello' }, CancellationToken.None);
+
+		assert.deepStrictEqual(calls[0].body, {
+			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+			prompt: 'hello',
+		});
+	});
+
+	test('throws when Mission Control binds no session to the created task', async () => {
+		// A task with no bound session has nothing for the relay to address, so this must not be
+		// reported as a usable sandbox.
+		const { service } = createServiceForCreate(store, { id: 'task-3', sessions: [] });
+
+		await assert.rejects(
+			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
+			/bound no sandbox session/,
+		);
+	});
+
+	test('deletes a created task that has no usable session, rather than leaving it in the task list', async () => {
+		// The task exists on the server even though it is unusable, so it would otherwise show up
+		// in the user's task list forever.
+		const { service, calls } = createServiceForCreate(store, { id: 'task-3', sessions: [] });
+
+		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
+
+		assert.deepStrictEqual(calls.map(c => `${c.type} ${c.url.replace(/^.*\/agents/, '')}`), [
+			'POST /tasks',
+			'DELETE /tasks/task-3',
+		]);
+	});
+
+	test('a failed cleanup does not replace the error explaining why creation failed', async () => {
+		const { service } = createServiceForCreate(store, { id: 'task-3', sessions: [] }, 200, { failDelete: true });
+
+		await assert.rejects(
+			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
+			/bound no sandbox session/,
+		);
+	});
+
+	test('throws on a non-success status', async () => {
+		const { service } = createServiceForCreate(store, { message: 'nope' }, 403);
+
+		await assert.rejects(
+			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
+			/HTTP 403/,
+		);
 	});
 });

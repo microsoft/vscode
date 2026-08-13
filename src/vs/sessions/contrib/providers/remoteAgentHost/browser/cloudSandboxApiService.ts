@@ -9,12 +9,15 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
+	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
 	ICloudSandboxApiService,
+	ICloudSandboxCreatedSession,
+	ICloudSandboxCreateSessionRequest,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
@@ -188,6 +191,66 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/**
+	 * Provision a sandbox task bound to an on-demand environment.
+	 *
+	 * The `environment_id` sentinel is what separates this from a regular cloud task: Mission
+	 * Control provisions a VM for it and binds a session, but starts no run — so the caller owns
+	 * sending the first turn over the relay. The bound environment on the returned session is the
+	 * real VM, not the sentinel, and is the only id the relay can address.
+	 */
+	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+		const repository = parseNwo(request.repoNwo);
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, {
+			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+			// Persisted on the session as its first turn, so a reload that replays history from
+			// Mission Control shows the prompt even though no run was started for it.
+			prompt: request.prompt,
+			...(repository && { repositories: [repository] }),
+			...(request.baseRef && { base_ref: request.baseRef }),
+		});
+		if (!isSuccess(context)) {
+			await this._throwForStatus('task create', context);
+		}
+		const task = await this._readJson<ITaskDetail>(context);
+		const taskId = task?.id;
+		if (!taskId) {
+			throw new CloudSandboxRequestError(context.res.statusCode, 'Mission Control task create returned no task id');
+		}
+		const binding = task && getTaskEnvironmentBinding(task);
+		if (!binding) {
+			// A task with no bound session is unusable — the relay has nothing to address — but it
+			// still shows up in the user's task list, so drop it rather than leaving litter behind.
+			await this._deleteTaskBestEffort(taskId);
+			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound no sandbox session to task ${taskId}`);
+		}
+		this._logService.info(`${LOG_PREFIX} Provisioned sandbox task ${taskId} (session ${binding.sessionId}) on environment ${binding.environmentId}.`);
+		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId };
+	}
+
+	/**
+	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
+	 * failed cleanup must not replace the error that explains why.
+	 *
+	 * Only covers tasks Mission Control actually returned to us. A create that is rejected *after*
+	 * the task record exists (HTTP 403 from the sandbox authorization check) reports no id, so
+	 * that orphan can only be cleaned up server-side.
+	 */
+	private async _deleteTaskBestEffort(taskId: string): Promise<void> {
+		try {
+			const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
+				'Accept': 'application/json',
+				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}`);
+		} catch (error) {
+			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}`);
+		}
+	}
+
+	/**
 	 * Read a task's persisted AHP history and fold it into session/chat state.
 	 *
 	 * The only history path that survives the sandbox: `/events` is served by Mission Control's
@@ -303,7 +366,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return context;
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeout: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE'): Promise<IRequestContext> {
 		const accessToken = await this._resolveGitHubToken();
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -312,9 +375,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const started = Date.now();
 		try {
 			const context = await this._requestService.request({
-				type: 'GET',
+				type: method ?? (body === undefined ? 'GET' : 'POST'),
 				url,
 				headers: { ...headers, ['Authorization']: `Bearer ${accessToken}` },
+				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
 				timeout,
 				callSite,
 			}, token);
@@ -434,6 +498,15 @@ function parseRetryAfter(value: string | string[] | undefined): number {
 function isCloudSandboxTask(task: ITaskSummary): boolean {
 	const isCloudCodingAgent = task.agent_collaborators?.some(c => c.slug === CLOUD_SANDBOX_AGENT_SLUG) ?? false;
 	return isCloudCodingAgent && task.compute?.provider === 'sandboxes';
+}
+
+/** Split an `owner/name` into the pair Mission Control expects, or `undefined` when unusable. */
+function parseNwo(nwo: string | undefined): { owner: string; name: string } | undefined {
+	const separator = nwo?.indexOf('/') ?? -1;
+	if (!nwo || separator <= 0 || separator === nwo.length - 1) {
+		return undefined;
+	}
+	return { owner: nwo.slice(0, separator), name: nwo.slice(separator + 1) };
 }
 
 /**
