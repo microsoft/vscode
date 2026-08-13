@@ -232,7 +232,12 @@ class SessionsSetUpWidget extends Disposable {
 			return;
 		}
 		if (!initialAccount) {
-			this._showWelcome(false);
+			const welcomeComplete = this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
+			if (welcomeComplete && this._allowSignedOutWhenUsable.get()) {
+				await this._proceedWithoutGitHub();
+			} else {
+				this._showWelcome(false);
+			}
 			return;
 		}
 		await this._ensureAIFeaturesEnabled();
@@ -287,6 +292,9 @@ class SessionsSetUpWidget extends Disposable {
 	 * while a dialog is up — that dialog owns the next transition.
 	 */
 	private _reevaluateSignedOut(): void {
+		if (this._proceedingSignedOut && this._allowSignedOutWhenUsable.get()) {
+			return;
+		}
 		const gate = this._signedOutWindowGate();
 		if (gate === SignedOutWindowGate.Unresolved) {
 			this._waitingForSessionTypes = true;
@@ -311,9 +319,8 @@ class SessionsSetUpWidget extends Disposable {
 
 	/**
 	 * Open the Agents window for a signed-out user because the opt-in permits it.
-	 * Mirrors the signed-in completion path, but keeps watching so a later change
-	 * (the opt-in is turned off, or the user signs in) re-drives the decision.
-	 * Idempotent while already proceeding.
+	 * Mirrors the signed-in completion path and remains active until sign-in or the
+	 * opt-in changes. Idempotent while already proceeding.
 	 */
 	private async _proceedWithoutGitHub(): Promise<void> {
 		if (this._proceedingSignedOut) {
