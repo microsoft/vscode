@@ -391,7 +391,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
+		private readonly options: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; approvalRowMaxLines: number; toolbarMenuId: MenuId | undefined; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidRequestRename?: (session: ISession) => void },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
 		private readonly instantiationService: IInstantiationService,
@@ -649,15 +649,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(typeIconEl);
 			}
 
-			// Workspace badge — show when not grouped by workspace,
-			// or when the session is pinned/archived (their section headers
-			// don't carry the workspace name)
+			// Show the workspace when the section header does not: date, custom group, pinned, or archived.
 			if (!hideDetails && workspace && (
 				this.options.grouping() !== SessionsGrouping.Workspace ||
 				this.options.isPinned(element) ||
-				element.isArchived.read(reader)
+				element.isArchived.read(reader) ||
+				this.options.isRenderedInCustomGroup?.(element)
 			)) {
-				const badgeLabel = this.getWorkspaceBadgeLabel(workspace);
+				const badgeLabel = getWorkspaceBadgeLabel(workspace);
 				if (badgeLabel) {
 					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 					badgeEl.textContent = badgeLabel;
@@ -852,19 +851,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}));
 	}
 
-	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
-		// For GitHub remote sessions, extract owner/name from the repository URI path
-		const folder = workspace.folders[0];
-		if (folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = folder.root.path.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				return `${parts[0]}/${parts[1]}`;
-			}
-		}
-
-		return workspace.label;
-	}
-
 	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		template.elementDisposables.clear();
 	}
@@ -872,6 +858,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	disposeTemplate(template: ISessionItemTemplate): void {
 		template.disposables.dispose();
 	}
+}
+
+function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
+	const folder = workspace.folders[0];
+	if (folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+		const parts = folder.root.path.split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			return `${parts[0]}/${parts[1]}`;
+		}
+	}
+	return workspace.label;
 }
 
 //#endregion
@@ -1324,7 +1321,10 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 //#region Accessibility
 
 class SessionsAccessibilityProvider {
-	constructor(private readonly automationStatus?: IObservable<SessionStatus | undefined>) { }
+	constructor(
+		private readonly automationStatus?: IObservable<SessionStatus | undefined>,
+		private readonly workspaceBadgeOptions?: { grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean },
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('sessionsList', "Sessions");
@@ -1373,9 +1373,27 @@ class SessionsAccessibilityProvider {
 		return derived(this, reader => {
 			const title = element.title.read(reader);
 			const updated = fromNow(element.updatedAt.read(reader), true);
-			return element.worktreePending?.read(reader)
+			let label = element.worktreePending?.read(reader)
 				? localize('sessionItemWorktreePendingAria', "{0}, creating worktree, updated {1}", title, updated)
 				: localize('sessionItemAria', "{0}, updated {1}", title, updated);
+			const status = element.status.read(reader);
+			const workspace = element.workspace.read(reader);
+			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
+			if (
+				this.workspaceBadgeOptions &&
+				status !== SessionStatus.InProgress &&
+				status !== SessionStatus.NeedsInput &&
+				workspaceLabel &&
+				(
+					this.workspaceBadgeOptions.grouping() !== SessionsGrouping.Workspace ||
+					this.workspaceBadgeOptions.isPinned(element) ||
+					element.isArchived.read(reader) ||
+					this.workspaceBadgeOptions.isRenderedInCustomGroup?.(element)
+				)
+			) {
+				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, workspaceLabel);
+			}
+			return label;
 		});
 	}
 }
@@ -1936,6 +1954,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			{
 				grouping: this.options.grouping,
 				isPinned: s => this.isSessionPinned(s),
+				isRenderedInCustomGroup: s => this.isRenderedInCustomGroup(s),
 				visibleSessions: this._sessionsService.visibleSessions,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				showHover: true,
@@ -1985,7 +2004,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				placeholderRenderer,
 			],
 			{
-				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus),
+				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
+					grouping: this.options.grouping,
+					isPinned: session => this.isSessionPinned(session),
+					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
+				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
 					isSessionPinned: session => this.isSessionPinned(session),
@@ -2323,15 +2346,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const groupedMembers = new Map<string, ISession[]>();
 		const groupedRegularIds = new Set<string>();
 		for (const s of filtered) {
-			if (s.isArchived.get() || this.isSessionPinned(s)) {
-				continue;
-			}
-			const groupId = this._sessionGroupsService.getGroupOfSession(s.sessionId);
-			if (groupId !== undefined && this._sessionGroupsService.getGroup(groupId)) {
-				let members = groupedMembers.get(groupId);
+			const group = this.getRenderedSessionGroup(s);
+			if (group) {
+				let members = groupedMembers.get(group.id);
 				if (!members) {
 					members = [];
-					groupedMembers.set(groupId, members);
+					groupedMembers.set(group.id, members);
 				}
 				members.push(s);
 				groupedRegularIds.add(s.sessionId);
@@ -3102,6 +3122,18 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this._sessionsListModelService.isSessionPinned(session);
 	}
 
+	getRenderedSessionGroup(session: ISession): ISessionGroup | undefined {
+		if (session.isArchived.get() || this.isSessionPinned(session)) {
+			return undefined;
+		}
+		const groupId = this._sessionGroupsService.getGroupOfSession(session.sessionId);
+		return groupId === undefined ? undefined : this._sessionGroupsService.getGroup(groupId);
+	}
+
+	isRenderedInCustomGroup(session: ISession): boolean {
+		return this.getRenderedSessionGroup(session) !== undefined;
+	}
+
 	/** Whether any registered provider can create quick chats (gates the always-visible "Chats" section). */
 	private _someProviderSupportsQuickChats(): boolean {
 		return this._sessionsProvidersService.getProviders().some(p => !!p.supportsQuickChats);
@@ -3720,7 +3752,10 @@ export class SessionsFlatList extends Disposable {
 			this._delegate,
 			[sessionRenderer],
 			{
-				accessibilityProvider: new SessionsAccessibilityProvider(),
+				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
+					grouping: () => SessionsGrouping.Date,
+					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
+				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
 				},
