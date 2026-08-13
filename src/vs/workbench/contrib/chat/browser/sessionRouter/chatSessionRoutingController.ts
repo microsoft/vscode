@@ -76,6 +76,10 @@ type RoutingFolder = IChatSessionRoutingFolder & {
 
 type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
 
+interface IDeliveryConfirmation extends IDisposable {
+	completed: boolean;
+}
+
 function statusToString(status: AgentSessionStatus): string {
 	switch (status) {
 		case AgentSessionStatus.Failed: return 'failed';
@@ -169,7 +173,7 @@ export class ChatSessionRoutingController extends Disposable {
 	/** Transient routing/review badge + auto-send timers; replaced/cleared per submission. */
 	private readonly _pendingSend = this._register(new MutableDisposable<IDisposable>());
 	/** Independently dismissible delivery rows that remain live across later submissions. */
-	private readonly _deliveryConfirmations = this._register(new DisposableMap<number>());
+	private readonly _deliveryConfirmations = this._register(new DisposableMap<number, IDeliveryConfirmation>());
 	private _deliveryConfirmationId = 0;
 	/** Cancellation for the in-flight submission; canceled when the host tears down. */
 	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -213,6 +217,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const utterance = explicitNewSessionTask ?? submittedUtterance;
 
 		// A new submission supersedes any pending badge from a previous one.
+		this._clearCompletedDeliveryConfirmations();
 		this._submitCts.value?.cancel();
 		this._submitDraftListeners.clear();
 		this._pendingSend.clear();
@@ -1184,13 +1189,17 @@ export class ChatSessionRoutingController extends Disposable {
 		const deliveryId = ++this._deliveryConfirmationId;
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
+		const delivery: IDeliveryConfirmation = {
+			completed: false,
+			dispose: () => store.dispose(),
+		};
 		const reveal = result.reveal ?? (() => this.chatWidgetService.openSession(resource));
 		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void reveal());
 		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => {
 			this.host.onDidDismissRoute?.(resource, result.requestId);
 			this._deliveryConfirmations.deleteAndDispose(deliveryId);
 		});
-		this._deliveryConfirmations.set(deliveryId, store);
+		this._deliveryConfirmations.set(deliveryId, delivery);
 		const announcement = result.status === 'queued'
 			? localize('chatSessionRouting.queuedFor', "Queued for {0}", label)
 			: localize('chatSessionRouting.sentTo', "Sent to {0}", label);
@@ -1199,7 +1208,7 @@ export class ChatSessionRoutingController extends Disposable {
 		const trackActivity = () => {
 			if (!trackingActivity) {
 				trackingActivity = true;
-				this._trackDeliveryActivity(store, resource, label, mark, labelEl, result.status === 'queued', result.activityBaseline);
+				this._trackDeliveryActivity(store, resource, label, mark, labelEl, result.status === 'queued', result.activityBaseline, completed => delivery.completed = completed);
 			}
 		};
 		const routingProvider = this._routingProvider ?? this.host.getRoutingProvider?.();
@@ -1209,7 +1218,7 @@ export class ChatSessionRoutingController extends Disposable {
 
 		if (result.completion) {
 			void result.completion.then(completion => {
-				if (this._deliveryConfirmations.get(deliveryId) !== store) {
+				if (this._deliveryConfirmations.get(deliveryId) !== delivery) {
 					return;
 				}
 				if (completion.status === 'sent') {
@@ -1230,10 +1239,18 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean, activityBaseline?: number): void {
+	private _clearCompletedDeliveryConfirmations(): void {
+		for (const deliveryId of [...this._deliveryConfirmations.keys()]) {
+			if (this._deliveryConfirmations.get(deliveryId)?.completed) {
+				this._deliveryConfirmations.deleteAndDispose(deliveryId);
+			}
+		}
+	}
+
+	private _trackDeliveryActivity(store: DisposableStore, resource: URI, label: string, mark: HTMLElement, labelElement: HTMLElement, waitForActivity: boolean, activityBaseline: number | undefined, setCompleted: (completed: boolean) => void): void {
 		const routingProvider = this._routingProvider ?? this.host.getRoutingProvider?.();
 		if (routingProvider?.getSessionSnapshot) {
-			this._trackProviderDeliveryActivity(store, routingProvider, resource, label, mark, labelElement, activityBaseline);
+			this._trackProviderDeliveryActivity(store, routingProvider, resource, label, mark, labelElement, activityBaseline, setCompleted);
 			return;
 		}
 		const model = this.chatService.getSession(resource);
@@ -1263,6 +1280,7 @@ export class ChatSessionRoutingController extends Disposable {
 				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", sessionLabel);
 				isCompleted = true;
 			}
+			setCompleted(isCompleted);
 			const response = model?.lastRequest?.response;
 			const preview = isCompleted && response?.isComplete
 				? response.response.getMarkdown().trim()
@@ -1307,6 +1325,7 @@ export class ChatSessionRoutingController extends Disposable {
 		mark: HTMLElement,
 		labelElement: HTMLElement,
 		activityBaseline: number | undefined,
+		setCompleted: (completed: boolean) => void,
 	): void {
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -1360,6 +1379,7 @@ export class ChatSessionRoutingController extends Disposable {
 				statusLabel = localize('chatSessionRouting.completedIn', "Completed in {0}", session.label);
 				isCompleted = true;
 			}
+			setCompleted(isCompleted);
 
 			if (isCompleted && session.lastResponse) {
 				const markdown = new MarkdownString(localize(

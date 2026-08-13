@@ -1048,13 +1048,16 @@ suite('ChatSessionRoutingController', () => {
 			container.querySelector('.chat-routing-badge-label')?.textContent,
 			'Update routing badge: Implemented the requested change.'
 		);
+		const clearCompletedDeliveries = Reflect.get(controller, '_clearCompletedDeliveryConfirmations') as () => void;
+		clearCompletedDeliveries.call(controller);
+		assert.strictEqual(container.querySelector('.chat-routing-badge'), null);
 
 		controller.dispose();
 		sessionsChanged.dispose();
 		container.remove();
 	});
 
-	test('keeps prior delivery rows when another request starts', async () => {
+	test('keeps unresolved delivery rows when another request starts', async () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		const controller = new ChatSessionRoutingController(
