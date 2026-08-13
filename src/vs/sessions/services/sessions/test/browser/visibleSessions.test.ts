@@ -62,13 +62,14 @@ suite('VisibleSessions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createModel() {
+	function createModel(onSlotReplaced: (replaced: ISession, index: number, sticky: boolean, replacedBySessionId: string | undefined) => void = () => { }) {
 		const uriIdentity = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		};
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			() => [],
+			onSlotReplaced,
 			uriIdentity,
 		));
 		return model;
@@ -84,7 +85,8 @@ suite('VisibleSessions', () => {
 
 	test('forwards Git availability through visible and resource-override wrappers', () => {
 		const hasGitRepository = observableValue('hasGitRepository', false);
-		const session = { ...stubSession('A'), hasGitRepository };
+		const completedStateIcon = observableValue('completedStateIcon', Codicon.gitMerge);
+		const session = { ...stubSession('A'), completedStateIcon, hasGitRepository };
 		const model = createModel();
 		model.setActive(session);
 		const visible = model.activeSession.get();
@@ -93,9 +95,13 @@ suite('VisibleSessions', () => {
 		assert.deepStrictEqual({
 			visible: visible?.hasGitRepository === hasGitRepository,
 			resourceOverride: resourceOverride.hasGitRepository === hasGitRepository,
+			visibleCompletedStateIcon: visible?.completedStateIcon === completedStateIcon,
+			resourceOverrideCompletedStateIcon: resourceOverride.completedStateIcon === completedStateIcon,
 		}, {
 			visible: true,
 			resourceOverride: true,
+			visibleCompletedStateIcon: true,
+			resourceOverrideCompletedStateIcon: true,
 		});
 	});
 
@@ -1349,6 +1355,7 @@ suite('VisibleSessions - active chat removal fallback', () => {
 		return disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			() => [],
+			() => { },
 			uriIdentity,
 		));
 	}

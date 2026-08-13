@@ -16,7 +16,7 @@ import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '.
 import { LRUCache } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { basename, getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -82,7 +82,7 @@ import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMod
 import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
-import { IVoiceAttachmentResult, IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
+import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
@@ -297,6 +297,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.any(
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location')),
 			this.layoutService.onDidChangePanelPosition,
+			this.layoutService.onDidChangePartVisibility,
 			Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))
 		)(() => {
 			this.updateContextKeys();
@@ -471,19 +472,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					? resolved
 					: { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
 			}));
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.attachFiles', async (_accessor, resourceStrings: readonly string[]): Promise<IVoiceAttachmentResult> => {
-				const widget = this._getVoiceActionWidget();
-				if (!widget) {
-					return { ok: false, reason: 'no_input' };
-				}
-				try {
-					const resources = resourceStrings.map(resource => URI.parse(resource));
-					await Promise.all(resources.map(resource => widget.attachmentModel.addFile(resource)));
-					return { ok: true, attached: resources.map(resource => basename(resource)) };
-				} catch {
-					return { ok: false, reason: 'attachment_failed' };
-				}
-			}));
 		}
 	}
 
@@ -524,6 +512,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this,
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('agents.voice.liveTranscript')),
 			() => this.configurationService.getValue<boolean>('agents.voice.liveTranscript') !== false
+		);
+		const inputValue = observableFromEvent(
+			this,
+			this._widget.inputEditor.onDidChangeModelContent,
+			() => this._widget.getInput()
 		);
 		const transcriptOverlay = $('.voice-transcript-overlay');
 		const transcriptScrollable = this._register(new DomScrollableElement(transcriptOverlay, {
@@ -566,8 +559,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const animate = () => {
 				animFrameId = win.requestAnimationFrame(animate);
 				const { connected, voiceState, simulating } = getEffectiveVoice();
-				const confirmationPending = isConfirmationPending();
-				const effectiveState: VoiceGlowState = confirmationPending ? 'confirmation' : voiceState;
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
 				// the "Listening..."/transcript overlay always render on the same
@@ -577,7 +568,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = confirmationPending || (connected && isGlowingVoiceState(voiceState) && (simulating || isOwner));
+				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
 
 				if (!glowActive) {
 					glowController.clear();
@@ -586,7 +577,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				// Get audio intensity from analyser
 				const analyser = this.ttsPlaybackService.analyserNode
-					?? (effectiveState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 				let intensity: number;
 				if (!analyser && simulating) {
@@ -598,7 +589,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				glowController.render(effectiveState, intensity, this.accessibilityService.isMotionReduced());
+				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -609,25 +600,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 			glowController.clear();
 		};
-		const isConfirmationPending = (): boolean => {
-			const currentSession = this._currentSessionResource.get();
-			return !!currentSession && this.voiceSessionController.pendingToolConfirmations.get()
-				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
-		};
-
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
 			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			const currentSession = this._currentSessionResource.read(reader);
-			const confirmationPending = !!currentSession && this.voiceSessionController.pendingToolConfirmations.read(reader)
-				.some(confirmation => isEqual(confirmation.sessionResource, currentSession));
 			// Only run the per-frame glow loop for states that actually render a
 			// glow. Idle renders none, so keeping the loop alive then would burn a
 			// requestAnimationFrame callback every frame for nothing. React to
 			// simulated states too, so the walkthrough commands light up the glow.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
 			const simGlow = sim === 'listening' || sim === 'speaking';
-			if (confirmationPending || simGlow || (connected && isGlowingVoiceState(voiceState))) {
+			if (simGlow || (connected && isGlowingVoiceState(voiceState))) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -691,6 +673,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const currentSession = this._currentSessionResource.read(reader);
 			const showTranscript = showTranscriptSetting.read(reader);
 			const showLiveTranscript = showLiveTranscriptSetting.read(reader);
+			const hasInput = inputValue.read(reader).length > 0;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
 
@@ -750,6 +733,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Show hint when connected but no transcript yet
 			if (visible.length === 0 || !showTranscript || showListeningPlaceholder) {
+				if (hasInput) {
+					transcriptOverlayNode.style.display = 'none';
+					transcriptOverlayNode.classList.remove('has-transcript');
+					return;
+				}
 				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
 				if (showListeningPlaceholder) {
 					transcriptOverlayNode.style.display = '';
@@ -833,6 +821,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_SNAP_THRESHOLD = this.SESSIONS_SIDEBAR_MIN_WIDTH / 2; // snap to hide when dragged below half of minimum width
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
+	private static readonly SESSIONS_SIDEBAR_BORDER_WIDTH = 1;
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = this.CHAT_WIDGET_DEFAULT_WIDTH + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 
@@ -1056,6 +1045,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				renderFollowups: true,
 				supportsFileReferences: true,
 				clear: () => this.clear(),
+				enableFind: true,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
 						return true;
@@ -1673,12 +1663,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { heightReduction: 0, widthReduction: 0 };
 		}
 
-		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight;
+		const sessionsTitleHeight = this.sessionsTitleContainer.offsetHeight;
+		let availableSessionsHeight = height - sessionsTitleHeight;
+		let reservedChatWidgetHeight = 0;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			reservedChatWidgetHeight = Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			availableSessionsHeight -= reservedChatWidgetHeight;
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
 		}
+		availableSessionsHeight = Math.max(0, availableSessionsHeight);
 
 		// Show as sidebar
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -1690,7 +1684,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerSash?.layout();
 
 			heightReduction = 0; // side by side to chat widget
-			widthReduction = this.sessionsContainer.offsetWidth;
+			widthReduction = sessionsViewerSidebarWidth + ChatViewPane.SESSIONS_SIDEBAR_BORDER_WIDTH;
 		}
 
 		// Show stacked
@@ -1699,7 +1693,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(availableSessionsHeight, width);
 
-			heightReduction = this.sessionsContainer.offsetHeight;
+			heightReduction = sessionsTitleHeight + availableSessionsHeight;
 			widthReduction = 0; // stacked on top of the chat widget
 		}
 

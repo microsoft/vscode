@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
@@ -148,8 +148,8 @@ suite('mapSessionEvents — history replay', () => {
 			invocationMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.invocationMessage : undefined,
 			pastTenseMessage: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.pastTenseMessage : undefined,
 		}, {
-			invocationMessage: { markdown: 'Editing [file.ts](file:///workspace/src/file.ts)' },
-			pastTenseMessage: { markdown: 'Edited [file.ts](file:///workspace/src/file.ts)' },
+			invocationMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
+			pastTenseMessage: { markdown: 'Edit [file.ts](file:///workspace/src/file.ts)' },
 		});
 	});
 
@@ -234,6 +234,35 @@ suite('mapSessionEvents — history replay', () => {
 		const part = turns[0].responseParts[0] as ToolCallResponsePart;
 		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
+	});
+
+	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'view the image' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-1', name: 'view_image' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-1', toolName: 'view_image', arguments: { path: '/repo/image.png' } } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-1',
+					success: true,
+					result: {
+						content: 'Viewed image file successfully.',
+						contents: [{ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		const part = turns[0].responseParts[0] as ToolCallResponsePart;
+		assert.strictEqual(part.toolCall.status, ToolCallStatus.Completed);
+		if (part.toolCall.status !== ToolCallStatus.Completed) { return; }
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
+		]);
 	});
 
 	test('maps SDK shell_exit content to terminal completion on replayed tool completion', async () => {
@@ -383,6 +412,25 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'session.start', data: { selectedModel: 'opus-5' } },
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'hello' } },
+			{ type: 'user.message', data: { interactionId: 'm3', content: 'again' } },
+			{ type: 'session.model_change', data: { newModel: 'gpt-5' } },
+			{ type: 'user.message', data: { interactionId: 'm4', content: 'switched' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(t => t.message.model), [
+			{ id: 'opus-5' },
+			{ id: 'opus-5' },
+			{ id: 'gpt-5' },
+		]);
+	});
+
 	test('uses top-level user messages as turn boundaries', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Investigate this issue' } },
@@ -460,7 +508,7 @@ suite('mapSessionEvents — history replay', () => {
 		}]);
 	});
 
-	test('restores an idle system notification as a system-initiated turn', async () => {
+	test('restores an idle system notification and resumed response in the preceding turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event', data: { interactionId: 'interaction-1', content: 'Start the background agent' } },
 			{ type: 'assistant.turn_start', data: { turnId: '0', interactionId: 'interaction-1' } },
@@ -486,20 +534,16 @@ suite('mapSessionEvents — history replay', () => {
 			message: turn.message,
 			state: turn.state,
 			parts: partKinds(turn.responseParts),
-		})), [
-			{
-				id: 'user-event',
-				message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
-				state: TurnState.Complete,
-				parts: [{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' }],
-			},
-			{
-				id: 'notification-event',
-				message: { text: 'Background agent agent-a is complete', origin: { kind: MessageKind.SystemNotification } },
-				state: TurnState.Complete,
-				parts: [{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' }],
-			},
-		]);
+		})), [{
+			id: 'user-event',
+			message: { text: 'Start the background agent', origin: { kind: MessageKind.User } },
+			state: TurnState.Complete,
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'The background agent is running.' },
+				{ kind: ResponsePartKind.SystemNotification, content: 'Background agent agent-a is complete' },
+				{ kind: ResponsePartKind.Markdown, content: 'Reading the background agent result.' },
+			],
+		}]);
 	});
 
 	test('does not restore a passive notification outside an assistant turn', async () => {
@@ -833,6 +877,42 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ kind: ResponsePartKind.ToolCall },
 			{ kind: ResponsePartKind.Markdown, content: 'Subagent is done.' },
 		]);
+	});
+
+	test('reconstructs subagent content when legacy completion precedes subagent start', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'summarize the service' } },
+			{ type: 'assistant.message', data: { messageId: 'm2', content: '', toolRequests: [{ toolCallId: 'tc-task', name: 'task' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Summarize agent service', agent_type: 'explore' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'tc-task', success: true, result: { content: 'Agent started in background.' } } },
+			{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore Agent', agentDescription: 'Explores' } },
+			{ type: 'user.message', agentId: 'agent-1', data: { interactionId: 'subagent-prompt', content: 'Inspect agentService.ts.' } },
+			{ type: 'assistant.message', agentId: 'agent-1', data: { messageId: 'm3', content: 'Summary complete.' } },
+		];
+
+		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const toolCall = turns[0].responseParts.find((part): part is ToolCallResponsePart => part.kind === ResponsePartKind.ToolCall)?.toolCall;
+		const subagentContent = toolCall?.status === ToolCallStatus.Completed
+			? toolCall.content?.find(content => content.type === ToolResultContentType.Subagent)
+			: undefined;
+
+		assert.deepStrictEqual({
+			description: toolCall ? readToolCallMeta(toolCall).subagentDescription : undefined,
+			subagentContent,
+			childMarkdown: subagentTurnsByToolCallId.get('tc-task')?.flatMap(turn => turn.responseParts)
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content),
+		}, {
+			description: 'Summarize agent service',
+			subagentContent: {
+				type: ToolResultContentType.Subagent,
+				resource: 'copilot:/test-session/subagent/tc-task',
+				title: 'Explore Agent',
+				agentName: 'explore',
+				description: 'Explores',
+			},
+			childMarkdown: ['Summary complete.'],
+		});
 	});
 
 	test('drops subagent user messages whose agentId cannot be mapped', async () => {

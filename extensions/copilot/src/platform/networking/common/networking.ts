@@ -300,7 +300,7 @@ export interface ITokenPriceTier {
 	readonly cacheWriteTokenPrice: number | undefined;
 	/**
 	 * The largest prompt size (in tokens) billed at this tier's rates.
-	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Derived from CAPI `billing.token_prices.<tier>.max_prompt_tokens`.
 	 * Present only when CAPI provides a `long_context` tier.
 	 */
 	readonly contextMax?: number;
@@ -345,6 +345,11 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string };
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Discount applied when this model is reached through Auto, as a fraction
+	 * (e.g. `0.1` for 10% off). Only set on models Auto can route to.
+	 */
+	readonly autoDiscount?: number;
 	/**
 	 * Normalized token pricing in AICs per million tokens.
 	 * Computed from the raw billing token_prices and normalized

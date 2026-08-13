@@ -65,13 +65,12 @@ export interface IAccountTitleBarStateContext {
 		readonly completions?: IQuotaSnapshot;
 	};
 	/**
-	 * Whether at least one registered session type is usable without GitHub
-	 * right now (the conditional-auth opt-in is on and a usable type exists).
+	 * Whether the conditional-auth opt-in permits signed-out operation.
 	 * When true, a signed-out account shows a calm opt-in sign-in instead of the
 	 * alarming "Agents Signed Out". Defaults to `false`, so the opt-in being off
 	 * keeps today's behavior.
 	 */
-	readonly usableWithoutGitHub: boolean;
+	readonly allowSignedOutWhenUsable: boolean;
 }
 
 export interface IAccountTitleBarState {
@@ -113,7 +112,7 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		};
 	}
 
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.usableWithoutGitHub);
+	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas, context.allowSignedOutWhenUsable);
 	if (copilotState) {
 		return copilotState;
 	}
@@ -144,16 +143,15 @@ function getCopilotPresentation(
 	entitlement: ChatEntitlement,
 	sentiment: IChatSentiment,
 	quotas: { readonly chat?: IQuotaSnapshot; readonly completions?: IQuotaSnapshot },
-	usableWithoutGitHub: boolean
+	allowSignedOutWhenUsable: boolean
 ): IAccountTitleBarState | undefined {
 	if (sentiment.hidden) {
 		return undefined;
 	}
 
 	if (entitlement === ChatEntitlement.Unknown) {
-		if (usableWithoutGitHub) {
-			// A session type is usable without GitHub, so signing in is optional:
-			// present a calm opt-in affordance rather than alarming the user.
+		if (allowSignedOutWhenUsable) {
+			// Signing in is optional, so present a calm affordance.
 			return {
 				source: 'copilot',
 				kind: 'default',

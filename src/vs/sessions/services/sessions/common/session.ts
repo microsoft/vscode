@@ -85,6 +85,19 @@ export function isActiveSessionStatus(status: SessionStatus): boolean {
 	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput;
 }
 
+export function getSessionStatusMessage(status: SessionStatus, description: IMarkdownString | undefined): IMarkdownString | string | undefined {
+	switch (status) {
+		case SessionStatus.InProgress:
+			return description ?? localize('working', "Working...");
+		case SessionStatus.NeedsInput:
+			return description ?? localize('needsInput', "Input needed");
+		case SessionStatus.Error:
+			return description ?? localize('failed', "Failed");
+		default:
+			return undefined;
+	}
+}
+
 /**
  * Provider-agnostic interactivity of a chat within a session. Mirrors the agent
  * host protocol's notion of chat interactivity but is decoupled from it so that
@@ -188,6 +201,12 @@ export interface ISessionWorkspace {
 	 * Whether this workspace is a virtual
 	 */
 	readonly isVirtualWorkspace: boolean;
+	/**
+	 * Overrides the type icon that would otherwise be inferred from the workspace's shape, for
+	 * providers whose workspaces are not structurally distinguishable. Unlike {@link icon}, which
+	 * identifies the workspace in pickers, this is drawn inline in dense rows.
+	 */
+	readonly typeIcon?: ThemeIcon;
 }
 
 /**
@@ -609,6 +628,8 @@ export interface ISession {
 	readonly worktreePending?: IObservable<boolean>;
 	/** Whether this is a workspace-less "quick chat". Only quick-chat-capable providers set this; absent means `false`. */
 	readonly isQuickChat?: IObservable<boolean>;
+	/** Whether this session is associated with an automation run. Absent means `false`. */
+	readonly isAutomation?: IObservable<boolean>;
 
 	// Reactive properties
 
@@ -618,6 +639,8 @@ export interface ISession {
 	readonly updatedAt: IObservable<Date>;
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
+	/** Provider-owned icon for the latest completed source-control workflow outcome. */
+	readonly completedStateIcon?: IObservable<ThemeIcon | undefined>;
 	/** Summary of file changes produced by the session. */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
 	/** File changes produced by the session. */
@@ -740,6 +763,7 @@ export interface ISessionCapabilities {
  * of contributed values.
  */
 export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
 /**
@@ -889,6 +913,8 @@ export function sessionWorkspaceEqual(a: ISessionWorkspace | undefined, b: ISess
 		|| a.description !== b.description
 		|| a.group !== b.group
 		|| !ThemeIcon.isEqual(a.icon, b.icon)
+		|| !!a.typeIcon !== !!b.typeIcon
+		|| (!!a.typeIcon && !!b.typeIcon && !ThemeIcon.isEqual(a.typeIcon, b.typeIcon))
 		|| a.requiresWorkspaceTrust !== b.requiresWorkspaceTrust
 		|| a.isVirtualWorkspace !== b.isVirtualWorkspace
 		|| a.folders.length !== b.folders.length) {

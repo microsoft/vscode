@@ -72,6 +72,26 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 }
 
 /**
+ * Inspects the configured application-wide value of `settingId`, excluding the
+ * registered default and workspace/folder layers.
+ */
+export function inspectValue<T>(configurationService: IConfigurationService, settingId: string): readonly [value: T, source: 'policyValue' | 'userValue' | 'applicationValue'] | undefined {
+	const inspected = configurationService.inspect<T>(settingId);
+	const property = getPropertySchema(settingId);
+	const values = [
+		['policyValue', inspected.policyValue],
+		['userValue', inspected.userValue],
+		['applicationValue', inspected.applicationValue],
+	] as const;
+	for (const [source, value] of values) {
+		if (value !== undefined && matchesSchemaType(value, property?.type)) {
+			return [value, source];
+		}
+	}
+	return undefined;
+}
+
+/**
  * A setting that declares {@link IAgentHostConfigurationSync}, paired with the
  * setting id it was declared on.
  */
