@@ -29,7 +29,7 @@ import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/commo
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ResponsePartKind } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind } from '../../../common/state/sessionState.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
@@ -68,6 +68,7 @@ interface ITestWireRequest {
 }
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
+const OPENAI_TEST_MODEL = toCodexModelSelectionId('openai', 'gpt-5.6-sol');
 
 interface ITestPeer {
 	readonly transport: ICodexAppServerTransport;
@@ -307,6 +308,136 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('lists Codex Desktop chats without a chosen folder as workspace-less', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		const client = new CodexAppServerClient(peer.transport);
+		agent['_connection'] = {
+			kind: 'ready',
+			client,
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const userHome = agent['_environmentService'].userHome;
+		const generatedWorkspace = URI.joinPath(userHome, 'Documents', 'Codex', '2026-08-11', 'this');
+		const selectedWorkspace = URI.file(join(sep, 'repo', 'codex'));
+		const sessionsDirectory = URI.joinPath(userHome, '.codex', 'sessions', '2026', '08', '11');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+
+		const desktopGeneratedRollout = URI.joinPath(sessionsDirectory, 'desktop-generated.jsonl');
+		const desktopSelectedRollout = URI.joinPath(sessionsDirectory, 'desktop-selected.jsonl');
+		const vscodeGeneratedRollout = URI.joinPath(sessionsDirectory, 'vscode-generated.jsonl');
+		await Promise.all([
+			agent['_fileService'].createFile(desktopGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n')),
+			agent['_fileService'].createFile(desktopSelectedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{"originator":"Codex Desktop"}}\n')),
+			agent['_fileService'].createFile(vscodeGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{}}\n')),
+		]);
+
+		const listing = agent.listLegacyChats();
+		const request = await readNextRequest(peer.outbound);
+		peer.push({
+			id: request.id,
+			result: {
+				data: [
+					{ id: 'desktop-generated', cwd: generatedWorkspace.fsPath, path: desktopGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 1, updatedAt: 2, name: 'Desktop generated' },
+					{ id: 'desktop-selected', cwd: selectedWorkspace.fsPath, path: desktopSelectedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 3, updatedAt: 4, name: 'Desktop selected' },
+					{ id: 'vscode-generated', cwd: generatedWorkspace.fsPath, path: vscodeGeneratedRollout.fsPath, source: 'vscode', modelProvider: 'openai', createdAt: 5, updatedAt: 6, name: 'VS Code generated' },
+				],
+				nextCursor: null,
+			}
+		});
+
+		const chats = await listing;
+		assert.ok(chats);
+		assert.deepStrictEqual(chats.map(chat => ({
+			id: AgentSession.id(parseChatUri(chat.chat)!.session),
+			workspaceless: readSessionWorkspaceless(chat._meta),
+			workingDirectories: chat.workingDirectories?.map(directory => directory.fsPath),
+		})), [
+			{ id: 'desktop-generated', workspaceless: true, workingDirectories: [generatedWorkspace.fsPath] },
+			{ id: 'desktop-selected', workspaceless: false, workingDirectories: [selectedWorkspace.fsPath] },
+			{ id: 'vscode-generated', workspaceless: false, workingDirectories: [generatedWorkspace.fsPath] },
+		]);
+		peer.exit();
+	});
+
+	test('bounds concurrent Codex Desktop rollout inspections while listing chats', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const release = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		let active = 0;
+		let maximum = 0;
+		agent['_readCodexDesktopRolloutPrefix'] = async () => {
+			active++;
+			maximum = Math.max(maximum, active);
+			if (active === 8) {
+				saturated.complete();
+			}
+			await release.p;
+			active--;
+			return null;
+		};
+
+		const listing = agent.listLegacyChats();
+		const request = await readNextRequest(peer.outbound);
+		peer.push({
+			id: request.id,
+			result: {
+				data: Array.from({ length: 32 }, (_, index) => ({
+					id: `desktop-${index}`,
+					cwd: `/workspace/${index}`,
+					path: `/rollout/${index}.jsonl`,
+					source: 'vscode',
+					modelProvider: 'openai',
+					createdAt: index,
+					updatedAt: index,
+				})),
+				nextCursor: null,
+			},
+		});
+
+		await saturated.p;
+		assert.strictEqual(active, 8);
+		release.complete();
+		const chats = await listing;
+		assert.deepStrictEqual({ maximum, count: chats?.length }, { maximum: 8, count: 32 });
+		peer.exit();
+	});
+
+	test('bounds concurrent cold session reads', async () => {
+		const agent = await createAgent(disposables);
+		const release = new DeferredPromise<void>();
+		const saturated = new DeferredPromise<void>();
+		let active = 0;
+		let maximum = 0;
+		agent['_doReadSession'] = async () => {
+			active++;
+			maximum = Math.max(maximum, active);
+			if (active === 8) {
+				saturated.complete();
+			}
+			await release.p;
+			active--;
+			return undefined;
+		};
+
+		const reads = Promise.all(Array.from({ length: 32 }, (_, index) =>
+			agent['_readSession'](AgentSession.uri(agent.id, `session-${index}`))));
+		await saturated.p;
+		assert.strictEqual(active, 8);
+		release.complete();
+		await reads;
+		assert.strictEqual(maximum, 8);
+	});
 
 	test('session actions target the owning session after the chat is bound', async () => {
 		const agent = await createAgent(disposables);
@@ -1423,6 +1554,9 @@ suite('CodexAgent prewarm eviction', () => {
 
 			const restoredChat = defaultChatOf(created.session);
 			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat });
+			const originalProbe = await readNextRequest(peerB.outbound);
+			assert.strictEqual(originalProbe.params.threadId, AgentSession.id(created.session));
+			peerB.push({ id: originalProbe.id, error: { code: -32000, message: 'thread not found' } });
 			const read = await readNextRequest(peerB.outbound);
 			peerB.push({
 				id: read.id,
@@ -1479,6 +1613,145 @@ suite('CodexAgent prewarm eviction', () => {
 			peerB?.exit();
 			peerA.exit();
 		}
+	});
+
+	test('directly restored Desktop thread heals a stale overlay and uses the latest rollout provider', async () => {
+		const database = new TestSessionDatabase();
+		await Promise.all([
+			database.setMetadata('codex.threadId', 'replacement-thread'),
+			database.setMetadata('codex.model', OPENAI_TEST_MODEL),
+		]);
+		const agent = await createAgent(disposables, { database });
+		const baseModel = agent.models.get()[0];
+		agent['_models'].set([
+			{ ...baseModel, id: COPILOT_TEST_MODEL },
+			{ ...baseModel, id: OPENAI_TEST_MODEL },
+		], undefined);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		agent['_refreshSkillExtraRoots'] = async () => { };
+		const session = AgentSession.uri('codex', 'desktop-thread');
+		const chat = defaultChatOf(session);
+		const context = { configurationResource: session, resource: chat };
+		const workingDirectory = URI.file('/workspace/codex');
+		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
+		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');
+		await agent['_fileService'].createFolder(sessionsDirectory);
+		await agent['_fileService'].createFile(rollout, VSBuffer.fromString([
+			'{"type":"session_meta","payload":{"originator":"Codex Desktop","model_provider":"openai"}}',
+			'{"type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-test","model_provider_id":"vscode-proxy"}}}',
+			'{"type":"event_msg","payload":{"type":"task_started","turn_id":"desktop-turn"}}',
+			'{"type":"turn_context","payload":{"turn_id":"desktop-turn","model":"gpt-test"}}',
+		].join('\n')));
+		const persistedTurn = {
+			id: 'desktop-turn',
+			items: [
+				{ type: 'userMessage', id: 'user-1', clientId: null, content: [{ type: 'text', text: 'remember capybara', text_elements: [] }] },
+				{ type: 'agentMessage', id: 'assistant-1', text: 'I will remember capybara.', phase: 'final_answer', memoryCitation: null },
+			],
+			itemsView: { type: 'full' },
+			status: 'completed',
+			error: null,
+			startedAt: 1,
+			completedAt: 2,
+			durationMs: 1000,
+		};
+
+		const metadataPromise = agent.getChatMetadata(chat, context);
+		const metadataRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: metadataRead.id,
+			result: {
+				thread: {
+					id: metadataRead.params.threadId,
+					cwd: workingDirectory.fsPath,
+					modelProvider: 'openai',
+					path: rollout.fsPath,
+					source: 'vscode',
+					turns: [persistedTurn],
+				},
+			},
+		});
+		const metadata = await metadataPromise;
+		const restored = agent['_sessions'].get(AgentSession.id(session));
+
+		const historyPromise = agent.chats.getMessages(chat, context);
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({
+			id: resume.id,
+			result: {
+				thread: { id: resume.params.threadId, cwd: workingDirectory.fsPath },
+				cwd: workingDirectory.fsPath,
+			},
+		});
+		const historyRead = await readNextRequest(peer.outbound);
+		peer.push({
+			id: historyRead.id,
+			result: {
+				thread: {
+					id: historyRead.params.threadId,
+					cwd: workingDirectory.fsPath,
+					modelProvider: 'openai',
+					path: rollout.fsPath,
+					source: 'vscode',
+					turns: [persistedTurn],
+				},
+			},
+		});
+		const history = await historyPromise;
+
+		const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, undefined, context);
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await send;
+
+		assert.deepStrictEqual({
+			metadataReadThreadId: metadataRead.params.threadId,
+			metadataModel: metadata?.model?.id,
+			restored: {
+				threadId: restored?.threadId,
+				model: restored?.model?.id,
+				materializedModelProvider: restored?.materializedModelProvider,
+			},
+			history: history.map(item => ({
+				id: item.id,
+				message: item.message.text,
+				messageModel: item.message.model?.id,
+				usageModel: item.usage?.model,
+			})),
+			resume: { method: resume.method, threadId: resume.params.threadId, modelProvider: resume.params.modelProvider },
+			historyReadThreadId: historyRead.params.threadId,
+			turn: { method: turn.method, threadId: turn.params.threadId, model: turn.params.model },
+			overlay: {
+				threadId: await database.getMetadata('codex.threadId'),
+				modelId: await database.getMetadata('codex.model'),
+			},
+		}, {
+			metadataReadThreadId: 'desktop-thread',
+			metadataModel: COPILOT_TEST_MODEL,
+			restored: {
+				threadId: 'desktop-thread',
+				model: COPILOT_TEST_MODEL,
+				materializedModelProvider: 'vscode-proxy',
+			},
+			history: [{
+				id: 'desktop-turn',
+				message: 'remember capybara',
+				messageModel: COPILOT_TEST_MODEL,
+				usageModel: COPILOT_TEST_MODEL,
+			}],
+			resume: { method: 'thread/resume', threadId: 'desktop-thread', modelProvider: 'vscode-proxy' },
+			historyReadThreadId: 'desktop-thread',
+			turn: { method: 'turn/start', threadId: 'desktop-thread', model: 'gpt-test' },
+			overlay: { threadId: 'desktop-thread', modelId: COPILOT_TEST_MODEL },
+		});
+		peer.exit();
 	});
 });
 suite('CodexAgent baseline checkpoint', () => {

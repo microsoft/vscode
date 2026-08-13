@@ -342,7 +342,7 @@ suite('mapSessionEventsToHistoryRecords', () => {
 					toolCallId: 'synth-skill-evt-42',
 					toolName: 'skill',
 					displayName: 'Read Skill',
-					invocationMessage: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+					invocationMessage: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 				},
 				skillComplete: {
 					session,

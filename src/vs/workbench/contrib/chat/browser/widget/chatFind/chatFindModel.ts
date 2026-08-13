@@ -7,7 +7,7 @@ import { createRegExp } from '../../../../../../base/common/strings.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ChatTreeItem } from '../../chat.js';
-import { getChatResponsePlaintextParts } from '../../accessibility/chatResponseAccessibleView.js';
+import { getChatFindTextParts } from './chatFindContent.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../../common/widget/annotations.js';
 import { moveResponseOutcomeToolsAfterFinalResponse } from '../chatListRenderer.js';
@@ -71,9 +71,10 @@ function buildSegments(items: readonly ChatTreeItem[]): IChatFindSegment[] {
 			// Mirrors the renderer, which puts the references slot first and code citations
 			// between the response content and the trailing parts that hold row-level text.
 			const trailingPartIndex = renderedContent.length + 1 + (item.codeCitations?.length ? 1 : 0);
-			// Reasoning is deliberately excluded: `ChatThinkingContentPart` builds its body only
-			// once expanded, so a match there could be counted but never revealed or highlighted.
-			const parts = getChatResponsePlaintextParts(item, false);
+			// Indexes only what the response renders: `getChatFindTextParts` deliberately omits
+			// reasoning and tool result payloads, whose text does not exist in the DOM until
+			// their container is expanded, so a match there could never be revealed.
+			const parts = getChatFindTextParts(item);
 			const textByRenderedPart = new Map<number, string>();
 			for (const part of parts) {
 				if (part.text.trim().length > 0) {
@@ -226,8 +227,7 @@ export class ChatFindModel extends Disposable {
 		this._matches = matches;
 
 		if (previousAnchor) {
-			const idx = matches.findIndex(m => m.itemId === previousAnchor.itemId && m.partIndex === previousAnchor.partIndex && m.occurrenceIndex === previousAnchor.occurrenceIndex);
-			this._activeIndex = idx;
+			this._activeIndex = matches.findIndex(m => m.itemId === previousAnchor.itemId && m.partIndex === previousAnchor.partIndex && m.occurrenceIndex === previousAnchor.occurrenceIndex);
 		}
 		if (this._activeIndex < 0) {
 			this._activeIndex = matches.length > 0 ? 0 : -1;
