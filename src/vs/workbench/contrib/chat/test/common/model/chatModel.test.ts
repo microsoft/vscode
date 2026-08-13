@@ -1763,8 +1763,6 @@ suite('ChatResponseModel', () => {
 			source: ToolDataSource.Internal,
 		}, 'tool-call-1', undefined, {}, {});
 
-		// The prepared message states what the tool would have done, so a failure
-		// must not keep it: it would read as though the screenshot was captured.
 		const failed = make();
 		await failed.didExecuteTool({ content: [], toolResultError: 'No browser page found' }, true);
 		const succeeded = make();
