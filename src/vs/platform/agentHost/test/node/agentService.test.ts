@@ -99,6 +99,7 @@ function sessionConfigToChatOptions(config: IAgentCreateSessionConfig): IAgentCr
 				source: config.fork.chat,
 				turnIndex: config.fork.turnIndex,
 				turnId: config.fork.turnId,
+				turns: config.fork.turns,
 				turnIdMapping: config.fork.turnIdMapping,
 			},
 		} : {}),
@@ -5686,6 +5687,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				forkSource: receivedFork?.source.toString(),
 				forkTurnId: receivedFork?.turnId,
+				forkTurns: receivedFork?.turns?.map(turn => ({ id: turn.id, text: turn.message.text })),
 				mappingSize: receivedFork?.turnIdMapping?.size,
 				mappedFromT1: receivedFork?.turnIdMapping?.get('t1'),
 				newTurnCount: newTurnIds.length,
@@ -5694,6 +5696,7 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				forkSource: buildDefaultChatUri(session),
 				forkTurnId: 't1',
+				forkTurns: [{ id: newTurnIds[0], text: 'first' }],
 				mappingSize: 1,
 				mappedFromT1: newTurnIds[0],
 				newTurnCount: 1,
