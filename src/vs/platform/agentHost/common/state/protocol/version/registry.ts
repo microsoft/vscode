@@ -165,6 +165,17 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.TerminalCommandExecuted]: '0.1.0',
 	[ActionType.TerminalCommandFinished]: '0.1.0',
 	[ActionType.ResourceWatchChanged]: '0.2.0',
+	[ActionType.AutomationDefinitionChanged]: '0.8.0',
+	[ActionType.AutomationRunSummarySet]: '0.8.0',
+	[ActionType.AutomationRunSummaryRemoved]: '0.8.0',
+	[ActionType.AutomationRunsLoaded]: '0.8.0',
+	[ActionType.AutomationRunLifecycleChanged]: '0.8.0',
+	[ActionType.AutomationRunSessionSet]: '0.8.0',
+	[ActionType.AutomationRunSessionRemoved]: '0.8.0',
+	[ActionType.AutomationRunPrimarySessionChanged]: '0.8.0',
+	[ActionType.AutomationRunArtifactSet]: '0.8.0',
+	[ActionType.AutomationRunArtifactRemoved]: '0.8.0',
+	[ActionType.AutomationRunCancelRequested]: '0.8.0',
 };
 
 /**
@@ -195,6 +206,9 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
 	'root/sessionAdded': '0.1.0',
 	'root/sessionRemoved': '0.1.0',
 	'root/sessionSummaryChanged': '0.1.0',
+	'root/automationAdded': '0.8.0',
+	'root/automationRemoved': '0.8.0',
+	'root/automationSummaryChanged': '0.8.0',
 	'root/progress': '0.5.0',
 	'auth/required': '0.1.0',
 	'otlp/exportLogs': '0.2.0',

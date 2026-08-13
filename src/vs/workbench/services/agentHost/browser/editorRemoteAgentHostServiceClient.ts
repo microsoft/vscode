@@ -21,7 +21,7 @@ import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/bro
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateAutomationParams, CreateTerminalParams, DisposeAutomationParams, FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationsParams, ListAutomationsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, PreviewAutomationScheduleParams, PreviewAutomationScheduleResult, ResolveSessionConfigResult, RunAutomationParams, RunAutomationResult, SessionConfigCompletionsResult, UpdateAutomationParams } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
@@ -221,6 +221,38 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._requireClient().listSessions();
+	}
+
+	listAutomations(params?: Omit<ListAutomationsParams, 'channel'>): Promise<ListAutomationsResult> {
+		return this._requireClient().listAutomations(params);
+	}
+
+	listAutomationTriggerDefinitions(params?: Omit<ListAutomationTriggerDefinitionsParams, 'channel'>): Promise<ListAutomationTriggerDefinitionsResult> {
+		return this._requireClient().listAutomationTriggerDefinitions(params);
+	}
+
+	createAutomation(params: CreateAutomationParams): Promise<void> {
+		return this._requireClient().createAutomation(params);
+	}
+
+	updateAutomation(params: UpdateAutomationParams): Promise<void> {
+		return this._requireClient().updateAutomation(params);
+	}
+
+	disposeAutomation(params: DisposeAutomationParams): Promise<void> {
+		return this._requireClient().disposeAutomation(params);
+	}
+
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		return this._requireClient().runAutomation(params);
+	}
+
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
+		return this._requireClient().fetchAutomationRuns(params);
+	}
+
+	previewAutomationSchedule(params: Omit<PreviewAutomationScheduleParams, 'channel'>): Promise<PreviewAutomationScheduleResult> {
+		return this._requireClient().previewAutomationSchedule(params);
 	}
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {

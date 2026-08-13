@@ -54,6 +54,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 const $ = DOM.$;
 
@@ -332,12 +333,13 @@ export function resolveAutomationModelIdentifier(
 		return identifier;
 	}
 	const sourceModel = languageModelsService.lookupLanguageModel(identifier);
-	if (sourceModel?.targetChatSessionType !== logicalSessionType) {
+	if (sourceModel?.targetChatSessionType === modelTarget) {
 		return identifier;
 	}
+	const modelId = sourceModel?.targetChatSessionType === logicalSessionType ? sourceModel.id : identifier;
 	return languageModelsService.getLanguageModelIds().find(candidateIdentifier => {
 		const candidate = languageModelsService.lookupLanguageModel(candidateIdentifier);
-		return candidate?.targetChatSessionType === modelTarget && candidate.id === sourceModel.id;
+		return candidate?.targetChatSessionType === modelTarget && candidate.id === modelId;
 	}) ?? identifier;
 }
 
@@ -900,7 +902,12 @@ export function renderForm(
 	// The picker is authoritative for the session type
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !isolationModel.isQuickChatObs.read(reader));
-	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), { persistSelection: false, telemetrySource: 'AutomationSessionTypePicker', showChevron: false }));
+	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
+		persistSelection: false,
+		telemetrySource: 'AutomationSessionTypePicker',
+		showChevron: false,
+		providerFilter: isAgentHostProviderId,
+	}));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
 	sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
 		initialPick: state.sessionTypeId
@@ -1197,7 +1204,7 @@ export function renderForm(
 		getPrompt: () => chatInput.inputEditor.getValue(),
 		getMode: () => chatInput.currentModeObs.get().id,
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
-		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
+		getModelId: () => chatInput.selectedLanguageModel.get()?.metadata.id,
 		getBranch: () => isolationModel.persistedBranch,
 		waitForAutomationSessionSync: () => {
 			updateAutomationSessionTarget();

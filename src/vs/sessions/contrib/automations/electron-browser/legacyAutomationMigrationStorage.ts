@@ -7,14 +7,14 @@ import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { IBaseSerializableStorageRequest, ISerializableCompareAndSwapRequest, ISerializableCompareAndSwapResult, ISerializableGetValueRequest } from '../../../../platform/storage/common/storageIpc.js';
-import { IAutomationStorageCompareAndSwapResult, IAutomationStorageService } from '../common/automationStorageService.js';
+import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationCompareAndSwapResult, ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
 
 const baseRequest: IBaseSerializableStorageRequest = {
 	profile: undefined,
 	workspace: undefined,
 };
 
-class NativeAutomationStorageService implements IAutomationStorageService {
+class NativeLegacyAutomationMigrationStorageService implements ILegacyAutomationMigrationStorageService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -26,7 +26,7 @@ class NativeAutomationStorageService implements IAutomationStorageService {
 		this.channel = mainProcessService.getChannel('storage');
 	}
 
-	read(key: string): Promise<string | undefined> {
+	read(key = AUTOMATION_STORAGE_KEY): Promise<string | undefined> {
 		const request: ISerializableGetValueRequest = {
 			...baseRequest,
 			key,
@@ -34,7 +34,7 @@ class NativeAutomationStorageService implements IAutomationStorageService {
 		return this.channel.call('getValue', request);
 	}
 
-	compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<IAutomationStorageCompareAndSwapResult> {
+	compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<ILegacyAutomationMigrationCompareAndSwapResult> {
 		const request: ISerializableCompareAndSwapRequest = {
 			...baseRequest,
 			key,
@@ -45,4 +45,4 @@ class NativeAutomationStorageService implements IAutomationStorageService {
 	}
 }
 
-registerSingleton(IAutomationStorageService, NativeAutomationStorageService, InstantiationType.Delayed);
+registerSingleton(ILegacyAutomationMigrationStorageService, NativeLegacyAutomationMigrationStorageService, InstantiationType.Delayed);

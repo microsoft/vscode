@@ -49,6 +49,40 @@ export const enum SessionStatus {
 }
 
 /**
+ * Discriminant describing the durable provenance of a session.
+ *
+ * @category Session State
+ */
+export const enum SessionOriginKind {
+	/** The session was created as part of an automation run. */
+	Automation = 'automation',
+}
+
+/**
+ * Provenance recorded on a session created for an automation run.
+ *
+ * The links let clients navigate from an ordinary session to the task-level
+ * run and its durable definition. The session channel remains authoritative
+ * for this session's transcript, tools, confirmations, and changes.
+ *
+ * @category Session State
+ */
+export interface AutomationSessionOrigin {
+	kind: SessionOriginKind.Automation;
+	/** Owning `ahp-automation:` URI. */
+	automation: URI;
+	/** Owning `ahp-automation-run:` URI. */
+	run: URI;
+}
+
+/**
+ * Durable provenance for sessions created by a higher-level AHP workflow.
+ *
+ * @category Session State
+ */
+export type SessionOrigin = AutomationSessionOrigin;
+
+/**
  * Metadata shared between the full {@link SessionState} (delivered when a
  * client subscribes to a session's URI) and the lightweight
  * {@link SessionSummary} (carried in the root-channel session catalog).
@@ -70,6 +104,8 @@ export interface SessionMetadata {
 	status: SessionStatus;
 	/** Human-readable description of what the session is currently doing */
 	activity?: string;
+	/** Durable origin of this session, when another AHP resource created it. */
+	origin?: SessionOrigin;
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
@@ -314,6 +350,11 @@ export interface SessionToolConfirmationRequest extends SessionInputRequestBase 
  * `chat/toolCallComplete` (and optionally streaming with
  * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
  * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
+ *
+ * Unlike the other variants this does **not** raise
+ * {@link SessionStatus.InputNeeded}: the call has already cleared its
+ * confirmation gate and is merely executing elsewhere, so the session stays
+ * {@link SessionStatus.InProgress} while it runs.
  *
  * @category Session Input Types
  */

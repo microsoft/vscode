@@ -13,10 +13,10 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import type { InitializeResult } from './state/protocol/common/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateAutomationParams, CreateTerminalParams, DisposeAutomationParams, FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationsParams, ListAutomationsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, PreviewAutomationScheduleParams, PreviewAutomationScheduleResult, ResolveSessionConfigResult, RunAutomationParams, RunAutomationResult, SessionConfigCompletionsResult, UpdateAutomationParams } from './state/protocol/commands.js';
+import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientAutomationRunAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentHostAuthTokenRequest, type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
@@ -756,6 +756,7 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
  */
 export interface IAgentService {
 	readonly _serviceBrand: undefined;
+	readonly automationCapabilities: AutomationCapabilities;
 
 	/**
 	 * Authenticate for a protected resource on the server.
@@ -770,6 +771,15 @@ export interface IAgentService {
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+
+	listAutomations(params: ListAutomationsParams): Promise<ListAutomationsResult>;
+	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
+	createAutomation(params: CreateAutomationParams): Promise<void>;
+	updateAutomation(params: UpdateAutomationParams): Promise<void>;
+	disposeAutomation(params: DisposeAutomationParams): Promise<void>;
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
+	previewAutomationSchedule(params: PreviewAutomationScheduleParams): Promise<PreviewAutomationScheduleResult>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
@@ -921,7 +931,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1027,7 +1037,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
@@ -1057,6 +1067,14 @@ export interface IAgentConnection {
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+	listAutomations(params?: Omit<ListAutomationsParams, 'channel'>): Promise<ListAutomationsResult>;
+	listAutomationTriggerDefinitions(params?: Omit<ListAutomationTriggerDefinitionsParams, 'channel'>): Promise<ListAutomationTriggerDefinitionsResult>;
+	createAutomation(params: CreateAutomationParams): Promise<void>;
+	updateAutomation(params: UpdateAutomationParams): Promise<void>;
+	disposeAutomation(params: DisposeAutomationParams): Promise<void>;
+	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
+	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
+	previewAutomationSchedule(params: Omit<PreviewAutomationScheduleParams, 'channel'>): Promise<PreviewAutomationScheduleResult>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;

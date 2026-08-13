@@ -23,6 +23,7 @@ import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
+import { defineAutomationTests } from './automationSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -148,6 +149,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineClientFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
+			defineAutomationTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.

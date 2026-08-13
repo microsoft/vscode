@@ -89,6 +89,8 @@ export interface ISessionTypePickerOptions {
 	 * The picker is still interactive. Defaults to `true`.
 	 */
 	readonly showChevron?: boolean;
+	/** Limits the providers shown by specialized picker instances. */
+	readonly providerFilter?: (providerId: string) => boolean;
 }
 
 /**
@@ -214,15 +216,21 @@ export class SessionTypePicker extends Disposable {
 	 * is set (see {@link setFolderSource}), otherwise from the active session.
 	 */
 	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
+		let sessionTypes: IProviderSessionType[];
 		if (this._folderSource) {
 			if (this._quickChatSource?.get()) {
-				return this.sessionsManagementService.getQuickChatSessionTypes();
+				sessionTypes = this.sessionsManagementService.getQuickChatSessionTypes();
+			} else {
+				const folderUri = this._folderSource.get();
+				sessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
 			}
-			const folderUri = this._folderSource.get();
-			return folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
+		} else {
+			const session = this._session.get();
+			sessionTypes = session ? this._sessionTypesForSession(session) : [];
 		}
-		const session = this._session.get();
-		return session ? this._sessionTypesForSession(session) : [];
+		return this._options?.providerFilter
+			? sessionTypes.filter(type => this._options!.providerFilter!(type.providerId))
+			: sessionTypes;
 	}
 
 	/** The pick to display for the current source: the active session's type, otherwise the folder or stored default. */
@@ -350,7 +358,10 @@ export class SessionTypePicker extends Disposable {
 	 * explicit pick.
 	 */
 	getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined {
-		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri)[0];
+		const sessionTypes = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
+		const first = this._options?.providerFilter
+			? sessionTypes.find(type => this._options!.providerFilter!(type.providerId))
+			: sessionTypes[0];
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 	}
 

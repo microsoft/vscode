@@ -27,7 +27,7 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 		return { kind: ResponsePartKind.Reasoning, id: 'ignored', content };
 	}
 
-	function toolCallPart(toolCallId: string, toolName: string, toolInput: string, resultText: string, opts?: { success?: boolean; errorMessage?: string }): ResponsePart {
+	function toolCallPart(toolCallId: string, toolName: string, toolInput: ToolCallCompletedState['toolInput'], resultText: string, opts?: { success?: boolean; errorMessage?: string }): ResponsePart {
 		return {
 			kind: ResponsePartKind.ToolCall,
 			toolCall: {
@@ -209,6 +209,16 @@ suite('buildSessionEventsFromTurns — reverse of mapSessionEvents', () => {
 	test('omits array tool input from structured session event arguments', () => {
 		const events = buildSessionEventsFromTurns([
 			userTurn(generateUuid(), 'run it', [toolCallPart(generateUuid(), 'tool', '["one", "two"]', '')]),
+		], { sessionId });
+		const started = events.find(e => e.type === 'tool.execution_start');
+
+		assert.ok(started && started.type === 'tool.execution_start');
+		assert.strictEqual(started.data.arguments, undefined);
+	});
+
+	test('does not resolve referenced tool input while building session events', () => {
+		const events = buildSessionEventsFromTurns([
+			userTurn(generateUuid(), 'run it', [toolCallPart(generateUuid(), 'tool', { uri: 'vscode-agent-client:/tool-input/1' }, '')]),
 		], { sessionId });
 		const started = events.find(e => e.type === 'tool.execution_start');
 

@@ -77,6 +77,14 @@ class MockAgentConnection implements IAgentConnection {
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> { return []; }
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> { return { url }; }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
+	async listAutomations(..._args: Parameters<IAgentConnection['listAutomations']>): ReturnType<IAgentConnection['listAutomations']> { return { items: [] }; }
+	async listAutomationTriggerDefinitions(..._args: Parameters<IAgentConnection['listAutomationTriggerDefinitions']>): ReturnType<IAgentConnection['listAutomationTriggerDefinitions']> { return { items: [] }; }
+	async createAutomation(..._args: Parameters<IAgentConnection['createAutomation']>): ReturnType<IAgentConnection['createAutomation']> { }
+	async updateAutomation(..._args: Parameters<IAgentConnection['updateAutomation']>): ReturnType<IAgentConnection['updateAutomation']> { }
+	async disposeAutomation(..._args: Parameters<IAgentConnection['disposeAutomation']>): ReturnType<IAgentConnection['disposeAutomation']> { }
+	async runAutomation(..._args: Parameters<IAgentConnection['runAutomation']>): ReturnType<IAgentConnection['runAutomation']> { return { run: 'ahp-automation-run:/mock' }; }
+	async fetchAutomationRuns(..._args: Parameters<IAgentConnection['fetchAutomationRuns']>): ReturnType<IAgentConnection['fetchAutomationRuns']> { return { items: [] }; }
+	async previewAutomationSchedule(..._args: Parameters<IAgentConnection['previewAutomationSchedule']>): ReturnType<IAgentConnection['previewAutomationSchedule']> { return { items: [] }; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }

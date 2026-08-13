@@ -16,10 +16,12 @@ import { type IAgentCreateChatOptions, type IAgentCreateSessionConfig, type IAge
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
-import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ProgressParams } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction, type ClientAutomationRunAction, type ProgressParams } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, withSessionWorkspaceless, type SessionSummary } from '../../common/state/sessionState.js';
+import { AutomationExecutionLifetime } from '../../common/state/protocol/state.js';
+import { AutomationRunCauseKind, AutomationRunOperation, AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -119,7 +121,8 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
-	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
+	readonly automationCapabilities: IAgentService['automationCapabilities'] = { execution: { lifetime: AutomationExecutionLifetime.HostLifetime } };
+	readonly handledActions: (SessionAction | TerminalAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
@@ -144,7 +147,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | ClientAutomationRunAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this.handledActions.push(action);
 		this.handledClientTypes.push(clientContext?.clientType);
 		this.handledClientContexts.push(clientContext);
@@ -166,6 +169,14 @@ class MockAgentService implements IAgentService {
 		});
 		return session;
 	}
+	async listAutomations(..._args: Parameters<IAgentService['listAutomations']>): ReturnType<IAgentService['listAutomations']> { return { items: [] }; }
+	async listAutomationTriggerDefinitions(..._args: Parameters<IAgentService['listAutomationTriggerDefinitions']>): ReturnType<IAgentService['listAutomationTriggerDefinitions']> { return { items: [] }; }
+	async createAutomation(..._args: Parameters<IAgentService['createAutomation']>): ReturnType<IAgentService['createAutomation']> { }
+	async updateAutomation(..._args: Parameters<IAgentService['updateAutomation']>): ReturnType<IAgentService['updateAutomation']> { }
+	async disposeAutomation(..._args: Parameters<IAgentService['disposeAutomation']>): ReturnType<IAgentService['disposeAutomation']> { }
+	async runAutomation(..._args: Parameters<IAgentService['runAutomation']>): ReturnType<IAgentService['runAutomation']> { return { run: 'ahp-automation-run:/mock' }; }
+	async fetchAutomationRuns(..._args: Parameters<IAgentService['fetchAutomationRuns']>): ReturnType<IAgentService['fetchAutomationRuns']> { return { items: [] }; }
+	async previewAutomationSchedule(..._args: Parameters<IAgentService['previewAutomationSchedule']>): ReturnType<IAgentService['previewAutomationSchedule']> { return { items: [] }; }
 
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
@@ -349,8 +360,15 @@ suite('ProtocolServerHandler', () => {
 		const resp = findResponse(transport.sent, 1);
 		assert.ok(resp, 'should have sent initialize response');
 		const result = (resp as { result: InitializeResult }).result;
-		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
-		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+		assert.deepStrictEqual({
+			protocolVersion: result.protocolVersion,
+			serverSeq: result.serverSeq,
+			automations: result.automations,
+		}, {
+			protocolVersion: PROTOCOL_VERSION,
+			serverSeq: stateManager.serverSeq,
+			automations: agentService.automationCapabilities,
+		});
 	});
 
 	test('handshake rejects unsupported protocol versions', () => {
@@ -655,6 +673,74 @@ suite('ProtocolServerHandler', () => {
 			assert.strictEqual(envelope.origin.clientId, clientId);
 			assert.strictEqual(envelope.origin.clientSeq, clientSeq);
 		}
+	});
+
+	test('server-only automation-run actions are rejected, not dispatched', () => {
+		const runUri = 'ahp-automation-run:/run-1';
+		stateManager.restoreAutomationRun({
+			resource: runUri,
+			automation: 'ahp-automation:/automation-1',
+			cause: { kind: AutomationRunCauseKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: '2025-01-01T00:00:00.000Z', startedAt: '2025-01-01T00:00:00.000Z' },
+			sessions: [],
+			artifacts: [],
+			operations: [AutomationRunOperation.Cancel],
+		});
+		const transport = connectClient('automation-run-client', [runUri]);
+		transport.sent.length = 0;
+		agentService.handledActions.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: runUri,
+			clientSeq: 7,
+			action: {
+				type: ActionType.AutomationRunLifecycleChanged,
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: '2025-01-01T00:00:00.000Z', startedAt: '2025-01-01T00:00:00.000Z', completedAt: '2025-01-01T00:01:00.000Z' },
+				operations: [],
+			},
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			dispatched: agentService.handledActions,
+			rejected: !!envelope?.rejectionReason,
+			status: stateManager.getAutomationRunState(runUri)?.lifecycle.status,
+		}, {
+			dispatched: [],
+			rejected: true,
+			status: AutomationRunStatus.Running,
+		});
+	});
+
+	test('automation-run cancellation requests reach the agent service', () => {
+		const runUri = 'ahp-automation-run:/run-2';
+		stateManager.restoreAutomationRun({
+			resource: runUri,
+			automation: 'ahp-automation:/automation-1',
+			cause: { kind: AutomationRunCauseKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: '2025-01-01T00:00:00.000Z', startedAt: '2025-01-01T00:00:00.000Z' },
+			sessions: [],
+			artifacts: [],
+			operations: [AutomationRunOperation.Cancel],
+		});
+		const transport = connectClient('automation-cancel-client', [runUri]);
+		transport.sent.length = 0;
+		agentService.handledActions.length = 0;
+
+		transport.simulateMessage(notification('dispatchAction', {
+			channel: runUri,
+			clientSeq: 8,
+			action: { type: ActionType.AutomationRunCancelRequested },
+		}));
+
+		const envelope = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.deepStrictEqual({
+			dispatched: agentService.handledActions,
+			rejectionReason: envelope?.rejectionReason,
+		}, {
+			dispatched: [{ type: ActionType.AutomationRunCancelRequested }],
+			rejectionReason: undefined,
+		});
 	});
 
 	test('session working-directory actions reach the agent service', () => {

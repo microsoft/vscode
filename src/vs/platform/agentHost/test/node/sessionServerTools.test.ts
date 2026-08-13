@@ -704,6 +704,20 @@ suite('SessionServerTools', () => {
 			assert.deepStrictEqual(full.transcript[1].toolCalls, [{ name: 'apply_patch', input: '{"patch":"@@"}' }]);
 		});
 
+		test('detail=full omits referenced tool inputs', () => {
+			const referencedToolCall = {
+				...toolCall('read_file', {}),
+				toolInput: { uri: 'vscode-agent-client:/tool-input/1', contentType: 'application/json' },
+			};
+			const referencedSnapshot: IChatContextSnapshot = {
+				turns: [turn('t1', 'read it', [toolPart(referencedToolCall)])],
+				hasMoreHistory: false,
+			};
+
+			const full = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, referencedSnapshot, 'full', 10));
+			assert.deepStrictEqual(full.transcript[0].toolCalls, [{ name: 'read_file' }]);
+		});
+
 		test('transcriptLimit drops older turns and flags truncated', () => {
 			const limited = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, snapshot, 'summary', 1));
 			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });

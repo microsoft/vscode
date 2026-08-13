@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun } from './automation.js';
 
 export const IAutomationRunner = createDecorator<IAutomationRunner>('automationRunner');
 
@@ -39,9 +39,7 @@ export interface IAutomationRunOperation {
 }
 
 /**
- * Runs a single automation: claim the per-automation slot, record the run,
- * drive the chat session, report success/failure to {@link IAutomationService}.
- * Implemented in the sessions layer via `ISessionsManagementService`.
+ * Starts and tracks a host-owned manual automation run.
  */
 export interface IAutomationRunner {
 	readonly _serviceBrand: undefined;
@@ -52,8 +50,6 @@ export interface IAutomationRunner {
 	 */
 	runOnce(
 		automation: IAutomationDescriptor,
-		trigger: AutomationRunTrigger,
-		leaderWindowId: number,
 		token?: CancellationToken,
 	): IAutomationRunOperation;
 }

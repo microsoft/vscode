@@ -15,21 +15,19 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
-import { AutomationScheduler } from './automationScheduler.js';
-import { ProviderAutomationService } from './providerAutomationService.js';
-import { BrowserAutomationStorageService } from './automationStorageService.js';
+import { AutomationService } from './automationService.js';
+import { BrowserLegacyAutomationMigrationStorageService } from './legacyAutomationMigrationStorage.js';
 import { AutomationToolsContribution } from './automationTools.js';
-import { IAutomationStorageService } from '../common/automationStorageService.js';
+import { ILegacyAutomationMigrationStorageService } from '../common/legacyAutomationMigrationStorage.js';
 
-registerSingleton(IAutomationStorageService, BrowserAutomationStorageService, InstantiationType.Delayed);
-registerSingleton(IAutomationService, ProviderAutomationService, InstantiationType.Delayed);
+registerSingleton(ILegacyAutomationMigrationStorageService, BrowserLegacyAutomationMigrationStorageService, InstantiationType.Delayed);
+registerSingleton(IAutomationService, AutomationService, InstantiationType.Delayed);
 registerSingleton(IAutomationRunner, AutomationRunner, InstantiationType.Delayed);
 registerSingleton(IAutomationDialogService, AutomationDialogService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(AutomationScheduler.ID, AutomationScheduler, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AutomationToolsContribution.ID, AutomationToolsContribution, WorkbenchPhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -40,18 +38,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.MACHINE,
 			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
+			description: localize('chat.automations.enabled', "Enables the Automations management experience. When disabled, automation UI and tools are hidden, but automations already owned by an Agent Host continue to run."),
 			included: product.quality !== 'stable',
 			experiment: { mode: 'auto' },
-		},
-		[CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING]: {
-			type: 'number',
-			default: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES,
-			minimum: 1,
-			scope: ConfigurationScope.MACHINE,
-			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.runTimeoutMinutes', "Maximum number of minutes a scheduled automation run is allowed to take before the scheduler cancels it and marks it failed. Prevents a single hung run from permanently blocking subsequent scheduled runs."),
-			included: product.quality !== 'stable',
 		},
 	},
 });

@@ -131,6 +131,10 @@ export class MockAgent implements IAgent {
 		return [];
 	}
 
+	getRequiredProtectedResources(_config: IAgentCreateSessionConfig): readonly ProtectedResourceMetadata[] {
+		return this.getProtectedResources().filter(resource => resource.required !== false);
+	}
+
 	setModels(models: readonly IAgentModelInfo[]): void {
 		this._models.set(models, undefined);
 	}
@@ -510,6 +514,10 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
+		return [];
+	}
+
+	getRequiredProtectedResources(_config: IAgentCreateSessionConfig): readonly ProtectedResourceMetadata[] {
 		return [];
 	}
 

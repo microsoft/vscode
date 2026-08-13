@@ -649,4 +649,23 @@ suite('SessionTypePicker', () => {
 
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 	});
+
+	test('filters providers for specialized picker surfaces', () => {
+		const folderA = URI.file('/a');
+		management.setSessionTypesForFolder(folderA, [
+			sessionType('default-copilot', 'copilot-cli', 'Copilot'),
+			sessionType('local-agent-host', 'copilotcli', 'Copilot'),
+		]);
+		const picker = createPicker(
+			disposables,
+			observableValue<ISession | undefined>('filteredSession', undefined),
+			management,
+			storage,
+			{ providerFilter: providerId => providerId === 'local-agent-host' },
+		);
+
+		picker.setFolderSource(observableValue<URI | undefined>('filteredFolder', folderA));
+
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-agent-host', sessionTypeId: 'copilotcli' });
+	});
 });

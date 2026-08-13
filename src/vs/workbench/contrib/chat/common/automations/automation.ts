@@ -52,6 +52,26 @@ export type AutomationTarget =
 		readonly sessionTypeId: string;
 	};
 
+export interface IAutomationHost {
+	readonly authority: string;
+	readonly resource: string;
+	readonly revision: number;
+	readonly connected: boolean;
+	readonly hasUnsupportedTriggers: boolean;
+
+	/** Whether the owning authority currently permits editing the definition. */
+	readonly canEdit: boolean;
+
+	/** Whether the owning authority currently permits starting a run on demand. */
+	readonly canRun: boolean;
+
+	/** Whether the owning authority currently permits deleting the definition. */
+	readonly canDelete: boolean;
+
+	readonly migrationPending?: boolean;
+	readonly migrationConflict?: boolean;
+}
+
 /**
  * A single scheduled automation. Identity is the immutable `id`; everything
  * else may be edited by the user.
@@ -83,20 +103,20 @@ export interface IAutomationDescriptor {
 
 	/** ISO-8601 UTC timestamp; `undefined` when interval is `manual`. */
 	readonly nextRunAt?: string;
+
+	/** Present when the definition is owned by an Agent Host Protocol authority. */
+	readonly host?: IAutomationHost;
 }
 
 /**
- * Lifecycle of an automation run. A run stays `running` while its agent session
- * is active or needs input, and becomes terminal when that session completes or
- * fails, or when tracking is cancelled or times out while the session may remain active.
+ * Lifecycle projected from the owning Agent Host's automation-run channel.
  */
-export type AutomationRunStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type AutomationRunStatus = 'pending' | 'running' | 'blocked' | 'completed' | 'failed' | 'cancelled';
 
 /**
- * What kicked off a run. `catch_up` fires once at startup for a due-time that
- * passed while VS Code was closed.
+ * What kicked off a run. `catch_up` identifies a host-recovered missed occurrence.
  */
-export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'manual';
+export type AutomationRunTrigger = 'schedule' | 'catch_up' | 'event' | 'manual';
 
 export interface IAutomationRun {
 	readonly id: string;
@@ -106,11 +126,13 @@ export interface IAutomationRun {
 
 	/** Session resource URI, recorded as soon as the committed session is available. */
 	readonly sessionResource?: URI;
+	readonly sessionResources?: readonly URI[];
+	readonly artifactCount?: number;
+	readonly blocker?: string;
+	readonly canCancel?: boolean;
 
 	readonly startedAt: string;
 	readonly completedAt?: string;
 	readonly errorMessage?: string;
 
-	/** Window that claimed this run; the leader-election guard uses it to avoid duplicate execution across windows. */
-	readonly leaderWindowId: number;
 }

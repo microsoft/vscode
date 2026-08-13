@@ -119,7 +119,7 @@ exposed through `IObservable`.
 Session observables include:
 
 - title, update time, status, loading, description, and last-turn end;
-- workspace and quick-chat identity;
+- workspace, quick-chat identity, and automation-run association;
 - chats and main chat;
 - selected model and mode;
 - archive and read state;
@@ -239,6 +239,12 @@ outcome.
 Backend-specific state, transport, URI formats, and recovery logic stay inside
 the provider contribution. A provider adapts them into `ISession`, `IChat`, and
 the shared provider operations.
+
+Automations are owned by Agent Host authorities rather than session providers.
+The global `AutomationService` projects each authority's AHP catalogue and routes
+mutations by authority-qualified automation and run resources. Linked sessions
+remain ordinary provider sessions and retain their AHP automation/run origin;
+the retired renderer and provider ledgers are import-only migration sources.
 
 Provider implementation details are documented in:
 

@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatPermissionLevel } from '../constants.js';
-import { IAutomationDescriptor, IAutomationRun, AutomationRunTrigger, IAutomationSchedule, AutomationTarget } from './automation.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from './automation.js';
 
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
-/** Invoked immediately before each storage CAS attempt; throwing aborts before that attempt. */
+/** Invoked immediately before an AHP mutation request; throwing aborts the request. */
 export type AutomationMutationGuard = () => void;
 
 /**
@@ -91,28 +90,14 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 	});
 }
 
-/** Patch for `updateRun`. Absent fields are unchanged. */
-export interface IUpdateAutomationRunOptions {
-	readonly status?: IAutomationRun['status'];
-	readonly sessionResource?: URI;
-	readonly completedAt?: string;
-	readonly errorMessage?: string;
-}
+export type IAutomationRunStartResult =
+	| { readonly claimed: true; readonly run: IAutomationRun }
+	| { readonly claimed: false; readonly run: IAutomationRun };
 
-/** Outcome of an attempt to claim an automation's single active-run slot. */
-export interface IAutomationRunClaim {
-	/** `false` when another run already held the slot, in which case nothing was recorded. */
-	readonly claimed: boolean;
-	/** The run occupying the slot: the newly recorded one, or the pre-existing one. */
-	readonly run: IAutomationRun;
-}
+/** Client projection and mutation surface for Agent Host-owned automations. */
+export interface IAutomationService {
+	readonly _serviceBrand: undefined;
 
-/**
- * Persistent store for automations and their run history, and the single
- * mutation point. Scheduler, runner, and UI all flow through it to keep
- * cross-window propagation, persistence, and observables consistent.
- */
-export interface IAutomationStore {
 	/** All defined automations, newest first. */
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 
@@ -137,31 +122,14 @@ export interface IAutomationStore {
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
 
-	/**
-	 * Atomically claims the automation's single active-run slot, records the new run as
-	 * `pending`, and advances the schedule for scheduled/catch-up runs. The active-run check
-	 * runs inside the same compare-and-swap that writes the run, so concurrent callers -- the
-	 * scheduler, other windows, or agent tool invocations -- cannot both claim one automation.
-	 * Throws if the automation does not exist.
-	 */
-	recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRunClaim>;
-
-	/** Applies a patch to a run; returns the updated run or `undefined` if not found. */
-	updateRun(runId: string, patch: IUpdateAutomationRunOptions): Promise<IAutomationRun | undefined>;
-	/** Deletes a retained run history entry; missing IDs are ignored. */
-	deleteRun(runId: string): Promise<void>;
+	/** Atomically starts a host-owned manual run or returns the existing active run. */
+	startRun(automationId: string, requestId: string): Promise<IAutomationRunStartResult>;
+	/** Requests cancellation from the run's owning host. */
+	cancelRun(runId: string): Promise<void>;
+	/** Deletes retained run history when supported by the automation authority. */
+	deleteRun?(runId: string): Promise<void>;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. Backs the runner's per-automation claim. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
 
-	/** Marks all stuck (`pending`/`running`) runs failed. Called on startup to recover from crashes. */
-	markStaleRunsFailed(reason: string): Promise<void>;
-}
-
-export interface IAutomationService extends IAutomationStore {
-	readonly _serviceBrand: undefined;
-	/** Starts leader-scoped stale-run recovery and includes provider stores added while active. */
-	startStaleRunRecovery(reason: string): Promise<void>;
-	/** Stops leader-scoped stale-run recovery. */
-	stopStaleRunRecovery(): void;
 }

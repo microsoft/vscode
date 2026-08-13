@@ -4,854 +4,1385 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IReference } from '../../../../../base/common/lifecycle.js';
+import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AutomationDefinition, AutomationExecutionLifetime, AutomationOperation, AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary, AutomationState, AutomationSummary, AutomationTriggerKind, MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CreateAutomationParams, ListAutomationsResult, RunAutomationParams, RunAutomationResult, UpdateAutomationParams } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { AhpErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/common/errors.js';
+import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ComponentToState, RootState, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { AutomationService, AutomationStore } from '../../browser/automationService.js';
-import { AutomationRunTrigger, AutomationTarget, AutomationWorkspaceIsolation, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { createAutomationService, TestAutomationStorageService } from './automationTestUtils.js';
+import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { AutomationService } from '../../browser/automationService.js';
+import { LegacyAutomationMigration } from '../../browser/legacyAutomationMigration.js';
+import { AUTOMATION_STORAGE_KEY, ILegacyAutomationMigrationCompareAndSwapResult, ILegacyAutomationMigrationStorageService, LEGACY_AUTOMATION_STORAGE_KEYS, LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY } from '../../common/legacyAutomationMigrationStorage.js';
 
-const FOLDER = URI.parse('file:///workspace');
+suite('AutomationService', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const languageModelsService = testLanguageModelsService();
 
-function workspaceTarget(folderUri = FOLDER, isolation: AutomationWorkspaceIsolation = { kind: 'default' }): AutomationTarget {
-	return { kind: 'workspace', folderUri, isolation };
+	test('keeps an unsupported legacy target read-only until its agent is advertised', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('cloud', 'copilot-cloud-agent')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+
+		assert.deepStrictEqual({
+			automations: service.automations.get().map(automation => ({
+				name: automation.name,
+				providerId: automation.target.providerId,
+				sessionTypeId: automation.target.sessionTypeId,
+				migrationPending: automation.host?.migrationPending,
+			})),
+			hostCreates: connection.operations,
+			ledger: migrationStorage.value,
+		}, {
+			automations: [{
+				name: 'cloud',
+				providerId: 'default-copilot',
+				sessionTypeId: 'copilot-cloud-agent',
+				migrationPending: true,
+			}],
+			hostCreates: [],
+			ledger: raw,
+		});
+
+		test('reads schema-v1 and schema-v2 rows for one-time migration', () => {
+			const storage = disposables.add(new InMemoryStorageService());
+			const migrationStorage = new RecordingMigrationStorage(storage);
+			const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+			const schema1 = migration.readCached(JSON.stringify({
+				schemaVersion: 1,
+				automations: [{
+					...serializedAutomation('quick', 'copilotcli'),
+					target: undefined,
+					isQuickChat: true,
+					providerId: 'default-copilot',
+					sessionTypeId: 'copilotcli',
+				}],
+				runs: [],
+			}));
+			const schema2 = migration.readCached(JSON.stringify({
+				schemaVersion: 2,
+				automations: [{
+					...serializedAutomation('workspace', 'copilotcli'),
+					target: undefined,
+					isQuickChat: false,
+					folderUri: URI.file('/workspace').toJSON(),
+					providerId: 'default-copilot',
+					sessionTypeId: 'copilotcli',
+					isolationMode: 'worktree',
+					branch: 'main',
+				}],
+				runs: [],
+			}));
+
+			assert.deepStrictEqual({
+				quick: schema1.automations[0].target,
+				workspace: schema2.automations[0].target,
+			}, {
+				quick: { kind: 'quickChat', providerId: 'default-copilot', sessionTypeId: 'copilotcli' },
+				workspace: {
+					kind: 'workspace',
+					folderUri: URI.file('/workspace'),
+					providerId: 'default-copilot',
+					sessionTypeId: 'copilotcli',
+					isolation: { kind: 'worktree', branch: 'main' },
+				},
+			});
+		});
+	});
+
+	test('migrates a local row without enabling both authorities', async () => {
+		const nextRunAt = '2026-08-13T07:00:00.000Z';
+		const raw = serializeLegacyLedger([{
+			...serializedAutomation('tests', 'copilotcli', 'agent-host-copilotcliauto'),
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			nextRunAt,
+		}]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const migrationStorage = new RecordingMigrationStorage(storage, operations);
+		const connection = new TestConnection(['copilotcli'], operations);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			testLanguageModelsService(new Map([['agent-host-copilotcliauto', 'auto']])),
+		));
+		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true && items[0].enabled === true);
+
+		assert.deepStrictEqual({
+			operations,
+			automation: service.automations.get().map(automation => ({
+				name: automation.name,
+				enabled: automation.enabled,
+				providerId: automation.target.providerId,
+				sessionTypeId: automation.target.sessionTypeId,
+				modelId: automation.modelId,
+				migrationPending: automation.host?.migrationPending,
+			})),
+			import: connection.lastCreateImport,
+			legacyAutomations: JSON.parse(migrationStorage.value!).automations,
+		}, {
+			operations: ['host:create-disabled', 'legacy:disable', 'legacy:remove', 'host:enable'],
+			automation: [{
+				name: 'tests',
+				enabled: true,
+				providerId: 'local-agent-host',
+				sessionTypeId: 'copilotcli',
+				modelId: 'auto',
+				migrationPending: undefined,
+			}],
+			import: {
+				source: 'vscode-legacy-automations',
+				batchId: connection.lastCreateImport?.batchId,
+				itemId: 'tests',
+				triggerNextRuns: [{ triggerId: 'schedule', nextRunAt }],
+			},
+			legacyAutomations: [],
+		});
+	});
+
+	test('migrates definitions already moved to the local provider ledger', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('provider', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage, operations),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true);
+
+		assert.deepStrictEqual({
+			operations,
+			automations: automations.map(automation => ({
+				name: automation.name,
+				resource: automation.host?.resource,
+			})),
+			providerLedger: JSON.parse(storage.get(LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations,
+		}, {
+			operations: ['host:create-disabled', 'legacy:disable', 'legacy:remove', 'host:enable'],
+			automations: [{
+				name: 'provider',
+				resource: 'ahp-automation:/vscode-local-agent-host-provider',
+			}],
+			providerLedger: [],
+		});
+	});
+
+	test('keeps same-ID definitions from different legacy ledgers distinct', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('same', 'copilotcli')]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storage.store(LOCAL_AGENT_HOST_AUTOMATION_STORAGE_KEY, serializeLegacyLedger([{
+			...serializedAutomation('same', 'copilotcli'),
+			prompt: 'Provider-owned prompt',
+		}]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items => items.length === 2 && items.every(automation => automation.host?.migrationPending !== true));
+
+		assert.deepStrictEqual(automations
+			.map(automation => ({ prompt: automation.prompt, resource: automation.host?.resource }))
+			.sort((a, b) => a.prompt.localeCompare(b.prompt)), [{
+				prompt: 'Provider-owned prompt',
+				resource: 'ahp-automation:/vscode-local-agent-host-same',
+			}, {
+				prompt: 'Run tests',
+				resource: 'ahp-automation:/vscode-same',
+			}]);
+	});
+
+	test('does not disable a legacy definition changed after preview', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+		const originalRaw = serializeLegacyLedger([serializedAutomation('changed', 'copilotcli')]);
+		storage.store(AUTOMATION_STORAGE_KEY, originalRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const expected = (await migration.read()).automations[0];
+		const changedRaw = serializeLegacyLedger([{
+			...serializedAutomation('changed', 'copilotcli'),
+			prompt: 'Changed concurrently',
+		}]);
+		storage.store(AUTOMATION_STORAGE_KEY, changedRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
+
+		assert.strictEqual(migrationStorage.value, changedRaw);
+	});
+
+	test('does not disable a legacy definition whose schedule cursor advanced after preview', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+		const original = {
+			...serializedAutomation('advanced', 'copilotcli'),
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			nextRunAt: '2026-08-13T07:00:00.000Z',
+		};
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([original]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const expected = (await migration.read()).automations[0];
+		const advancedRaw = serializeLegacyLedger([{
+			...original,
+			nextRunAt: '2026-08-14T07:00:00.000Z',
+		}]);
+		storage.store(AUTOMATION_STORAGE_KEY, advancedRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
+
+		assert.strictEqual(migrationStorage.value, advancedRaw);
+	});
+
+	test('does not mistake a concurrent user disable for its own migration write', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('disabled', 'copilotcli')]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const expected = (await migration.read()).automations[0];
+		const changedRaw = serializeLegacyLedger([{
+			...serializedAutomation('disabled', 'copilotcli'),
+			enabled: false,
+			updatedAt: '2026-01-02T00:00:00.000Z',
+		}]);
+		storage.store(AUTOMATION_STORAGE_KEY, changedRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
+
+		assert.strictEqual(migrationStorage.value, changedRaw);
+	});
+
+	test('does not enable an imported definition when the source is concurrently deleted', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('deleted', 'copilotcli')]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		connection.afterCreateAutomation = () => {
+			storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		};
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage, operations),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1
+			&& items[0].name === 'deleted'
+			&& items[0].host?.migrationPending !== true
+		);
+		const journal = JSON.parse(storage.get('chat.automations.ahpMigration.v1', StorageScope.APPLICATION)!) as { items: { phase: string }[] };
+		assert.deepStrictEqual({
+			automations: automations.map(automation => ({
+				name: automation.name,
+				enabled: automation.enabled,
+				migrationPending: automation.host?.migrationPending,
+			})),
+			operations,
+			journalPhase: journal.items[0].phase,
+		}, {
+			automations: [{ name: 'deleted', enabled: false, migrationPending: undefined }],
+			operations: ['host:create-disabled'],
+			journalPhase: 'aborted',
+		});
+	});
+
+	test('does not remove the source when the imported host definition is replaced', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('replaced', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		const migrationStorage = new RecordingMigrationStorage(storage, operations);
+		migrationStorage.beforeLegacyCompareAndSwap = () => {
+			connection.setAutomationDefinition('ahp-automation:/vscode-replaced', {
+				...connection.lastCreateDefinition!,
+				title: 'Replaced on host',
+			});
+		};
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+		const ledger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as { automations: { name: string; enabled: boolean }[] };
+		const journal = JSON.parse(storage.get('chat.automations.ahpMigration.v1', StorageScope.APPLICATION)!) as { items: { phase: string }[] };
+		assert.deepStrictEqual({
+			names: automations.map(automation => automation.name).sort(),
+			legacyAutomations: ledger.automations.map(automation => ({ name: automation.name, enabled: automation.enabled })),
+			journalPhase: journal.items[0].phase,
+			operations,
+		}, {
+			names: ['Replaced on host', 'replaced'],
+			legacyAutomations: [{ name: 'replaced', enabled: false }],
+			journalPhase: 'imported',
+			operations: ['host:create-disabled', 'legacy:disable'],
+		});
+	});
+
+	test('captures concurrent run updates before removing the legacy source', async () => {
+		const initialRun: IAutomationRun = {
+			id: 'initial-run',
+			automationId: 'runs',
+			status: 'completed',
+			trigger: 'manual',
+			startedAt: '2026-01-01T00:00:00.000Z',
+			completedAt: '2026-01-01T00:01:00.000Z',
+		};
+		const concurrentRun: IAutomationRun = {
+			id: 'concurrent-run',
+			automationId: 'runs',
+			status: 'completed',
+			trigger: 'manual',
+			startedAt: '2026-01-02T00:00:00.000Z',
+			completedAt: '2026-01-02T00:01:00.000Z',
+		};
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([serializedAutomation('runs', 'copilotcli')], [initialRun]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		migrationStorage.beforeLegacyRemoveCompareAndSwap = () => {
+			const current = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as {
+				schemaVersion: number;
+				revision: number;
+				automations: ReturnType<typeof serializedAutomation>[];
+				runs: IAutomationRun[];
+			};
+			storage.store(AUTOMATION_STORAGE_KEY, JSON.stringify({
+				...current,
+				revision: current.revision + 1,
+				runs: [...current.runs, concurrentRun],
+			}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		};
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true && items[0].enabled);
+		const backups = JSON.parse(storage.get('chat.automations.ahpMigration.backup.v1', StorageScope.APPLICATION)!) as Record<string, { runs: IAutomationRun[] }>;
+		const ledger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as { automations: unknown[] };
+		assert.deepStrictEqual({
+			backupRunIds: backups.runs.runs.map(run => run.id).sort(),
+			legacyAutomations: ledger.automations,
+		}, {
+			backupRunIds: ['concurrent-run', 'initial-run'],
+			legacyAutomations: [],
+		});
+	});
+
+	test('does not remove local data when the deterministic host resource conflicts', async () => {
+		const legacyRun: IAutomationRun = {
+			id: 'legacy-run',
+			automationId: 'conflict',
+			status: 'completed',
+			trigger: 'manual',
+			startedAt: '2026-01-01T00:00:00.000Z',
+			completedAt: '2026-01-01T00:01:00.000Z',
+		};
+		const raw = serializeLegacyLedger([serializedAutomation('conflict', 'copilotcli')], [legacyRun]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/vscode-conflict', false, 'Different host definition');
+		const didConflict = Event.toPromise(connection.onDidCreateAutomationConflict);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		await didConflict;
+		const automations = await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+
+		assert.deepStrictEqual({
+			automations: automations
+				.map(automation => ({
+					name: automation.name,
+					migrationPending: automation.host?.migrationPending,
+					migrationConflict: automation.host?.migrationConflict,
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name)),
+			uniqueIds: new Set(automations.map(automation => automation.id)).size,
+			runMatchesConflict: service.runs.get()[0].automationId === automations.find(automation => automation.host?.migrationConflict)?.id,
+			legacyLedger: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			automations: [{
+				name: 'conflict',
+				migrationPending: true,
+				migrationConflict: true,
+			}, {
+				name: 'Different host definition',
+				migrationPending: undefined,
+				migrationConflict: undefined,
+			}],
+			uniqueIds: 2,
+			runMatchesConflict: true,
+			legacyLedger: raw,
+		});
+	});
+
+	test('one migration conflict does not block unrelated definitions', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([
+			serializedAutomation('conflict-first', 'copilotcli'),
+			serializedAutomation('migrates-second', 'copilotcli'),
+		]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/vscode-conflict-first', false, 'Different host definition');
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		const automations = await waitForState(service.automations, items =>
+			items.some(automation => automation.host?.migrationConflict === true)
+			&& items.some(automation => automation.name === 'migrates-second' && automation.host?.migrationPending !== true)
+		);
+
+		assert.deepStrictEqual({
+			names: automations.map(automation => automation.name).sort(),
+			remainingLegacyNames: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations.map((automation: { name: string }) => automation.name),
+		}, {
+			names: ['Different host definition', 'conflict-first', 'migrates-second'],
+			remainingLegacyNames: ['conflict-first'],
+		});
+	});
+
+	test('resumes migration after a conflicting host definition is corrected', async () => {
+		const modelIdentifier = 'agent-host-copilotcliauto';
+		const raw = serializeLegacyLedger([serializedAutomation('retry-conflict', 'copilotcli', modelIdentifier)]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const resource = 'ahp-automation:/vscode-retry-conflict';
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation(resource, false, 'Different host definition');
+		const models = new Map([[modelIdentifier, 'auto']]);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(models),
+		));
+		await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+
+		const migrated = Event.toPromise(connection.onDidEnableImportedAutomation);
+		models.set(modelIdentifier, 'different-model');
+		connection.setAutomationDefinition(resource, connection.lastCreateDefinition!);
+		connection.setAutomationDefinition(resource, connection.lastCreateDefinition!);
+		await migrated;
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1
+			&& items[0].name === 'retry-conflict'
+			&& items[0].host?.migrationPending !== true
+			&& items[0].enabled
+		);
+		assert.deepStrictEqual({
+			automations: automations.map(automation => ({
+				name: automation.name,
+				modelId: automation.modelId,
+				migrationPending: automation.host?.migrationPending,
+			})),
+			legacyAutomations: JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!).automations,
+		}, {
+			automations: [{ name: 'retry-conflict', modelId: 'auto', migrationPending: undefined }],
+			legacyAutomations: [],
+		});
+	});
+
+	test('recreates a deleted conflicting host definition before source removal', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('delete-conflict', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const resource = 'ahp-automation:/vscode-delete-conflict';
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation(resource, false, 'Different host definition');
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await waitForState(service.automations, items => items.some(automation => automation.host?.migrationConflict === true));
+
+		connection.removeAutomation(resource);
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1
+			&& items[0].name === 'delete-conflict'
+			&& items[0].host?.migrationPending !== true
+			&& items[0].enabled
+		);
+		const ledger = JSON.parse(storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION)!) as { automations: unknown[] };
+		assert.deepStrictEqual({
+			automations: automations.map(automation => automation.name),
+			legacyAutomations: ledger.automations,
+		}, {
+			automations: ['delete-conflict'],
+			legacyAutomations: [],
+		});
+	});
+
+	test('retries a concurrent backup write without losing either window data', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('tests', 'copilotcli')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		migrationStorage.injectBackupConflict = true;
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			migrationStorage,
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidEnableImportedAutomation);
+		const backups = JSON.parse(storage.get('chat.automations.ahpMigration.backup.v1', StorageScope.APPLICATION)!) as Record<string, unknown>;
+
+		assert.deepStrictEqual({
+			backupIds: Object.keys(backups).sort(),
+			automationNames: service.automations.get().map(automation => automation.name),
+		}, {
+			backupIds: ['other-window', 'tests'],
+			automationNames: ['tests'],
+		});
+	});
+
+	test('drops a pending cache entry completed by another window', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('cloud', 'copilot-cloud-agent')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const resource = 'ahp-automation:/vscode-cloud';
+		connection.publishAutomation(resource, true);
+		storage.store('chat.automations.ahpMigration.v1', JSON.stringify({
+			version: 1,
+			batchId: 'other-window',
+			items: [{
+				automationId: 'cloud',
+				authority: AMBIENT_AGENT_HOST_AUTHORITY,
+				resource,
+				enabled: true,
+				phase: 'completed',
+			}],
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const automations = await waitForState(service.automations, items =>
+			items.length === 1 && items[0].host?.migrationPending !== true
+		);
+		assert.deepStrictEqual(automations.map(automation => ({
+			name: automation.name,
+			migrationPending: automation.host?.migrationPending,
+		})), [{ name: 'cloud', migrationPending: undefined }]);
+	});
+
+	test('automatically resumes migration when the target agent appears', async () => {
+		const raw = serializeLegacyLedger([serializedAutomation('cloud', 'copilot-cloud-agent')]);
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage, operations),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		connection.setProviders(['copilotcli', 'copilot-cloud-agent']);
+		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true);
+
+		assert.deepStrictEqual({
+			operations,
+			automation: service.automations.get().map(automation => ({
+				name: automation.name,
+				migrationPending: automation.host?.migrationPending,
+			})),
+		}, {
+			operations: ['host:create-disabled', 'legacy:disable', 'legacy:remove', 'host:enable'],
+			automation: [{ name: 'cloud', migrationPending: undefined }],
+		});
+	});
+
+	test('resumes after the local row was removed before the host copy was enabled', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const automation = {
+			...serializedAutomation('resume', 'copilotcli'),
+			target: {
+				kind: 'quickChat' as const,
+				providerId: 'default-copilot',
+				sessionTypeId: 'copilotcli',
+			},
+		};
+		const resource = 'ahp-automation:/vscode-resume';
+		storage.store('chat.automations.ahpMigration.v1', JSON.stringify({
+			version: 1,
+			batchId: 'batch',
+			items: [{
+				automationId: 'resume',
+				authority: AMBIENT_AGENT_HOST_AUTHORITY,
+				resource,
+				enabled: true,
+				phase: 'localDisabled',
+			}],
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storage.store('chat.automations.ahpMigration.backup.v1', JSON.stringify({
+			resume: { automation, runs: [] },
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const operations: string[] = [];
+		const connection = new TestConnection(['copilotcli'], operations);
+		connection.seedAutomation(resource, false);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage, operations),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+
+		await waitForState(service.automations, items => items.length === 1 && items[0].host?.migrationPending !== true && items[0].enabled === true);
+
+		assert.deepStrictEqual({
+			operations,
+			automations: service.automations.get().map(candidate => ({ name: candidate.name, enabled: candidate.enabled })),
+		}, {
+			operations: ['host:enable'],
+			automations: [{ name: 'resume', enabled: true }],
+		});
+	});
+
+	test('creates new definitions only on AHP', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(new Map([['agent-host-copilotcliauto', 'auto']])),
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+
+		const automation = await service.createAutomation({
+			name: 'new',
+			prompt: 'Run tests',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			modelId: 'agent-host-copilotcliauto',
+		});
+
+		assert.deepStrictEqual({
+			name: automation.name,
+			host: automation.host?.authority,
+			modelId: automation.modelId,
+			legacyLedger: storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION),
+		}, {
+			name: 'new',
+			host: AMBIENT_AGENT_HOST_AUTHORITY,
+			modelId: 'auto',
+			legacyLedger: undefined,
+		});
+	});
+
+	test('maps simple schedules to portable cron definitions', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const schedules = [
+			{ schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 } as const, expression: '0 * * * *' },
+			{ schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 15, scheduleDay: 0 } as const, expression: '15 9 * * *' },
+			{ schedule: { interval: 'weekly', scheduleHour: 18, scheduleMinute: 45, scheduleDay: 2 } as const, expression: '45 18 * * 2' },
+		];
+		const projected = [];
+		for (const [index, entry] of schedules.entries()) {
+			const automation = await service.createAutomation({
+				name: `scheduled-${index}`,
+				prompt: 'Run tests',
+				schedule: entry.schedule,
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			});
+			const trigger = connection.lastCreateDefinition?.triggers[0];
+			projected.push({
+				schedule: automation.schedule,
+				expression: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.expression : undefined,
+				timeZone: trigger?.kind === AutomationTriggerKind.Schedule ? trigger.schedule.timeZone : undefined,
+				hasUnsupportedTriggers: automation.host?.hasUnsupportedTriggers,
+			});
+		}
+
+		assert.deepStrictEqual(projected, schedules.map(entry => ({
+			schedule: entry.schedule,
+			expression: entry.expression,
+			timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+			hasUnsupportedTriggers: false,
+		})));
+	});
+
+	test('keeps arbitrary cron schedules read-only in the simple editor', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const resource = 'ahp-automation:/cron';
+		connection.seedAutomation(resource, true);
+		const definition = connection.lastCreateDefinition!;
+		connection.setAutomationDefinition(resource, {
+			...definition,
+			triggers: [{
+				id: 'schedule',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: {
+					expression: '*/15 * * * *',
+					timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				},
+			}],
+		});
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+
+		assert.deepStrictEqual({
+			schedule: automation.schedule,
+			hasUnsupportedTriggers: automation.host?.hasUnsupportedTriggers,
+		}, {
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			hasUnsupportedTriggers: true,
+		});
+	});
+
+	test('keeps pre-cron schedule payloads visible as read-only', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const resource = 'ahp-automation:/legacy-schedule';
+		connection.seedAutomation(resource, true, 'legacy schedule');
+		const definition: AutomationDefinition = JSON.parse(JSON.stringify({
+			...connection.lastCreateDefinition!,
+			triggers: [{
+				id: 'schedule',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: {
+					kind: 'daily',
+					time: { hour: 9, minute: 0 },
+					timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				},
+			}],
+		}));
+		connection.setAutomationDefinition(resource, definition);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+
+		assert.deepStrictEqual(service.automations.get().map(automation => ({
+			name: automation.name,
+			schedule: automation.schedule,
+			hasUnsupportedTriggers: automation.host?.hasUnsupportedTriggers,
+		})), [{
+			name: 'legacy schedule',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			hasUnsupportedTriggers: true,
+		}]);
+	});
+
+	test('repairs workbench model identifiers in existing host definitions', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true, 'existing', 'agent-host-copilotcliauto');
+		const models = new Map<string, string>();
+		const onDidChangeLanguageModels = disposables.add(new Emitter<void>());
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(models, onDidChangeLanguageModels.event),
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		models.set('agent-host-copilotcliauto', 'auto');
+		onDidChangeLanguageModels.fire();
+
+		const automations = await waitForState(service.automations, items => items[0]?.modelId === 'auto');
+
+		assert.deepStrictEqual(automations.map(automation => ({
+			name: automation.name,
+			modelId: automation.modelId,
+		})), [{
+			name: 'existing',
+			modelId: 'auto',
+		}]);
+	});
+
+	test('preserves provider-native BYOK model IDs', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			testLanguageModelsService(new Map([['openrouter/group/model', 'model']])),
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+
+		const automation = await service.createAutomation({
+			name: 'BYOK',
+			prompt: 'Run tests',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+			modelId: 'openrouter/group/model',
+		});
+
+		assert.strictEqual(automation.modelId, 'openrouter/group/model');
+	});
+
+	test('reconnect drops stale run state and follows fresh summaries', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true);
+		const connections = new TestConnectionsService(connection);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			connections,
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+		const started = await service.startRun(automation.id, 'request');
+		assert.strictEqual(started.claimed, true);
+
+		connections.setConnection(undefined);
+		await waitForState(service.automations, items => items[0]?.host?.connected === false);
+		connections.setConnection(connection);
+		await Event.toPromise(connection.onDidListAutomations);
+		connection.setRunStatus(started.run.id.split('\0')[1], AutomationRunStatus.Completed);
+		const completedRuns = await waitForState(service.runs, runs => runs.some(run => run.status === 'completed'));
+
+		assert.strictEqual(completedRuns[0].status, 'completed');
+	});
+
+	test('projects the operations the owning host permits', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true);
+		connection.setAutomationOperations('ahp-automation:/test', [AutomationOperation.Run]);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+
+		await assert.rejects(() => service.updateAutomation(automation.id, { name: 'renamed' }), /does not allow the 'update' operation/);
+		await assert.rejects(() => service.deleteAutomation(automation.id), /does not allow the 'dispose' operation/);
+		assert.deepStrictEqual({
+			canEdit: automation.host?.canEdit,
+			canRun: automation.host?.canRun,
+			canDelete: automation.host?.canDelete,
+		}, {
+			canEdit: false,
+			canRun: true,
+			canDelete: false,
+		});
+	});
+
+	test('cancelling a run resolves only once the host reports a terminal run', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		connection.seedAutomation('ahp-automation:/test', true);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+		const automation = service.automations.get()[0];
+		const started = await service.startRun(automation.id, 'request');
+
+		let settled = false;
+		const cancelled = service.cancelRun(started.run.id).then(() => settled = true);
+		await timeout(0);
+		const settledBeforeHostAcknowledged = settled;
+		connection.setRunStatus(started.run.id.split('\0')[1], AutomationRunStatus.Cancelled);
+		await cancelled;
+
+		assert.deepStrictEqual({
+			settledBeforeHostAcknowledged,
+			cancelRequests: connection.cancelRequests,
+			status: service.runs.get()[0].status,
+		}, {
+			settledBeforeHostAcknowledged: false,
+			cancelRequests: ['ahp-automation-run:/run'],
+			status: 'cancelled',
+		});
+	});
+});
+
+class TestSubscription<T> implements IAgentSubscription<T> {
+	private readonly _onDidChange = new Emitter<T>();
+	readonly onDidChange = this._onDidChange.event;
+	readonly onWillApplyAction = Event.None;
+	readonly onDidApplyAction = Event.None;
+
+	constructor(public value: T | Error | undefined) { }
+
+	get verifiedValue(): T | undefined {
+		return this.value instanceof Error ? undefined : this.value;
+	}
+
+	set(value: T): void {
+		this.value = value;
+		this._onDidChange.fire(value);
+	}
 }
 
-function dailySchedule(hour = 9, minute = 0): IAutomationSchedule {
-	return { interval: 'daily', scheduleHour: hour, scheduleMinute: minute, scheduleDay: 0 };
+class TestConnection extends NullAgentHostService {
+	override readonly initializeResult = observableValue<InitializeResult | undefined>(this, {
+		protocolVersion: '0.8.0',
+		serverSeq: 0,
+		snapshots: [],
+		automations: { execution: { lifetime: AutomationExecutionLifetime.HostLifetime }, create: {} },
+	});
+	private readonly _rootState: TestSubscription<RootState>;
+	readonly operations: string[];
+
+	private readonly _onDidNotificationEmitter = new Emitter<INotification>();
+	override readonly onDidNotification = this._onDidNotificationEmitter.event;
+	private readonly _onDidListAutomations = new Emitter<void>();
+	readonly onDidListAutomations = this._onDidListAutomations.event;
+	private readonly _onDidEnableImportedAutomation = new Emitter<void>();
+	readonly onDidEnableImportedAutomation = this._onDidEnableImportedAutomation.event;
+	private readonly _onDidCreateAutomationConflict = new Emitter<void>();
+	readonly onDidCreateAutomationConflict = this._onDidCreateAutomationConflict.event;
+	private readonly automations = new Map<string, TestSubscription<AutomationState>>();
+	private readonly runs = new Map<string, TestSubscription<AutomationRunState>>();
+	private readonly modelIds: readonly string[];
+	readonly cancelRequests: string[] = [];
+	lastCreateDefinition: AutomationDefinition | undefined;
+	lastCreateImport: CreateAutomationParams['import'];
+	afterCreateAutomation: (() => void) | undefined;
+
+	constructor(providers: readonly string[], operations: string[] = [], modelIds: readonly string[] = ['auto', 'openrouter/group/model']) {
+		super();
+		this.operations = operations;
+		this.modelIds = modelIds;
+		this._rootState = new TestSubscription<RootState>({
+			agents: providers.map(provider => this.toAgentInfo(provider)),
+			activeSessions: 0,
+			terminals: [],
+		});
+	}
+
+	override get rootState(): IAgentSubscription<RootState> {
+		return this._rootState;
+	}
+
+	setProviders(providers: readonly string[]): void {
+		this._rootState.set({
+			agents: providers.map(provider => this.toAgentInfo(provider)),
+			activeSessions: 0,
+			terminals: [],
+		});
+	}
+
+	private toAgentInfo(provider: string) {
+		return {
+			provider,
+			displayName: provider,
+			description: provider,
+			models: this.modelIds.map(id => ({ provider, id, name: id })),
+			tools: [],
+		};
+	}
+
+	override async listAutomations(): Promise<ListAutomationsResult> {
+		queueMicrotask(() => this._onDidListAutomations.fire());
+		return { items: [...this.automations.values()].map(subscription => toSummary(subscription.value as AutomationState)) };
+	}
+
+	override async createAutomation(params: CreateAutomationParams): Promise<void> {
+		this.lastCreateDefinition = params.definition;
+		this.lastCreateImport = params.import;
+		if (this.automations.has(params.channel)) {
+			queueMicrotask(() => this._onDidCreateAutomationConflict.fire());
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Automation already exists: ${params.channel}`);
+		}
+		this.operations.push(params.definition.enabled ? 'host:create-enabled' : 'host:create-disabled');
+		const now = new Date().toISOString();
+		const state: AutomationState = {
+			resource: params.channel,
+			definition: params.definition,
+			revision: 1,
+			runs: [],
+			operations: [AutomationOperation.Update, AutomationOperation.Dispose, AutomationOperation.Run],
+			createdAt: now,
+			modifiedAt: now,
+		};
+		this.automations.set(params.channel, new TestSubscription(state));
+		this.afterCreateAutomation?.();
+	}
+
+	setAutomationOperations(resource: string, operations: readonly AutomationOperation[]): void {
+		const subscription = this.automations.get(resource)!;
+		const current = subscription.value as AutomationState;
+		subscription.set({ ...current, operations: [...operations] });
+	}
+
+	setAutomationDefinition(resource: string, definition: AutomationDefinition): void {
+		const subscription = this.automations.get(resource)!;
+		const current = subscription.value as AutomationState;
+		subscription.set({
+			...current,
+			definition,
+			revision: current.revision + 1,
+			modifiedAt: new Date().toISOString(),
+		});
+	}
+
+	seedAutomation(resource: string, enabled: boolean, title = 'resume', modelId?: string): void {
+		void this.createAutomation({
+			channel: resource,
+			definition: {
+				title,
+				message: { text: 'Run tests', origin: { kind: MessageKind.User } },
+				session: { provider: 'copilotcli', ...(modelId ? { model: { id: modelId } } : {}) },
+				enabled,
+				triggers: [],
+			},
+		});
+		this.operations.length = 0;
+	}
+
+	publishAutomation(resource: string, enabled: boolean): void {
+		this.seedAutomation(resource, enabled, 'cloud');
+		const state = this.automations.get(resource)!.value as AutomationState;
+		this._onDidNotificationEmitter.fire({
+			type: 'root/automationAdded',
+			channel: 'ahp-root://',
+			summary: toSummary(state),
+		});
+	}
+
+	removeAutomation(resource: string): void {
+		this.automations.delete(resource);
+		this._onDidNotificationEmitter.fire({
+			type: 'root/automationRemoved',
+			channel: 'ahp-root://',
+			automation: resource,
+		});
+	}
+
+	override async updateAutomation(params: UpdateAutomationParams): Promise<void> {
+		const subscription = this.automations.get(params.channel)!;
+		const current = subscription.value as AutomationState;
+		const next: AutomationState = {
+			...current,
+			definition: { ...current.definition, ...params.changes },
+			revision: current.revision + 1,
+			modifiedAt: new Date().toISOString(),
+		};
+		subscription.set(next);
+		if (params.changes.enabled === true) {
+			this.operations.push('host:enable');
+			queueMicrotask(() => this._onDidEnableImportedAutomation.fire());
+		}
+	}
+
+	override async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
+		const resource = 'ahp-automation-run:/run';
+		const automation = this.automations.get(params.channel)!;
+		const state = automation.value as AutomationState;
+		const now = new Date().toISOString();
+		const run: AutomationRunState = {
+			resource,
+			automation: params.channel,
+			cause: { kind: AutomationRunCauseKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Running, createdAt: now, startedAt: now },
+			sessions: ['copilotcli:/session'],
+			primarySession: 'copilotcli:/session',
+			artifacts: [],
+			operations: [AutomationRunOperation.Cancel],
+		};
+		this.runs.set(resource, new TestSubscription(run));
+		automation.set({ ...state, runs: [toRunSummary(run)] });
+		return { run: resource };
+	}
+
+	setRunStatus(resource: string, status: AutomationRunStatus): void {
+		const subscription = this.runs.get(resource)!;
+		const current = subscription.value as AutomationRunState;
+		const startedAt = current.lifecycle.status === AutomationRunStatus.Pending
+			? current.lifecycle.createdAt
+			: current.lifecycle.startedAt ?? current.lifecycle.createdAt;
+		const completedAt = new Date().toISOString();
+		const lifecycle: AutomationRunLifecycle = status === AutomationRunStatus.Completed || status === AutomationRunStatus.Cancelled
+			? { status, createdAt: current.lifecycle.createdAt, startedAt, completedAt }
+			: status === AutomationRunStatus.Failed
+				? { status, createdAt: current.lifecycle.createdAt, startedAt, completedAt, error: { errorType: 'Error', message: 'run failed' } }
+				: current.lifecycle;
+		const next = { ...current, lifecycle, operations: [] };
+		subscription.set(next);
+		const automation = this.automations.get(current.automation)!;
+		const automationState = automation.value as AutomationState;
+		automation.set({ ...automationState, runs: [toRunSummary(next)] });
+	}
+
+	override dispatch(channel: string): void {
+		this.cancelRequests.push(channel);
+	}
+
+	override getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+		const subscription = kind === StateComponents.Automation
+			? this.automations.get(resource.toString())!
+			: this.runs.get(resource.toString())!;
+		return {
+			object: subscription,
+			dispose() { },
+		} as never;
+	}
 }
 
-function serializeLedgerAutomation(id: string, name: string) {
+class TestConnectionsService implements IAgentHostConnectionsService {
+	declare readonly _serviceBrand: undefined;
+	private readonly _onDidChangeConnections = new Emitter<void>();
+	readonly onDidChangeConnections = this._onDidChangeConnections.event;
+	private connection: TestConnection | undefined;
+
+	constructor(connection: TestConnection) {
+		this.connection = connection;
+	}
+
+	get connections() {
+		return [{
+			authority: AMBIENT_AGENT_HOST_AUTHORITY,
+			address: undefined,
+			name: 'Local',
+			isAmbient: true,
+			connection: this.connection,
+		}];
+	}
+
+	get ambientConnection() {
+		return this.connection!;
+	}
+
+	setConnection(connection: TestConnection | undefined): void {
+		this.connection = connection;
+		this._onDidChangeConnections.fire();
+	}
+
+	getConnectionByAuthority(authority: string) {
+		return authority === AMBIENT_AGENT_HOST_AUTHORITY ? this.ambientConnection : undefined;
+	}
+
+	getConnectionByAddress() {
+		return undefined;
+	}
+
+	resolveSessionResource() {
+		return undefined;
+	}
+}
+
+class RecordingMigrationStorage implements ILegacyAutomationMigrationStorageService {
+	declare readonly _serviceBrand: undefined;
+	injectBackupConflict = false;
+	beforeLegacyCompareAndSwap: (() => void) | undefined;
+	beforeLegacyRemoveCompareAndSwap: (() => void) | undefined;
+
+	constructor(
+		private readonly storage: InMemoryStorageService,
+		private readonly operations: string[] = [],
+	) { }
+
+	get value(): string | undefined {
+		return this.storage.get(AUTOMATION_STORAGE_KEY, StorageScope.APPLICATION);
+	}
+
+	async read(key = AUTOMATION_STORAGE_KEY): Promise<string | undefined> {
+		return this.storage.get(key, StorageScope.APPLICATION);
+	}
+
+	async compareAndSwap(key: string, expectedValue: string | undefined, newValue: string): Promise<ILegacyAutomationMigrationCompareAndSwapResult> {
+		if (LEGACY_AUTOMATION_STORAGE_KEYS.includes(key as typeof LEGACY_AUTOMATION_STORAGE_KEYS[number]) && this.beforeLegacyCompareAndSwap) {
+			const callback = this.beforeLegacyCompareAndSwap;
+			this.beforeLegacyCompareAndSwap = undefined;
+			callback();
+		}
+		if (LEGACY_AUTOMATION_STORAGE_KEYS.includes(key as typeof LEGACY_AUTOMATION_STORAGE_KEYS[number]) && this.beforeLegacyRemoveCompareAndSwap && expectedValue) {
+			const previous = JSON.parse(expectedValue) as { automations: unknown[] };
+			const next = JSON.parse(newValue) as { automations: unknown[] };
+			if (next.automations.length < previous.automations.length) {
+				const callback = this.beforeLegacyRemoveCompareAndSwap;
+				this.beforeLegacyRemoveCompareAndSwap = undefined;
+				callback();
+			}
+		}
+		const currentValue = this.storage.get(key, StorageScope.APPLICATION);
+		if (currentValue !== expectedValue) {
+			return { swapped: false, currentValue };
+		}
+		if (this.injectBackupConflict && key === 'chat.automations.ahpMigration.backup.v1') {
+			this.injectBackupConflict = false;
+			const concurrentValue = JSON.stringify({
+				'other-window': {
+					automation: serializedAutomation('other-window', 'copilotcli'),
+					runs: [],
+				},
+			});
+			this.storage.store(key, concurrentValue, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			return { swapped: false, currentValue: concurrentValue };
+		}
+		if (LEGACY_AUTOMATION_STORAGE_KEYS.includes(key as typeof LEGACY_AUTOMATION_STORAGE_KEYS[number])) {
+			const previous = expectedValue ? JSON.parse(expectedValue) as { automations: { enabled: boolean }[] } : undefined;
+			const next = JSON.parse(newValue) as { automations: { enabled: boolean }[] };
+			if (previous?.automations.length && next.automations.length === previous.automations.length) {
+				this.operations.push('legacy:disable');
+			} else if (previous?.automations.length && next.automations.length < previous.automations.length) {
+				this.operations.push('legacy:remove');
+			}
+		}
+		this.storage.store(key, newValue, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		return { swapped: true, currentValue: newValue };
+	}
+}
+
+function serializedAutomation(name: string, sessionTypeId: string, modelId?: string) {
 	return {
-		id,
+		id: name,
 		name,
-		prompt: 'p',
-		schedule: dailySchedule(),
-		target: { kind: 'workspace', folderUri: FOLDER.toJSON(), isolation: { kind: 'default' } },
+		prompt: 'Run tests',
+		schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+		target: { kind: 'quickChat', providerId: 'default-copilot', sessionTypeId },
+		...(modelId ? { modelId } : {}),
 		enabled: true,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',
+		lastRunAt: undefined as string | undefined,
+		nextRunAt: undefined as string | undefined,
 	};
 }
 
-suite('AutomationService', () => {
-
-	const teardown = ensureNoDisposablesAreLeakedInTestSuite();
-
-	/** Records a run, asserting the automation's active-run slot was free. */
-	async function claimRun(service: AutomationService, automationId: string, trigger: AutomationRunTrigger, leaderWindowId = 1): Promise<IAutomationRun> {
-		const claim = await service.recordRunStart(automationId, trigger, leaderWindowId);
-		assert.ok(claim.claimed, 'expected the run slot to be claimed');
-		return claim.run;
-	}
-
-	/** Records a run and completes it so the automation's slot is free for the next one. */
-	async function recordCompletedRun(service: AutomationService, automationId: string, trigger: AutomationRunTrigger = 'manual'): Promise<IAutomationRun> {
-		const run = await claimRun(service, automationId, trigger);
-		return await service.updateRun(run.id, { status: 'completed' }) ?? run;
-	}
-
-	function createService(storage?: InMemoryStorageService): { service: AutomationService; storage: InMemoryStorageService } {
-		const sharedStorage = teardown.add(storage ?? new InMemoryStorageService());
-		const service = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		return { service, storage: sharedStorage };
-	}
-
-	test('starts with an empty ledger when nothing is persisted', () => {
-		const { service } = createService();
-		assert.deepStrictEqual(service.automations.get(), []);
-		assert.deepStrictEqual(service.runs.get(), []);
+function testLanguageModelsService(models: ReadonlyMap<string, string> = new Map(), onDidChangeLanguageModels = Event.None): ILanguageModelsService {
+	return upcastPartial<ILanguageModelsService>({
+		onDidChangeLanguageModels,
+		lookupLanguageModel: identifier => {
+			const id = models.get(identifier);
+			return id ? upcastPartial<ILanguageModelChatMetadata>({ id }) : undefined;
+		},
 	});
-
-	test('provider stores isolate ledgers by storage key', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const automationStorage = new TestAutomationStorageService(storage);
-		const first = teardown.add(new AutomationStore('automations.first', storage, new NullLogService(), NullTelemetryService, automationStorage));
-		const second = teardown.add(new AutomationStore('automations.second', storage, new NullLogService(), NullTelemetryService, automationStorage));
-
-		await first.createAutomation({ name: 'First', prompt: 'first', schedule: dailySchedule(), target: workspaceTarget() });
-		await second.createAutomation({ name: 'Second', prompt: 'second', schedule: dailySchedule(), target: workspaceTarget() });
-
-		assert.deepStrictEqual({
-			first: first.automations.get().map(automation => automation.name),
-			second: second.automations.get().map(automation => automation.name),
-			firstPersisted: JSON.parse(storage.get('automations.first', StorageScope.APPLICATION)!).automations.map((automation: { name: string }) => automation.name),
-			secondPersisted: JSON.parse(storage.get('automations.second', StorageScope.APPLICATION)!).automations.map((automation: { name: string }) => automation.name),
-		}, {
-			first: ['First'],
-			second: ['Second'],
-			firstPersisted: ['First'],
-			secondPersisted: ['Second'],
-		});
-	});
-
-	test('createAutomation appends an entry and computes nextRunAt for non-manual schedules', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({
-			name: 'Daily review',
-			prompt: 'Summarize what changed',
-			schedule: dailySchedule(),
-			target: workspaceTarget(),
-		});
-		assert.strictEqual(service.automations.get().length, 1);
-		assert.strictEqual(service.automations.get()[0].id, a.id);
-		assert.ok(a.nextRunAt, 'daily schedule should produce a nextRunAt');
-		assert.strictEqual(a.enabled, true);
-	});
-
-	test('createAutomation with manual schedule leaves nextRunAt undefined', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({
-			name: 'Manual',
-			prompt: 'p',
-			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			target: workspaceTarget(),
-		});
-		assert.strictEqual(a.nextRunAt, undefined);
-	});
-
-	test('createAutomation throws when folderUri is missing', async () => {
-		const { service } = createService();
-		await assert.rejects(
-			() => service.createAutomation({
-				name: 'X',
-				prompt: 'p',
-				schedule: dailySchedule(),
-				target: { kind: 'workspace', folderUri: undefined, isolation: { kind: 'default' } } as unknown as AutomationTarget,
-			}),
-			/folderUri/,
-		);
-	});
-
-	test('creates a workspace-less automation only with an explicit quick-chat target', async () => {
-		const { service } = createService();
-		await assert.rejects(
-			() => service.createAutomation({
-				name: 'Missing target',
-				prompt: 'p',
-				schedule: dailySchedule(),
-				target: { kind: 'quickChat', providerId: undefined, sessionTypeId: undefined } as unknown as AutomationTarget,
-			}),
-			/providerId and sessionTypeId/,
-		);
-
-		const automation = await service.createAutomation({
-			name: 'Workspace-less',
-			prompt: 'p',
-			schedule: dailySchedule(),
-			target: {
-				kind: 'quickChat',
-				providerId: 'local-agent-host',
-				sessionTypeId: 'copilotcli',
-				folderUri: FOLDER,
-				isolation: { kind: 'worktree', branch: 'stale' },
-			} as unknown as AutomationTarget,
-		});
-
-		assert.deepStrictEqual(automation.target, {
-			kind: 'quickChat',
-			providerId: 'local-agent-host',
-			sessionTypeId: 'copilotcli',
-		});
-	});
-
-	test('rejects malformed worktree targets without a branch', async () => {
-		const { service } = createService();
-		await assert.rejects(
-			() => service.createAutomation({
-				name: 'Worktree',
-				prompt: 'p',
-				schedule: dailySchedule(),
-				target: workspaceTarget(FOLDER, { kind: 'worktree', branch: '' }),
-			}),
-			/requires a branch/,
-		);
-	});
-
-	test('updateAutomation recomputes nextRunAt when the schedule changes', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({
-			name: 'A',
-			prompt: 'p',
-			schedule: dailySchedule(9, 0),
-			target: workspaceTarget(),
-		});
-		const before = a.nextRunAt;
-		const b = await service.updateAutomation(a.id, { schedule: dailySchedule(10, 30) });
-		assert.notStrictEqual(b.nextRunAt, before);
-	});
-
-	test('updateAutomation keeps nextRunAt when only the name changes', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const b = await service.updateAutomation(a.id, { name: 'B' });
-		assert.strictEqual(b.nextRunAt, a.nextRunAt);
-		assert.strictEqual(b.name, 'B');
-	});
-
-	test('updateAutomation can clear modelId/mode/permissionLevel by passing null but keeps folderUri', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({
-			name: 'A', prompt: 'p', schedule: dailySchedule(),
-			target: workspaceTarget(),
-			modelId: 'gpt-4',
-			mode: 'agent',
-			permissionLevel: 'autopilot',
-		});
-		const b = await service.updateAutomation(a.id, { modelId: null, mode: null, permissionLevel: null });
-		assert.strictEqual(b.modelId, undefined);
-		assert.strictEqual(b.mode, undefined);
-		assert.strictEqual(b.permissionLevel, undefined);
-		assert.strictEqual(b.target.kind === 'workspace' ? b.target.folderUri.toString() : undefined, FOLDER.toString());
-	});
-
-	test('updateAutomation switches folder when a new folderUri is provided', async () => {
-		const { service } = createService();
-		const other = URI.parse('file:///other');
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const b = await service.updateAutomation(a.id, { target: workspaceTarget(other) });
-		assert.strictEqual(b.target.kind === 'workspace' ? b.target.folderUri.toString() : undefined, other.toString());
-	});
-
-	test('updateAutomation rejects incomplete workspace-less targets', async () => {
-		const { service } = createService();
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-
-		await assert.rejects(
-			() => service.updateAutomation(automation.id, {
-				target: { kind: 'quickChat', providerId: undefined, sessionTypeId: undefined } as unknown as AutomationTarget,
-			}),
-			/providerId and sessionTypeId/,
-		);
-	});
-
-	test('deleteAutomation removes the entry and orphan runs are dropped on reload', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		await firstService.recordRunStart(a.id, 'manual', 1);
-		assert.strictEqual(firstService.runs.get().length, 1);
-		await firstService.deleteAutomation(a.id);
-		// Deleting commits a new ledger, which triggers a reload that
-		// drops the now-orphaned run so the ledger does not grow forever.
-		assert.deepStrictEqual(firstService.automations.get(), []);
-		assert.strictEqual(firstService.runs.get().length, 0);
-		firstService.dispose();
-
-		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(secondService.automations.get(), []);
-		assert.strictEqual(secondService.runs.get().length, 0);
-	});
-
-	test('recordRunStart inserts a pending run; updateRun applies a patch', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const run = await claimRun(service, a.id, 'schedule', 42);
-		assert.strictEqual(run.status, 'pending');
-		assert.strictEqual(run.leaderWindowId, 42);
-		const updated = await service.updateRun(run.id, { status: 'completed', sessionResource: URI.parse('vscode-chat-session://copilot/sess-1'), completedAt: new Date().toISOString() });
-		assert.strictEqual(updated?.status, 'completed');
-		assert.strictEqual(updated?.sessionResource?.toString(), 'vscode-chat-session://copilot/sess-1');
-	});
-
-	test('deleteRun removes only the matching history entry', async () => {
-		const { service } = createService();
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const first = await claimRun(service, automation.id, 'manual');
-		await service.updateRun(first.id, { status: 'completed' });
-		const second = await claimRun(service, automation.id, 'manual');
-
-		await service.deleteRun(first.id);
-
-		assert.deepStrictEqual(service.runs.get().map(run => run.id), [second.id]);
-	});
-
-	test('recordRunStart updates lastRunAt and advances the next scheduled run', async () => {
-		const { service } = createService();
-		service.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));
-		const automation = await service.createAutomation({
-			name: 'A',
-			prompt: 'p',
-			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			target: workspaceTarget(),
-		});
-
-		service.setClockForTesting(() => new Date('2025-06-01T10:00:00Z'));
-		const run = await claimRun(service, automation.id, 'catch_up');
-
-		assert.deepStrictEqual({
-			startedAt: run.startedAt,
-			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
-			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
-		}, {
-			startedAt: '2025-06-01T10:00:00.000Z',
-			lastRunAt: '2025-06-01T10:00:00.000Z',
-			nextRunAt: '2025-06-01T11:00:00.000Z',
-		});
-	});
-
-	test('recordRunStart leaves schedule timestamps unchanged for a manual run', async () => {
-		const { service } = createService();
-		service.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));
-		const automation = await service.createAutomation({
-			name: 'A',
-			prompt: 'p',
-			schedule: { interval: 'hourly', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			target: workspaceTarget(),
-		});
-
-		service.setClockForTesting(() => new Date('2025-06-01T00:30:00Z'));
-		const run = await claimRun(service, automation.id, 'manual');
-
-		assert.deepStrictEqual({
-			startedAt: run.startedAt,
-			lastRunAt: service.getAutomation(automation.id)?.lastRunAt,
-			nextRunAt: service.getAutomation(automation.id)?.nextRunAt,
-		}, {
-			startedAt: '2025-06-01T00:30:00.000Z',
-			lastRunAt: undefined,
-			nextRunAt: automation.nextRunAt,
-		});
-	});
-
-	test('getActiveRunFor returns the first pending or running run for an automation', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		assert.strictEqual(service.getActiveRunFor(a.id), undefined);
-		const run = await claimRun(service, a.id, 'schedule');
-		assert.strictEqual(service.getActiveRunFor(a.id)?.id, run.id);
-		await service.updateRun(run.id, { status: 'completed' });
-		assert.strictEqual(service.getActiveRunFor(a.id), undefined);
-	});
-
-	test('markStaleRunsFailed moves pending and running rows to failed', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		// One row per state: only one run per automation can be active at a time.
-		const r1 = await claimRun(service, a.id, 'schedule');
-		const r2 = await claimRun(service, b.id, 'schedule');
-		await service.updateRun(r1.id, { status: 'running' });
-		await service.markStaleRunsFailed('Interrupted');
-		const all = service.runs.get();
-		assert.deepStrictEqual(all.find(r => r.id === r1.id)?.status, 'failed');
-		assert.deepStrictEqual(all.find(r => r.id === r2.id)?.status, 'failed');
-		assert.strictEqual(all.find(r => r.id === r1.id)?.errorMessage, 'Interrupted');
-	});
-
-	test('runsFor filters to a single automation', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		await recordCompletedRun(service, a.id, 'schedule');
-		await recordCompletedRun(service, b.id, 'schedule');
-		await recordCompletedRun(service, a.id, 'manual');
-		assert.strictEqual(service.runsFor(a.id).get().length, 2);
-		assert.strictEqual(service.runsFor(b.id).get().length, 1);
-	});
-
-	test('recordRunStart caps retained runs per automation', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		// Push 60 runs for a (cap is 50) and 5 for b. Each automation's
-		// history should be bounded independently.
-		for (let i = 0; i < 60; i++) {
-			await recordCompletedRun(service, a.id);
-		}
-		for (let i = 0; i < 5; i++) {
-			await recordCompletedRun(service, b.id);
-		}
-		assert.strictEqual(service.runsFor(a.id).get().length, 50);
-		assert.strictEqual(service.runsFor(b.id).get().length, 5);
-	});
-
-	test('recordRunStart declines a second claim while a run is active', async () => {
-		const { service } = createService();
-		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const first = await claimRun(service, a.id, 'manual');
-		await service.updateRun(first.id, { status: 'running' });
-
-		const second = await service.recordRunStart(a.id, 'schedule', 2);
-
-		assert.deepStrictEqual({
-			claimed: second.claimed,
-			runId: second.run.id,
-			totalRuns: service.runsFor(a.id).get().length,
-		}, {
-			claimed: false,
-			runId: first.id,
-			totalRuns: 1,
-		});
-	});
-
-	test('concurrent claims from two windows produce a single run', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const a = await windowA.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-
-		// Neither window sees an active run when it starts, so the claim has to be
-		// settled by the storage compare-and-swap rather than by a pre-read check.
-		const [first, second] = await Promise.all([
-			windowA.recordRunStart(a.id, 'manual', 1),
-			windowB.recordRunStart(a.id, 'manual', 2),
-		]);
-
-		assert.deepStrictEqual({
-			claimCount: [first, second].filter(claim => claim.claimed).length,
-			agreeOnRun: first.run.id === second.run.id,
-			totalRuns: windowA.runsFor(a.id).get().length,
-		}, {
-			claimCount: 1,
-			agreeOnRun: true,
-			totalRuns: 1,
-		});
-	});
-
-	test('persists across service restarts via shared storage', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		await firstService.recordRunStart(a.id, 'manual', 7);
-		firstService.dispose();
-
-		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		assert.strictEqual(secondService.automations.get().length, 1);
-		assert.strictEqual(secondService.automations.get()[0].id, a.id);
-		assert.strictEqual(secondService.runs.get().length, 1);
-	});
-
-	test('round-trips and clears Worktree branch configuration', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const created = await firstService.createAutomation({
-			name: 'A',
-			prompt: 'p',
-			schedule: dailySchedule(),
-			target: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-		});
-		firstService.dispose();
-
-		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const restored = secondService.getAutomation(created.id);
-		const updated = await secondService.updateAutomation(created.id, { target: workspaceTarget(FOLDER, { kind: 'folder' }) });
-
-		assert.deepStrictEqual({
-			restoredTarget: restored?.target,
-			updatedTarget: updated.target,
-		}, {
-			restoredTarget: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-			updatedTarget: workspaceTarget(FOLDER, { kind: 'folder' }),
-		});
-	});
-
-	test('round-trips target changes without carrying repository configuration into quick-chat mode', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const created = await firstService.createAutomation({
-			name: 'A',
-			prompt: 'p',
-			schedule: dailySchedule(),
-			target: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-		});
-		const quickChat = await firstService.updateAutomation(created.id, {
-			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
-		});
-		firstService.dispose();
-
-		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const restored = secondService.getAutomation(created.id);
-		const workspace = await secondService.updateAutomation(created.id, {
-			target: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'main' }),
-		});
-
-		assert.deepStrictEqual({
-			quickChat: quickChat.target,
-			restored: restored?.target,
-			workspace: workspace.target,
-		}, {
-			quickChat: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
-			restored: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
-			workspace: workspaceTarget(FOLDER, { kind: 'worktree', branch: 'main' }),
-		});
-	});
-
-	test('two services on the same storage stay in sync via onDidChangeValue', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-
-		assert.deepStrictEqual(windowB.automations.get(), []);
-		const created = await windowA.createAutomation({ name: 'X', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-
-		// In-memory storage fires onDidChangeValue synchronously, so windowB
-		// should already see the new automation.
-		assert.strictEqual(windowB.automations.get().length, 1);
-		assert.strictEqual(windowB.automations.get()[0].id, created.id);
-	});
-
-	test('mutations preserve unrelated application storage values', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		storage.store('unrelated', 'sentinel', StorageScope.APPLICATION, StorageTarget.MACHINE);
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-
-		const automation = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		await service.updateAutomation(automation.id, { name: 'Updated' });
-		await service.recordRunStart(automation.id, 'manual', 1);
-		await service.deleteAutomation(automation.id);
-
-		assert.strictEqual(storage.get('unrelated', StorageScope.APPLICATION), 'sentinel');
-	});
-
-	test('guarded update rejects a concurrent editable change', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const reviewed = await windowA.createAutomation({ name: 'Original', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-
-		await windowB.updateAutomation(reviewed.id, { prompt: 'concurrent edit' });
-		const result = await windowA.updateAutomationIfUnchanged(reviewed.id, { name: 'Reviewed edit' }, reviewed);
-
-		assert.deepStrictEqual(result.kind === 'conflict' ? {
-			kind: result.kind,
-			currentName: result.current?.name,
-			currentPrompt: result.current?.prompt,
-		} : result, {
-			kind: 'conflict',
-			currentName: 'Original',
-			currentPrompt: 'concurrent edit',
-		});
-	});
-
-	test('guarded update tolerates concurrent runtime metadata changes', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		windowA.setClockForTesting(() => new Date('2025-06-01T00:00:00Z'));
-		const reviewed = await windowA.createAutomation({ name: 'Original', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-
-		windowB.setClockForTesting(() => new Date('2025-06-01T10:00:00Z'));
-		const run = await claimRun(windowB, reviewed.id, 'schedule', 2);
-		const runtimeState = windowB.getAutomation(reviewed.id);
-		const result = await windowA.updateAutomationIfUnchanged(reviewed.id, { name: 'Reviewed edit' }, reviewed);
-
-		assert.deepStrictEqual(result.kind === 'updated' ? {
-			kind: result.kind,
-			name: result.automation.name,
-			lastRunAt: result.automation.lastRunAt,
-			nextRunAt: result.automation.nextRunAt,
-			runIds: windowA.runs.get().map(candidate => candidate.id),
-		} : result, {
-			kind: 'updated',
-			name: 'Reviewed edit',
-			lastRunAt: runtimeState?.lastRunAt,
-			nextRunAt: runtimeState?.nextRunAt,
-			runIds: [run.id],
-		});
-	});
-
-	test('concurrent create, edit, run, and delete mutations converge without lost updates', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const windowB = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const edited = await windowA.createAutomation({ name: 'Edit me', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const deleted = await windowA.createAutomation({ name: 'Delete me', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-
-		const [, claim, , created] = await Promise.all([
-			windowA.updateAutomation(edited.id, { name: 'Edited' }),
-			windowB.recordRunStart(edited.id, 'schedule', 2),
-			windowA.deleteAutomation(deleted.id),
-			windowB.createAutomation({ name: 'Created', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() }),
-		]);
-
-		assert.deepStrictEqual({
-			automations: windowA.automations.get()
-				.map(automation => ({ id: automation.id, name: automation.name }))
-				.sort((a, b) => a.name.localeCompare(b.name)),
-			runs: windowA.runs.get().map(candidate => ({ id: candidate.id, automationId: candidate.automationId })),
-		}, {
-			automations: [
-				{ id: created.id, name: 'Created' },
-				{ id: edited.id, name: 'Edited' },
-			],
-			runs: [{ id: claim.run.id, automationId: edited.id }],
-		});
-	});
-
-	test('reading a ledger with a future schema version freezes observables and refuses to write', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const futureLedger = JSON.stringify({ schemaVersion: 999, revision: 7, automations: [], runs: [] });
-		// StorageScope.APPLICATION is -1
-		storage.store('chat.automations.ledger', futureLedger, -1, 1);
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-
-		// Observables remain empty (no prior in-memory state to preserve)
-		// but the service is now in read-only mode.
-		assert.deepStrictEqual(service.automations.get(), []);
-		assert.deepStrictEqual(service.runs.get(), []);
-
-		// A subsequent mutation must be rejected (read-only mode) and must not
-		// destroy the on-disk newer ledger.
-		await assert.rejects(
-			() => service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() }),
-			/newer version/,
-		);
-
-		// In-memory state is also unchanged because the mutation was rejected
-		// before any commit.
-		assert.deepStrictEqual(service.automations.get(), []);
-
-		assert.strictEqual(storage.get('chat.automations.ledger', -1), futureLedger);
-	});
-
-	test('refreshFromStorage preserves in-memory state when storage flips to an unsupported schema', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		await service.createAutomation({ name: 'Local', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		assert.strictEqual(service.automations.get().length, 1);
-
-		storage.store('chat.automations.ledger', JSON.stringify({ schemaVersion: 999, revision: 99, automations: [], runs: [] }), -1, 1);
-
-		// The onDidChangeValue refresh must NOT clear our observables to
-		// empty. We keep displaying what we last knew about.
-		assert.strictEqual(service.automations.get().length, 1);
-	});
-
-	test('persist bumps the revision counter on every write', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const rev1 = JSON.parse(storage.get('chat.automations.ledger', -1)!).revision;
-		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const rev2 = JSON.parse(storage.get('chat.automations.ledger', -1)!).revision;
-		assert.strictEqual(typeof rev1, 'number');
-		assert.ok(rev2 > rev1, `expected ${rev2} > ${rev1}`);
-	});
-
-	test('persist absorbs a higher on-disk revision (concurrent-write detection)', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const baseline = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-		// Simulate another window having advanced the revision behind our
-		// back. The service must not write a stale-or-equal revision.
-		storage.store('chat.automations.ledger', JSON.stringify({ ...baseline, revision: 5000 }), -1, 1);
-		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget() });
-		const after = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-		assert.ok(after.revision > 5000, `expected revision > 5000, got ${after.revision}`);
-	});
-
-	test('successful CAS accepts a restored lower revision without accepting stale notifications', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		storage.store('chat.automations.ledger', JSON.stringify({
-			schemaVersion: 3,
-			revision: 40,
-			automations: [serializeLedgerAutomation('newer', 'Before restore')],
-			runs: [],
-		}), -1, 1);
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		const restoredLedger = JSON.stringify({
-			schemaVersion: 3,
-			revision: 1,
-			automations: [serializeLedgerAutomation('restored', 'Restored')],
-			runs: [],
-		});
-		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
-
-		const created = await service.createAutomation({
-			name: 'After restore',
-			prompt: 'p',
-			schedule: dailySchedule(),
-			target: workspaceTarget(),
-		});
-		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-		storage.store('chat.automations.ledger', restoredLedger, -1, 1);
-
-		assert.deepStrictEqual({
-			createdName: created.name,
-			persistedRevision: persisted.revision,
-			persistedNames: persisted.automations.map((automation: { name: string }) => automation.name),
-			inMemoryNames: service.automations.get().map(automation => automation.name),
-		}, {
-			createdName: 'After restore',
-			persistedRevision: 2,
-			persistedNames: ['After restore', 'Restored'],
-			inMemoryNames: ['After restore', 'Restored'],
-		});
-	});
-
-	test('reading a corrupt ledger leaves observables empty without throwing', () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		storage.store('chat.automations.ledger', 'not json', -1, 1);
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(service.automations.get(), []);
-	});
-
-	test('drops a malformed schema v3 row without discarding valid rows', () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		storage.store('chat.automations.ledger', JSON.stringify({
-			schemaVersion: 3,
-			automations: [
-				{
-					id: 'keep',
-					name: 'Valid',
-					prompt: 'p',
-					schedule: dailySchedule(),
-					target: { kind: 'workspace', folderUri: FOLDER.toJSON(), isolation: { kind: 'default' } },
-					enabled: true,
-					createdAt: '2024-01-01T00:00:00Z',
-					updatedAt: '2024-01-01T00:00:00Z',
-				},
-				null,
-			],
-			runs: [
-				{ id: 'r-keep', automationId: 'keep', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
-			],
-		}), -1, 1);
-
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual({
-			automationIds: service.automations.get().map(automation => automation.id),
-			runIds: service.runs.get().map(run => run.id),
-		}, {
-			automationIds: ['keep'],
-			runIds: ['r-keep'],
-		});
-	});
-
-	test('migrates valid schema v1 records to v3 while dropping malformed targets', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const ledger = {
-			schemaVersion: 1,
-			automations: [
-				{ id: 'orphan', name: 'Old', prompt: 'p', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 }, enabled: true, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-				{ id: 'orphan-quick', name: 'Old Quick', prompt: 'p', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 }, isQuickChat: true, enabled: true, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-				{ id: 'keep', name: 'Valid', prompt: 'p', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 }, folderUri: FOLDER.toJSON(), enabled: true, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-				{ id: 'quick', name: 'Quick', prompt: 'p', schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 }, isQuickChat: true, providerId: 'local-agent-host', sessionTypeId: 'copilotcli', enabled: true, createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-			],
-			runs: [
-				{ id: 'r-orphan', automationId: 'orphan', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
-				{ id: 'r-orphan-quick', automationId: 'orphan-quick', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
-				{ id: 'r-keep', automationId: 'keep', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
-				{ id: 'r-quick', automationId: 'quick', status: 'completed', trigger: 'manual', startedAt: '2024-01-01T00:00:00Z', leaderWindowId: 1 },
-			],
-		};
-		storage.store('chat.automations.ledger', JSON.stringify(ledger), -1, 1);
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual({
-			automations: service.automations.get().map(automation => ({ id: automation.id, targetKind: automation.target.kind })),
-			runs: service.runs.get().map(run => run.id),
-		}, {
-			automations: [
-				{ id: 'keep', targetKind: 'workspace' },
-				{ id: 'quick', targetKind: 'quickChat' },
-			],
-			runs: ['r-keep', 'r-quick'],
-		});
-
-		await service.updateAutomation('keep', { name: 'Updated' });
-		const migrated = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-		assert.deepStrictEqual({
-			schemaVersion: migrated.schemaVersion,
-			automationIds: migrated.automations.map((automation: { id: string }) => automation.id),
-			runIds: migrated.runs.map((run: { id: string }) => run.id),
-		}, {
-			schemaVersion: 3,
-			automationIds: ['keep', 'quick'],
-			runIds: ['r-keep', 'r-quick'],
-		});
-	});
-
-	test('migrates schema v2 flat targets to schema v3 target unions', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const common = {
-			prompt: 'p',
-			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
-			enabled: true,
-			createdAt: '2024-01-01T00:00:00Z',
-			updatedAt: '2024-01-01T00:00:00Z',
-		};
-		storage.store('chat.automations.ledger', JSON.stringify({
-			schemaVersion: 2,
-			automations: [
-				{ ...common, id: 'workspace', name: 'Workspace', folderUri: FOLDER.toJSON(), isolationMode: 'worktree', branch: 'feature/saved' },
-				{ ...common, id: 'legacy-worktree', name: 'Legacy Worktree', folderUri: FOLDER.toJSON(), isolationMode: 'worktree' },
-				{ ...common, id: 'quick', name: 'Quick', isQuickChat: true, providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
-			],
-			runs: [],
-		}), -1, 1);
-
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(service.automations.get().map(automation => automation.target), [
-			workspaceTarget(FOLDER, { kind: 'worktree', branch: 'feature/saved' }),
-			workspaceTarget(FOLDER, { kind: 'default' }),
-			{ kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
-		]);
-
-		await service.updateAutomation('workspace', { name: 'Updated' });
-		const migrated = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-		assert.strictEqual(migrated.schemaVersion, 3);
-	});
-
-	test('round-trips a folderUri through persistence', async () => {
-		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const uri = URI.parse('file:///workspace/project');
-		await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), target: workspaceTarget(uri) });
-
-		const secondService = teardown.add(createAutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
-		const reloaded = secondService.automations.get()[0];
-		assert.deepStrictEqual(reloaded.target, workspaceTarget(uri));
-	});
-
-	test('reads a string sessionResource as a URI and writes it back as a string', async () => {
-		const storage = teardown.add(new InMemoryStorageService());
-		const sessionResource = 'vscode-chat-session://copilot/sess-42';
-		storage.store('chat.automations.ledger', JSON.stringify({
-			schemaVersion: 3,
-			revision: 1,
-			automations: [serializeLedgerAutomation('a1', 'A')],
-			runs: [{
-				id: 'run-1',
-				automationId: 'a1',
-				status: 'running',
-				trigger: 'schedule',
-				sessionResource,
-				startedAt: '2026-01-01T00:00:00.000Z',
-				leaderWindowId: 1,
-			}],
-		}), -1, 1);
-		const service = teardown.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-
-		const loadedRun = service.runs.get()[0];
-		await service.updateRun('run-1', { status: 'completed', completedAt: '2026-01-01T00:01:00.000Z' });
-		const persisted = JSON.parse(storage.get('chat.automations.ledger', -1)!);
-
-		assert.deepStrictEqual({
-			loadedIsUri: URI.isUri(loadedRun.sessionResource),
-			loadedString: loadedRun.sessionResource?.toString(),
-			persistedType: typeof persisted.runs[0].sessionResource,
-			persistedString: persisted.runs[0].sessionResource,
-		}, {
-			loadedIsUri: true,
-			loadedString: sessionResource,
-			persistedType: 'string',
-			persistedString: sessionResource,
-		});
-	});
-
-	test('disposal does not interfere with later in-store reads', () => {
-		// Just verifies the no-leaked-disposables invariant indirectly: create
-		// a service and let teardown clean it up. Failure surfaces as a
-		// leaked-disposable assertion at suite teardown.
-		const store = new DisposableStore();
-		const storage = store.add(new InMemoryStorageService());
-		const service = store.add(createAutomationService(storage, new NullLogService(), NullTelemetryService));
-		assert.deepStrictEqual(service.automations.get(), []);
-		store.dispose();
-	});
-});
+}
+
+function serializeLegacyLedger(automations: readonly ReturnType<typeof serializedAutomation>[], runs: readonly IAutomationRun[] = []): string {
+	return JSON.stringify({ schemaVersion: 3, revision: 1, automations, runs });
+}
+
+function toSummary(state: AutomationState): AutomationSummary {
+	return {
+		resource: state.resource,
+		title: state.definition.title,
+		enabled: state.definition.enabled,
+		triggerCount: state.definition.triggers.length,
+		revision: state.revision,
+		operations: state.operations,
+		createdAt: state.createdAt,
+		modifiedAt: state.modifiedAt,
+	};
+}
+
+function toRunSummary(state: AutomationRunState): AutomationRunSummary {
+	return {
+		resource: state.resource,
+		automation: state.automation,
+		cause: state.cause,
+		lifecycle: state.lifecycle,
+		primarySession: state.primarySession,
+		sessionCount: state.sessions.length,
+		artifactCount: state.artifacts.length,
+		operations: state.operations,
+	};
+}

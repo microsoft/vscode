@@ -246,6 +246,5 @@ function createRun(id: string, automationId: string, status: IAutomationRun['sta
 		startedAt: startedAt.toISOString(),
 		completedAt: status === 'completed' || status === 'failed' ? startedAt.toISOString() : undefined,
 		errorMessage,
-		leaderWindowId: 1,
 	};
 }

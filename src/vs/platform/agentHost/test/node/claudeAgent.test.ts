@@ -6163,14 +6163,25 @@ suite('ClaudeAgent — per-session provider', () => {
 		const { agent } = createTestContext(disposables);
 		const nativeModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_ANTHROPIC, 'claude-sonnet-4-5-20250929') };
 		const copilotModel = { id: toClaudeModelSelectionId(CLAUDE_PROVIDER_COPILOT, 'claude-opus-4.6') };
+		const requiredResources = {
+			native: agent.getRequiredProtectedResources({ model: nativeModel }).map(resource => resource.resource),
+			copilot: agent.getRequiredProtectedResources({ model: copilotModel }).map(resource => resource.resource),
+		};
 
 		const native = await createSession(agent, { workingDirectories: [URI.file('/ws-native')], model: nativeModel });
 		const copilotOutcome = await createSession(agent, { workingDirectories: [URI.file('/ws-copilot')], model: copilotModel })
 			.then(() => 'created', err => (err instanceof ProtocolError && err.code === AHP_AUTH_REQUIRED) ? 'auth-required' : `unexpected:${err}`);
 
 		assert.deepStrictEqual(
-			{ nativeProvisional: native.provisional, copilotOutcome },
-			{ nativeProvisional: true, copilotOutcome: 'auth-required' },
+			{ requiredResources, nativeProvisional: native.provisional, copilotOutcome },
+			{
+				requiredResources: {
+					native: [],
+					copilot: [GITHUB_COPILOT_PROTECTED_RESOURCE.resource],
+				},
+				nativeProvisional: true,
+				copilotOutcome: 'auth-required',
+			},
 		);
 	});
 
