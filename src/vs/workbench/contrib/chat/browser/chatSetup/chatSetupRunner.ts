@@ -183,7 +183,7 @@ export function getChatSetupDialogButtons(entitlement: ChatEntitlement, options:
 			? [enterpriseProviderButton, googleProviderButton, appleProviderButton, defaultProviderLink]
 			: [defaultProviderButton, googleProviderButton, appleProviderButton, enterpriseProviderLink];
 		return options?.allowContinueWithoutSignIn
-			? [...providerButtons, button(localize('continueWithoutSigningIn', "Continue without signing in"), ChatSetupStrategy.Canceled, 'link-button')]
+			? [...providerButtons, button(localize('continueWithoutSigningIn', "Continue Without Signing In"), ChatSetupStrategy.Canceled, 'link-button')]
 			: providerButtons;
 	}
 

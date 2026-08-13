@@ -114,9 +114,9 @@ suite('Chat setup dialog presentation', () => {
 			lastButton: buttons.at(-1),
 			footer,
 		}, {
-			buttonLabels: ['Continue with GitHub', 'Continue with Google', 'Continue with Apple', 'Continue with GHE', 'Continue without signing in'],
+			buttonLabels: ['Continue with GitHub', 'Continue with Google', 'Continue with Apple', 'Continue with GHE', 'Continue Without Signing In'],
 			lastButton: {
-				label: 'Continue without signing in',
+				label: 'Continue Without Signing In',
 				strategy: ChatSetupStrategy.Canceled,
 				classes: ['link-button'],
 			},
