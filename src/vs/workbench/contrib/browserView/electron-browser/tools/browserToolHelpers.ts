@@ -180,6 +180,10 @@ export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, 
 	content.push({ kind: 'text', value: result.summary });
 	return {
 		content,
+		// The evaluated code reported an error, so the call failed. Without this
+		// only `toolResultDetails.isError` is set, which leaves the tool call
+		// itself reported as a success.
+		...(result.error ? { toolResultError: result.error } : {}),
 		...(code ? {
 			toolResultDetails: {
 				input: code,

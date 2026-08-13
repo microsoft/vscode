@@ -1755,6 +1755,27 @@ suite('ChatResponseModel', () => {
 		assert.strictEqual(completedNotifications, 1);
 	});
 
+	test('a failed tool drops the past-tense message prepared before it ran; a successful one keeps it', async () => {
+		const make = () => new ChatToolInvocation({ invocationMessage: 'Capturing browser screenshot', pastTenseMessage: 'Captured browser screenshot' }, {
+			id: 'screenshotPage',
+			modelDescription: 'Capture a browser screenshot',
+			displayName: 'Screenshot Page',
+			source: ToolDataSource.Internal,
+		}, 'tool-call-1', undefined, {}, {});
+
+		// The prepared message states what the tool would have done, so a failure
+		// must not keep it: it would read as though the screenshot was captured.
+		const failed = make();
+		await failed.didExecuteTool({ content: [], toolResultError: 'No browser page found' }, true);
+		const succeeded = make();
+		await succeeded.didExecuteTool({ content: [] }, true);
+
+		assert.deepStrictEqual({ failed: failed.pastTenseMessage, succeeded: succeeded.pastTenseMessage }, {
+			failed: undefined,
+			succeeded: 'Captured browser screenshot',
+		});
+	});
+
 	test('hasActiveRequest reflects last request isIncomplete', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
