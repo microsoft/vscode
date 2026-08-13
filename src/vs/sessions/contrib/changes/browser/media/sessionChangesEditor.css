@@ -255,8 +255,8 @@
 /* Normalize the button bar height for the title bar without affecting the classic header. */
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button,
 .monaco-action-bar .action-item.changes-actions-bar .monaco-button-dropdown {
-	height: 20px;
-	min-height: 20px;
+	height: 22px;
+	min-height: 22px;
 	padding-block: 0;
 }
 
