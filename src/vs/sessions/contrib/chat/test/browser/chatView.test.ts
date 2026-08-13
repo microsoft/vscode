@@ -10,11 +10,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
-import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { findTranscriptContextEntry, getTranscriptProgress, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,6 +104,22 @@ suite('Sessions - Chat View', () => {
 			activity: 'Creating isolated worktree (42%)',
 			noActivity: undefined,
 			visibleRequest: undefined,
+		});
+	});
+
+	test('does not show chat tips while the initial request is active', () => {
+		assert.deepStrictEqual({
+			unbound: shouldShowSessionChatTip(undefined),
+			untitled: shouldShowSessionChatTip(SessionStatus.Untitled),
+			inProgress: shouldShowSessionChatTip(SessionStatus.InProgress),
+			needsInput: shouldShowSessionChatTip(SessionStatus.NeedsInput),
+			completed: shouldShowSessionChatTip(SessionStatus.Completed),
+		}, {
+			unbound: true,
+			untitled: true,
+			inProgress: false,
+			needsInput: false,
+			completed: true,
 		});
 	});
 

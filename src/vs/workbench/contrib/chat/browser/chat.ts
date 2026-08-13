@@ -16,6 +16,7 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../common/attachments/chatVariables.js';
@@ -36,6 +37,10 @@ import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatC
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
 export { ChatOutline } from './chatOutline.js';
+
+export interface IChatContextPickerDelegate {
+	prepare(): Promise<IQuickInputService>;
+}
 
 /**
  * A workspace item that can be selected in the workspace picker.
@@ -263,7 +268,9 @@ export interface IChatWidgetViewOptions {
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
 	inputEditorMaxHeight?: number;
-	renderGettingStartedTip?: boolean;
+	renderGettingStartedTip?: boolean | (() => boolean);
+	/** Whether notifications deferred during first-use flows may render in this widget. */
+	deferredNotificationsEnabled?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**
@@ -333,6 +340,7 @@ export interface IChatWidgetViewOptions {
 	inputPickerContainer?: HTMLElement | (() => HTMLElement | undefined);
 	inputPickerAnchor?: (anchor: HTMLElement) => HTMLElement | IAnchor;
 	inputPickerOpenOnMouseUp?: boolean;
+	contextPicker?: IChatContextPickerDelegate;
 
 	/**
 	 * Whether we are running in the sessions window.
@@ -437,6 +445,7 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	readonly contextPicker: IChatContextPickerDelegate | undefined;
 	/** The main input part at the bottom of the widget. Unlike `input`, this always returns the main input, not the inline editing input. */
 	readonly inputPart: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
