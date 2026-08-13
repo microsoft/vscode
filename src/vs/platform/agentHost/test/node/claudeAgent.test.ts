@@ -9427,17 +9427,29 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		});
 	});
 
-	test('disposeChat deletes the chat\'s SDK transcript; a failed delete still disposes', async () => {
+	test('disposeChat deletes a materialized chat\'s SDK transcript, leaves a provisional chat alone, and survives a failed delete', async () => {
 		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const kept = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
 		const stranded = URI.parse(buildChatUri(created.session.toString(), 'chat-2'));
+		const provisional = URI.parse(buildChatUri(created.session.toString(), 'chat-3'));
 		const keptResult = await agent.chats.createChat(kept, created.session, { ...resolvedChatOptions() });
 		const strandedResult = await agent.chats.createChat(stranded, created.session, { ...resolvedChatOptions() });
+		await agent.chats.createChat(provisional, created.session, { ...resolvedChatOptions() });
+
+		// Only a chat that reached the SDK has a transcript to delete, so
+		// materialize the two that are expected to be deleted and leave the third
+		// provisional.
+		for (const [chat, result] of [[kept, keptResult], [stranded, strandedResult]] as const) {
+			const sdkSessionId = AgentSession.id(result!.backingSession!);
+			sdk.nextQueryMessages = [makeSystemInitMessage(sdkSessionId), makeResultSuccess(sdkSessionId)];
+			await agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, chatContext(chat));
+		}
 
 		await agent.chats.disposeChat(kept, chatContext(kept));
+		await agent.chats.disposeChat(provisional, chatContext(provisional));
 
 		// The chat is out of the catalog by the time the SDK is asked, so a
 		// transcript that cannot be removed must not fail the dispose.

@@ -1620,16 +1620,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 *
 	 * Deleting the transcript is safe because every caller means to destroy the
 	 * chat; teardown that must resume later goes through {@link _releaseChat}.
+	 * A provisional chat is skipped: it never reached the SDK, so it has no
+	 * transcript, and asking to delete one would pull in the SDK that
+	 * provisional creation deliberately avoids.
 	 */
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
+			// Read before tearing the live session down, since that clears the
+			// pipeline this asks about.
+			const isProvisional = target !== undefined && !target.isPipelineReady;
 			if (target) {
 				await this._disposeLiveSession(target);
 			}
-			const sdkSessionId = this._chatBackings.get(chatKey)?.sdkSessionId;
+			const sdkSessionId = isProvisional ? undefined : this._chatBackings.get(chatKey)?.sdkSessionId;
 			this._chatBackings.delete(chatKey);
 			this._chatConfigScopes.delete(chatKey);
 			this._pruneActiveClientHandlesForChat(chat);
