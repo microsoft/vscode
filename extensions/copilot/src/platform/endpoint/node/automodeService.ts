@@ -114,6 +114,8 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _cache: Map<string, AutoModeCacheEntry> = new Map();
 	/** Coalesces concurrent routing calls that would answer a turn identically. */
 	private _routingSingler = new TaskSingler<IChatEndpoint>();
+	/** Bumped when the signed-in account changes; see {@link _routeAndCache}. */
+	private _authGeneration = 0;
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
 	/** Upper bound on live sessions. See {@link _evictOldestSessions}. */
 	private static readonly CACHE_MAX_ENTRIES = 50;
@@ -138,10 +140,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// refresh is published as a configuration change.
 		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateAutoModeTierSupport()));
 		// Sessions are scoped to the signed-in account, and a routing call
-		// started under the previous one must not be joined by new callers.
+		// started under the previous one must neither be joined by new callers
+		// nor survive into the new account's cache.
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			this._cache.clear();
 			this._routingSingler = new TaskSingler<IChatEndpoint>();
+			this._authGeneration++;
 		}));
 		this._serviceBrand = undefined;
 		this._autoV2Fetcher = new AutoV2Fetcher(this._capiClientService, this._authService, this._logService, this._telemetryService, this._requestLogger);
@@ -223,7 +227,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 	/**
 	 * Performs the `POST /auto` round-trip and records the resulting session.
-	 * Callers dedupe on {@link _inFlightRouting} so this runs once per turn.
+	 * Callers dedupe on {@link _routingSingler} so this runs once per turn.
 	 */
 	private async _routeAndCache(
 		prompt: string,
@@ -233,6 +237,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		conversationId: string,
 		entry: AutoModeCacheEntry | undefined,
 	): Promise<IChatEndpoint> {
+		// The session this mints belongs to the account signed in right now, so
+		// anything resolved here is void if that account changes mid-flight.
+		const authGeneration = this._authGeneration;
 		let result: AutoV2Response;
 		try {
 			result = await this._autoV2Fetcher.getAutoDecision(prompt, {
@@ -246,11 +253,19 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			this._logService.error(`[AutomodeService] Auto routing failed for conversation ${conversationId} (${reason}):`, (e as Error).message);
 			this._sendAutoV2FallbackTelemetry(reason);
 			// Prefer the last known good endpoint over failing the turn, but only
-			// while it still reflects its tier and vision needs.
-			if (entry && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
+			// while it still reflects its tier and vision needs — and only while
+			// it still belongs to the signed-in account.
+			if (entry && authGeneration === this._authGeneration && this._isCacheEntryCompatible(entry, tier, chatRequest)) {
 				return entry.endpoint;
 			}
 			throw e;
+		}
+
+		// The account changed while `/auto` was in flight. Its session token
+		// would be sent with the new account's credentials, and caching it would
+		// keep doing so for the life of the token, so fail the turn instead.
+		if (authGeneration !== this._authGeneration) {
+			throw new Error('Auto mode routed for an account that is no longer signed in.');
 		}
 
 		// Prefer local `/models` metadata: it carries fields `/auto` leaves

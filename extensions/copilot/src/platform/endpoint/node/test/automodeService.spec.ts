@@ -321,6 +321,58 @@ describe('AutomodeService', () => {
 				.toEqual({ models: ['gpt-4o', 'gpt-4o', 'gpt-4o'], calls: 1 });
 		});
 
+		// Reuse already ignores the prompt — a later turn keeps the model chosen
+		// for the first — so sharing across differing prompts keeps concurrent
+		// turns consistent with sequential ones instead of routing each prompt.
+		it('shares one routing call across concurrent turns with different prompts', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto(autoResponse('gpt-4o'));
+
+			automodeService = createService();
+			const route = (prompt: string) => automodeService.resolveAutoModeEndpoint({
+				location: ChatLocation.Panel,
+				prompt,
+				sessionId: 'session-concurrent-prompts',
+			} as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			const results = await Promise.all([route('first prompt'), route('second prompt')]);
+
+			expect({ models: results.map(r => r.model), calls: autoCalls().length })
+				.toEqual({ models: ['gpt-4o', 'gpt-4o'], calls: 1 });
+		});
+
+		// The session token belongs to the account that was signed in when the
+		// call started; caching it would send it with the new account's
+		// credentials for the life of the token.
+		it('does not cache a routing that lands after the account changed', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			let releaseAuto: (() => void) | undefined;
+			const autoInFlight = new Promise<void>(resolve => { releaseAuto = resolve; });
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+				await autoInFlight;
+				return makeAutoResponse(autoResponse('gpt-4o'));
+			});
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'first prompt',
+				sessionId: 'session-auth-race'
+			};
+			const pending = automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			onDidAuthenticationChangeEmitter.fire();
+			releaseAuto!();
+
+			await expect(pending).rejects.toThrow(/no longer signed in/);
+
+			// Nothing from the previous account may be left behind for the new one.
+			mockAuto(autoResponse('gpt-4o'));
+			const next = await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'second prompt' } as ChatRequest, [mockChatEndpoint, gpt4oEndpoint]);
+
+			expect({ model: next.model, calls: autoCalls().length }).toEqual({ model: 'gpt-4o', calls: 2 });
+		});
+
 		// Sharing must not cross conversations, tiers, or vision needs — those
 		// turns would not accept the same answer.
 		it('does not share a routing call across conversations or tiers', async () => {
