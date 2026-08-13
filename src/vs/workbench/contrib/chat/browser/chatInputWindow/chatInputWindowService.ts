@@ -11,7 +11,7 @@ import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -30,6 +30,8 @@ import { IAuxiliaryWindowService, IAuxiliaryWindow } from '../../../../services/
 import { IRectangle } from '../../../../../platform/window/common/window.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { inputBackground, inputBorder } from '../../../../../platform/theme/common/colors/inputColors.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -44,7 +46,7 @@ import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
-import { IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
+import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
 import { autorun, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -70,6 +72,21 @@ const CHAT_INPUT_WINDOW_MAX_PENDING_HEIGHT = 360;
 const CHAT_INPUT_WINDOW_MIN_CONFIRMATION_HEIGHT = 112;
 
 type ChatInputActionWidgetPlacement = 'above' | 'right';
+
+interface IChatInputWindowPendingChat {
+	readonly kind: 'chat';
+	readonly id: string;
+	readonly model: IChatModel;
+}
+
+interface IChatInputWindowPendingCIFailure {
+	readonly kind: 'ciFailure';
+	readonly id: string;
+	readonly failure: IChatInputWindowCIFailure;
+	readonly provider: IChatInputWindowCIFailureProvider;
+}
+
+type ChatInputWindowPendingItem = IChatInputWindowPendingChat | IChatInputWindowPendingCIFailure;
 
 function getDescendantElements(parent: HTMLElement, className?: string): HTMLElement[] {
 	const result: HTMLElement[] = [];
@@ -110,6 +127,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _pendingPromptIndex = 0;
 	private _activePendingSessionResource: URI | undefined;
 	private readonly _dismissedPendingRequests = observableValue<ReadonlySet<string>>(this, new Set());
+	private readonly _ciFailureProviders = observableValue<readonly IChatInputWindowCIFailureProvider[]>(this, []);
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
 	private _row: HTMLElement | undefined;
@@ -140,6 +158,17 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	get hasFocus(): boolean {
 		return this._window?.window.document.hasFocus() ?? false;
+	}
+
+	registerCIFailureProvider(provider: IChatInputWindowCIFailureProvider): IDisposable {
+		this._ciFailureProviders.set([...this._ciFailureProviders.get(), provider], undefined);
+		return toDisposable(() => {
+			const providers = this._ciFailureProviders.get();
+			const index = providers.indexOf(provider);
+			if (index >= 0) {
+				this._ciFailureProviders.set(providers.filter(candidate => candidate !== provider), undefined);
+			}
+		});
 	}
 
 	constructor(
@@ -675,9 +704,46 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const approvalCommand = dom.append(approvalFallback, dom.$('code.chat-input-window-pending-approval-command'));
 		const approvalDisclaimer = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-disclaimer'));
 		const approvalActions = dom.append(approvalFallback, dom.$('.chat-input-window-pending-approval-actions'));
+		const ciFallback = dom.append(panel, dom.$('.chat-input-window-pending-ci-fallback'));
+		const ciTitle = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-title'));
+		const ciDetail = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-detail', { 'aria-live': 'polite' }));
+		const ciActions = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-actions'));
 		const approvalActionDisposables = this._windowDisposables.add(new MutableDisposable<DisposableStore>());
 		let lastActivatedApproval: string | undefined;
 		let displayedApproval: { readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined;
+		let displayedCIFailure: IChatInputWindowPendingCIFailure | undefined;
+		const fixCIButton = this._windowDisposables.add(new Button(ciActions, {
+			title: localize('chatInputWindow.pending.fixCITooltip', "Fix failing CI checks"),
+			...defaultButtonStyles,
+			small: true,
+			buttonBackground: asCssVariable(chartsOrange),
+			buttonHoverBackground: `color-mix(in srgb, ${asCssVariable(chartsOrange)} 88%, black)`,
+			buttonBorder: asCssVariable(chartsOrange),
+		}));
+		fixCIButton.label = localize('chatInputWindow.pending.fixCI', "Fix CI");
+		this._windowDisposables.add(fixCIButton.onDidClick(() => {
+			const entry = displayedCIFailure;
+			if (entry) {
+				entry.provider.fixCI(entry.failure.sessionResource);
+				this._widget?.focusInput();
+			}
+		}));
+		const renderCIFailure = (entry: IChatInputWindowPendingCIFailure | undefined) => {
+			displayedCIFailure = entry;
+			if (!entry) {
+				ciTitle.textContent = '';
+				ciDetail.textContent = '';
+				return;
+			}
+
+			ciTitle.textContent = localize('chatInputWindow.pending.ciTitle', "CI is failing for {0}", entry.failure.label);
+			ciDetail.textContent = localize(
+				'chatInputWindow.pending.ciDetail',
+				"{0} checks failed, {1} pending",
+				entry.failure.failed,
+				entry.failure.pending,
+			);
+		};
 		const renderApprovalFallback = (approval: typeof displayedApproval) => {
 			approvalActionDisposables.value = new DisposableStore();
 			approvalActions.replaceChildren();
@@ -795,18 +861,22 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		widget.setVisible(true);
 		const list = widget.transcriptDomNode;
 
-		let pendingModels: readonly IChatModel[] = [];
+		let pendingItems: readonly ChatInputWindowPendingItem[] = [];
 		let layingOut = false;
 		let lastPendingHeight: number | undefined;
 		let lastPendingWidth: number | undefined;
 		let confirmationWidgetLayoutHeight = 0;
-		let displayedResource: string | undefined;
+		let displayedItemId: string | undefined;
 		const layout = () => {
 			if (layingOut || !panel.classList.contains('shown')) {
 				return;
 			}
 			layingOut = true;
 			try {
+				if (displayedCIFailure) {
+					this._fitWindowToContent();
+					return;
+				}
 				for (const row of getDescendantElements(list, 'monaco-list-row')) {
 					const confirmations = getDescendantElements(row, 'chat-confirmation-widget-container');
 					const hasConfirmation = confirmations.length > 0;
@@ -892,32 +962,60 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const scheduleLayout = () => {
 			scheduledLayout.value = dom.scheduleAtNextAnimationFrame(auxiliaryWindow.window, layout);
 		};
-		const showPendingModel = (index: number) => {
-			if (pendingModels.length === 0) {
+		const showPendingItem = (index: number) => {
+			if (pendingItems.length === 0) {
 				this._pendingPromptIndex = 0;
 				lastPendingHeight = undefined;
 				lastPendingWidth = undefined;
 				confirmationWidgetLayoutHeight = 0;
-				displayedResource = undefined;
+				displayedItemId = undefined;
 				displayedApproval = undefined;
 				renderApprovalFallback(undefined);
+				renderCIFailure(undefined);
 				lastActivatedApproval = undefined;
 				this._activePendingSessionResource = undefined;
-				panel.classList.remove('shown', 'question', 'tool-approval-fallback');
+				panel.classList.remove('shown', 'question', 'tool-approval-fallback', 'ci-failure');
 				widget.setModel(undefined);
 				this._fitWindowToContent();
 				return;
 			}
-			this._pendingPromptIndex = (index + pendingModels.length) % pendingModels.length;
-			const model = pendingModels[this._pendingPromptIndex];
-			this._activePendingSessionResource = model.sessionResource;
-			const resource = model.sessionResource.toString();
-			if (displayedResource !== resource) {
-				displayedResource = resource;
+			this._pendingPromptIndex = (index + pendingItems.length) % pendingItems.length;
+			const item = pendingItems[this._pendingPromptIndex];
+			if (displayedItemId !== item.id) {
+				displayedItemId = item.id;
 				lastPendingHeight = undefined;
 				confirmationWidgetLayoutHeight = 0;
 			}
 			panel.classList.add('shown');
+
+			const hasMultiple = pendingItems.length > 1;
+			header.classList.toggle('hidden', !hasMultiple);
+			label.textContent = hasMultiple
+				? localize('chatInputWindow.pending.count', "Item {0} of {1}", this._pendingPromptIndex + 1, pendingItems.length)
+				: '';
+			navigation.classList.toggle('hidden', !hasMultiple);
+			for (const button of [previous, next]) {
+				button.classList.toggle('disabled', !hasMultiple);
+				button.setAttribute('aria-disabled', String(!hasMultiple));
+				button.tabIndex = hasMultiple ? 0 : -1;
+			}
+
+			if (item.kind === 'ciFailure') {
+				this._activePendingSessionResource = undefined;
+				displayedApproval = undefined;
+				renderApprovalFallback(undefined);
+				renderCIFailure(item);
+				panel.classList.remove('question', 'tool-approval-fallback');
+				panel.classList.add('ci-failure');
+				widget.setModel(undefined);
+				scheduleLayout();
+				return;
+			}
+
+			const model = item.model;
+			this._activePendingSessionResource = model.sessionResource;
+			renderCIFailure(undefined);
+			panel.classList.remove('ci-failure');
 			const hasPendingQuestion = this._hasPendingQuestion(model);
 			const pendingApproval = this._getPendingToolApproval(model);
 			displayedApproval = pendingApproval;
@@ -928,17 +1026,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			}
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
-			const hasMultiple = pendingModels.length > 1;
-			header.classList.toggle('hidden', !hasMultiple);
-			label.textContent = hasMultiple
-				? localize('chatInputWindow.pending.count', "Request {0} of {1}", this._pendingPromptIndex + 1, pendingModels.length)
-				: '';
-			navigation.classList.toggle('hidden', !hasMultiple);
-			for (const button of [previous, next]) {
-				button.classList.toggle('disabled', !hasMultiple);
-				button.setAttribute('aria-disabled', String(!hasMultiple));
-				button.tabIndex = hasMultiple ? 0 : -1;
-			}
 			widget.setModel(model);
 			if (pendingApproval && omniVoiceActive && pendingApproval.occurrence !== lastActivatedApproval) {
 				// The pending card is the most direct observation that this exact
@@ -952,8 +1039,8 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			scheduleLayout();
 		};
 
-		this._windowDisposables.add(dom.addDisposableListener(previous, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex - 1)));
-		this._windowDisposables.add(dom.addDisposableListener(next, dom.EventType.CLICK, () => showPendingModel(this._pendingPromptIndex + 1)));
+		this._windowDisposables.add(dom.addDisposableListener(previous, dom.EventType.CLICK, () => showPendingItem(this._pendingPromptIndex - 1)));
+		this._windowDisposables.add(dom.addDisposableListener(next, dom.EventType.CLICK, () => showPendingItem(this._pendingPromptIndex + 1)));
 		this._windowDisposables.add(widget.onDidChangeContentHeight(scheduleLayout));
 		const pendingMutationObserver = new auxiliaryWindow.window.MutationObserver(scheduleLayout);
 		pendingMutationObserver.observe(widget.domNode, { childList: true, subtree: true, attributes: true });
@@ -963,19 +1050,37 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(autorun(reader => {
 			this.voiceSessionController.omniInputActive.read(reader);
 			const dismissedPendingRequests = this._dismissedPendingRequests.read(reader);
-			const currentResource = pendingModels[this._pendingPromptIndex]?.sessionResource.toString();
+			const currentItemId = pendingItems[this._pendingPromptIndex]?.id;
 			const activeTarget = this.voiceSessionController.targetSession.read(reader)?.toString();
-			pendingModels = [...this.chatService.chatModels.read(reader)]
+			const pendingChats: IChatInputWindowPendingChat[] = [...this.chatService.chatModels.read(reader)]
 				.filter(model => !!model.requestNeedsInput.read(reader) && !this._hasOnlyResolvedPendingTools(model, reader))
 				.filter(model => !dismissedPendingRequests.has(this._pendingRequestKey(model.sessionResource, model.lastRequest?.id)))
 				.sort((a, b) =>
 					Number(b.sessionResource.toString() === activeTarget) - Number(a.sessionResource.toString() === activeTarget)
 					|| Number(this._hasPendingQuestion(b)) - Number(this._hasPendingQuestion(a))
-					|| b.lastMessageDate - a.lastMessageDate);
-			const preservedIndex = currentResource
-				? pendingModels.findIndex(model => model.sessionResource.toString() === currentResource)
+					|| b.lastMessageDate - a.lastMessageDate)
+				.map(model => ({
+					kind: 'chat',
+					id: `chat:${this._pendingRequestKey(model.sessionResource, model.lastRequest?.id)}`,
+					model,
+				}));
+			const ciFailures: IChatInputWindowPendingCIFailure[] = [];
+			for (const provider of this._ciFailureProviders.read(reader)) {
+				for (const failure of provider.failures.read(reader)) {
+					ciFailures.push({
+						kind: 'ciFailure',
+						id: `ci:${failure.sessionResource.toString()}:${failure.occurrenceId}`,
+						failure,
+						provider,
+					});
+				}
+			}
+			ciFailures.sort((a, b) => b.failure.updatedAt - a.failure.updatedAt);
+			pendingItems = [...pendingChats, ...ciFailures];
+			const preservedIndex = currentItemId
+				? pendingItems.findIndex(item => item.id === currentItemId)
 				: -1;
-			showPendingModel(preservedIndex >= 0 ? preservedIndex : Math.min(this._pendingPromptIndex, pendingModels.length - 1));
+			showPendingItem(preservedIndex >= 0 ? preservedIndex : Math.min(this._pendingPromptIndex, pendingItems.length - 1));
 		}));
 	}
 

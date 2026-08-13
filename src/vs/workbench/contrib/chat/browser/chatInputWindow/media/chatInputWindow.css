@@ -279,6 +279,34 @@
 	display: none;
 }
 
+.chat-input-window .chat-input-window-pending-ci-fallback {
+	display: none;
+	padding: 10px 16px 16px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.ci-failure .chat-input-window-pending-ci-fallback {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chat-input-window .chat-input-window-pending-panel.ci-failure .chat-input-window-pending-widget {
+	display: none;
+}
+
+.chat-input-window .chat-input-window-pending-ci-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-input-window .chat-input-window-pending-ci-detail {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-input-window .chat-input-window-pending-ci-actions {
+	display: flex;
+	align-items: center;
+}
+
 .chat-input-window .chat-input-window-pending-approval-title {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
