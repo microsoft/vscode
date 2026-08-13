@@ -1282,7 +1282,7 @@ export class ChatSessionRoutingController extends Disposable {
 			} else if (requestInProgress || sessionStatus === AgentSessionStatus.InProgress) {
 				observedActivity = true;
 				icon = Codicon.loading;
-				statusLabel = localize('chatSessionRouting.runningIn', "Running in {0}", sessionLabel);
+				statusLabel = localize('chatSessionRouting.inProgress', "{0} in progress", sessionLabel);
 			} else if (sessionStatus === AgentSessionStatus.Failed) {
 				observedActivity = true;
 				icon = Codicon.error;
@@ -1382,7 +1382,7 @@ export class ChatSessionRoutingController extends Disposable {
 				statusLabel = localize('chatSessionRouting.needsInputIn', "{0} needs your input", session.label);
 			} else if (session.status === 'working') {
 				icon = Codicon.loading;
-				statusLabel = localize('chatSessionRouting.runningIn', "Running in {0}", session.label);
+				statusLabel = localize('chatSessionRouting.inProgress', "{0} in progress", session.label);
 			} else if (session.status === 'failed') {
 				icon = Codicon.error;
 				statusLabel = localize('chatSessionRouting.failedIn', "Failed in {0}", session.label);
