@@ -38,7 +38,8 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number };
+	| { readonly path: string; readonly source: URI; readonly size: number }
+	| { readonly sourceArchive: URI };
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;

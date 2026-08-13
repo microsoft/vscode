@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, newWriteableBufferStream, streamToBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -11,9 +11,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId, AGENT_HOST_LOG_OUTPUT_CHANNEL_ID } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -24,6 +25,8 @@ import { createDecorator, ServicesAccessor } from '../../../../../platform/insta
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { JsonRpcErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -63,26 +66,81 @@ export type IAgentHostDebugLogFile =
 export interface IAgentHostDebugLogsExport {
 	readonly files: IAgentHostDebugLogFile[];
 	readonly exportName: string;
+	readonly hostArtifact?: IAgentHostDebugLogsHostArtifact;
+}
+
+/**
+ * A debug-log artifact produced by an agent host, paired with the means to read
+ * its bytes. For a remote host the artifact lives on the remote disk, so
+ * {@link readChunk} streams it over AHP in bounded slices instead of
+ * materializing the whole archive in one protocol message.
+ */
+export interface IAgentHostDebugLogsHostArtifact {
+	readonly artifact: IAgentHostDebugLogsArtifact;
+	/** Absent when the connected host predates chunked artifact reads. */
+	readonly readChunk?: (position: number) => Promise<IAgentHostDebugLogsChunk>;
 }
 
 export const IAgentHostDebugLogsExportService = createDecorator<IAgentHostDebugLogsExportService>('agentHostDebugLogsExportService');
 
 export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
-	save(exportName: string, files: readonly IAgentHostDebugLogFile[]): Promise<boolean>;
+	readonly hostArtifactKind: AgentHostDebugLogsArtifactKind;
+	save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
 	declare readonly _serviceBrand: undefined;
+	readonly hostArtifactKind = 'directory';
 
 	constructor(
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	async save(exportName: string, files: readonly IAgentHostDebugLogFile[]): Promise<boolean> {
-		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files);
+	async save(exportName: string, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined): Promise<boolean> {
+		return exportFilesToLocalFolder(this.fileDialogService, this.fileService, exportName, files, hostArtifact?.artifact);
 	}
+}
+
+/**
+ * Streams a host-owned artifact by repeatedly calling `readChunk`. The stream
+ * fails if the host overruns or underruns the size it declared, so a
+ * truncated or runaway transfer can never be silently zipped up.
+ */
+export function createHostArtifactStream(
+	artifact: IAgentHostDebugLogsArtifact,
+	readChunk: (position: number) => Promise<IAgentHostDebugLogsChunk>,
+): VSBufferReadableStream {
+	const stream = newWriteableBufferStream();
+	(async () => {
+		let position = 0;
+		while (true) {
+			const chunk = await readChunk(position);
+			const byteLength = chunk.data.byteLength;
+			if (byteLength > 0) {
+				position += byteLength;
+				if (position > artifact.size) {
+					throw new Error(`Agent Host debug log artifact exceeded its declared size of ${artifact.size} bytes`);
+				}
+				await stream.write(chunk.data);
+			}
+			if (chunk.eof) {
+				break;
+			}
+			if (byteLength === 0) {
+				throw new Error('Agent Host returned an empty debug log chunk before the end of the artifact');
+			}
+		}
+		if (position !== artifact.size) {
+			throw new Error(`Agent Host debug log artifact ended after ${position} bytes, expected ${artifact.size}`);
+		}
+		stream.end();
+	})().catch(error => {
+		stream.error(error instanceof Error ? error : new Error(String(error)));
+		stream.end();
+	});
+	return stream;
 }
 
 /**
@@ -98,9 +156,11 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 export async function collectAgentHostDebugLogs(
 	accessor: ServicesAccessor,
 	activeSession: IActiveAgentHostSessionForExport | undefined,
+	onDidCreateHostArtifact: (artifact: IAgentHostDebugLogsArtifact) => void,
 ): Promise<IAgentHostDebugLogsExport | undefined> {
 	const pathService = accessor.get(IPathService);
 	const agentHostService = accessor.get(IAgentHostService);
+	const agentHostConnectionsService = accessor.get(IAgentHostConnectionsService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const outputService = accessor.get(IOutputService);
 	const fileService = accessor.get(IFileService);
@@ -109,6 +169,26 @@ export async function collectAgentHostDebugLogs(
 	const productService = accessor.get(IProductService);
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
+	const exportService = accessor.get(IAgentHostDebugLogsExportService);
+
+	const sessionResolution = activeSession ? agentHostConnectionsService.resolveSessionResource(activeSession.resource) : undefined;
+	const connection = sessionResolution?.connection ?? (!activeSession ? agentHostConnectionsService.ambientConnection : undefined);
+	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
+	if (connection?.collectDebugLogs) {
+		try {
+			hostArtifact = await connection.collectDebugLogs(sessionResolution?.backendSession, exportService.hostArtifactKind);
+			onDidCreateHostArtifact(hostArtifact);
+		} catch (error) {
+			// Host-side collection is an optimization, never a hard requirement:
+			// fall back to client-side discovery so an export still produces the
+			// renderer/shared/AHP logs we own.
+			if (error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound) {
+				logService.info('[ExportAgentHostDebugLogs] Connected Agent Host does not support host-side log collection; using compatibility collection.');
+			} else {
+				logService.warn(`[ExportAgentHostDebugLogs] Host-side log collection failed; using compatibility collection: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+	}
 
 	const userHome = pathService.userHome({ preferLocal: true });
 
@@ -127,18 +207,25 @@ export async function collectAgentHostDebugLogs(
 
 	if (activeSession) {
 		if (activeSession.isLocal) {
-			// Agent host process logger (forwarded from the utility process)
-			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+			if (!hostArtifact) {
+				channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+			}
 			const localClientId = sanitizeFilePart(agentHostService.clientId);
 			ahpLogNameFilter = name => name.includes(localClientId);
 		} else {
 			remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
-			if (remoteConnection) {
+			if (!hostArtifact && remoteConnection) {
 				channelIds.add(remoteAgentHostLogOutputChannelId(remoteConnection.address));
+			}
+			if (remoteConnection) {
+				const remoteConnectionId = sanitizeFilePart(remoteConnection.address);
+				ahpLogNameFilter = name => name.includes(remoteConnectionId);
 			}
 		}
 	} else {
-		channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+		if (!hostArtifact) {
+			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+		}
 		for (const connection of remoteAgentHostService.connections) {
 			channelIds.add(remoteAgentHostLogOutputChannelId(connection.address));
 		}
@@ -151,7 +238,7 @@ export async function collectAgentHostDebugLogs(
 	const files: IAgentHostDebugLogFile[] = [];
 
 	// 1. events.jsonl
-	if (eventsResult.kind === 'ok') {
+	if (!hostArtifact?.providerLogsIncluded && eventsResult.kind === 'ok') {
 		try {
 			files.push(await createDebugLogFile('events.jsonl', eventsResult.resource, fileService));
 		} catch {
@@ -197,7 +284,7 @@ export async function collectAgentHostDebugLogs(
 	// 4. For remote agent hosts, also download the agenthost.log file directly from
 	// the remote machine. The CLI launches the server with its default data dir,
 	// which lives at `<home>/<serverDataFolderName>/data/logs/<datestamp>/agenthost.log`.
-	if (remoteConnection?.defaultDirectory) {
+	if (!hostArtifact && remoteConnection?.defaultDirectory) {
 		try {
 			const remoteLog = await readRemoteAgentHostLog(remoteConnection, productService.serverDataFolderName, fileService);
 			if (remoteLog) {
@@ -217,7 +304,7 @@ export async function collectAgentHostDebugLogs(
 				: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined
 			: undefined
 		: buildLocalCopilotLogsUri(userHome);
-	if (copilotLogsDir) {
+	if (!hostArtifact?.providerLogsIncluded && copilotLogsDir) {
 		const copilotLogFiles = await findRelevantCopilotLogs(copilotLogsDir, rawSessionId, fileService, logService);
 		for (const file of copilotLogFiles) {
 			try {
@@ -247,7 +334,7 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
-	if (files.length === 0) {
+	if (files.length === 0 && !hostArtifact) {
 		notificationService.notify({
 			severity: Severity.Warning,
 			message: activeSession
@@ -260,7 +347,33 @@ export async function collectAgentHostDebugLogs(
 	const titleSlug = activeSession?.title
 		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
 		: '';
-	return { files, exportName: `ah-logs${titleSlug}` };
+	return {
+		files,
+		exportName: `ah-logs${titleSlug}`,
+		hostArtifact: hostArtifact && connection
+			? { artifact: hostArtifact, readChunk: createChunkReader(connection, hostArtifact.resource) }
+			: undefined,
+	};
+}
+
+/**
+ * Binds a connection's chunked artifact read to one artifact. Returns
+ * `undefined` for hosts that do not implement it, so the caller can fall back
+ * to reading the artifact through the agent-host filesystem provider.
+ */
+function createChunkReader(
+	connection: IAgentConnection,
+	resource: URI,
+): ((position: number) => Promise<IAgentHostDebugLogsChunk>) | undefined {
+	if (!connection.readDebugLogsChunk) {
+		return undefined;
+	}
+	return position => {
+		if (!connection.readDebugLogsChunk) {
+			throw new Error('Agent Host does not support streaming debug log artifacts');
+		}
+		return connection.readDebugLogsChunk(resource, position);
+	};
 }
 
 export async function exportAgentHostDebugLogs(
@@ -270,22 +383,40 @@ export async function exportAgentHostDebugLogs(
 	const exportService = accessor.get(IAgentHostDebugLogsExportService);
 	const notificationService = accessor.get(INotificationService);
 	const chatEntitlementService = accessor.get(IChatEntitlementService);
-	const logs = await collectAgentHostDebugLogs(accessor, activeSession);
-	if (!logs) {
-		return;
-	}
+	const fileService = accessor.get(IFileService);
+	const logService = accessor.get(ILogService);
+	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
 	try {
-		const saved = await exportService.save(logs.exportName, logs.files);
-		if (saved) {
-			notificationService.warn(chatEntitlementService.isInternal
-				? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
-				: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
+		const logs = await collectAgentHostDebugLogs(accessor, activeSession, artifact => hostArtifact = artifact);
+		if (!logs) {
+			return;
+		}
+		try {
+			const saved = await exportService.save(logs.exportName, logs.files, logs.hostArtifact);
+			if (saved) {
+				notificationService.warn(chatEntitlementService.isInternal
+					? localize('exportDebugLogs.privacyWarning.internal', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. It MUST be shared privately via Slack or in an issue filed on the microsoft/vscode-internalbacklog repo.")
+					: localize('exportDebugLogs.privacyWarning', "Note: This log may contain personal information such as auth tokens, file contents, or terminal output. Please consider sharing privately or reviewing the contents carefully before sharing."));
+			}
+		} catch (error) {
+			notificationService.notify({
+				severity: Severity.Error,
+				message: localize('exportDebugLogs.saveError', "Failed to save debug logs: {0}", error instanceof Error ? error.message : String(error)),
+			});
 		}
 	} catch (error) {
 		notificationService.notify({
 			severity: Severity.Error,
-			message: localize('exportDebugLogs.saveError', "Failed to save debug logs: {0}", error instanceof Error ? error.message : String(error)),
+			message: localize('exportDebugLogs.collectError', "Failed to collect debug logs: {0}", error instanceof Error ? error.message : String(error)),
 		});
+	} finally {
+		if (hostArtifact) {
+			try {
+				await fileService.del(hostArtifact.resource, { recursive: hostArtifact.kind === 'directory' });
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to delete temporary Agent Host log artifact: ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
 	}
 }
 
@@ -342,6 +473,7 @@ async function exportFilesToLocalFolder(
 	fileService: IFileService,
 	exportName: string,
 	files: readonly IAgentHostDebugLogFile[],
+	hostArtifact: IAgentHostDebugLogsArtifact | undefined,
 ): Promise<boolean> {
 	const folders = await fileDialogService.showOpenDialog({
 		title: localize('exportDebugLogs.folderDialogTitle', "Select Folder for Agent Host Debug Logs"),
@@ -358,6 +490,15 @@ async function exportFilesToLocalFolder(
 
 	const exportFolder = joinPath(parentFolder, exportName);
 	await fileService.createFolder(exportFolder);
+	if (hostArtifact) {
+		if (hostArtifact.kind !== 'directory') {
+			throw new Error(`Expected an Agent Host debug-log directory, got ${hostArtifact.kind}`);
+		}
+		const hostFolder = await fileService.resolve(hostArtifact.resource);
+		for (const child of hostFolder.children ?? []) {
+			await fileService.copy(child.resource, joinPath(exportFolder, child.name), true);
+		}
+	}
 	for (const file of files) {
 		const segments = toSafeRelativePathSegments(file.path);
 		if (segments.length === 0) {

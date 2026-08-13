@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { IAgentCreateChatOptions, IAgentCreateSessionConfig } from '../common/agent.js';
-import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
+import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 
 export class AgentHostManagementService implements IAgentHostManagementService {
 	declare readonly _serviceBrand: undefined;
@@ -37,6 +37,20 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
 		return this._agentService.diagnosticsFetch(url);
+	}
+
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+		if (!this._agentService.collectDebugLogs) {
+			throw new Error('Agent Host debug log collection is unavailable');
+		}
+		return this._agentService.collectDebugLogs(session, kind);
+	}
+
+	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
+		if (!this._agentService.readDebugLogsChunk) {
+			throw new Error('Agent Host debug log collection is unavailable');
+		}
+		return this._agentService.readDebugLogsChunk(resource, position);
 	}
 
 	startWebSocketServer(): Promise<IAgentHostSocketInfo> {

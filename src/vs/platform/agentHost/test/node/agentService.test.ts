@@ -50,7 +50,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { INetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
@@ -901,6 +901,17 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('resourceRead', () => {
+
+		test('returns binary resources as Base64 when requested', async () => {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: '/logs.zip' });
+			await fileService.writeFile(uri, VSBuffer.wrap(Uint8Array.from([80, 75, 0, 1, 255])));
+
+			assert.deepStrictEqual(await service.resourceRead(uri, ContentEncoding.Base64), {
+				data: 'UEsAAf8=',
+				encoding: ContentEncoding.Base64,
+				contentType: 'application/octet-stream',
+			});
+		});
 
 		test('maps missing files to NotFound', async () => {
 			const uri = URI.from({ scheme: Schemas.inMemory, path: '/missing.txt' });

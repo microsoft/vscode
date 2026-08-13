@@ -20,7 +20,7 @@ import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePe
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
-import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -1150,6 +1150,58 @@ suite('RemoteAgentHostProtocolClient', () => {
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error: { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' } });
 
 		await assertRemoteProtocolError(resultPromise, { code: AhpErrorCodes.TurnInProgress, message: 'Turn in progress' });
+	});
+
+	test('collectDebugLogs maps the returned host resource', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('copilotcli:/session-1');
+		const resultPromise = client.collectDebugLogs(session, 'archive');
+
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'vscode/collectAgentHostDebugLogs',
+			params: { session: session.toString(), kind: 'archive' },
+		});
+
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/agent-host-debug.zip', providerLogsIncluded: true, size: 1024, uncompressedSize: 2048 },
+		});
+		const result = await resultPromise;
+		assert.deepStrictEqual({
+			kind: result.kind,
+			providerLogsIncluded: result.providerLogsIncluded,
+			size: result.size,
+			uncompressedSize: result.uncompressedSize,
+			scheme: result.resource.scheme,
+			authority: result.resource.authority,
+			path: result.resource.path,
+		}, {
+			kind: 'archive',
+			providerLogsIncluded: true,
+			size: 1024,
+			uncompressedSize: 2048,
+			scheme: 'vscode-agent-host',
+			authority: 'test.example__1234',
+			path: '/tmp/agent-host-debug.zip',
+		});
+	});
+
+	test('collectDebugLogs rejects a non-file host resource', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.collectDebugLogs(URI.parse('copilotcli:/session-1'), 'archive');
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 1,
+			result: { kind: 'archive', resource: 'vscode-userdata:/User/settings.json', providerLogsIncluded: true, size: 10, uncompressedSize: 10 },
+		});
+
+		await assertRemoteProtocolError(resultPromise, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'Agent Host returned a non-file debug log resource: vscode-userdata:/User/settings.json',
+		});
 	});
 
 	test('ping sends a JSON-RPC request and resolves on response', async () => {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, McpServersLoadedServer, MessageOptions, PermissionAllowAllMode, PermissionAutoApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { cp, rm } from 'fs/promises';
 import { raceCancellation, RunOnceScheduler, Sequencer, SequencerByKey, Throttler } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -743,6 +744,25 @@ export class CopilotAgentSession extends Disposable {
 	get chatUri(): URI { return this._chatChannelUri; }
 	get currentTurnId(): string | undefined { return this._currentTurn?.id; }
 	get currentTurnClientType(): AgentHostClientType { return this._currentTurn?.clientType ?? AgentHostClientType.Unknown; }
+
+	async collectDebugLogs(outputDirectory: URI, includeSessionLogs: boolean): Promise<void> {
+		const result = await this._wrapper.session.rpc.debug.collectLogs({
+			destination: { kind: 'directory', outputDirectory: outputDirectory.fsPath },
+			include: {
+				events: includeSessionLogs,
+				processLogs: true,
+				shellLogs: includeSessionLogs,
+			},
+		});
+		if (result.kind !== 'directory' || result.path === outputDirectory.fsPath) {
+			return;
+		}
+		try {
+			await cp(result.path, outputDirectory.fsPath, { recursive: true });
+		} finally {
+			await rm(result.path, { recursive: true, force: true });
+		}
+	}
 	/**
 	 * Last model id seen on the SDK's per-LLM-call `Usage` event (or a
 	 * direct {@link setModel} call). We rely on the

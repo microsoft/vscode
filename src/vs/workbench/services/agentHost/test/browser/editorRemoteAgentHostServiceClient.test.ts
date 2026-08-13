@@ -15,6 +15,7 @@ import { IAgentHostEnablementService } from '../../../../../platform/agentHost/c
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -22,6 +23,7 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
+import { IAgentHostFileSystemService } from '../../common/agentHostFileSystemService.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remote/common/remoteAgentService.js';
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -100,11 +102,20 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			},
 			dispose: () => { },
 		};
+		const registeredAuthorities: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: (authority: string) => {
+					registeredAuthorities.push(authority);
+					return Disposable.None;
+				},
+				ensureSyncedCustomizationProvider: () => { },
+			}],
 		)));
 		instantiationService.stubInstance(RemoteAgentHostProtocolClient, protocolClient);
 		instantiationService.set(IInstantiationService, instantiationService);
@@ -122,10 +133,12 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			beforeReady,
 			afterReady: connectCalls,
 			clientInfo: protocolClientCall?.args[5],
+			registeredAuthorities,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
+			registeredAuthorities: [agentHostAuthority('vscode-remote://ssh-remote+test')],
 		});
 	});
 });

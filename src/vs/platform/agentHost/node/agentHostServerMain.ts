@@ -261,7 +261,10 @@ async function main(): Promise<void> {
 	diServices.set(IAgentHostGitService, gitService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], AgentHostLaunchKind.VSCodeCLI);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService, fileMonitorService, undefined, fetchFn, [createCodexProviderConfiguration(environmentService.userHome)], AgentHostLaunchKind.VSCodeCLI, undefined, {
+		logsHome: environmentService.logsHome,
+		tmpDir: environmentService.tmpDir,
+	});
 	disposables.add(agentService);
 	diServices.set(IAgentService, agentService);
 	diServices.set(IAgentHostStateManager, agentService.stateManager);

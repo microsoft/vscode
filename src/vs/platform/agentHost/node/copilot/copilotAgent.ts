@@ -2004,6 +2004,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
+	async collectDebugLogs(session: URI | undefined, outputDirectory: URI): Promise<boolean> {
+		const liveSessions = this._allLiveSessions();
+		const target = session ? this._findSessionChat(session) : liveSessions[0];
+		if (target) {
+			await target.collectDebugLogs(outputDirectory, session !== undefined);
+			return true;
+		}
+
+		return false;
+	}
+
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const session = resolveAgentChatContext(context, chat).configurationResource;
 		const sessionId = providerData ? decodeProviderData(providerData)?.sdkSessionId : AgentSession.id(session);
