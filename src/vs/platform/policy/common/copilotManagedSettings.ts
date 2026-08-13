@@ -73,12 +73,23 @@ export const COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG = 'chat.mcp.allowMana
 export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG = 'chat.hooks.allowManagedOnly';
 
 /**
- * Managed-settings key for the default chat model (carried as a plain string: `auto`, a model
- * family name, or a full model id). Nested under `permissions` in the managed-settings schema
+ * Legacy managed-settings key for the default chat model (carried as a plain string: `auto`, a
+ * model family name, or a full model id). Nested under `permissions` in the managed-settings schema
  * (alongside {@link COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY}), so it flattens to the dot-path
- * `permissions.model` in the normalized bag — the key policy `value()` callbacks must read.
+ * `permissions.model` in the normalized bag. Retained for deployments authored against the original
+ * schema; new deployments use the top-level {@link COPILOT_TOP_LEVEL_MODEL_KEY}, which wins when
+ * both are present. See {@link managedModelValue} for the precedence.
  */
 export const COPILOT_MODEL_KEY = 'permissions.model';
+
+/**
+ * Top-level managed-settings key for the default chat model (carried as a plain string: `auto`, a
+ * model family name, or a full model id). This is the canonical location in the current
+ * managed-settings schema; it flattens to the bag key `model`. It supersedes the legacy nested
+ * {@link COPILOT_MODEL_KEY} — when both are present the top-level value wins (see
+ * {@link managedModelValue}).
+ */
+export const COPILOT_TOP_LEVEL_MODEL_KEY = 'model';
 
 /**
  * Enterprise OTel managed-settings keys. These are the scalar leaves of the canonical
@@ -150,23 +161,36 @@ export function shouldForceRemoteSettingsRefresh(nativeMdm: ManagedSettingsData 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
 
 /**
- * `value` callback for the default-chat-model managed setting ({@link COPILOT_MODEL_KEY}). Like
- * {@link managedSettingValue} it locks the setting to the managed value and otherwise falls through
- * to the user's own value, but it additionally trims the string and treats a blank/whitespace-only
- * value as "unset" (returns `undefined`) — an admin clearing the field must not lock the setting to
- * an empty string. The model-specific normalization lives here, alongside the other managed-settings
- * handling, rather than inline at the policy declaration, so every managed-settings control is wired
- * the same way.
+ * Trim a managed-settings model value, treating a blank/whitespace-only string as "unset". An admin
+ * clearing the field must not lock the setting to an empty string, and a blank top-level value must
+ * fall through to the legacy key rather than mask it.
+ */
+function normalizeModelValue(value: ManagedSettingValue | undefined): string | undefined {
+	const trimmed = typeof value === 'string' ? value.trim() : undefined;
+	return trimmed ? trimmed : undefined;
+}
+
+/**
+ * `value` callback for the default-chat-model managed setting. Resolves the top-level
+ * {@link COPILOT_TOP_LEVEL_MODEL_KEY} first and falls back to the legacy nested
+ * {@link COPILOT_MODEL_KEY} — so a deployment on either schema shape works, and when both are
+ * present the top-level value wins. Like {@link managedSettingValue} it locks the setting to the
+ * managed value and otherwise falls through to the user's own value, but it additionally trims each
+ * candidate and treats a blank/whitespace-only value as "unset" (an admin clearing the top-level
+ * field falls through to the legacy key, and clearing both returns `undefined`). This precedence is
+ * key-level: a non-empty top-level `model` wins even when the legacy key was supplied by a
+ * higher-precedence delivery channel. The model-specific normalization lives here, alongside the
+ * other managed-settings handling, rather than inline at the policy declaration, so every
+ * managed-settings control is wired the same way.
  *
- * Memoized (single key) so repeated calls return the SAME function reference, matching the
+ * Memoized (single callback) so repeated calls return the SAME function reference, matching the
  * reference-identity contract {@link managedSettingValue} relies on for `isSamePolicyDefinition`.
  */
 export function managedModelValue(): (policyData: IPolicyData) => ManagedSettingValue | undefined {
 	if (!managedModelValueCallback) {
 		managedModelValueCallback = policyData => {
-			const model = policyData.managedSettings?.[COPILOT_MODEL_KEY];
-			const trimmed = typeof model === 'string' ? model.trim() : undefined;
-			return trimmed ? trimmed : undefined;
+			const topLevel = normalizeModelValue(policyData.managedSettings?.[COPILOT_TOP_LEVEL_MODEL_KEY]);
+			return topLevel ?? normalizeModelValue(policyData.managedSettings?.[COPILOT_MODEL_KEY]);
 		};
 	}
 	return managedModelValueCallback;
