@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../common/event.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { isEqual } from '../../../../common/resources.js';
 import { URI } from '../../../../common/uri.js';
-import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, IStructuredCloneMessage, IStructuredCloneMessagePassingProtocol, ProxyChannel, serialize } from '../../common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
@@ -53,6 +53,52 @@ class QueueProtocol implements IMessagePassingProtocol {
 function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol] {
 	const one = new QueueProtocol();
 	const other = new QueueProtocol();
+	one.other = other;
+	other.other = one;
+
+	return [one, other];
+}
+
+class StructuredCloneQueueProtocol implements IStructuredCloneMessagePassingProtocol {
+
+	readonly type = 'structuredClone';
+	private buffering = true;
+	private messages: IStructuredCloneMessage[] = [];
+	private readonly _onMessage = new Emitter<IStructuredCloneMessage>({
+		onDidAddFirstListener: () => {
+			for (const message of this.messages) {
+				this._onMessage.fire(message);
+			}
+
+			this.messages = [];
+			this.buffering = false;
+		},
+		onDidRemoveLastListener: () => {
+			this.buffering = true;
+		}
+	});
+
+	readonly onMessage = this._onMessage.event;
+	other!: StructuredCloneQueueProtocol;
+	lastSent: IStructuredCloneMessage | undefined;
+
+	send(message: IStructuredCloneMessage): void {
+		this.lastSent = message;
+		this.other.receive(structuredClone(message));
+	}
+
+	private receive(message: IStructuredCloneMessage): void {
+		if (this.buffering) {
+			this.messages.push(message);
+		} else {
+			this._onMessage.fire(message);
+		}
+	}
+}
+
+function createStructuredCloneProtocolPair(): [StructuredCloneQueueProtocol, StructuredCloneQueueProtocol] {
+	const one = new StructuredCloneQueueProtocol();
+	const other = new StructuredCloneQueueProtocol();
 	one.other = other;
 	other.other = one;
 
@@ -240,6 +286,45 @@ suite('Base IPC', function () {
 		assert.strictEqual(b3, b4);
 	});
 
+	test('structured clone protocol sends plain envelopes without pre-processing data', async function () {
+		const [clientProtocol, serverProtocol] = createStructuredCloneProtocolPair();
+		const channelDisposables = store.add(new DisposableStore());
+		const server = store.add(new ChannelServer(serverProtocol, 'ctx'));
+		server.registerChannel('echo', ProxyChannel.fromService({
+			echo: (value: unknown) => value
+		}, channelDisposables));
+		const client = store.add(new ChannelClient(clientProtocol));
+		const service = ProxyChannel.toService<{ echo(value: unknown): Promise<unknown> }>(client.getChannel('echo'));
+		const cycle: { value: string; self?: unknown } = { value: 'cycle' };
+		cycle.self = cycle;
+		const input = {
+			regexp: /structured/gi,
+			bytes: Uint8Array.from([1, 2, 3]),
+			map: new Map([['answer', 42]]),
+			cycle
+		};
+
+		const result = await service.echo(input) as typeof input;
+
+		assert.deepStrictEqual({
+			headerIsArray: Array.isArray(clientProtocol.lastSent?.header),
+			messageIsBuffer: clientProtocol.lastSent instanceof VSBuffer,
+			regexp: result.regexp.toString(),
+			bytesIsUint8Array: result.bytes instanceof Uint8Array,
+			bytes: [...result.bytes],
+			map: result.map.get('answer'),
+			cycle: result.cycle.self === result.cycle
+		}, {
+			headerIsArray: true,
+			messageIsBuffer: false,
+			regexp: '/structured/gi',
+			bytesIsUint8Array: true,
+			bytes: [1, 2, 3],
+			map: 42,
+			cycle: true
+		});
+	});
+
 	suite('one to one', function () {
 		let server: IPCServer;
 		let client: IPCClient;
@@ -382,6 +467,16 @@ suite('Base IPC', function () {
 			const writer = new BufferWriter();
 			serialize(writer, input);
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
+
+		test('round trips Uint8Array values over buffer protocols', () => {
+			const input = [Uint8Array.from([1, 2, 3])];
+			const writer = new BufferWriter();
+			serialize(writer, input);
+
+			const result = deserialize(new BufferReader(writer.buffer));
+			assert.ok(result[0] instanceof Uint8Array);
+			assert.deepStrictEqual([...result[0]], [1, 2, 3]);
 		});
 
 		test('BufferWriter releases its buffers on dispose', () => {
