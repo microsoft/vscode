@@ -42,8 +42,8 @@ export class MarketplaceAuthRequiredError extends Error {
 
 /**
  * Thrown when the Private Marketplace deployment is misconfigured for the effective auth
- * provider (e.g. a non-HTTPS service index under Entra auth, or a manifest that advertises no
- * EligibilityService). Distinct from {@link MarketplaceAuthRequiredError} and transient failures
+ * provider (e.g. a non-HTTPS service index under Entra auth, so the Microsoft token cannot be
+ * safely transmitted). Distinct from {@link MarketplaceAuthRequiredError} and transient failures
  * so the validator can surface a durable "misconfigured" status rather than a sign-in prompt or
  * an "unreachable" flash.
  */
@@ -67,9 +67,9 @@ export function getEffectiveAuthProvider(configuredProvider: string | undefined,
 /**
  * Guards bearer-token transport. A token must only ever be attached to a request whose target is
  * (a) HTTPS and (b) same-origin as the admin-configured service index URL. This prevents a
- * compromised or misconfigured gallery manifest from redirecting a resource URL (e.g. the
- * EligibilityService) at a foreign or cleartext endpoint and exfiltrating the token. Returns false
- * on any parse failure so callers fail closed.
+ * compromised or misconfigured gallery manifest from redirecting a resource URL at a foreign or
+ * cleartext endpoint and exfiltrating the token. Returns false on any parse failure so callers
+ * fail closed.
  */
 export function isSafeTokenTarget(targetUrl: string, baseUrl: string): boolean {
 	let target: URI;

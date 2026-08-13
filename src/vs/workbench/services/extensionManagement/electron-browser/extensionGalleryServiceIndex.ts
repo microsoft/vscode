@@ -132,10 +132,9 @@ export class ExtensionGalleryServiceIndexService {
 			if (!Array.isArray(extensionGalleryManifest.resources)) {
 				// A 200 whose body is valid JSON but not a service index (e.g. a server error
 				// object, or an HTML/JSON captive-portal page) must not be treated as a
-				// manifest — `resources` is required to discover gallery endpoints (including
-				// the EligibilityService). Reject here so callers classify it as a failed
-				// fetch, rather than letting resource-URI discovery throw on a non-iterable
-				// `resources` outside this try/catch.
+				// manifest — `resources` is required to discover gallery endpoints. Reject here
+				// so callers classify it as a failed fetch, rather than letting resource-URI
+				// discovery throw on a non-iterable `resources` outside this try/catch.
 				throw new Error('Service index response is not a valid extension gallery manifest.');
 			}
 

@@ -7,17 +7,17 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getClaimsFromJWT } from '../../../../base/common/oauth.js';
 import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryMicrosoftSignInCommandId, ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryMicrosoftSignInCommandId, IExtensionGalleryManifest, PRIVATE_MARKETPLACE_SCOPES } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../authentication/common/authentication.js';
@@ -40,14 +40,13 @@ const CACHED_ACCESS_KEY = 'marketplace.cachedAccess';
 const PREFERRED_ACCOUNT_KEY = 'marketplace.account';
 
 /**
- * The eligibility endpoint's JSON response. Only `eligible` is authoritative; `reason` is diagnostic
- * and deliberately never persisted (it could carry account/tenant text) — see {@link ExtensionGalleryAccountService.getMicrosoftAccount}.
+ * Well-known Microsoft Account (MSA) tenant ids. Mirrors the account classification in
+ * `extensions/microsoft-authentication/src/node/authProvider.ts`: a token whose `tid` claim is one
+ * of these belongs to a personal Microsoft Account, not a work/school (Entra ID) tenant. Duplicated
+ * here because that constant lives in the extension host and is not importable from the workbench.
  */
-interface IEligibilityResponse {
-	readonly accountType?: 'Entra' | 'MSA';
-	readonly eligible?: boolean;
-	readonly reason?: string;
-}
+const MSA_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+const MSA_PASSTHROUGH_TENANT_ID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
 type MarketplaceAuthEvent = {
 	authProvider: string;
@@ -159,7 +158,6 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IRequestService private readonly requestService: IRequestService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -177,14 +175,16 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 	}
 
 	/**
-	 * Resolves the current account's access verdict for `configuredServiceUrl` via a live eligibility
-	 * check. Returns `undefined` (sign-in required), `{ eligible: false }` (durable denial), or
-	 * `{ eligible: true, manifest }` (granted). Throws {@link MarketplaceMisconfiguredError} for a
-	 * misconfigured deployment, and rethrows transient/network errors so the host can preserve an
-	 * already-available marketplace instead of downgrading it.
+	 * Resolves the current account's access verdict for `configuredServiceUrl`. Returns `undefined`
+	 * (sign-in required), `{ eligible: false }` (durable denial), or `{ eligible: true, manifest }`
+	 * (granted). Eligibility is decided locally — from the account's entitlements (GitHub) or the
+	 * ID-token tenant claim (Microsoft) — and the granted path then fetches the gallery index. Throws
+	 * {@link MarketplaceMisconfiguredError} for a misconfigured deployment, and rethrows
+	 * transient/network errors so the host can preserve an already-available marketplace instead of
+	 * downgrading it.
 	 *
-	 * Contrast with {@link resolveCurrentAccount}: this is the heavier public verdict (may perform an
-	 * eligibility network round-trip), whereas `resolveCurrentAccount` only answers *who* the current
+	 * Contrast with {@link resolveCurrentAccount}: this is the heavier public verdict (fetches the
+	 * index on the granted path), whereas `resolveCurrentAccount` only answers *who* the current
 	 * account is (identity + token) for cache validation and never checks eligibility.
 	 */
 	getAccount(configuredServiceUrl: string, token: CancellationToken): Promise<IExtensionGalleryAccount | undefined> {
@@ -246,6 +246,15 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return undefined;
 		}
 
+		// Client-side eligibility: a work/school (Entra) tenant is eligible; a personal Microsoft
+		// Account (MSA) is not. Decided locally from the token's tenant claim — mirroring the GitHub
+		// path, which also gates locally — and BEFORE any index fetch, so an ineligible account never
+		// touches the (possibly auth-gated) index.
+		if (!this.isEntraEligible(session)) {
+			this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: false, serviceUrl: configuredServiceUrl });
+			return { eligible: false };
+		}
+
 		if (!isSafeTokenTarget(configuredServiceUrl, configuredServiceUrl)) {
 			// Won't attach a bearer to a non-HTTPS index. Without a token a gated index is unreadable,
 			// so this deployment is misconfigured for Entra auth.
@@ -268,39 +277,10 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 			return undefined;
 		}
 
-		const eligibilityUrl = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.EligibilityService);
-		if (!eligibilityUrl) {
-			// Manifest fetched but advertises no EligibilityService — misconfigured for Entra.
-			this.logService.error('[Marketplace] authProvider is "microsoft" but the gallery manifest does not advertise an EligibilityService resource — the marketplace is misconfigured for Entra auth.');
-			this.clearCache();
-			throw new MarketplaceMisconfiguredError('The gallery manifest does not advertise an EligibilityService.');
-		}
-		if (!isSafeTokenTarget(eligibilityUrl, configuredServiceUrl)) {
-			// Eligibility endpoint is not same-origin HTTPS with the index — sending the token there
-			// would risk leaking it to a foreign/cleartext origin.
-			this.logService.error('[Marketplace] The EligibilityService URL is not same-origin HTTPS with the configured service index — refusing to transmit the Microsoft token. The marketplace is misconfigured for Entra auth.');
-			this.clearCache();
-			throw new MarketplaceMisconfiguredError('The EligibilityService URL is not same-origin HTTPS with the service index.');
-		}
-
-		let result: { eligible: boolean; reason?: string };
-		try {
-			result = await this.checkMicrosoftEligibility(eligibilityUrl, session.accessToken, token);
-		} catch (error) {
-			if (error instanceof MarketplaceAuthRequiredError) {
-				return this.denyFromAuthError(error, session, configuredServiceUrl, token);
-			}
-			// Not a definitive verdict — propagate so the host surfaces "unreachable" and never caches.
-			throw error;
-		}
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
-		// A 200 is definitive — cache it. The server `reason` is NOT persisted: unused for any
-		// UI/gating decision and could carry account/tenant diagnostic text.
-		this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: result.eligible, serviceUrl: configuredServiceUrl });
-		return { eligible: result.eligible, manifest };
+		// The account is eligible (checked above) and the index was fetched with its token — cache the
+		// durable allow so later windows render `Available` without re-validating.
+		this.cacheAccess({ authProvider: 'microsoft', accountId: session.account.id, eligible: true, serviceUrl: configuredServiceUrl });
+		return { eligible: true, manifest };
 	}
 
 	/**
@@ -325,40 +305,30 @@ export class ExtensionGalleryAccountService extends Disposable implements IExten
 		return { eligible: false };
 	}
 
-	private async checkMicrosoftEligibility(url: string, token: string, cancellationToken: CancellationToken): Promise<{ eligible: boolean; reason?: string }> {
-		const context = await this.requestService.request({
-			type: 'POST',
-			url,
-			headers: {
-				'Authorization': `Bearer ${token}`,
-				'Content-Type': 'application/json',
-			},
-			callSite: 'extensionGalleryManifestService.checkMicrosoftEligibility',
-			// A bearer is attached, so never follow redirects: the request service would forward the
-			// Authorization header to the (possibly cross-origin) target and leak the token. A 3xx is
-			// treated as a non-200 error below.
-			followRedirects: 0,
-		}, cancellationToken);
-
-		if (context.res.statusCode !== 200) {
-			if (context.res.statusCode === 401 || context.res.statusCode === 403) {
-				// Surface the status so the caller can distinguish 401 (token missing/expired/wrong-
-				// audience — re-auth may fix it) from 403 (identity forbidden — durable denial),
-				// mirroring the service-index fetch classification.
-				throw new MarketplaceAuthRequiredError(context.res.statusCode);
-			}
-			// Any other non-200 is not a definitive result — generic error so callers treat it as
-			// transient and don't cache it.
-			throw new Error(`Eligibility endpoint returned status ${context.res.statusCode}`);
+	/**
+	 * Client-side eligibility for the Microsoft (Entra ID) path. A work/school (Entra) tenant is
+	 * eligible; a personal Microsoft Account (MSA) is not. The decision is read locally from the
+	 * account's ID token `tid` (tenant) claim — no network call — mirroring the GitHub path's local
+	 * gate.
+	 *
+	 * The ID token is preferred (it carries `tid` for Entra sign-ins); the access token is a fallback.
+	 * A token that cannot be decoded, or that carries no `tid`, is treated as ineligible so an
+	 * undecodable/opaque token can never wrongly grant access.
+	 */
+	private isEntraEligible(session: AuthenticationSession): boolean {
+		const rawToken = session.idToken ?? session.accessToken;
+		let tid: string | undefined;
+		try {
+			tid = getClaimsFromJWT(rawToken).tid;
+		} catch (error) {
+			this.logService.error('[Marketplace] Unable to decode the Microsoft token to determine account eligibility — treating as ineligible.', error);
+			return false;
 		}
-
-		const response = await asJson<IEligibilityResponse>(context);
-		if (!response || typeof response.eligible !== 'boolean') {
-			// A 200 with a missing/non-boolean `eligible` is server contract drift — must not be
-			// coerced into a durable allow/deny. Throw so the caller treats it as transient.
-			throw new Error('Eligibility endpoint returned a malformed response');
+		if (!tid) {
+			// No tenant claim → cannot confirm a work/school account. Deny rather than guess.
+			return false;
 		}
-		return { eligible: response.eligible, reason: response.reason };
+		return tid !== MSA_TENANT_ID && tid !== MSA_PASSTHROUGH_TENANT_ID;
 	}
 
 	/**

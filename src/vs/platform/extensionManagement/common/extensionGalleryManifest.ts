@@ -24,7 +24,6 @@ export const enum ExtensionGalleryResourceType {
 	ExtensionRatingViewUri = 'ExtensionRatingViewUriTemplate',
 	ExtensionResourceUri = 'ExtensionResourceUriTemplate',
 	ContactSupportUri = 'ContactSupportUri',
-	EligibilityService = 'EligibilityService',
 }
 
 export const enum Flag {
@@ -89,8 +88,9 @@ export const enum ExtensionGalleryManifestStatus {
 	Unreachable = 'unreachable',
 	/**
 	 * The marketplace is configured for Microsoft (Entra ID) authentication, but the
-	 * gallery manifest does not advertise an EligibilityService resource. Access is
-	 * refused (no silent fallback to another provider) until the server is corrected.
+	 * deployment is misconfigured — for example the service index URL is not HTTPS, so the
+	 * Microsoft token cannot be safely transmitted. Access is refused (no silent fallback to
+	 * another provider) until the server is corrected.
 	 */
 	Misconfigured = 'misconfigured'
 }
