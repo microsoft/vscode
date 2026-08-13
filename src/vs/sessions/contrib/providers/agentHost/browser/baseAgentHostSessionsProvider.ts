@@ -4547,6 +4547,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomizations.fire();
 		}
 		this._seedRunningConfigFromState(sessionId, state);
+		this._applySessionTitleFromState(sessionId, state);
 		this._applySessionMetaFromState(sessionId, state);
 		this._applyChatCatalogFromState(sessionId, state);
 
@@ -4648,6 +4649,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
+	}
+
+	private _applySessionTitleFromState(sessionId: string, state: SessionState): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		this._updateCachedSessionTitle(rawId, state.title);
 	}
 
 	private _applySessionMetaFromState(sessionId: string, state: SessionState): void {
@@ -5146,8 +5155,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _handleTitleChanged(session: string, title: string): void {
 		const rawId = AgentSession.id(session);
+		this._updateCachedSessionTitle(rawId, title);
+	}
+
+	private _updateCachedSessionTitle(rawId: string, title: string): void {
 		const cached = this._sessionCache.get(rawId);
-		if (cached) {
+		if (cached && cached.title.get() !== title) {
 			cached.title.set(title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}

@@ -641,7 +641,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				parent.style.width = `${available}px`;
 				widget.input.layout(available);
 				const rowHeight = getRowHeight();
-				row.style.height = `${rowHeight}px`;
 				widget.layoutForInputHeight(rowHeight, available);
 				fitWindowToInput();
 			} finally {

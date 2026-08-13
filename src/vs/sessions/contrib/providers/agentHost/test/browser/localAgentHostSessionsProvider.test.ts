@@ -1475,6 +1475,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
+	test('updates the session and main chat titles from session state', async () => {
+		agentHost.addSession(createSession('live-title', { summary: 'New session in vscode' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('live-title', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Omni-chat blue border issue',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+		});
+
+		assert.deepStrictEqual({
+			sessionTitle: session.title.get(),
+			mainChatTitle: session.mainChat.get().title.get(),
+		}, {
+			sessionTitle: 'Omni-chat blue border issue',
+			mainChatTitle: 'Omni-chat blue border issue',
+		});
+	});
+
 	test('a summaryChanged delta clearing the adoptable marker opens the passive state subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// A surfaced-but-un-adopted legacy Copilot CLI session is not subscribed
 		// passively (subscribing would trigger an adopting restore). Once it is
