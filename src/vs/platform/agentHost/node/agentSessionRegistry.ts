@@ -15,7 +15,7 @@ export interface IRegisteredSession {
 	readonly provider: AgentProvider;
 	/** Session creation time (ms since epoch) as first observed by the orchestrator. */
 	readonly startTime: number;
-	/** Whether the session was first discovered from the provider's native catalog. */
+	/** Whether the session remains provider-native and has not been explicitly used through Agent Host. */
 	readonly external: boolean;
 	/** Durable registration source used to protect external provenance. */
 	readonly source: AgentSessionRegistrationSource;

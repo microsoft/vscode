@@ -36,7 +36,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, type ChatOrigin, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
+import { ISessionGitHubState, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, readSessionSpawnDepth, withSessionSpawnDepth, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isDefaultChatUri, isSubagentChatUri, isSubagentSession, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, readSessionEhcliAdoptable, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn, type UsageInfo, chatStorageUri, hasReportedUsage } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { IProductService } from '../../product/common/productService.js';
 import { buildBoundedSideChatSourceContext, getSideChatPartialResponse } from './agentPeerChats.js';
@@ -88,7 +88,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService, IAgentHostStorageService } from './agentHostStorageService.js';
 import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
@@ -307,6 +307,15 @@ export class AgentService extends Disposable implements IAgentService {
 	 * deleted session is harmless — that URI is never reachable again.
 	 */
 	private readonly _unpersistedChatBackings = new Set<string>();
+	private readonly _sessionsUsedByAgentHost = new Set<string>();
+	private readonly _sessionUsePersistence = new Map<string, Promise<void>>();
+	private readonly _discoveredSessionMetadata = new Map<string, IAgentSessionMetadata>();
+	private readonly _broadcastExternalSessions = new Set<string>();
+	private readonly _broadcastExternalSessionMetadata = new Map<string, IAgentSessionMetadata>();
+	private readonly _externalSessionExpiry = this._register(new MutableDisposable());
+	private _externalSessionExpiryAt: number | undefined;
+	private _externalSessionReconciliation = Promise.resolve();
+	private _externalSessionsMode = AgentHostExternalSessionsMode.Last7Days;
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
 	get stateManager(): AgentHostStateManager { return this._stateManager; }
@@ -499,6 +508,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _hostLaunchKind = AgentHostLaunchKind.Unknown,
 		storageResource?: URI,
 		orchestratorDatabase?: IAgentHostDatabase,
+		private readonly _now: () => number = Date.now,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -526,6 +536,15 @@ export class AgentService extends Disposable implements IAgentService {
 		// via DI rather than being plumbed plain-class references.
 		const configurationService = this._register(new AgentConfigurationService(this._stateManager, this._logService, this._rootConfigResource, providerConfigurations));
 		this._configurationService = configurationService;
+		this._externalSessionsMode = this._getExternalSessionsMode();
+		this._register(configurationService.onDidRootConfigChange(() => {
+			const previousMode = this._externalSessionsMode;
+			const mode = this._getExternalSessionsMode();
+			if (mode !== previousMode) {
+				this._externalSessionsMode = mode;
+				this._queueExternalSessionReconciliation(previousMode);
+			}
+		}));
 		const fileMonitorService = _fileMonitorService ?? this._register(new AgentHostFileMonitorService(this._fileService, this._logService));
 		this._storageService = this._register(new AgentHostStorageService(storageResource, this._logService));
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
@@ -1225,6 +1244,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 		})));
 		let changed = false;
+		const surfaced: { readonly identity: IRegisteredSession; readonly metadata: IAgentSessionMetadata }[] = [];
 		for (const discovered of identities) {
 			if (!discovered) {
 				continue;
@@ -1232,9 +1252,23 @@ export class AgentService extends Disposable implements IAgentService {
 			const { identity, metadata } = discovered;
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
-				await this._announceSurfacedSession(metadata, provider.id);
+				surfaced.push({ identity, metadata });
 			}
 			changed = registered || changed;
+		}
+		if (surfaced.length > 0) {
+			const authoritative = new Map((await this._listRegisteredSessions()).map(entry => [entry.session.toString(), entry]));
+			for (const { identity, metadata } of surfaced) {
+				const external = authoritative.get(identity.session.toString())?.external ?? identity.external;
+				const surfacedMetadata = { ...metadata, _meta: withSessionExternal(metadata._meta, external) };
+				this._discoveredSessionMetadata.set(identity.session.toString(), surfacedMetadata);
+				if (!external || readSessionEhcliAdoptable(metadata._meta)) {
+					await this._announceSurfacedSession(surfacedMetadata, provider.id);
+				}
+			}
+		}
+		if (changed) {
+			this._queueExternalSessionReconciliation();
 		}
 		return changed;
 	}
@@ -1261,6 +1295,8 @@ export class AgentService extends Disposable implements IAgentService {
 			const external = await this._isExternalProviderChat(s.session);
 			return { session: s.session, provider: provider.id, startTime: s.startTime, external, source: external ? 'discovery' : 'restore' };
 		})));
+		let changed = false;
+		const surfaced: { readonly identity: IRegisteredSession; readonly metadata: IAgentSessionMetadata }[] = [];
 		for (let index = 0; index < identities.length; index++) {
 			const identity = identities[index];
 			if (!identity) {
@@ -1268,11 +1304,25 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const registered = await this._sessionRegistry.register(identity.session, identity, { checkTombstone: true });
 			if (registered) {
-				const metadata = sessions[index];
-				await this._announceSurfacedSession({ ...metadata, _meta: withSessionExternal(metadata._meta, identity.external) }, provider.id);
+				surfaced.push({ identity, metadata: sessions[index] });
+			}
+			changed = registered || changed;
+		}
+		if (surfaced.length > 0) {
+			const authoritative = new Map((await this._listRegisteredSessions()).map(entry => [entry.session.toString(), entry]));
+			for (const { identity, metadata } of surfaced) {
+				const external = authoritative.get(identity.session.toString())?.external ?? identity.external;
+				const surfacedMetadata = { ...metadata, _meta: withSessionExternal(metadata._meta, external) };
+				this._discoveredSessionMetadata.set(identity.session.toString(), surfacedMetadata);
+				if (!external || readSessionEhcliAdoptable(metadata._meta)) {
+					await this._announceSurfacedSession(surfacedMetadata, provider.id);
+				}
 			}
 		}
 		await this._sessionRegistry.markProviderBackfilled(provider.id);
+		if (changed) {
+			this._queueExternalSessionReconciliation();
+		}
 	}
 
 	private async _isExternalProviderChat(session: URI): Promise<boolean> {
@@ -1336,7 +1386,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 	}
-	async listSessions(): Promise<IAgentSessionMetadata[]> {
+	async listSessions(mode = this._externalSessionsMode, preferLiveState = false, preferDiscoveredMetadata = false): Promise<IAgentSessionMetadata[]> {
 		this._logService.trace('[AgentService] listSessions called');
 		// The first list waits for registration-time discovery if it is still in flight.
 		await this._awaitInitialProviderDiscovery();
@@ -1352,6 +1402,15 @@ export class AgentService extends Disposable implements IAgentService {
 			// them then.
 			if (this._stateManager.isIdleProvisionalSession(session.toString())) {
 				return undefined;
+			}
+			if (preferLiveState && this._stateManager.getSessionState(session.toString())) {
+				return undefined;
+			}
+			if (preferDiscoveredMetadata) {
+				const discovered = this._discoveredSessionMetadata.get(session.toString());
+				if (discovered) {
+					return { ...discovered, _meta: withSessionExternal(discovered._meta, external) };
+				}
 			}
 
 			const agent = this._providers.get(provider);
@@ -1557,9 +1616,163 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+		const visible = combined
+			.map(session => this._forceUnusedExternalSessionRead(session))
+			.filter(session => this._shouldIncludeSession(session, mode));
 
-		this._logService.trace(`[AgentService] listSessions returned ${combined.length} sessions (${additions.length} state-manager fallback)`);
-		return combined;
+		this._logService.trace(`[AgentService] listSessions returned ${visible.length} sessions (${additions.length} state-manager fallback)`);
+		return visible;
+	}
+
+	private _forceUnusedExternalSessionRead(session: IAgentSessionMetadata): IAgentSessionMetadata {
+		if (!readSessionExternal(session._meta) || this._sessionsUsedByAgentHost.has(session.session.toString())) {
+			return session;
+		}
+		return {
+			...session,
+			status: withSessionStatusFlag(session.status ?? SessionStatus.Idle, SessionStatus.IsRead, true),
+		};
+	}
+
+	private _getExternalSessionsMode(): AgentHostExternalSessionsMode {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostShowExternalSessionsConfigKey) ?? AgentHostExternalSessionsMode.Last7Days;
+	}
+
+	private _shouldIncludeSession(session: IAgentSessionMetadata, mode: AgentHostExternalSessionsMode): boolean {
+		const key = session.session.toString();
+		if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta) || this._sessionsUsedByAgentHost.has(key) || this._stateManager.getSessionState(key)) {
+			return true;
+		}
+		switch (mode) {
+			case AgentHostExternalSessionsMode.All:
+				return true;
+			case AgentHostExternalSessionsMode.Last24Hours:
+				return session.modifiedTime >= this._now() - 24 * 60 * 60 * 1000;
+			case AgentHostExternalSessionsMode.Last7Days:
+				return session.modifiedTime >= this._now() - 7 * 24 * 60 * 60 * 1000;
+			case AgentHostExternalSessionsMode.None:
+				return false;
+		}
+	}
+
+	private _queueExternalSessionReconciliation(previousMode?: AgentHostExternalSessionsMode): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._externalSessionReconciliation = this._externalSessionReconciliation
+			.then(() => this._reconcileExternalSessions(previousMode))
+			.catch(error => this._logService.warn('[AgentService] External session reconciliation failed', error));
+	}
+
+	private async _reconcileExternalSessions(previousMode?: AgentHostExternalSessionsMode): Promise<void> {
+		const previouslyBroadcast = new Set(this._broadcastExternalSessions);
+		const previousMetadata = new Map(this._broadcastExternalSessionMetadata);
+		if (previouslyBroadcast.size === 0 && previousMode !== undefined) {
+			for (const session of await this.listSessions(previousMode, true, true)) {
+				if (readSessionExternal(session._meta)) {
+					const key = session.session.toString();
+					previouslyBroadcast.add(key);
+					previousMetadata.set(key, session);
+				}
+			}
+		}
+
+		const listed = await this.listSessions(this._externalSessionsMode, true, true);
+		const visible = new Map<string, IAgentSessionMetadata>();
+		for (const session of listed) {
+			if (readSessionExternal(session._meta)) {
+				visible.set(session.session.toString(), session);
+			}
+		}
+		this._scheduleExternalSessionExpiry(listed, this._externalSessionsMode);
+
+		for (const [key, metadata] of visible) {
+			if (!previouslyBroadcast.has(key)) {
+				const liveSummary = this._stateManager.getSessionSummary(key);
+				if (liveSummary) {
+					this._stateManager.markSessionPersisted(key, liveSummary, true);
+					continue;
+				}
+				const provider = AgentSession.provider(metadata.session);
+				if (provider) {
+					await this._announceSurfacedSession(metadata, provider);
+				}
+			}
+		}
+
+		for (const key of previouslyBroadcast) {
+			if (!visible.has(key) && !this._stateManager.getSessionState(key)) {
+				this._stateManager.retractSurfacedSession(key);
+				this._announcedSurfacedKeys.delete(key);
+			} else if (!visible.has(key)) {
+				const metadata = previousMetadata.get(key);
+				if (metadata) {
+					visible.set(key, metadata);
+				}
+			}
+		}
+
+		this._broadcastExternalSessions.clear();
+		this._broadcastExternalSessionMetadata.clear();
+		for (const [key, metadata] of visible) {
+			this._broadcastExternalSessions.add(key);
+			this._broadcastExternalSessionMetadata.set(key, metadata);
+		}
+	}
+
+	private _scheduleExternalSessionExpiry(sessions: readonly IAgentSessionMetadata[], mode: AgentHostExternalSessionsMode): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const window = mode === AgentHostExternalSessionsMode.Last24Hours
+			? 24 * 60 * 60 * 1000
+			: mode === AgentHostExternalSessionsMode.Last7Days
+				? 7 * 24 * 60 * 60 * 1000
+				: undefined;
+		if (window === undefined) {
+			this._externalSessionExpiry.clear();
+			this._externalSessionExpiryAt = undefined;
+			return;
+		}
+
+		let nextExpiry: number | undefined;
+		for (const session of sessions) {
+			const key = session.session.toString();
+			if (!readSessionExternal(session._meta) || readSessionEhcliAdoptable(session._meta) || this._sessionsUsedByAgentHost.has(key) || this._stateManager.getSessionState(key)) {
+				continue;
+			}
+			const expiresAt = session.modifiedTime + window + 1;
+			nextExpiry = nextExpiry === undefined ? expiresAt : Math.min(nextExpiry, expiresAt);
+		}
+		this._scheduleExternalSessionExpiryAt(nextExpiry);
+	}
+
+	private _scheduleAdditionalExternalSessionExpiry(session: IAgentSessionMetadata): void {
+		const window = this._externalSessionsMode === AgentHostExternalSessionsMode.Last24Hours
+			? 24 * 60 * 60 * 1000
+			: this._externalSessionsMode === AgentHostExternalSessionsMode.Last7Days
+				? 7 * 24 * 60 * 60 * 1000
+				: undefined;
+		if (window === undefined || readSessionEhcliAdoptable(session._meta) || this._sessionsUsedByAgentHost.has(session.session.toString())) {
+			return;
+		}
+		const expiresAt = session.modifiedTime + window + 1;
+		if (this._externalSessionExpiryAt === undefined || expiresAt < this._externalSessionExpiryAt) {
+			this._scheduleExternalSessionExpiryAt(expiresAt);
+		}
+	}
+
+	private _scheduleExternalSessionExpiryAt(expiresAt: number | undefined): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._externalSessionExpiryAt = expiresAt;
+		this._externalSessionExpiry.value = expiresAt === undefined
+			? undefined
+			: disposableTimeout(() => {
+				this._externalSessionExpiryAt = undefined;
+				this._queueExternalSessionReconciliation();
+			}, Math.max(0, expiresAt - this._now()));
 	}
 
 	/**
@@ -1589,6 +1802,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _announceSurfacedSession(meta: IAgentSessionMetadata, provider: string): Promise<void> {
 		const key = meta.session.toString();
+		if (!this._shouldIncludeSession(meta, this._externalSessionsMode)) {
+			return;
+		}
 		if (this._announcedSurfacedKeys.has(key) || this._stateManager.getSessionState(key)) {
 			return;
 		}
@@ -3190,7 +3406,19 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.removeSession(cachedKey);
 		}
 		this._sideEffects.clearSessionTitleState(evictionTargetKey, settledState.chats.map(chat => chat.resource));
+		const evictedSummary = this._stateManager.getSessionSummary(evictionTargetKey);
+		const evictedMetadata: IAgentSessionMetadata | undefined = evictedSummary ? {
+			session: evictionTarget,
+			startTime: Date.parse(evictedSummary.createdAt),
+			modifiedTime: Date.parse(evictedSummary.modifiedAt),
+			...(evictedSummary._meta !== undefined ? { _meta: evictedSummary._meta } : {}),
+		} : undefined;
 		this._stateManager.removeSession(evictionTargetKey);
+		if (evictedMetadata && !this._shouldIncludeSession(evictedMetadata, this._externalSessionsMode)) {
+			this._queueExternalSessionReconciliation();
+		} else if (evictedMetadata && readSessionExternal(evictedMetadata._meta)) {
+			this._scheduleAdditionalExternalSessionExpiry(evictedMetadata);
+		}
 		// Release the provider's in-memory SDK session in lockstep with the
 		// cached state. Non-destructive: durable data is preserved so the
 		// session resumes transparently on the next access. Fire-and-forget —
@@ -3384,6 +3612,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._stateManager.dispatchClientAction(channel, action, origin);
+		if (action.type === ActionType.ChatTurnStarted) {
+			this._markSessionUsedByAgentHost(sessionChannel);
+		}
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 			const editTelemetryEnabled = action.config[AgentHostEditTelemetryEnabledConfigKey];
@@ -3393,6 +3624,47 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._sideEffects.handleAction(channel, action, clientId, clientContext);
 	}
+
+	private _markSessionUsedByAgentHost(session: string): void {
+		this._sessionsUsedByAgentHost.add(session);
+		if (this._sessionUsePersistence.has(session)) {
+			return;
+		}
+		const summary = this._stateManager.getSessionSummary(session);
+		if (!summary || !readSessionExternal(summary._meta)) {
+			return;
+		}
+
+		const sessionUri = URI.parse(session);
+		const persistence = this._retryRegistryMutation(
+			() => this._sessionRegistry.register(sessionUri, {
+				provider: summary.provider,
+				startTime: Date.parse(summary.createdAt),
+				source: 'explicit',
+			}, { checkTombstone: true }),
+			`used-state registration for ${session}`,
+		).then(registered => {
+			if (!registered) {
+				throw new Error(`Session was tombstoned while marking it used: ${session}`);
+			}
+			const state = this._stateManager.getSessionState(session);
+			if (state && readSessionExternal(state._meta)) {
+				this._stateManager.setSessionMeta(session, withSessionExternal(state._meta, false));
+			}
+			this._queueExternalSessionReconciliation();
+		});
+		this._sessionUsePersistence.set(session, persistence);
+		const clear = () => {
+			if (this._sessionUsePersistence.get(session) === persistence) {
+				this._sessionUsePersistence.delete(session);
+			}
+		};
+		void persistence.then(clear, error => {
+			clear();
+			this._logService.warn(`[AgentService] Failed to persist used state for ${session}`, error);
+		});
+	}
+
 	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
 		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);
 	}
@@ -3890,6 +4162,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (isArchived) {
 			status |= SessionStatus.IsArchived;
 		}
+		if (external && !this._sessionsUsedByAgentHost.has(sessionStr)) {
+			status |= SessionStatus.IsRead;
+		}
 
 		const providerMeta = withSessionMultiRootMetadata(meta._meta, undefined);
 		let restoredMeta = (sessionMetadata || providerMeta) ? { ...(providerMeta ?? {}), ...(sessionMetadata ?? {}) } : undefined;
@@ -3928,6 +4203,9 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session was explicitly deleted: ${sessionStr}`);
 		}
 		this._stateManager.restoreSession(summary, mergedTurns, { draft: restoredDraft, defaultChatTitle });
+		if (external) {
+			this._queueExternalSessionReconciliation();
+		}
 
 		// A freshly-adopted legacy session bridges its git checkpoints into the
 		// agent-host namespace once its turns are restored. Isolated so a failure

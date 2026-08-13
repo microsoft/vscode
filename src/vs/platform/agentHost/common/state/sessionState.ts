@@ -1189,7 +1189,7 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
-/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+/** Reserved key for a session that remains provider-native and has not been used through Agent Host. */
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
@@ -1711,7 +1711,7 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Whether the session was first discovered in a provider-native catalog. */
+/** Whether the session remains provider-native and has not been used through Agent Host. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
 }

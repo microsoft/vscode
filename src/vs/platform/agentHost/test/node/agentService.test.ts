@@ -30,7 +30,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -217,6 +218,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	registryWriteAttempts = 0;
 	private _remainingRegistryWriteFailures = 0;
 	private readonly _sessionsWithoutExternal = new Set<string>();
+	private _registryWriteGate: DeferredPromise<void> | undefined;
 	readonly externalUpdates: { session: string; external: boolean }[] = [];
 	undefinedExternalListCalls = 0;
 
@@ -230,19 +232,34 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._remainingRegistryWriteFailures = count;
 	}
 
+	pauseRegistryWrites(): DeferredPromise<void> {
+		return this._registryWriteGate = new DeferredPromise<void>();
+	}
+
 	async registerSession(session: string, sessionOptions: { provider: string; startTime: number; source: 'explicit' | 'restore' | 'discovery' }, registerOptions: { checkTombstone: boolean }): Promise<boolean> {
 		this._beforeWrite();
+		const gate = this._registryWriteGate;
+		if (gate) {
+			await gate.p;
+			if (this._registryWriteGate === gate) {
+				this._registryWriteGate = undefined;
+			}
+		}
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
 			return false;
 		}
 		const { provider, startTime, source } = sessionOptions;
 		const existing = this._sessions.get(session);
 		const inserted = { session, provider, startTime, external: source === 'discovery', source };
-		this._sessions.set(session, source === 'explicit'
-			? { ...inserted, startTime: existing?.startTime ?? startTime }
-			: existing && source === 'discovery'
-				? { ...existing, external: true, source: 'discovery' }
-				: existing ?? inserted);
+		this._sessions.set(session, !existing
+			? inserted
+			: source === 'explicit'
+				? { ...existing, provider, external: false, source: 'explicit' }
+				: source === 'restore'
+					? { ...existing, external: false, source: existing.source === 'explicit' ? 'explicit' : 'restore' }
+					: existing.source === 'explicit'
+						? existing
+						: { ...existing, external: true, source: 'discovery' });
 		if (!registerOptions.checkTombstone) {
 			this._tombstones.delete(session);
 		}
@@ -2456,6 +2473,82 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('aggregation', () => {
 
+		class ExternalCatalogAgent extends MockAgent {
+			private readonly _catalog = new Map<string, { session: URI; modifiedTime: number; external: boolean; status?: SessionStatus }>();
+
+			addSession(id: string, modifiedTime: number, external = true, status?: SessionStatus): URI {
+				const session = AgentSession.uri(this.id, id);
+				this._catalog.set(id, { session, modifiedTime, external, status });
+				(this as unknown as { _sessions: Map<string, URI> })._sessions.set(id, session);
+				return session;
+			}
+
+			fireCatalog(...ids: string[]): void {
+				const entries = ids.length > 0 ? ids.map(id => this._catalog.get(id)) : [...this._catalog.values()];
+				this.fireDiscoveredChats(entries.filter(entry => entry !== undefined).map(entry => ({
+					chat: URI.parse(buildDefaultChatUri(entry.session)),
+					startTime: entry.modifiedTime,
+					modifiedTime: entry.modifiedTime,
+					external: entry.external,
+					status: entry.status,
+				})));
+			}
+
+			override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				return [];
+			}
+
+			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+				const session = resolveAgentChatContext(context, chat).configurationResource;
+				const entry = this._catalog.get(AgentSession.id(session));
+				return entry ? {
+					chat,
+					startTime: entry.modifiedTime,
+					modifiedTime: entry.modifiedTime,
+					status: entry.status,
+				} : undefined;
+			}
+		}
+
+		function createExternalSessionService(now: () => number, database?: IAgentHostDatabase): AgentService {
+			return disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				createSessionDataService(),
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				AgentHostLaunchKind.Unknown,
+				database,
+				now,
+			));
+		}
+
+		let externalConfigSequence = 0;
+		function setExternalSessionsMode(service: AgentService, mode: AgentHostExternalSessionsMode): void {
+			service.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostShowExternalSessionsConfigKey]: mode },
+			}, 'external-config-test', ++externalConfigSequence);
+		}
+
+		async function waitForExternalReconciliation(service: AgentService): Promise<void> {
+			await timeout(0);
+			await (service as unknown as { _externalSessionReconciliation: Promise<void> })._externalSessionReconciliation;
+		}
+
+		async function waitForRegisteredSessions(service: AgentService, count: number): Promise<void> {
+			for (let attempt = 0; attempt < 50 && (await service.getRegisteredSessions()).length < count; attempt++) {
+				await timeout(0);
+			}
+			assert.strictEqual((await service.getRegisteredSessions()).length, count);
+		}
+
 		test('listSessions aggregates sessions from all providers', async () => {
 			service.registerProvider(copilotAgent);
 
@@ -2463,6 +2556,293 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
+		});
+
+		test('filters authoritative external sessions in all modes with inclusive boundaries', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
+			agent.addSession('internal', now - 30 * day, false);
+			agent.addSession('recent', now);
+			agent.addSession('at-24-hours', now - day);
+			agent.addSession('older-than-24-hours', now - day - 1);
+			agent.addSession('at-7-days', now - 7 * day);
+			agent.addSession('older-than-7-days', now - 7 * day - 1);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			agent.fireCatalog();
+			await waitForRegisteredSessions(svc, 6);
+			await waitForExternalReconciliation(svc);
+
+			const listedByMode: Record<AgentHostExternalSessionsMode, string[]> = {
+				[AgentHostExternalSessionsMode.None]: [],
+				[AgentHostExternalSessionsMode.All]: [],
+				[AgentHostExternalSessionsMode.Last24Hours]: [],
+				[AgentHostExternalSessionsMode.Last7Days]: [],
+			};
+			let recentMetadata: IAgentSessionMetadata | undefined;
+			for (const mode of [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days]) {
+				setExternalSessionsMode(svc, mode);
+				await waitForExternalReconciliation(svc);
+				const listed = await svc.listSessions();
+				listedByMode[mode] = listed.map(session => AgentSession.id(session.session)).sort();
+				recentMetadata ??= listed.find(session => AgentSession.id(session.session) === 'recent');
+			}
+
+			assert.deepStrictEqual({
+				listedByMode,
+				recentMeta: recentMetadata?._meta,
+				recentRead: !!((recentMetadata?.status ?? 0) & SessionStatus.IsRead),
+			}, {
+				listedByMode: {
+					[AgentHostExternalSessionsMode.None]: ['internal'],
+					[AgentHostExternalSessionsMode.All]: ['at-24-hours', 'at-7-days', 'internal', 'older-than-24-hours', 'older-than-7-days', 'recent'],
+					[AgentHostExternalSessionsMode.Last24Hours]: ['at-24-hours', 'internal', 'recent'],
+					[AgentHostExternalSessionsMode.Last7Days]: ['at-24-hours', 'at-7-days', 'internal', 'older-than-24-hours', 'recent'],
+				},
+				recentMeta: { 'vscode.external': true },
+				recentRead: true,
+			});
+		});
+
+		test('provider and configuration changes reconcile without list calls mutating the broadcast baseline', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${notification.summary.resource}`);
+				} else if (notification.type === NotificationType.SessionRemoved) {
+					notifications.push(`remove:${notification.session}`);
+				}
+			}));
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None);
+			await waitForExternalReconciliation(svc);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+
+			const hidden = agent.addSession('hidden', now);
+			agent.fireCatalog('hidden');
+			await waitForRegisteredSessions(svc, 1);
+			await waitForExternalReconciliation(svc);
+			assert.deepStrictEqual({
+				listed: await svc.listSessions(),
+				notifications,
+				registered: (await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list()).map(entry => ({
+					session: entry.session.toString(),
+					provider: entry.provider,
+					startTime: entry.startTime,
+					external: entry.external,
+					source: entry.source,
+				})),
+			}, {
+				listed: [],
+				notifications: [],
+				registered: [{ session: hidden.toString(), provider: 'copilot', startTime: now, external: true, source: 'discovery' }],
+			});
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All);
+			await waitForExternalReconciliation(svc);
+			notifications.length = 0;
+
+			const racing = agent.addSession('racing', now);
+			agent.fireCatalog('racing');
+			await svc.listSessions();
+			await waitForRegisteredSessions(svc, 2);
+			await waitForExternalReconciliation(svc);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None);
+			await waitForExternalReconciliation(svc);
+
+			assert.deepStrictEqual(notifications, [
+				`add:${racing.toString()}`,
+				`remove:${hidden.toString()}`,
+				`remove:${racing.toString()}`,
+			]);
+		});
+
+		test('reconciles exactly after a visible external session crosses the inclusive cutoff', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			let now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
+			const session = agent.addSession('expiring', now - day + 50);
+			const removed: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionRemoved) {
+					removed.push(notification.session);
+				}
+			}));
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last24Hours);
+			await waitForExternalReconciliation(svc);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			agent.fireCatalog();
+			await waitForRegisteredSessions(svc, 1);
+			await waitForExternalReconciliation(svc);
+
+			now += 50;
+			const atBoundary = (await svc.listSessions()).map(entry => entry.session.toString());
+			now += 1;
+			await timeout(60);
+			await waitForExternalReconciliation(svc);
+
+			assert.deepStrictEqual({
+				atBoundary,
+				afterExpiry: await svc.listSessions(),
+				removed,
+			}, {
+				atBoundary: [session.toString()],
+				afterExpiry: [],
+				removed: [session.toString()],
+			});
+		});
+
+		test('retains a restored external session while hidden and preserves restore metadata', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
+			const session = agent.addSession('restored', now);
+			const added: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					added.push(notification.summary.resource);
+				}
+			}));
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None);
+			await waitForExternalReconciliation(svc);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			agent.fireCatalog();
+			await waitForRegisteredSessions(svc, 1);
+			await waitForExternalReconciliation(svc);
+			await svc.restoreSession(session);
+			await waitForExternalReconciliation(svc);
+			const listed = await svc.listSessions();
+			const state = svc.stateManager.getSessionState(session.toString());
+
+			assert.deepStrictEqual({
+				added,
+				listed: listed.map(entry => entry.session.toString()),
+				listExternal: readSessionExternal(listed[0]?._meta),
+				listRead: !!((listed[0]?.status ?? 0) & SessionStatus.IsRead),
+				stateExternal: readSessionExternal(state?._meta),
+				stateRead: !!((state?.status ?? 0) & SessionStatus.IsRead),
+			}, {
+				added: [session.toString()],
+				listed: [session.toString()],
+				listExternal: true,
+				listRead: true,
+				stateExternal: true,
+				stateRead: true,
+			});
+		});
+
+		test('failed used-state persistence does not reschedule expired sessions', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			let now = Date.now();
+			const database = new TransientRegistryWriteDatabase();
+			const svc = createExternalSessionService(() => now, database);
+			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
+			const session = agent.addSession('failed-use-persistence', now - day);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last24Hours);
+			await waitForExternalReconciliation(svc);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			agent.fireCatalog();
+			await waitForRegisteredSessions(svc, 1);
+			await waitForExternalReconciliation(svc);
+			await svc.restoreSession(session);
+			await waitForExternalReconciliation(svc);
+
+			database.failRegistryWrites(2);
+			svc.dispatchAction(buildDefaultChatUri(session.toString()), {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date(now).toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			}, 'failed-use-test', 1);
+			now += 1;
+			await timeout(10);
+			await waitForExternalReconciliation(svc);
+
+			assert.deepStrictEqual({
+				writeAttempts: database.registryWriteAttempts,
+				external: readSessionExternal(svc.stateManager.getSessionState(session.toString())?._meta),
+				expiryAt: (svc as unknown as { _externalSessionExpiryAt: number | undefined })._externalSessionExpiryAt,
+			}, {
+				writeAttempts: 2,
+				external: true,
+				expiryAt: undefined,
+			});
+		});
+
+		test('first accepted turn resumes unread behavior and persists used state without blocking dispatch', async () => {
+			const now = Date.now();
+			const database = new TransientRegistryWriteDatabase();
+			const svc = createExternalSessionService(() => now, database);
+			const agent = disposables.add(new ExternalCatalogAgent('copilot'));
+			const session = agent.addSession('used', now);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			agent.fireCatalog();
+			await waitForRegisteredSessions(svc, 1);
+			await waitForExternalReconciliation(svc);
+			await svc.restoreSession(session);
+			const before = (await svc.listSessions())[0];
+
+			database.failRegistryWrites(1);
+			const writeGate = database.pauseRegistryWrites();
+			const chat = buildDefaultChatUri(session.toString());
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: new Date(now).toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			}, 'external-use-test', 1);
+			await timeout(0);
+			const duringWrite = svc.stateManager.getSessionState(session.toString());
+
+			assert.deepStrictEqual({
+				beforeExternal: readSessionExternal(before._meta),
+				beforeRead: !!((before.status ?? 0) & SessionStatus.IsRead),
+				writeAttempts: database.registryWriteAttempts,
+				messageDispatched: agent.sendMessageCalls.length,
+				duringWriteExternal: readSessionExternal(duringWrite?._meta),
+				duringWriteRead: !!((duringWrite?.status ?? 0) & SessionStatus.IsRead),
+			}, {
+				beforeExternal: true,
+				beforeRead: true,
+				writeAttempts: 2,
+				messageDispatched: 1,
+				duringWriteExternal: true,
+				duringWriteRead: true,
+			});
+
+			writeGate.complete();
+			for (let attempt = 0; attempt < 50 && readSessionExternal(svc.stateManager.getSessionState(session.toString())?._meta); attempt++) {
+				await timeout(0);
+			}
+			agent.fireCatalog('used');
+			await waitForExternalReconciliation(svc);
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(chat),
+				action: { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
+			});
+			const after = (await svc.listSessions())[0];
+			const registered = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list();
+
+			assert.deepStrictEqual({
+				registered: registered.map(entry => ({ external: entry.external, source: entry.source })),
+				afterExternal: readSessionExternal(after._meta),
+				afterRead: !!((after.status ?? 0) & SessionStatus.IsRead),
+			}, {
+				registered: [{ external: false, source: 'explicit' }],
+				afterExternal: false,
+				afterRead: false,
+			});
 		});
 
 		test('listSessions discovers provider-native sessions as external and restore preserves provenance', async () => {
@@ -3801,6 +4181,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			const provisionalAgent = new ProvisionalMockAgent('copilot');
 			disposables.add(toDisposable(() => provisionalAgent.dispose()));
+			setExternalSessionsMode(service, AgentHostExternalSessionsMode.None);
+			await waitForExternalReconciliation(service);
 			service.registerProvider(provisionalAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
