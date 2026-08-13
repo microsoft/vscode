@@ -19,7 +19,12 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 	constructor(
 		readonly customizations: readonly Customization[],
 		readonly workingDirectory?: string,
+		private readonly _isBundledMcpServer: (pluginUri: string, serverName: string) => boolean = () => false,
 	) { }
+
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return this._isBundledMcpServer(pluginUri, serverName);
+	}
 
 	authenticate(): Promise<unknown> { return Promise.resolve(undefined); }
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void {
@@ -108,6 +113,24 @@ suite('AbstractAgentHostCustomizationService', () => {
 		assert.deepStrictEqual(target.enablementChanges, [
 			{ rawId: 'server-1', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] },
 		]);
+	});
+
+	test('derives client-bundled MCP server ownership from its plugin', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const server = mcpServer('server-1', 'Server One');
+		const target = new FakeTarget([{
+			type: CustomizationType.Plugin,
+			id: 'plugin-1',
+			uri: 'vscode-synced-customization:///agent-host-copilot',
+			name: 'Synced',
+			children: [server],
+		} as unknown as Customization], undefined, (pluginUri, serverName) => pluginUri === 'vscode-synced-customization:///agent-host-copilot' && serverName === 'Server One');
+		sut.setTarget(session, target);
+
+		const [pluginServer] = sut.getMcpServers(session);
+
+		assert.strictEqual(pluginServer.isClientBundled, true);
 	});
 
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {

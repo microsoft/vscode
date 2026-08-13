@@ -57,6 +57,7 @@ export interface IAgentRegistration extends IDisposable {
 	acquireScope(roots: readonly URI[]): IAgentCustomizationScope;
 	/** Recovers provenance for a synced URI produced by any scope of this agent. */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 }
 
 export type IAgentRegistrationOptions = ILocalCustomizationSyncOptions;
@@ -69,6 +70,7 @@ export interface IAgentHostActiveClientService {
 
 	/** Acquires a customization scope for a registered agent. Returns `undefined` when `sessionType` has no registration. */
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined;
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 }
 
 class AgentRegistration extends Disposable implements IAgentRegistration {
@@ -120,6 +122,10 @@ class AgentRegistration extends Disposable implements IAgentRegistration {
 			}
 		}
 		return undefined;
+	}
+
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return [...this._scopes.values()].some(scope => scope.isBundledMcpServer(pluginUri, serverName));
 	}
 
 	override dispose(): void {
@@ -290,6 +296,10 @@ class AgentCustomizationScope extends Disposable {
 		return this._bundler.getOrigin(syncedUri);
 	}
 
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return this._bundler.isBundledMcpServer(pluginUri, serverName);
+	}
+
 	activeClient(clientId: string): IObservable<SessionActiveClient> {
 		let activeClient = this._activeClients.get(clientId);
 		if (!activeClient) {
@@ -369,6 +379,10 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope | undefined {
 		return this._registrationsByType.get(sessionType)?.acquireScope(roots);
+	}
+
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return [...this._registrationsByType.values()].some(registration => registration.isBundledMcpServer(pluginUri, serverName));
 	}
 
 	private _getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
