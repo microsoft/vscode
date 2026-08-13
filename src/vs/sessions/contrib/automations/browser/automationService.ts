@@ -18,7 +18,7 @@ import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionC
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/common/errors.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
-import { AutomationDefinitionPatch } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { type AutomationDefinitionPatch, type AutomationImportTriggerNextRun } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationDefinition, AutomationMisfirePolicy, AutomationOperation, AutomationState, AutomationTrigger, AutomationTriggerKind } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { AutomationRunCauseKind, AutomationRunLifecycle, AutomationRunOperation, AutomationRunState, AutomationRunStatus, AutomationRunSummary } from '../../../../platform/agentHost/common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
@@ -51,6 +51,8 @@ interface IMigrationItem {
 	readonly enabled: boolean;
 	/** Absent on journals written before canonical definitions were persisted. */
 	readonly definition?: AutomationDefinition;
+	/** Absent on journals written before imported schedule cursors were persisted. */
+	readonly triggerNextRuns?: AutomationImportTriggerNextRun[];
 	phase: MigrationPhase;
 }
 
@@ -693,6 +695,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 					source: 'vscode-legacy-automations',
 					batchId: journal.batchId,
 					itemId: migrationItemIdentity(item),
+					triggerNextRuns: item.triggerNextRuns,
 				},
 			});
 		} catch (error) {
@@ -705,13 +708,14 @@ export class AutomationService extends Disposable implements IAutomationService 
 	}
 
 	private async _resolveMigrationDefinition(source: IHostSource, item: IMigrationItem, entry: ILegacyAutomationEntry): Promise<{ item: IMigrationItem; definition: AutomationDefinition }> {
-		if (item.definition) {
+		if (item.definition && item.triggerNextRuns) {
 			return { item, definition: item.definition };
 		}
 		const imported = this._hostAutomations.get(hostKey(source.authority, item.resource));
-		const definition = imported
+		const definition = item.definition ?? (imported
 			? { ...imported.state.definition, enabled: false }
-			: definitionFromOptions({ ...entry.automation, enabled: false }, (modelId, provider) => this._normalizeModelId(source, provider, modelId));
+			: definitionFromOptions({ ...entry.automation, enabled: false }, (modelId, provider) => this._normalizeModelId(source, provider, modelId)));
+		const triggerNextRuns = item.triggerNextRuns ?? migrationTriggerNextRuns(entry.automation);
 		while (true) {
 			const raw = await this.legacyMigrationStorageService.read(MIGRATION_JOURNAL_KEY);
 			if (!raw) {
@@ -726,11 +730,16 @@ export class AutomationService extends Disposable implements IAutomationService 
 			if (!current) {
 				throw new Error(`Missing migration journal item for automation: ${item.automationId}`);
 			}
-			if (current.definition) {
+			if (current.definition && current.triggerNextRuns) {
 				this._migrationJournal = journal;
 				return { item: current, definition: current.definition };
 			}
-			const updated: IMigrationItem = { ...current, definition };
+			const updatedDefinition = current.definition ?? definition;
+			const updated: IMigrationItem = {
+				...current,
+				definition: updatedDefinition,
+				triggerNextRuns: current.triggerNextRuns ?? triggerNextRuns,
+			};
 			const items = journal.items.map(candidate =>
 				candidate.automationId === item.automationId
 					&& candidate.authority === item.authority
@@ -745,7 +754,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 			);
 			if (result.swapped) {
 				this._migrationJournal = { ...journal, items };
-				return { item: updated, definition };
+				return { item: updated, definition: updatedDefinition };
 			}
 		}
 	}
@@ -870,6 +879,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 				resource: migrationResource(sourceKey, automation.id),
 				enabled: automation.enabled,
 				definition,
+				triggerNextRuns: migrationTriggerNextRuns(automation),
 				phase: 'previewed',
 			};
 			const result = await this.legacyMigrationStorageService.compareAndSwap(
@@ -1338,6 +1348,12 @@ function setOptional(target: Record<string, unknown>, key: string, value: string
 	}
 }
 
+function migrationTriggerNextRuns(automation: IAutomation): AutomationImportTriggerNextRun[] {
+	return automation.enabled && automation.schedule.interval !== 'manual' && automation.nextRunAt
+		? [{ triggerId: 'schedule', nextRunAt: automation.nextRunAt }]
+		: [];
+}
+
 function triggersFromSchedule(schedule: IAutomationSchedule): AutomationTrigger[] {
 	if (schedule.interval === 'manual') {
 		return [];
@@ -1445,7 +1461,11 @@ function scheduleFromTrigger(trigger: Extract<AutomationTrigger, { kind: Automat
 	if (trigger.misfirePolicy === AutomationMisfirePolicy.Skip) {
 		return undefined;
 	}
-	const fields = trigger.schedule.expression.trim().split(/\s+/);
+	const expression = trigger.schedule?.expression;
+	if (typeof expression !== 'string') {
+		return undefined;
+	}
+	const fields = expression.trim().split(/\s+/);
 	if (fields.length !== 5) {
 		return undefined;
 	}

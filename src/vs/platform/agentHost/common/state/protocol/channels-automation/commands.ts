@@ -77,21 +77,35 @@ export interface ListAutomationTriggerDefinitionsResult {
 }
 
 /**
- * Stable source identity used to make legacy automation import idempotent.
- *
- * The host remembers this identity independently of the client-chosen
- * automation URI. Retrying an interrupted migration with the same values MUST
- * resolve to the previously imported item rather than creating a duplicate.
+ * Initial schedule occurrence retained while an imported automation is disabled.
  *
  * @category Commands
  */
-export interface AutomationImportIdentity {
+export interface AutomationImportTriggerNextRun {
+	/** Stable id of a schedule trigger in the imported definition. */
+	triggerId: string;
+	/** Source scheduler's next unevaluated occurrence, as an ISO 8601 timestamp. */
+	nextRunAt: string;
+}
+
+/**
+ * Stable source identity and scheduler state for a legacy automation import.
+ *
+ * The host remembers the identity independently of the client-chosen automation
+ * URI. Retrying with the same identity MUST resolve to the previously imported
+ * item rather than creating a duplicate.
+ *
+ * @category Commands
+ */
+export interface AutomationImport {
 	/** Stable namespace identifying the source implementation or store. */
 	source: string;
 	/** Identifier shared by every item in one import attempt. */
 	batchId: string;
 	/** Stable source-side identifier for this definition within the batch. */
 	itemId: string;
+	/** Source schedule occurrences to retain until the imported definition is enabled. */
+	triggerNextRuns?: AutomationImportTriggerNextRun[];
 }
 
 /**
@@ -113,8 +127,11 @@ export interface CreateAutomationParams extends BaseParams {
 	channel: URI;
 	/** Complete initial definition. */
 	definition: AutomationDefinition;
-	/** Optional idempotency identity when importing a legacy definition. */
-	import?: AutomationImportIdentity;
+	/**
+	 * Optional legacy import state. When present, {@link definition} MUST be
+	 * disabled so automatic triggers cannot run before migration cutover.
+	 */
+	import?: AutomationImport;
 }
 
 /**

@@ -319,7 +319,7 @@ export interface AutomationSummary {
 	enabled: boolean;
 	/** Number of automatic triggers in the current definition. */
 	triggerCount: number;
-	/** Earliest known future scheduled occurrence, as an ISO 8601 timestamp. */
+	/** Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
 	nextRunAt?: string;
 	/** Most recent retained run, when any run exists. */
 	lastRun?: AutomationRunSummary;
@@ -354,7 +354,7 @@ export interface AutomationState {
 	 * they observed as `updateAutomation.expectedRevision`.
 	 */
 	revision: number;
-	/** Earliest known future scheduled occurrence, as an ISO 8601 timestamp. */
+	/** Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
 	nextRunAt?: string;
 	/**
 	 * Newest-first retained run summaries. This is a bounded window; use

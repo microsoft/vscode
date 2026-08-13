@@ -498,7 +498,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._authService = new AgentHostAuthenticationService(_logService);
+		this._authService = this._register(new AgentHostAuthenticationService(_logService));
 		const databasePath = this._rootConfigResource
 			? joinPath(resourcesDirname(this._rootConfigResource), 'agent-host.db').fsPath
 			: ':memory:';
@@ -668,15 +668,15 @@ export class AgentService extends Disposable implements IAgentService {
 			this._fileService,
 			this._stateManager,
 			{
+				onDidAuthenticate: this._authService.onDidAuthenticate,
+				getMissingAuthentication: definition => {
+					const config = this._automationSessionConfig(definition);
+					const providerId = config.provider ?? this._defaultProvider;
+					const provider = providerId ? this._providers.get(providerId) : undefined;
+					return provider ? this._authService.getMissingRequiredResources(provider.getRequiredProtectedResources(config)) : [];
+				},
 				createSession: async (definition, automation, run) => {
-					const session = await this.createSession({
-						provider: definition.session.provider,
-						model: definition.session.model,
-						agent: definition.session.agent,
-						workingDirectories: definition.session.workingDirectories?.map(resource => URI.parse(resource)),
-						config: definition.session.config,
-						origin: { kind: SessionOriginKind.Automation, automation, run },
-					});
+					const session = await this.createSession(this._automationSessionConfig(definition, automation, run));
 					return { session: session.toString(), chat: buildDefaultChatUri(session.toString()) };
 				},
 				startSession: async (session, chat, definition, turnId) => this._startAutomationSession(chat, definition, turnId),
@@ -1018,6 +1018,17 @@ export class AgentService extends Disposable implements IAgentService {
 		const action = { type: ActionType.ChatTurnStarted, turnId: generateUuid(), startedAt: new Date().toISOString(), message } as const;
 		this._stateManager.dispatchServerAction(chat.toString(), action);
 		this._sideEffects.handleAction(chat.toString(), action);
+	}
+
+	private _automationSessionConfig(definition: AutomationDefinition, automation?: string, run?: string): IAgentCreateSessionConfig {
+		return {
+			provider: definition.session.provider,
+			model: definition.session.model,
+			agent: definition.session.agent,
+			workingDirectories: definition.session.workingDirectories?.map(resource => URI.parse(resource)),
+			config: definition.session.config,
+			...(automation && run ? { origin: { kind: SessionOriginKind.Automation, automation, run } } : {}),
+		};
 	}
 
 	private async _startAutomationSession(chat: string, definition: AutomationDefinition, turnId: string): Promise<void> {

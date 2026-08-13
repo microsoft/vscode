@@ -26,7 +26,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
+import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, type AgentProvider, type AuthenticateParams, type IAgentCreateSessionConfig } from '../../common/agent.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -1123,6 +1123,11 @@ export class CodexAgent extends Disposable implements IAgent {
 			{ ...this._gitHubEndpointService.getCopilotResource(), required: false },
 			this._gitHubEndpointService.getRepoResource(),
 		];
+	}
+
+	getRequiredProtectedResources(config: IAgentCreateSessionConfig): readonly ProtectedResourceMetadata[] {
+		const modelProvider = config.model ? parseCodexModelSelection(config.model).modelProvider : CODEX_COPILOT_MODEL_PROVIDER;
+		return modelProvider === CODEX_COPILOT_MODEL_PROVIDER ? [this._gitHubEndpointService.getCopilotResource()] : [];
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {

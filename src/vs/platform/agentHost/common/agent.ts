@@ -1076,6 +1076,9 @@ export interface IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[];
 
+	/** Returns the protected resources required by this session configuration. */
+	getRequiredProtectedResources(config: IAgentCreateSessionConfig): readonly ProtectedResourceMetadata[];
+
 	authenticate(resource: string, token: string): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */

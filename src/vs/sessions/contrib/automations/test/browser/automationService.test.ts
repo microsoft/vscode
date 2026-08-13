@@ -115,7 +115,12 @@ suite('AutomationService', () => {
 	});
 
 	test('migrates a local row without enabling both authorities', async () => {
-		const raw = serializeLegacyLedger([serializedAutomation('tests', 'copilotcli', 'agent-host-copilotcliauto')]);
+		const nextRunAt = '2026-08-13T07:00:00.000Z';
+		const raw = serializeLegacyLedger([{
+			...serializedAutomation('tests', 'copilotcli', 'agent-host-copilotcliauto'),
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			nextRunAt,
+		}]);
 		const storage = disposables.add(new InMemoryStorageService());
 		storage.store(AUTOMATION_STORAGE_KEY, raw, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		const operations: string[] = [];
@@ -140,6 +145,7 @@ suite('AutomationService', () => {
 				modelId: automation.modelId,
 				migrationPending: automation.host?.migrationPending,
 			})),
+			import: connection.lastCreateImport,
 			legacyAutomations: JSON.parse(migrationStorage.value!).automations,
 		}, {
 			operations: ['host:create-disabled', 'legacy:disable', 'legacy:remove', 'host:enable'],
@@ -151,6 +157,12 @@ suite('AutomationService', () => {
 				modelId: 'auto',
 				migrationPending: undefined,
 			}],
+			import: {
+				source: 'vscode-legacy-automations',
+				batchId: connection.lastCreateImport?.batchId,
+				itemId: 'tests',
+				triggerNextRuns: [{ triggerId: 'schedule', nextRunAt }],
+			},
 			legacyAutomations: [],
 		});
 	});
@@ -233,6 +245,28 @@ suite('AutomationService', () => {
 		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
 
 		assert.strictEqual(migrationStorage.value, changedRaw);
+	});
+
+	test('does not disable a legacy definition whose schedule cursor advanced after preview', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const migrationStorage = new RecordingMigrationStorage(storage);
+		const migration = new LegacyAutomationMigration(migrationStorage, new NullLogService());
+		const original = {
+			...serializedAutomation('advanced', 'copilotcli'),
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			nextRunAt: '2026-08-13T07:00:00.000Z',
+		};
+		storage.store(AUTOMATION_STORAGE_KEY, serializeLegacyLedger([original]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const expected = (await migration.read()).automations[0];
+		const advancedRaw = serializeLegacyLedger([{
+			...original,
+			nextRunAt: '2026-08-14T07:00:00.000Z',
+		}]);
+		storage.store(AUTOMATION_STORAGE_KEY, advancedRaw, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		await assert.rejects(() => migration.disable(expected), /changed while it was being migrated/);
+
+		assert.strictEqual(migrationStorage.value, advancedRaw);
 	});
 
 	test('does not mistake a concurrent user disable for its own migration write', async () => {
@@ -790,6 +824,44 @@ suite('AutomationService', () => {
 		});
 	});
 
+	test('keeps pre-cron schedule payloads visible as read-only', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const connection = new TestConnection(['copilotcli']);
+		const resource = 'ahp-automation:/legacy-schedule';
+		connection.seedAutomation(resource, true, 'legacy schedule');
+		const definition: AutomationDefinition = JSON.parse(JSON.stringify({
+			...connection.lastCreateDefinition!,
+			triggers: [{
+				id: 'schedule',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: {
+					kind: 'daily',
+					time: { hour: 9, minute: 0 },
+					timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				},
+			}],
+		}));
+		connection.setAutomationDefinition(resource, definition);
+		const service = disposables.add(new AutomationService(
+			storage,
+			new NullLogService(),
+			new RecordingMigrationStorage(storage),
+			new TestConnectionsService(connection),
+			languageModelsService,
+		));
+		await Event.toPromise(connection.onDidListAutomations);
+
+		assert.deepStrictEqual(service.automations.get().map(automation => ({
+			name: automation.name,
+			schedule: automation.schedule,
+			hasUnsupportedTriggers: automation.host?.hasUnsupportedTriggers,
+		})), [{
+			name: 'legacy schedule',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			hasUnsupportedTriggers: true,
+		}]);
+	});
+
 	test('repairs workbench model identifiers in existing host definitions', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const connection = new TestConnection(['copilotcli']);
@@ -971,6 +1043,7 @@ class TestConnection extends NullAgentHostService {
 	private readonly modelIds: readonly string[];
 	readonly cancelRequests: string[] = [];
 	lastCreateDefinition: AutomationDefinition | undefined;
+	lastCreateImport: CreateAutomationParams['import'];
 	afterCreateAutomation: (() => void) | undefined;
 
 	constructor(providers: readonly string[], operations: string[] = [], modelIds: readonly string[] = ['auto', 'openrouter/group/model']) {
@@ -1013,6 +1086,7 @@ class TestConnection extends NullAgentHostService {
 
 	override async createAutomation(params: CreateAutomationParams): Promise<void> {
 		this.lastCreateDefinition = params.definition;
+		this.lastCreateImport = params.import;
 		if (this.automations.has(params.channel)) {
 			queueMicrotask(() => this._onDidCreateAutomationConflict.fire());
 			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Automation already exists: ${params.channel}`);
@@ -1268,6 +1342,8 @@ function serializedAutomation(name: string, sessionTypeId: string, modelId?: str
 		enabled: true,
 		createdAt: '2026-01-01T00:00:00.000Z',
 		updatedAt: '2026-01-01T00:00:00.000Z',
+		lastRunAt: undefined as string | undefined,
+		nextRunAt: undefined as string | undefined,
 	};
 }
 

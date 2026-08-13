@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,7 +17,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
-import { AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
+import { AutomationRunCauseKind, AutomationRunStatus } from '../../common/state/protocol/channels-automation-run/state.js';
+import type { ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AgentAutomationService, type IAutomationSessionExecutor } from '../../node/agentAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -34,7 +37,7 @@ suite('AgentAutomationService', () => {
 		fileSystemProvider = disposables.add(new TestFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.inMemory, fileSystemProvider));
 		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		executor = new TestAutomationExecutor(manager);
+		executor = disposables.add(new TestAutomationExecutor(manager));
 		service = disposables.add(new AgentAutomationService(resource, fileService, manager, executor, new NullLogService()));
 	});
 
@@ -57,7 +60,7 @@ suite('AgentAutomationService', () => {
 		service.dispose();
 
 		const restoredManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		const restoredExecutor = new TestAutomationExecutor(restoredManager);
+		const restoredExecutor = disposables.add(new TestAutomationExecutor(restoredManager));
 		const restored = disposables.add(new AgentAutomationService(resource, fileService, restoredManager, restoredExecutor, new NullLogService()));
 		const second = await restored.run({ channel: 'ahp-automation:/test', requestId: 'request-1' });
 
@@ -186,7 +189,7 @@ suite('AgentAutomationService', () => {
 	test('a due tick starts at most one run even when several triggers fire', async () => {
 		const scheduled = new Date(Date.now() - 5 * 60_000).toISOString();
 		await writeStore({
-			version: 1,
+			version: 2,
 			automations: [{
 				resource: 'ahp-automation:/scheduled',
 				definition: {
@@ -206,8 +209,9 @@ suite('AgentAutomationService', () => {
 			requestRuns: {},
 			triggerNextRuns: { 'ahp-automation:/scheduled': { 'trigger-a': scheduled, 'trigger-b': scheduled } },
 			initialTurnIds: {},
+			pendingImports: [],
 		});
-		const scheduledExecutor = new TestAutomationExecutor(manager);
+		const scheduledExecutor = disposables.add(new TestAutomationExecutor(manager));
 		const scheduledService = disposables.add(new AgentAutomationService(resource, fileService, manager, scheduledExecutor, new NullLogService()));
 		await scheduledExecutor.createStarted.p;
 		await scheduledService.list({ channel: 'ahp-root://' });
@@ -224,6 +228,155 @@ suite('AgentAutomationService', () => {
 			runCount: 1,
 			advancedTriggers: true,
 		});
+	});
+
+	test('runs an overdue imported occurrence only after cutover and claims it across restart', async () => {
+		const scheduledFor = new Date(Date.now() - 5 * 60_000).toISOString();
+		const automation = 'ahp-automation:/imported';
+		const importedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const importedExecutor = disposables.add(new TestAutomationExecutor(importedManager));
+		const importedService = disposables.add(new AgentAutomationService(resource, fileService, importedManager, importedExecutor, new NullLogService()));
+		await importedService.create({
+			channel: automation,
+			definition: {
+				...automationDefinition(),
+				enabled: false,
+				triggers: [{
+					id: 'schedule',
+					kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: '* * * * *', timeZone: 'UTC' },
+				}],
+			},
+			import: {
+				source: 'legacy',
+				batchId: 'batch',
+				itemId: 'item',
+				triggerNextRuns: [{ triggerId: 'schedule', nextRunAt: scheduledFor }],
+			},
+		});
+		await waitForIdle();
+		const beforeCutover = {
+			runs: importedManager.getAutomationState(automation)?.runs.length,
+			nextRunAt: importedManager.getAutomationState(automation)?.nextRunAt,
+			createdSessions: importedExecutor.createCount,
+		};
+		importedService.dispose();
+
+		const cutoverManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const cutoverExecutor = disposables.add(new TestAutomationExecutor(cutoverManager));
+		const cutoverService = disposables.add(new AgentAutomationService(resource, fileService, cutoverManager, cutoverExecutor, new NullLogService()));
+		await cutoverService.list({ channel: 'ahp-root://' });
+		await cutoverService.update({ channel: automation, expectedRevision: 1, changes: { enabled: true } });
+		await cutoverExecutor.createStarted.p;
+		await waitForIdle();
+		const run = cutoverManager.getAutomationState(automation)?.runs[0];
+		const runState = run ? cutoverManager.getAutomationRunState(run.resource) : undefined;
+		const persisted = JSON.parse((await fileService.readFile(resource)).value.toString()) as {
+			readonly pendingImports: string[];
+			readonly triggerNextRuns: Record<string, Record<string, string>>;
+		};
+		cutoverService.dispose();
+
+		const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const restartedExecutor = disposables.add(new TestAutomationExecutor(restartedManager));
+		const restartedService = disposables.add(new AgentAutomationService(resource, fileService, restartedManager, restartedExecutor, new NullLogService()));
+		await restartedService.list({ channel: 'ahp-root://' });
+		await waitForIdle();
+
+		assert.deepStrictEqual({
+			beforeCutover,
+			cutover: {
+				runCount: cutoverManager.getAutomationState(automation)?.runs.length,
+				cause: runState?.cause,
+				cursorAdvanced: new Date(persisted.triggerNextRuns[automation].schedule).getTime() > Date.now(),
+				pendingImports: persisted.pendingImports,
+			},
+			afterRestart: {
+				runCount: restartedManager.getAutomationState(automation)?.runs.length,
+				createdSessions: restartedExecutor.createCount,
+			},
+		}, {
+			beforeCutover: { runs: 0, nextRunAt: undefined, createdSessions: 0 },
+			cutover: {
+				runCount: 1,
+				cause: {
+					kind: AutomationRunCauseKind.Trigger,
+					triggerId: 'schedule',
+					scheduledFor,
+					catchUp: true,
+				},
+				cursorAdvanced: true,
+				pendingImports: [],
+			},
+			afterRestart: { runCount: 1, createdSessions: 0 },
+		});
+	});
+
+	test('waits for required authentication before starting a due run', async () => {
+		const scheduled = new Date(Date.now() - 5 * 60_000).toISOString();
+		await writeStore({
+			version: 2,
+			automations: [{
+				resource: 'ahp-automation:/scheduled',
+				definition: {
+					...automationDefinition(),
+					triggers: [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }],
+				},
+				revision: 1,
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Dispose, AutomationOperation.Run],
+				createdAt: '2025-01-01T00:00:00.000Z',
+				modifiedAt: '2025-01-01T00:00:00.000Z',
+			}],
+			runs: [],
+			requestRuns: {},
+			triggerNextRuns: { 'ahp-automation:/scheduled': { schedule: scheduled } },
+			initialTurnIds: {},
+			pendingImports: [],
+		});
+		const scheduledManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const scheduledExecutor = disposables.add(new TestAutomationExecutor(scheduledManager));
+		scheduledExecutor.missingAuthentication = [{
+			resource: 'https://api.github.com',
+			scopes_supported: ['read:user', 'user:email'],
+		}];
+		const scheduledService = disposables.add(new AgentAutomationService(resource, fileService, scheduledManager, scheduledExecutor, new NullLogService()));
+		await scheduledService.list({ channel: 'ahp-root://' });
+		await waitForIdle();
+		const beforeAuthentication = {
+			createdSessions: scheduledExecutor.createCount,
+			runCount: scheduledManager.getAutomationState('ahp-automation:/scheduled')?.runs.length,
+		};
+
+		scheduledExecutor.authenticate();
+		await scheduledExecutor.createStarted.p;
+		await waitForIdle();
+
+		assert.deepStrictEqual({
+			beforeAuthentication,
+			afterAuthentication: {
+				createdSessions: scheduledExecutor.createCount,
+				runCount: scheduledManager.getAutomationState('ahp-automation:/scheduled')?.runs.length,
+			},
+		}, {
+			beforeAuthentication: { createdSessions: 0, runCount: 0 },
+			afterAuthentication: { createdSessions: 1, runCount: 1 },
+		});
+	});
+
+	test('rejects enabled imports before they can become schedulable', async () => {
+		await assert.rejects(() => service.create({
+			channel: 'ahp-automation:/enabled-import',
+			definition: automationDefinition(),
+			import: {
+				source: 'legacy',
+				batchId: 'batch',
+				itemId: 'item',
+				triggerNextRuns: [],
+			},
+		}), /Imported automation definitions must be disabled/);
+
+		assert.strictEqual(manager.getAutomationState('ahp-automation:/enabled-import'), undefined);
 	});
 
 	test('rejects event triggers that this host cannot fire', async () => {
@@ -337,7 +490,7 @@ suite('AgentAutomationService', () => {
 	});
 });
 
-class TestAutomationExecutor implements IAutomationSessionExecutor {
+class TestAutomationExecutor extends Disposable implements IAutomationSessionExecutor {
 	createCount = 0;
 	startCount = 0;
 	disposeCount = 0;
@@ -345,8 +498,22 @@ class TestAutomationExecutor implements IAutomationSessionExecutor {
 	readonly cancelStarted = new DeferredPromise<void>();
 	createBarrier: DeferredPromise<void> | undefined;
 	turnId: string | undefined;
+	missingAuthentication: readonly ProtectedResourceMetadata[] = [];
+	private readonly _onDidAuthenticate = this._register(new Emitter<void>());
+	readonly onDidAuthenticate = this._onDidAuthenticate.event;
 
-	constructor(private readonly manager: AgentHostStateManager) { }
+	constructor(private readonly manager: AgentHostStateManager) {
+		super();
+	}
+
+	getMissingAuthentication(): readonly ProtectedResourceMetadata[] {
+		return this.missingAuthentication;
+	}
+
+	authenticate(): void {
+		this.missingAuthentication = [];
+		this._onDidAuthenticate.fire();
+	}
 
 	async createSession(_definition: AutomationDefinition, _automation: string, run: string): Promise<{ session: string; chat: string }> {
 		this.createCount++;

@@ -3129,26 +3129,37 @@ suite('CopilotAgent', () => {
 			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
 			const requiredWithoutByok = copilotRequired();
 			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
-			await waitForState(agent.models, models => models.length === 1);
+			const byokModels = await waitForState(agent.models, models => models.length === 1);
 			const optionalWithByok = copilotRequired();
+			const requiredForByokModel = agent.getRequiredProtectedResources({ model: { id: byokModels[0].id } }).length > 0;
+			const requiredForCapiModel = agent.getRequiredProtectedResources({ model: { id: 'auto' } }).length > 0;
 			modelSnapshots.fire([]);
 			await waitForState(agent.models, models => models.length === 0);
 			const requiredAfterHide = copilotRequired();
 			configurationService.updateRootConfig({ [AgentHostConfigKey.AllowSignedOutWhenUsable]: false });
 			const requiredAfterDisable = copilotRequired();
+			modelSnapshots.fire([{ vendor: 'gemini', id: 'gemini-2.5-pro', modelIdentifier: 'gemini/Gemini/gemini-2.5-pro' }]);
+			const disabledByokModels = await waitForState(agent.models, models => models.length === 1);
+			const requiredForByokAfterDisable = agent.getRequiredProtectedResources({ model: { id: disabledByokModels[0].id } }).length > 0;
 
 			assert.deepStrictEqual({
 				initiallyRequired,
 				requiredWithoutByok,
 				optionalWithByok,
+				requiredForByokModel,
+				requiredForCapiModel,
 				requiredAfterHide,
 				requiredAfterDisable,
+				requiredForByokAfterDisable,
 			}, {
 				initiallyRequired: true,
 				requiredWithoutByok: true,
 				optionalWithByok: false,
+				requiredForByokModel: false,
+				requiredForCapiModel: true,
 				requiredAfterHide: true,
 				requiredAfterDisable: true,
+				requiredForByokAfterDisable: true,
 			});
 		} finally {
 			await disposeAgent(agent);

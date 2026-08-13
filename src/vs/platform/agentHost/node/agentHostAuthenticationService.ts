@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
+import type { ProtectedResourceMetadata } from '../common/state/protocol/common/state.js';
 
 interface IStoredAuthToken {
 	readonly resource: string;
@@ -12,13 +15,17 @@ interface IStoredAuthToken {
 	readonly token: string;
 }
 
-export class AgentHostAuthenticationService {
+export class AgentHostAuthenticationService extends Disposable {
 
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _onDidAuthenticate = this._register(new Emitter<void>());
+	readonly onDidAuthenticate = this._onDidAuthenticate.event;
 
 	constructor(
 		private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
@@ -71,7 +78,12 @@ export class AgentHostAuthenticationService {
 			authenticated = this._tokens.get(this._key(params.resource, scopes))?.token === params.token;
 		}
 		if (authenticated) {
-			this._tokens.set(this._key(params.resource, scopes), { resource: params.resource, scopes, token: params.token });
+			const key = this._key(params.resource, scopes);
+			const previous = this._tokens.get(key);
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token });
+			if (previous?.token !== params.token) {
+				this._onDidAuthenticate.fire();
+			}
 		}
 		return { authenticated };
 	}
@@ -127,6 +139,13 @@ export class AgentHostAuthenticationService {
 		// Compatibility for clients that resolved the right token before scopes
 		// were forwarded through the authenticate command.
 		return this._tokens.get(this._key(request.resource, []))?.token;
+	}
+
+	getMissingRequiredResources(resources: readonly ProtectedResourceMetadata[]): readonly ProtectedResourceMetadata[] {
+		return resources.filter(resource =>
+			resource.required !== false
+			&& this.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported }) === undefined
+		);
 	}
 
 	private _containsAll(scopes: readonly string[], requested: ReadonlySet<string>): boolean {

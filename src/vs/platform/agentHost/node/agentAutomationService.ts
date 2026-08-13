@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler, Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import type { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -22,6 +23,7 @@ import {
 	type AutomationSchedule,
 	type AutomationState,
 } from '../common/state/protocol/channels-automation/state.js';
+import type { ProtectedResourceMetadata } from '../common/state/protocol/common/state.js';
 import {
 	AutomationRunBlockerKind,
 	AutomationRunCauseKind,
@@ -39,6 +41,7 @@ import {
 } from '../common/state/protocol/channels-session/state.js';
 import type {
 	AutomationCapabilities,
+	AutomationImportTriggerNextRun,
 	CreateAutomationParams,
 	DisposeAutomationParams,
 	FetchAutomationRunsParams,
@@ -58,7 +61,7 @@ import { MessageKind, parseRequiredSessionUriFromChatUri } from '../common/state
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
-const STORE_VERSION = 1;
+const STORE_VERSION = 2;
 const TICK_INTERVAL = 60_000;
 const MAX_SCHEDULE_LOOKAHEAD_MINUTES = 366 * 24 * 60;
 const RUN_HISTORY_LIMIT = 50;
@@ -70,9 +73,12 @@ interface IPersistedAutomationStore {
 	readonly requestRuns: Record<string, string>;
 	readonly triggerNextRuns: Record<string, Record<string, string>>;
 	readonly initialTurnIds: Record<string, string>;
+	readonly pendingImports?: string[];
 }
 
 export interface IAutomationSessionExecutor {
+	readonly onDidAuthenticate: Event<void>;
+	getMissingAuthentication(definition: AutomationDefinition): readonly ProtectedResourceMetadata[];
 	createSession(definition: AutomationDefinition, automation: string, run: string): Promise<{ session: string; chat: string }>;
 	startSession(session: string, chat: string, definition: AutomationDefinition, turnId: string): Promise<void>;
 	cancelSession(session: string, turnId: string): Promise<void>;
@@ -95,10 +101,12 @@ export class AgentAutomationService extends Disposable {
 	private readonly _requestRuns = new Map<string, string>();
 	private readonly _triggerNextRuns = new Map<string, Map<string, string>>();
 	private readonly _initialTurnIds = new Map<string, string>();
+	private readonly _pendingImports = new Set<string>();
 	private readonly _persistSequencer = new Sequencer();
+	private readonly _tickSequencer = new Sequencer();
 	private readonly _ready: Promise<void>;
 	private readonly _scheduler = this._register(new RunOnceScheduler(() => {
-		void this._tick().finally(() => this._scheduler.schedule(TICK_INTERVAL));
+		void this._queueTick().finally(() => this._scheduler.schedule(TICK_INTERVAL));
 	}, TICK_INTERVAL));
 
 	constructor(
@@ -111,9 +119,14 @@ export class AgentAutomationService extends Disposable {
 		super();
 		this._ready = this._load();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => this._onEnvelope(envelope)));
+		this._register(this._executor.onDidAuthenticate(() => {
+			if (this._resource) {
+				this._scheduler.schedule(0);
+			}
+		}));
 		if (this._resource) {
 			void this._ready.then(() => {
-				void this._tick();
+				void this._queueTick();
 				this._scheduler.schedule(TICK_INTERVAL);
 			});
 		}
@@ -142,6 +155,7 @@ export class AgentAutomationService extends Disposable {
 			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Automation already exists: ${params.channel}`);
 		}
 		validateDefinition(params.definition);
+		validateImport(params);
 		const now = new Date().toISOString();
 		const state: AutomationState = {
 			resource: params.channel,
@@ -152,7 +166,10 @@ export class AgentAutomationService extends Disposable {
 			createdAt: now,
 			modifiedAt: now,
 		};
-		this._recomputeSchedule(state, new Date());
+		this._initializeSchedule(state, new Date(), params.import?.triggerNextRuns);
+		if (params.import?.triggerNextRuns?.length) {
+			this._pendingImports.add(state.resource);
+		}
 		this._stateManager.addAutomation(state);
 		await this._persist();
 	}
@@ -163,6 +180,8 @@ export class AgentAutomationService extends Disposable {
 		if (state.revision !== params.expectedRevision) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, `Automation revision conflict: ${params.channel}`);
 		}
+		const wasEnabled = state.definition.enabled;
+		const pendingImport = this._pendingImports.has(state.resource);
 		const definition: AutomationDefinition = {
 			...state.definition,
 			...params.changes,
@@ -180,7 +199,14 @@ export class AgentAutomationService extends Disposable {
 			nextRunAt: undefined,
 		});
 		const updated = this._requireAutomation(params.channel);
-		this._recomputeSchedule(updated, new Date());
+		if (pendingImport && params.changes.triggers === undefined) {
+			this._updateNextRunAt(updated);
+		} else {
+			this._recomputeSchedule(updated, new Date());
+		}
+		if (pendingImport && (params.changes.enabled !== undefined || params.changes.triggers !== undefined)) {
+			this._pendingImports.delete(updated.resource);
+		}
 		this._stateManager.dispatchServerAction(params.channel, {
 			type: ActionType.AutomationDefinitionChanged,
 			definition: updated.definition,
@@ -189,6 +215,9 @@ export class AgentAutomationService extends Disposable {
 			nextRunAt: updated.nextRunAt,
 		});
 		await this._persist();
+		if (!wasEnabled && definition.enabled) {
+			this._scheduler.schedule(0);
+		}
 	}
 
 	async disposeAutomation(params: DisposeAutomationParams): Promise<void> {
@@ -202,6 +231,7 @@ export class AgentAutomationService extends Disposable {
 			this._stateManager.removeAutomationRun(run.resource);
 		}
 		this._triggerNextRuns.delete(params.channel);
+		this._pendingImports.delete(params.channel);
 		this._stateManager.removeAutomation(params.channel);
 		await this._persist();
 	}
@@ -216,6 +246,14 @@ export class AgentAutomationService extends Disposable {
 		const automation = this._requireAutomation(params.channel);
 		if (this._hasActiveRun(automation.resource)) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, `Automation already has an active run: ${params.channel}`);
+		}
+		const missingAuthentication = this._executor.getMissingAuthentication(automation.definition);
+		if (missingAuthentication.length > 0) {
+			throw new ProtocolError(
+				AhpErrorCodes.AuthRequired,
+				`Authentication is required to run automation: ${params.channel}`,
+				{ resources: missingAuthentication },
+			);
 		}
 		const run = await this._createRun(automation, { kind: AutomationRunCauseKind.Manual }, requestKey);
 		return { run };
@@ -509,6 +547,10 @@ export class AgentAutomationService extends Disposable {
 		}
 	}
 
+	private _queueTick(): Promise<void> {
+		return this._tickSequencer.queue(() => this._tick());
+	}
+
 	private async _tick(): Promise<void> {
 		await this._ready;
 		const now = new Date();
@@ -517,7 +559,11 @@ export class AgentAutomationService extends Disposable {
 			if (!automation?.definition.enabled || this._hasActiveRun(automation.resource)) {
 				continue;
 			}
+			if (this._executor.getMissingAuthentication(automation.definition).length > 0) {
+				continue;
+			}
 			const nextByTrigger = this._triggerNextRuns.get(automation.resource) ?? new Map<string, string>();
+			let runCause: AutomationRunCause | undefined;
 			for (const trigger of automation.definition.triggers) {
 				if (trigger.kind !== AutomationTriggerKind.Schedule) {
 					continue;
@@ -526,19 +572,19 @@ export class AgentAutomationService extends Disposable {
 				if (!due || new Date(due).getTime() > now.getTime()) {
 					continue;
 				}
-				// Every due trigger advances, but at most one run may be active at a time,
-				// so later triggers due in the same tick only move to their next occurrence.
-				if (trigger.misfirePolicy !== AutomationMisfirePolicy.Skip && !this._hasActiveRun(automation.resource)) {
-					await this._createRun(automation, {
+				const next = computeNextSchedule(trigger.schedule, now);
+				if (!next) {
+					nextByTrigger.delete(trigger.id);
+					continue;
+				}
+				nextByTrigger.set(trigger.id, next.toISOString());
+				if (!runCause && trigger.misfirePolicy !== AutomationMisfirePolicy.Skip) {
+					runCause = {
 						kind: AutomationRunCauseKind.Trigger,
 						triggerId: trigger.id,
 						scheduledFor: due,
 						catchUp: new Date(due).getTime() + TICK_INTERVAL < now.getTime(),
-					});
-				}
-				const next = computeNextSchedule(trigger.schedule, now);
-				if (next) {
-					nextByTrigger.set(trigger.id, next.toISOString());
+					};
 				}
 			}
 			this._triggerNextRuns.set(automation.resource, nextByTrigger);
@@ -550,8 +596,23 @@ export class AgentAutomationService extends Disposable {
 				modifiedAt: current.modifiedAt,
 				nextRunAt: this._computeNextRunAt(current),
 			});
+			if (runCause) {
+				await this._createRun(current, runCause);
+			}
 		}
 		await this._persist();
+	}
+
+	private _initializeSchedule(state: AutomationState, after: Date, importedNextRuns: readonly AutomationImportTriggerNextRun[] | undefined): void {
+		this._recomputeSchedule(state, after);
+		if (!importedNextRuns?.length) {
+			return;
+		}
+		const nextByTrigger = this._triggerNextRuns.get(state.resource)!;
+		for (const nextRun of importedNextRuns) {
+			nextByTrigger.set(nextRun.triggerId, nextRun.nextRunAt);
+		}
+		this._updateNextRunAt(state);
 	}
 
 	private _recomputeSchedule(state: AutomationState, after: Date): void {
@@ -611,6 +672,9 @@ export class AgentAutomationService extends Disposable {
 			for (const [run, turnId] of Object.entries(data.initialTurnIds)) {
 				this._initialTurnIds.set(run, turnId);
 			}
+			for (const automation of data.pendingImports ?? []) {
+				this._pendingImports.add(automation);
+			}
 			let recoveredRun = false;
 			for (const run of data.runs) {
 				if (isTerminal(run.lifecycle)) {
@@ -665,6 +729,7 @@ export class AgentAutomationService extends Disposable {
 				requestRuns: Object.fromEntries(this._requestRuns),
 				triggerNextRuns: Object.fromEntries([...this._triggerNextRuns].map(([key, value]) => [key, Object.fromEntries(value)])),
 				initialTurnIds: Object.fromEntries(this._initialTurnIds),
+				pendingImports: [...this._pendingImports],
 			};
 			await this._fileService.createFolder(dirname(this._resource!));
 			await this._fileService.writeFile(this._resource!, VSBuffer.fromString(JSON.stringify(data)));
@@ -696,6 +761,31 @@ function validateDefinition(definition: AutomationDefinition): void {
 	}
 }
 
+function validateImport(params: CreateAutomationParams): void {
+	if (!params.import) {
+		return;
+	}
+	if (params.definition.enabled) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Imported automation definitions must be disabled');
+	}
+	const scheduleTriggers = new Set(params.definition.triggers
+		.filter(trigger => trigger.kind === AutomationTriggerKind.Schedule)
+		.map(trigger => trigger.id));
+	const importedTriggers = new Set<string>();
+	for (const nextRun of params.import.triggerNextRuns ?? []) {
+		if (!scheduleTriggers.has(nextRun.triggerId)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Imported next run references an unknown schedule trigger: ${nextRun.triggerId}`);
+		}
+		if (importedTriggers.has(nextRun.triggerId)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Imported next run is duplicated for trigger: ${nextRun.triggerId}`);
+		}
+		if (!Number.isFinite(Date.parse(nextRun.nextRunAt))) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Imported next run is not an ISO 8601 timestamp: ${nextRun.triggerId}`);
+		}
+		importedTriggers.add(nextRun.triggerId);
+	}
+}
+
 function isTerminal(lifecycle: AutomationRunLifecycle): boolean {
 	return lifecycle.status === AutomationRunStatus.Completed
 		|| lifecycle.status === AutomationRunStatus.Failed
@@ -716,6 +806,9 @@ function runStartedAt(lifecycle: AutomationRunLifecycle): string | undefined {
 }
 
 function computeNextSchedule(schedule: AutomationSchedule, after: Date): Date | undefined {
+	if (typeof schedule.expression !== 'string' || typeof schedule.timeZone !== 'string') {
+		return undefined;
+	}
 	const matcher = parseCron(schedule.expression);
 	if (!matcher) {
 		return undefined;
