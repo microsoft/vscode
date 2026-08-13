@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatSendRequestOptions } from './chatService/chatService.js';
 
 /**
  * Setting that gates the "omni" chat experience — advisory badge routing on omni
@@ -186,6 +188,41 @@ export interface IRoutableSession {
 	readonly lastRequest?: string;
 	/** The session's most recent response (already truncated by the caller), when known. */
 	readonly lastResponse?: string;
+}
+
+/**
+ * A routing candidate supplied by a host extension. The aggregate candidate id
+ * remains distinct from the raw session resource used by the destination.
+ */
+export interface IAdditionalRoutableSession extends IRoutableSession {
+	readonly rawSessionResource: URI;
+}
+
+export interface IChatSessionRoutingDispatchResult {
+	readonly status: 'sent' | 'queued' | 'rejected';
+	readonly resource?: URI;
+	readonly requestId?: string;
+	readonly reason?: string;
+	readonly reasonCode?: 'cancelled' | 'providerRemoved';
+	readonly completion?: Promise<IChatSessionRoutingDispatchResult>;
+}
+
+export const IGlobalOmniSessionBroker = createDecorator<IGlobalOmniSessionBroker>('globalOmniSessionBroker');
+
+/**
+ * Same-profile broker used by the Omni owner to discover and dispatch to agent
+ * sessions whose authoritative renderer is another VS Code window.
+ */
+export interface IGlobalOmniSessionBroker {
+	readonly _serviceBrand: undefined;
+
+	getAdditionalCandidates(localSessionResources: readonly string[]): readonly IAdditionalRoutableSession[];
+	dispatch(
+		candidateId: string,
+		message: string,
+		options: IChatSendRequestOptions,
+		token: CancellationToken,
+	): Promise<IChatSessionRoutingDispatchResult | undefined>;
 }
 
 /** A single scored candidate produced by the router, sorted best-first. */

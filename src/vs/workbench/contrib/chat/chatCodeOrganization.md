@@ -23,3 +23,11 @@ This contrib is, as of the end of 2025, the largest workbench contrib in VS Code
 - `participants/` - Chat participant management (sometimes called "agents" in code).
 - `tools/` - Language model tools infrastructure and services.
 	- `builtinTools/` - Implementations of some built-in tools.
+
+## Global Omni Session Routing
+
+The floating Omni chat input remains a deterministic single-owner surface. Opening it from another renderer broadcasts a newer ownership claim and closes the previous instance.
+
+Every renderer with `chat.omni.enabled` publishes a lightweight catalog of its routable agent sessions through a `BroadcastDataChannel` scoped to the current user data profile. Catalog entries contain the stable session resource and display/routing metadata (label, status, timestamps, repository, working directory, and description), but never conversation transcripts or request/response content. The Omni-owning renderer merges those catalogs with its local sessions, preferring local entries and deterministically selecting one source renderer when multiple windows publish the same resource. Heartbeats, expiry, and goodbye messages remove stale sources.
+
+Remote candidate ids encode the source renderer separately from the raw session resource. When such a candidate is selected, only that request and its marshalled request options are sent to the source renderer. The source revalidates the session and uses its own `IChatService`, provider, trust, and policy context to send or queue the request, then returns an explicit sent, queued, or rejected result. VS Code marshalling and attachment export preserve URI and binary attachment values. Command intent continues to execute only in the renderer that owns Omni; the broker routes sessions, not local window commands.

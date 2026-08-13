@@ -11,18 +11,31 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, CHAT_INPUT_WINDOW_TOGGLE_COMMAND_ID, IChatInputWindowService } from '../../common/chatInputWindow.js';
-import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
+import { IGlobalOmniSessionBroker, OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { ChatViewId } from '../chat.js';
 
 // Registers the singleton implementation (side-effect import).
 import './chatInputWindowService.js';
+import './globalOmniSessionBroker.js';
 
 const inputWindowEnabled = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ContextKeyExpr.equals(`config.${OmniChatEnabledSettingId}`, true)
 );
+
+class GlobalOmniSessionBrokerContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.globalOmniSessionBroker';
+
+	constructor(
+		@IGlobalOmniSessionBroker _globalOmniSessionBroker: IGlobalOmniSessionBroker,
+	) { }
+}
+
+registerWorkbenchContribution2(GlobalOmniSessionBrokerContribution.ID, GlobalOmniSessionBrokerContribution, WorkbenchPhase.AfterRestored);
 
 CommandsRegistry.registerCommand(CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID, (accessor, text: string) => {
 	return accessor.get(IChatInputWindowService).acceptVoiceInput(text);

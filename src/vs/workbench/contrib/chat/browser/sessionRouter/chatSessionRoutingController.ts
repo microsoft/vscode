@@ -33,7 +33,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
+import { detectExactCommandTitleIntent, filterOmniCommandIntentCandidates, heuristicScore, IAdditionalRoutableSession, IChatSessionRoutingDispatchResult, ICommandIntentCandidate, ICommandIntentResult, IRoutableSession, isHighConfidenceCommandIntent, isHighConfidenceSessionRoute, ISessionRouteResult, ISessionRouter, ROUTER_FIELD_CLIP_LENGTH, selectCommandIntentCandidates } from '../../common/sessionRouter.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentSession, AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
@@ -73,15 +73,6 @@ type NewSessionTarget = {
 type FolderPickerItem =
 	| { readonly id: string; readonly kind: 'workspace'; readonly folder: IWorkspaceFolder }
 	| { readonly id: 'choose-folder'; readonly kind: 'choose' };
-
-interface IDispatchResult {
-	readonly status: 'sent' | 'queued' | 'rejected';
-	readonly resource?: URI;
-	readonly requestId?: string;
-	readonly reason?: string;
-	readonly reasonCode?: 'cancelled' | 'providerRemoved';
-	readonly completion?: Promise<IDispatchResult>;
-}
 
 type SubmissionPhase = 'idle' | 'routing' | 'awaitingChoice' | 'dispatching';
 
@@ -140,6 +131,18 @@ export interface IChatSessionRoutingHost {
 	readonly widget: ChatWidget;
 	/** Resource of the host's own scratch session, excluded from routing candidates. */
 	getOwnSessionResource(): URI | undefined;
+	/** Additional sessions whose authoritative renderer is outside this window. */
+	getAdditionalCandidates?(
+		localCandidates: readonly IRoutableSession[],
+		token: CancellationToken,
+	): readonly IAdditionalRoutableSession[] | Promise<readonly IAdditionalRoutableSession[]>;
+	/** Dispatch a candidate returned by {@link getAdditionalCandidates}. */
+	dispatchToAdditionalSession?(
+		candidateId: string,
+		message: string,
+		options: IChatSendRequestOptions,
+		token: CancellationToken,
+	): Promise<IChatSessionRoutingDispatchResult | undefined>;
 	/** Session whose currently displayed question or approval the voice input answers directly. */
 	getPendingReplySessionResource?(): URI | undefined;
 	/** Session provider selected for a newly created destination. */
@@ -188,6 +191,7 @@ export class ChatSessionRoutingController extends Disposable {
 	/** Cancellation for the in-flight submission; canceled when the host tears down. */
 	private readonly _submitCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _submitDraftListeners = this._register(new MutableDisposable<IDisposable>());
+	private readonly _additionalCandidates = new Map<string, IAdditionalRoutableSession>();
 
 	constructor(
 		private readonly host: IChatSessionRoutingHost,
@@ -485,12 +489,45 @@ export class ChatSessionRoutingController extends Disposable {
 			return [];
 		}
 		const ownResource = this.host.getOwnSessionResource()?.toString();
-		return this.agentSessionsService.model.sessions
+		const localCandidates = this.agentSessionsService.model.sessions
 			.filter(session => session.resource.toString() !== ownResource
 				&& isCopilotRoutingProvider(session.providerType)
 				&& !session.isArchived()
 				&& this.chatSessionsService.getChatSessionContribution(getChatSessionType(session.resource))?.isReadOnly !== true)
 			.map(session => this._toRoutableSession(session));
+		this._additionalCandidates.clear();
+		if (!this.host.getAdditionalCandidates) {
+			return localCandidates;
+		}
+
+		let additionalCandidates: readonly IAdditionalRoutableSession[];
+		try {
+			additionalCandidates = await this.host.getAdditionalCandidates(localCandidates, token);
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				this.logService.warn('[chatSessionRouting] collecting additional sessions failed:', error);
+			}
+			return localCandidates;
+		}
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const localResources = new Set(localCandidates.map(candidate => candidate.sessionId));
+		const remoteResources = new Set<string>();
+		const accepted: IAdditionalRoutableSession[] = [];
+		for (const candidate of [...additionalCandidates].sort((a, b) => a.sessionId.localeCompare(b.sessionId))) {
+			const rawResource = candidate.rawSessionResource.toString();
+			if (localResources.has(rawResource)
+				|| remoteResources.has(rawResource)
+				|| this._additionalCandidates.has(candidate.sessionId)) {
+				continue;
+			}
+			remoteResources.add(rawResource);
+			this._additionalCandidates.set(candidate.sessionId, candidate);
+			accepted.push(candidate);
+		}
+		return [...localCandidates, ...accepted];
 	}
 
 	private _toRoutableSession(session: IAgentSession): IRoutableSession {
@@ -551,6 +588,9 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	private async _enrichCandidate(candidate: IRoutableSession, token: CancellationToken): Promise<IRoutableSession> {
+		if (this._additionalCandidates.has(candidate.sessionId)) {
+			return candidate;
+		}
 		let resource: URI;
 		try {
 			resource = URI.parse(candidate.sessionId);
@@ -1219,7 +1259,7 @@ export class ChatSessionRoutingController extends Disposable {
 		startCountdown();
 	}
 
-	private _showDeliveryConfirmation(label: string, result: IDispatchResult): void {
+	private _showDeliveryConfirmation(label: string, result: IChatSessionRoutingDispatchResult): void {
 		const resource = result.resource;
 		if (!resource) {
 			this._showDispatchFailure(label);
@@ -1345,7 +1385,7 @@ export class ChatSessionRoutingController extends Disposable {
 		store.add(this.agentSessionsService.model.onDidChangeSessions(() => update()));
 	}
 
-	private _showFanoutOutcomes(targets: readonly PendingTarget[], results: readonly IDispatchResult[]): void {
+	private _showFanoutOutcomes(targets: readonly PendingTarget[], results: readonly IChatSessionRoutingDispatchResult[]): void {
 		const badge = dom.$('.chat-routing-badge');
 		badge.classList.add('chat-routing-badge-outcomes');
 		const store = new DisposableStore();
@@ -1430,14 +1470,19 @@ export class ChatSessionRoutingController extends Disposable {
 	}
 
 	/** Dispatch a resolved pending target. */
-	private async _dispatchTo(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute = true): Promise<IDispatchResult> {
+	private async _dispatchTo(target: PendingTarget, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute = true): Promise<IChatSessionRoutingDispatchResult> {
 		if (target.kind === 'new') {
 			return this._dispatchToNewSession(submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute, target.folder);
 		}
 		return this._dispatchToSession(target.sessionId, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute);
 	}
 
-	private async _dispatchToSession(sessionId: string, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean): Promise<IDispatchResult> {
+	private async _dispatchToSession(sessionId: string, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean): Promise<IChatSessionRoutingDispatchResult> {
+		const additionalCandidate = this._additionalCandidates.get(sessionId);
+		if (additionalCandidate) {
+			return this._dispatchToAdditionalSession(additionalCandidate, submittedInput, submittedAttachmentIds, utterance, requestOptions, token, notifyRoute);
+		}
+
 		let target: URI;
 		try {
 			target = URI.parse(sessionId);
@@ -1456,7 +1501,7 @@ export class ChatSessionRoutingController extends Disposable {
 				this.logService.warn('[chatSessionRouting] could not load routed session:', sessionId);
 				return { status: 'rejected' };
 			}
-			let result: IDispatchResult;
+			let result: IChatSessionRoutingDispatchResult;
 			let requestId: string | undefined;
 			let disposeReference = true;
 			try {
@@ -1508,7 +1553,47 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IDispatchResult> {
+	private async _dispatchToAdditionalSession(candidate: IAdditionalRoutableSession, submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean): Promise<IChatSessionRoutingDispatchResult> {
+		const target = candidate.rawSessionResource;
+		const dispatch = this.host.dispatchToAdditionalSession;
+		if (!dispatch) {
+			return { status: 'rejected', resource: target, reasonCode: 'providerRemoved' };
+		}
+
+		try {
+			if (notifyRoute) {
+				this.host.onWillDispatchRoute?.(target);
+			}
+			const result = await dispatch(candidate.sessionId, utterance, {
+				...requestOptions,
+				userSelectedModelId: undefined,
+				agentIdSilent: getChatSessionType(target),
+				queue: ChatRequestQueueKind.Queued,
+			}, token);
+			if (!result || result.status === 'rejected') {
+				if (notifyRoute) {
+					this.host.onDidRejectRoute?.(target);
+				}
+				return result ?? { status: 'rejected', resource: target, reasonCode: 'providerRemoved' };
+			}
+			const resource = result.resource ?? target;
+			if (notifyRoute) {
+				this.host.onDidResolveRoute?.(resource, 'existing_session', requestOptions.isVoiceModeInput, result.requestId);
+			}
+			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
+			return { ...result, resource };
+		} catch (error) {
+			if (notifyRoute) {
+				this.host.onDidRejectRoute?.(target);
+			}
+			if (!token.isCancellationRequested) {
+				this.logService.warn('[chatSessionRouting] error dispatching to additional session:', error);
+			}
+			return { status: 'rejected', resource: target, reasonCode: token.isCancellationRequested ? 'cancelled' : undefined };
+		}
+	}
+
+	private async _dispatchToNewSession(submittedInput: string, submittedAttachmentIds: readonly string[], utterance: string, requestOptions: IChatSendRequestOptions, token: CancellationToken, notifyRoute: boolean, folder?: URI): Promise<IChatSessionRoutingDispatchResult> {
 		let routeResource: URI | undefined;
 		try {
 			const sessionTarget = this.host.getNewSessionTarget?.() ?? AgentSessionProviders.Local;
@@ -1533,7 +1618,7 @@ export class ChatSessionRoutingController extends Disposable {
 			if (folder) {
 				this.newSessionFolderService.setFolder(ref.object.sessionResource, folder);
 			}
-			let result: IDispatchResult;
+			let result: IChatSessionRoutingDispatchResult;
 			let requestId: string | undefined;
 			try {
 				if (notifyRoute) {
@@ -1571,7 +1656,7 @@ export class ChatSessionRoutingController extends Disposable {
 		}
 	}
 
-	private async _sendRequest(resource: URI, utterance: string, options: IChatSendRequestOptions): Promise<IDispatchResult> {
+	private async _sendRequest(resource: URI, utterance: string, options: IChatSendRequestOptions): Promise<IChatSessionRoutingDispatchResult> {
 		const result = await this.chatService.sendRequest(resource, utterance, options);
 		if (result.kind === 'rejected') {
 			return { status: 'rejected', reason: result.reason, reasonCode: result.reasonCode };
@@ -1593,7 +1678,7 @@ export class ChatSessionRoutingController extends Disposable {
 		return { status: 'sent', resource: result.newSessionResource ?? resource, requestId: response.requestId };
 	}
 
-	private async _resolveQueuedCompletion(resource: URI, deferred: Promise<ChatSendResult>): Promise<IDispatchResult> {
+	private async _resolveQueuedCompletion(resource: URI, deferred: Promise<ChatSendResult>): Promise<IChatSessionRoutingDispatchResult> {
 		try {
 			let result = await deferred;
 			while (result.kind === 'queued') {
