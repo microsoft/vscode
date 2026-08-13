@@ -1279,7 +1279,9 @@ export class ChatSessionRoutingController extends Disposable {
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => badge.remove()));
-		this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
+		if (result.canOpenInCurrentWindow !== false) {
+			this._addActionLink(store, badge, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
+		}
 		this._addActionLink(store, badge, localize('chatSessionRouting.dismiss', "Dismiss"), () => {
 			this.host.onDidDismissRoute?.(resource, result.requestId);
 			this._pendingSend.clear();
@@ -1296,7 +1298,9 @@ export class ChatSessionRoutingController extends Disposable {
 				this._trackDeliveryActivity(store, resource, label, mark, labelEl, result.status === 'queued');
 			}
 		};
-		trackActivity();
+		if (result.canOpenInCurrentWindow !== false) {
+			trackActivity();
+		}
 
 		if (result.completion) {
 			void result.completion.then(completion => {
@@ -1307,7 +1311,9 @@ export class ChatSessionRoutingController extends Disposable {
 					mark.replaceChildren(renderIcon(Codicon.pass));
 					labelEl.textContent = localize('chatSessionRouting.sentTo', "Sent to {0}", label);
 					ariaAlert(labelEl.textContent);
-					trackActivity();
+					if (result.canOpenInCurrentWindow !== false) {
+						trackActivity();
+					}
 				} else {
 					mark.replaceChildren(renderIcon(completion.reasonCode === 'providerRemoved' ? Codicon.circleSlash : Codicon.error));
 					labelEl.textContent = completion.reasonCode === 'providerRemoved'
@@ -1405,7 +1411,7 @@ export class ChatSessionRoutingController extends Disposable {
 					? localize('chatSessionRouting.targetQueued', "{0}: queued", target.label)
 					: localize('chatSessionRouting.targetSent', "{0}: sent", target.label);
 			const resource = result.resource;
-			if (resource) {
+			if (resource && result.canOpenInCurrentWindow !== false) {
 				this._addActionLink(store, row, localize('chatSessionRouting.open', "Open"), () => void this.chatWidgetService.openSession(resource));
 			}
 			if (result.completion) {
@@ -1581,7 +1587,12 @@ export class ChatSessionRoutingController extends Disposable {
 				this.host.onDidResolveRoute?.(resource, 'existing_session', requestOptions.isVoiceModeInput, result.requestId);
 			}
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
-			return { ...result, resource };
+			return {
+				...result,
+				resource,
+				canOpenInCurrentWindow: false,
+				completion: result.completion?.then(completion => ({ ...completion, canOpenInCurrentWindow: false })),
+			};
 		} catch (error) {
 			if (notifyRoute) {
 				this.host.onDidRejectRoute?.(target);

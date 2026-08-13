@@ -206,14 +206,16 @@ export interface IChatSessionRoutingDispatchResult {
 	readonly requestId?: string;
 	readonly reason?: string;
 	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
+	/** Whether the returned resource is owned by and can be opened in the current renderer. */
+	readonly canOpenInCurrentWindow?: boolean;
 	readonly completion?: Promise<IChatSessionRoutingDispatchResult>;
 }
 
 export const IGlobalOmniSessionBroker = createDecorator<IGlobalOmniSessionBroker>('globalOmniSessionBroker');
 
 /**
- * Same-profile broker used by the Omni owner to discover and dispatch to agent
- * sessions whose authoritative renderer is another VS Code window.
+ * Same-profile, same-remote-authority broker used by the Omni owner to discover
+ * and dispatch to agent sessions whose authoritative renderer is another window.
  */
 export interface IGlobalOmniSessionBroker {
 	readonly _serviceBrand: undefined;

@@ -21,10 +21,14 @@ const DEFAULT_HEARTBEAT_INTERVAL = 5_000;
 const DEFAULT_SOURCE_EXPIRY = 15_000;
 const DEFAULT_DISPATCH_TIMEOUT = 15_000;
 
-interface IGlobalOmniSessionHelloMessage {
-	readonly type: 'hello';
+interface IGlobalOmniSessionPeerMessage {
 	readonly profileId: string;
+	readonly remoteAuthority: string | null;
 	readonly sourceId: string;
+}
+
+interface IGlobalOmniSessionHelloMessage extends IGlobalOmniSessionPeerMessage {
+	readonly type: 'hello';
 	readonly sentAt: number;
 }
 
@@ -32,24 +36,24 @@ interface IGlobalOmniSessionSnapshotMessage extends IGlobalOmniSessionSnapshot {
 	readonly type: 'snapshot';
 }
 
-interface IGlobalOmniSessionHeartbeatMessage {
+interface IGlobalOmniSessionHeartbeatMessage extends IGlobalOmniSessionPeerMessage {
 	readonly type: 'heartbeat';
-	readonly profileId: string;
-	readonly sourceId: string;
 	readonly sentAt: number;
 }
 
-interface IGlobalOmniSessionGoodbyeMessage {
+interface IGlobalOmniSessionResyncRequestMessage extends IGlobalOmniSessionPeerMessage {
+	readonly type: 'resyncRequest';
+	readonly targetSourceId: string;
+	readonly sentAt: number;
+}
+
+interface IGlobalOmniSessionGoodbyeMessage extends IGlobalOmniSessionPeerMessage {
 	readonly type: 'goodbye';
-	readonly profileId: string;
-	readonly sourceId: string;
 	readonly sentAt: number;
 }
 
-interface IGlobalOmniSessionDispatchRequestMessage {
+interface IGlobalOmniSessionDispatchRequestMessage extends IGlobalOmniSessionPeerMessage {
 	readonly type: 'dispatchRequest';
-	readonly profileId: string;
-	readonly sourceId: string;
 	readonly targetSourceId: string;
 	readonly requestId: string;
 	readonly candidateId: string;
@@ -58,10 +62,8 @@ interface IGlobalOmniSessionDispatchRequestMessage {
 	readonly serializedOptions: string;
 }
 
-interface IGlobalOmniSessionDispatchCancelMessage {
+interface IGlobalOmniSessionDispatchCancelMessage extends IGlobalOmniSessionPeerMessage {
 	readonly type: 'dispatchCancel';
-	readonly profileId: string;
-	readonly sourceId: string;
 	readonly targetSourceId: string;
 	readonly requestId: string;
 }
@@ -74,10 +76,8 @@ interface IGlobalOmniSessionWireDispatchResult {
 	readonly reasonCode?: ChatSessionRoutingDispatchReasonCode;
 }
 
-interface IGlobalOmniSessionDispatchResultMessage {
+interface IGlobalOmniSessionDispatchResultMessage extends IGlobalOmniSessionPeerMessage {
 	readonly type: 'dispatchResult' | 'dispatchCompletion';
-	readonly profileId: string;
-	readonly sourceId: string;
 	readonly targetSourceId: string;
 	readonly requestId: string;
 	readonly result: IGlobalOmniSessionWireDispatchResult;
@@ -87,6 +87,7 @@ export type GlobalOmniSessionBrokerMessage =
 	| IGlobalOmniSessionHelloMessage
 	| IGlobalOmniSessionSnapshotMessage
 	| IGlobalOmniSessionHeartbeatMessage
+	| IGlobalOmniSessionResyncRequestMessage
 	| IGlobalOmniSessionGoodbyeMessage
 	| IGlobalOmniSessionDispatchRequestMessage
 	| IGlobalOmniSessionDispatchCancelMessage
@@ -172,6 +173,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 	constructor(
 		readonly profileId: string,
 		readonly sourceId: string,
+		readonly remoteAuthority: string | null,
 		private readonly channel: IGlobalOmniSessionBrokerChannel,
 		private readonly sendRequest: (resource: URI, message: string, options: IChatSendRequestOptions, token: CancellationToken) => Promise<IChatSessionRoutingDispatchResult>,
 		private readonly onError: (error: unknown) => void,
@@ -180,7 +182,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		private readonly timers: IGlobalOmniSessionBrokerTimers = defaultTimers,
 	) {
 		super();
-		this._model = new GlobalOmniSessionBrokerModel(profileId, sourceId);
+		this._model = new GlobalOmniSessionBrokerModel(profileId, remoteAuthority, sourceId);
 		this._heartbeatInterval = timings.heartbeatInterval ?? DEFAULT_HEARTBEAT_INTERVAL;
 		this._sourceExpiry = timings.sourceExpiry ?? DEFAULT_SOURCE_EXPIRY;
 		this._dispatchTimeout = timings.dispatchTimeout ?? DEFAULT_DISPATCH_TIMEOUT;
@@ -188,7 +190,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		this._register(channel.onDidReceiveData(message => this._handleMessage(message)));
 		const heartbeatHandle = this.timers.setInterval(() => this._heartbeat(), this._heartbeatInterval);
 		this._register(toDisposable(() => this.timers.clearInterval(heartbeatHandle)));
-		this._post({ type: 'hello', profileId, sourceId, sentAt: this.now() });
+		this._post({ type: 'hello', profileId, remoteAuthority, sourceId, sentAt: this.now() });
 	}
 
 	updateLocalSnapshot(sessions: readonly IGlobalOmniSessionSnapshotEntry[]): void {
@@ -246,6 +248,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 			this._post({
 				type: 'dispatchCancel',
 				profileId: this.profileId,
+				remoteAuthority: this.remoteAuthority,
 				sourceId: this.sourceId,
 				targetSourceId: identity.sourceId,
 				requestId,
@@ -256,6 +259,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 			this._post({
 				type: 'dispatchCancel',
 				profileId: this.profileId,
+				remoteAuthority: this.remoteAuthority,
 				sourceId: this.sourceId,
 				targetSourceId: identity.sourceId,
 				requestId,
@@ -272,6 +276,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		const posted = this._post({
 			type: 'dispatchRequest',
 			profileId: this.profileId,
+			remoteAuthority: this.remoteAuthority,
 			sourceId: this.sourceId,
 			targetSourceId: identity.sourceId,
 			requestId,
@@ -287,22 +292,38 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 	}
 
 	private _handleMessage(message: GlobalOmniSessionBrokerMessage): void {
-		if (message.profileId !== this.profileId || message.sourceId === this.sourceId) {
+		if (message.profileId !== this.profileId
+			|| message.remoteAuthority !== this.remoteAuthority
+			|| message.sourceId === this.sourceId) {
 			return;
 		}
 		switch (message.type) {
 			case 'hello':
-				this._model.touchSource(message.profileId, message.sourceId, this.now());
+				this._model.touchSource(message.profileId, message.remoteAuthority, message.sourceId, this.now());
 				this._publishSnapshot();
 				break;
 			case 'snapshot':
 				this._model.acceptSnapshot(message, this.now());
 				break;
 			case 'heartbeat':
-				this._model.touchSource(message.profileId, message.sourceId, this.now());
+				if (this._model.touchSource(message.profileId, message.remoteAuthority, message.sourceId, this.now())) {
+					this._post({
+						type: 'resyncRequest',
+						profileId: this.profileId,
+						remoteAuthority: this.remoteAuthority,
+						sourceId: this.sourceId,
+						targetSourceId: message.sourceId,
+						sentAt: this.now(),
+					});
+				}
+				break;
+			case 'resyncRequest':
+				if (message.targetSourceId === this.sourceId) {
+					this._publishSnapshot();
+				}
 				break;
 			case 'goodbye':
-				if (this._model.removeSource(message.profileId, message.sourceId)) {
+				if (this._model.removeSource(message.profileId, message.remoteAuthority, message.sourceId)) {
 					this._rejectOperationsForSource(message.sourceId);
 				}
 				break;
@@ -453,6 +474,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		this._post({
 			type: 'heartbeat',
 			profileId: this.profileId,
+			remoteAuthority: this.remoteAuthority,
 			sourceId: this.sourceId,
 			sentAt: this.now(),
 		});
@@ -468,6 +490,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		this._post({
 			type: 'snapshot',
 			profileId: this.profileId,
+			remoteAuthority: this.remoteAuthority,
 			sourceId: this.sourceId,
 			sentAt: this.now(),
 			sessions: [...this._localSessions.values()],
@@ -478,6 +501,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		this._post({
 			type: 'dispatchResult',
 			profileId: this.profileId,
+			remoteAuthority: this.remoteAuthority,
 			sourceId: this.sourceId,
 			targetSourceId,
 			requestId,
@@ -489,6 +513,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		this._post({
 			type: 'dispatchCompletion',
 			profileId: this.profileId,
+			remoteAuthority: this.remoteAuthority,
 			sourceId: this.sourceId,
 			targetSourceId,
 			requestId,
@@ -520,7 +545,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 				};
 			}
 		}
-		return { ...result, resource };
+		return { ...result, resource, canOpenInCurrentWindow: false };
 	}
 
 	private _completePendingDispatch(requestId: string, result: IChatSessionRoutingDispatchResult): void {
@@ -585,6 +610,7 @@ export class GlobalOmniSessionBrokerClient extends Disposable {
 		this._post({
 			type: 'goodbye',
 			profileId: this.profileId,
+			remoteAuthority: this.remoteAuthority,
 			sourceId: this.sourceId,
 			sentAt: this.now(),
 		});

@@ -8,7 +8,6 @@ import { BroadcastDataChannel } from '../../../../../base/browser/broadcast.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { raceCancellation, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { toLocalResource } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -48,12 +47,37 @@ function statusToString(status: AgentSessionStatus): string {
 	}
 }
 
-function markdownToText(value: string | IMarkdownString | undefined): string | undefined {
-	if (!value) {
+function repositoryNameFromPath(value: unknown): string | undefined {
+	if (typeof value !== 'string') {
 		return undefined;
 	}
-	const text = (typeof value === 'string' ? value : value.value).trim();
-	return text || undefined;
+	const segments = value.replaceAll('\\', '/').split('/').filter(Boolean);
+	if (!segments.length) {
+		return undefined;
+	}
+	const parent = segments.at(-2);
+	const name = parent?.endsWith('.worktrees')
+		? parent.slice(0, -'.worktrees'.length)
+		: segments.at(-1)?.replace(/\.git$/, '');
+	return name || undefined;
+}
+
+function getPrivacySafeRepository(session: IAgentSession): string | undefined {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return undefined;
+	}
+	const owner = metadata.owner;
+	const name = metadata.name;
+	if (typeof owner === 'string' && owner && typeof name === 'string' && name) {
+		return `${owner}/${name}`;
+	}
+	const repositoryNwo = metadata.repositoryNwo;
+	if (typeof repositoryNwo === 'string' && repositoryNwo) {
+		return repositoryNwo;
+	}
+	return repositoryNameFromPath(metadata.repositoryPath)
+		?? repositoryNameFromPath(metadata.workingDirectoryPath);
 }
 
 function isCopilotRoutingProvider(provider: string): boolean {
@@ -65,6 +89,20 @@ function isCopilotRoutingProvider(provider: string): boolean {
 function isSerializedUri(value: string): boolean {
 	const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(value)?.[1];
 	return !!scheme && !(scheme.length === 1 && /^[a-zA-Z]:[\\/]/.test(value));
+}
+
+export function createGlobalOmniSessionSnapshotEntry(session: IAgentSession): IGlobalOmniSessionSnapshotEntry {
+	const repo = getPrivacySafeRepository(session);
+	return {
+		resource: session.resource.toString(),
+		label: repo
+			? localize('globalOmniSessionBroker.sessionWithRepository', "Agent session in {0}", repo)
+			: localize('globalOmniSessionBroker.session', "Agent session"),
+		status: statusToString(session.status),
+		created: session.timing?.created,
+		lastActivity: session.timing?.lastRequestEnded ?? session.timing?.lastRequestStarted ?? session.timing?.created,
+		repo,
+	};
 }
 
 export class GlobalOmniSessionSourceRequestHandler {
@@ -263,6 +301,7 @@ export class GlobalOmniSessionBrokerService extends Disposable implements IGloba
 	private _profileId: string | undefined;
 	private _enablementGeneration = 0;
 	private _modelListenerRegistered = false;
+	private readonly _remoteAuthority: string | null;
 	private readonly _sourceRequestHandler: GlobalOmniSessionSourceRequestHandler;
 
 	constructor(
@@ -280,6 +319,7 @@ export class GlobalOmniSessionBrokerService extends Disposable implements IGloba
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this._remoteAuthority = environmentService.remoteAuthority ?? null;
 		this._sourceRequestHandler = new GlobalOmniSessionSourceRequestHandler(
 			agentSessionsService,
 			chatSessionsService,
@@ -336,10 +376,12 @@ export class GlobalOmniSessionBrokerService extends Disposable implements IGloba
 		const profileId = this.userDataProfileService.currentProfile.id;
 		if (!this._client.value || this._profileId !== profileId) {
 			this._profileId = profileId;
+			const channelConnectionIdentity = this._remoteAuthority === null ? 'local' : `remote:${this._remoteAuthority}`;
 			this._client.value = new GlobalOmniSessionBrokerClient(
 				profileId,
 				this._sourceId,
-				new BroadcastDataChannel<GlobalOmniSessionBrokerMessage>(`${GLOBAL_OMNI_SESSION_CHANNEL_PREFIX}.${encodeURIComponent(profileId)}`),
+				this._remoteAuthority,
+				new BroadcastDataChannel<GlobalOmniSessionBrokerMessage>(`${GLOBAL_OMNI_SESSION_CHANNEL_PREFIX}.${encodeURIComponent(profileId)}.${encodeURIComponent(channelConnectionIdentity)}`),
 				(resource, message, options, token) => this._sendRequest(resource, message, options, token),
 				error => this.logService.warn('[globalOmniSessionBroker] broker operation failed:', error),
 			);
@@ -368,26 +410,13 @@ export class GlobalOmniSessionBrokerService extends Disposable implements IGloba
 		}
 		client.updateLocalSnapshot(this.agentSessionsService.model.sessions
 			.filter(session => this._isEligibleSession(session))
-			.map(session => this._toSnapshotEntry(session)));
+			.map(createGlobalOmniSessionSnapshotEntry));
 	}
 
 	private _isEligibleSession(session: IAgentSession): boolean {
 		return isCopilotRoutingProvider(session.providerType)
 			&& !session.isArchived()
 			&& this.chatSessionsService.getChatSessionContribution(getChatSessionType(session.resource))?.isReadOnly !== true;
-	}
-
-	private _toSnapshotEntry(session: IAgentSession): IGlobalOmniSessionSnapshotEntry {
-		return {
-			resource: session.resource.toString(),
-			label: session.label,
-			status: statusToString(session.status),
-			created: session.timing?.created,
-			lastActivity: session.timing?.lastRequestEnded ?? session.timing?.lastRequestStarted ?? session.timing?.created,
-			description: markdownToText(session.description),
-			repo: session.metadata?.repositoryPath,
-			cwd: session.metadata?.workingDirectoryPath,
-		};
 	}
 
 	private async _sendRequest(

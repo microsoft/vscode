@@ -15,12 +15,11 @@ export interface IGlobalOmniSessionSnapshotEntry {
 	readonly created?: number;
 	readonly lastActivity?: number;
 	readonly repo?: string;
-	readonly cwd?: string;
-	readonly description?: string;
 }
 
 export interface IGlobalOmniSessionSnapshot {
 	readonly profileId: string;
+	readonly remoteAuthority: string | null;
 	readonly sourceId: string;
 	readonly sentAt: number;
 	readonly sessions: readonly IGlobalOmniSessionSnapshotEntry[];
@@ -64,11 +63,12 @@ export class GlobalOmniSessionBrokerModel {
 
 	constructor(
 		private readonly profileId: string,
+		private readonly remoteAuthority: string | null,
 		private readonly localSourceId: string,
 	) { }
 
-	touchSource(profileId: string, sourceId: string, receivedAt: number): boolean {
-		if (!this._accepts(profileId, sourceId)) {
+	touchSource(profileId: string, remoteAuthority: string | null, sourceId: string, receivedAt: number): boolean {
+		if (!this._accepts(profileId, remoteAuthority, sourceId)) {
 			return false;
 		}
 		const current = this._sources.get(sourceId);
@@ -81,7 +81,7 @@ export class GlobalOmniSessionBrokerModel {
 	}
 
 	acceptSnapshot(snapshot: IGlobalOmniSessionSnapshot, receivedAt: number): boolean {
-		if (!this._accepts(snapshot.profileId, snapshot.sourceId)) {
+		if (!this._accepts(snapshot.profileId, snapshot.remoteAuthority, snapshot.sourceId)) {
 			return false;
 		}
 		this._sources.set(snapshot.sourceId, {
@@ -91,8 +91,10 @@ export class GlobalOmniSessionBrokerModel {
 		return true;
 	}
 
-	removeSource(profileId: string, sourceId: string): boolean {
-		return profileId === this.profileId && this._sources.delete(sourceId);
+	removeSource(profileId: string, remoteAuthority: string | null, sourceId: string): boolean {
+		return profileId === this.profileId
+			&& remoteAuthority === this.remoteAuthority
+			&& this._sources.delete(sourceId);
 	}
 
 	expireSources(now: number, maximumAge: number): readonly string[] {
@@ -153,12 +155,12 @@ export class GlobalOmniSessionBrokerModel {
 			status: session.status,
 			lastActivity: session.lastActivity,
 			repo: session.repo,
-			cwd: session.cwd,
-			description: session.description,
 		};
 	}
 
-	private _accepts(profileId: string, sourceId: string): boolean {
-		return profileId === this.profileId && sourceId !== this.localSourceId;
+	private _accepts(profileId: string, remoteAuthority: string | null, sourceId: string): boolean {
+		return profileId === this.profileId
+			&& remoteAuthority === this.remoteAuthority
+			&& sourceId !== this.localSourceId;
 	}
 }

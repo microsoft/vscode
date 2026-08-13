@@ -661,6 +661,56 @@ suite('ChatSessionRoutingController', () => {
 		container.remove();
 	});
 
+	test('does not offer a local Open action for a remotely owned delivery', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		let localOpenCount = 0;
+		const controller = new ChatSessionRoutingController(
+			{
+				placeBadge: (badge: HTMLElement) => container.appendChild(badge),
+			} as unknown as IChatSessionRoutingHost,
+			'test',
+			{ getSession: () => undefined } as unknown as IChatService,
+			undefined!,
+			undefined!,
+			undefined!,
+			{ openSession: () => localOpenCount++ } as never,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+			undefined!,
+		);
+		const showDeliveryConfirmation = Reflect.get(controller, '_showDeliveryConfirmation') as (
+			label: string,
+			result: { status: 'sent'; resource: URI; canOpenInCurrentWindow: false },
+		) => void;
+
+		showDeliveryConfirmation.call(controller, 'Remote session', {
+			status: 'sent',
+			resource: URI.parse('agent-host-copilotcli:/remote-delivery'),
+			canOpenInCurrentWindow: false,
+		});
+		const actions = [...container.querySelectorAll<HTMLElement>('.chat-routing-badge-action')];
+		actions[0]?.click();
+
+		assert.deepStrictEqual({
+			actions: actions.map(action => action.textContent),
+			localOpenCount,
+			badgeConnected: !!container.querySelector('.chat-routing-badge'),
+		}, {
+			actions: ['Dismiss'],
+			localOpenCount: 0,
+			badgeConnected: false,
+		});
+
+		controller.dispose();
+		container.remove();
+	});
+
 	test('keeps an existing session reference until a queued route completes', async () => {
 		const resource = URI.parse('agent-host-copilotcli:/existing-route');
 		let resolveQueued!: (result: ChatSendResult) => void;
