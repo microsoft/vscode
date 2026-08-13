@@ -17,6 +17,15 @@ management; `MobileLayoutController` (web phone) omits it. `contrib/layout/brows
 contributes the correct controller per platform (and registers the experimental responsive-sidebar
 setting); it is imported from `sessions.desktop.main.ts` (desktop) and `sessions.web.main.ts` (web).
 
+`SinglePaneLayoutController` is a sibling of `LayoutController`: it extends
+`BaseLayoutController` and composes exactly three lifecycle strategies for New,
+Existing, and Quick Chat sessions. Shared tab, detail, and visibility mechanics
+live in coordinators rather than separate contribution controllers.
+Single-pane policy stays in that controller, its strategies, or its
+coordinators rather than being injected into editor-part construction; in
+particular, editor-part construction must not acquire `ISessionsService`,
+because the Sessions service graph already depends on editor parts.
+
 It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
 
 ---
@@ -70,7 +79,7 @@ cleared — they survive multi-session mode.
 Skipped entirely on mobile web (`isWeb && isMobile`) to avoid disruptive auto-expand on narrow viewports.
 
 > **Docked detail panel (experimental).** With `sessions.layout.singlePaneDetailPanel` enabled, the auxiliary
-> bar is docked inside the editor part rather than being a grid column (see [LAYOUT.md](../LAYOUT.md) §5).
+> bar is docked inside the editor part rather than being a grid column (see [LAYOUT.md](LAYOUT.md) §5).
 > `SinglePaneExistingSessionStrategy` persists one shared Existing Session Editor/Details profile
 > (via `SinglePaneVisibilityProfileStore`) under `sessions.singlePane.sidePaneVisibility`.
 > New Sessions do not apply or capture an Editor
