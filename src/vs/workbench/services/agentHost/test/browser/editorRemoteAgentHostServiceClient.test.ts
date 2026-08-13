@@ -6,14 +6,14 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -82,10 +82,15 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		};
 		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
 		let connectCalls = 0;
+		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const protocolClient = {
 			clientId: 'test-client',
-			connect: async () => { connectCalls++; },
+			connect: async () => {
+				connectCalls++;
+				throw new Error('Initial connection failed');
+			},
 			onDidClose: Event.None,
+			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidNotification: Event.None,
 			onDidAction: Event.None,
 			onMcpNotification: Event.None,
@@ -117,6 +122,10 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const beforeReady = connectCalls;
 
 		remoteAgentService.environmentReady.complete(null);
+		while (connectCalls === 0) {
+			await Promise.resolve();
+		}
+		onDidChangeConnectionState.fire(AgentHostClientState.Connected);
 		await started;
 
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === RemoteAgentHostProtocolClient);

@@ -236,6 +236,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 			throw error;
 		}
+		if (this._store.isDisposed) {
+			port.close();
+			throw new Error('Local agent host service was disposed during connection.');
+		}
 		if (!this._didAcquireInitialMessagePort) {
 			this._didAcquireInitialMessagePort = true;
 			mark('code/agentHost/didAcquireMessagePort');
@@ -275,12 +279,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			}
 			this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${this._requireClient().clientId}`);
 			this._onAgentHostStart.fire();
-		} else if (state === AgentHostClientState.Reconnecting || state === AgentHostClientState.Closed) {
+		} else if (state === AgentHostClientState.Reconnecting || state === AgentHostClientState.Incompatible || state === AgentHostClientState.Closed) {
 			this._clientStore.clear();
 			if (state === AgentHostClientState.Reconnecting) {
 				this._managementConnection.reconnecting();
 			} else {
-				this._managementConnection.closed();
+				this._managementConnection.closed(state === AgentHostClientState.Incompatible
+					? 'Local agent host protocol is incompatible.'
+					: 'Local agent host connection closed.');
 			}
 			this._onAgentHostExit.fire(0);
 		}

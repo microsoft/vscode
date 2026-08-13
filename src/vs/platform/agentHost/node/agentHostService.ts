@@ -99,16 +99,30 @@ export class AgentHostProcessManager extends Disposable {
 		this._restartLimitReached = false;
 		const pendingStart = this._startPromise;
 		const restartPromise = (async () => {
-			try {
-				await pendingStart;
-			} catch {
-				// An explicit restart retries after a failed start.
+			if (pendingStart) {
+				try {
+					await pendingStart;
+				} catch {
+					// An explicit restart retries after a failed start.
+				}
 			}
 			if (this._wasQuitRequested || this._store.isDisposed) {
 				return;
 			}
 			this._logService.info('AgentHostProcessManager: explicitly restarting agent host');
-			this._clearConnection(this._connection);
+			const connection = this._connection;
+			if (connection) {
+				this._connection = undefined;
+				try {
+					await raceTimeout(connection.shutdown(), Constants.ShutdownTimeoutMs, () => {
+						this._logService.warn(`AgentHostProcessManager: agent host did not shut down before restart within ${Constants.ShutdownTimeoutMs}ms; terminating it`);
+					});
+				} catch (error) {
+					this._logService.error('AgentHostProcessManager: failed to shut down agent host gracefully before restart', error);
+				} finally {
+					this._clearConnection(connection);
+				}
+			}
 			await this._start();
 		})();
 		this._setStartPromise(restartPromise);

@@ -29,7 +29,7 @@ import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey 
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
-import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, buildChatUri, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withSessionMultiRootMetadata, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -8737,32 +8737,45 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Agent Host registrations follow enablement in both directions', () => {
-			const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatSessionContributions } = createTestServices(
+				disposables, undefined, undefined, undefined, undefined, false, undefined, { [ChatAIDisabledSettingId]: false });
 			const enabled = observableValue('agentHostEnabled', true);
 			instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled });
+			let progressStarts = 0;
+			instantiationService.stub(IProgressService, {
+				withProgress: <R,>(_options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => {
+					progressStarts++;
+					return task({ report: () => { } });
+				}
+			});
 			disposables.add(instantiationService.createInstance(AgentHostContribution));
 			agentHostService.setRootState({
 				agents: [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', models: [] }],
 				activeSessions: 0,
 			});
 			const beforeDisablement = chatSessionContributions.map(c => c.type);
+			agentHostService.fireNotification({ type: NotificationType.Progress, channel: 'ahp-root://root', progressToken: 'before-disable', progress: 0, total: 1 });
 
 			enabled.set(false, undefined);
+			agentHostService.fireNotification({ type: NotificationType.Progress, channel: 'ahp-root://root', progressToken: 'while-disabled', progress: 0, total: 1 });
 			agentHostService.setRootState({
 				agents: [{ provider: 'copilot' as const, displayName: 'Updated Agent Host - Copilot', description: 'test', models: [] }],
 				activeSessions: 0,
 			});
 			const whileDisabled = chatSessionContributions.map(c => c.type);
 			enabled.set(true, undefined);
+			agentHostService.fireNotification({ type: NotificationType.Progress, channel: 'ahp-root://root', progressToken: 'after-reenable', progress: 0, total: 1 });
 
 			assert.deepStrictEqual({
 				beforeDisablement,
 				whileDisabled,
 				afterReenablement: chatSessionContributions.map(c => c.type),
+				progressStarts,
 			}, {
 				beforeDisablement: ['agent-host-copilot'],
 				whileDisabled: [],
 				afterReenablement: ['agent-host-copilot'],
+				progressStarts: 2,
 			});
 		});
 

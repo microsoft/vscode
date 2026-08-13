@@ -78,10 +78,10 @@ suite('registerAgentHostClientChannels', () => {
 
 			connection.reconnecting();
 			const beforeClose = connection.client();
-			connection.closed();
+			connection.closed('Local agent host protocol is incompatible.');
 
 			await assert.rejects(beforeReconnect, /reconnecting/);
-			await assert.rejects(beforeClose, /closed/);
+			await assert.rejects(beforeClose, /incompatible/);
 			assert.deepStrictEqual({
 				connectedBeforeAcquisition,
 				reconnectedClient,

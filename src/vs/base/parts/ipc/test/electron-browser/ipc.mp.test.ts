@@ -34,6 +34,8 @@ suite('IPC, MessagePorts', () => {
 	test('message port acquisition reports structured errors', async () => {
 		async function acquireError(nonce: string, fatal: boolean): Promise<{ message: string; fatal: boolean }> {
 			const result = acquirePort(undefined, 'test:messagePortError', nonce, () => { });
+			mainWindow.postMessage(null, '*');
+			mainWindow.postMessage(42, '*');
 			mainWindow.postMessage({ nonce, error: `failure-${fatal}`, fatal }, '*');
 			try {
 				await result;

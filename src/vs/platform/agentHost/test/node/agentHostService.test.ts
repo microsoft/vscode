@@ -113,8 +113,9 @@ class TestAgentHostStarter implements IAgentHostStarter {
 		return this._startBarrier;
 	}
 
-	blockShutdown(): void {
+	blockShutdown(): DeferredPromise<void> {
 		this._shutdownBarrier = new DeferredPromise<void>();
+		return this._shutdownBarrier;
 	}
 
 	requestShutdown(): Promise<void> {
@@ -233,10 +234,12 @@ suite('AgentHostProcessManager', () => {
 
 		assert.deepStrictEqual({
 			startCount: starter.startCount,
+			shutdownCount: starter.shutdownCount,
 			connectionStoresDisposed: starter.connectionStores.map(store => store.isDisposed),
 			errorEvents: telemetryService.errorEvents,
 		}, {
 			startCount: 4,
+			shutdownCount: 1,
 			connectionStoresDisposed: [true, true, true, false],
 			errorEvents: [
 				{ eventName: 'agentHost.processError', data: { hostLaunchKind: 'vscode_main_process', kind: 'unexpectedExit', code: 17, restartCount: 0, willRestart: true, isError: true } },
@@ -253,10 +256,12 @@ suite('AgentHostProcessManager', () => {
 
 		assert.deepStrictEqual({
 			startCount: starter.startCount,
+			shutdownCount: starter.shutdownCount,
 			connectionStoresDisposed: starter.connectionStores.map(store => store.isDisposed),
 			errorEvents: telemetryService.errorEvents,
 		}, {
 			startCount: 2,
+			shutdownCount: 1,
 			connectionStoresDisposed: [true, false],
 			errorEvents: [],
 		});
@@ -373,6 +378,31 @@ suite('AgentHostProcessManager', () => {
 			startCountWhileBlocked: 1,
 			finalStartCount: 2,
 			connectionStoresDisposed: [true, false],
+		});
+	});
+
+	test('connection requests wait while explicit restart drains the old process', async () => {
+		const { manager, starter } = await createManager();
+		const shutdownBarrier = starter.blockShutdown();
+
+		const restart = manager.restart();
+		const connectionRequest = starter.requestConnection();
+		let connectionResolved = false;
+		void connectionRequest.then(() => connectionResolved = true);
+		await Promise.resolve();
+		const startCountWhileDraining = starter.startCount;
+		const connectionResolvedWhileDraining = connectionResolved;
+		shutdownBarrier.complete();
+		await Promise.all([restart, connectionRequest]);
+
+		assert.deepStrictEqual({
+			startCountWhileDraining,
+			connectionResolvedWhileDraining,
+			finalStartCount: starter.startCount,
+		}, {
+			startCountWhileDraining: 1,
+			connectionResolvedWhileDraining: false,
+			finalStartCount: 2,
 		});
 	});
 

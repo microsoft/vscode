@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
@@ -56,6 +56,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 	private _startError: Error | undefined;
 	readonly connectionStores: DisposableStore[] = [];
 	startCount = 0;
+	shutdownCount = 0;
 
 	readonly agentHostChannel = new MockChannel();
 	readonly loggerChannel: MockChannel;
@@ -94,7 +95,7 @@ class MockAgentHostStarter implements IAgentHostStarter {
 			client,
 			store,
 			onDidProcessExit: this._onDidProcessExit.event,
-			shutdown: async () => { },
+			shutdown: async () => { this.shutdownCount++; },
 		};
 	}
 
@@ -114,9 +115,13 @@ class MockAgentHostStarter implements IAgentHostStarter {
 	}
 }
 
-class MockServerLifetimeService implements IServerLifetimeService {
+class MockServerLifetimeService extends Disposable implements IServerLifetimeService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onWillShutdown = this._register(new Emitter<{ join(promise: Promise<void>): void }>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+	private readonly _onDidAbortShutdown = this._register(new Emitter<void>());
+	readonly onDidAbortShutdown = this._onDidAbortShutdown.event;
 	private _activeCount = 0;
 
 	get hasActiveConsumers(): boolean {
@@ -129,6 +134,16 @@ class MockServerLifetimeService implements IServerLifetimeService {
 	}
 
 	delay(): void { }
+
+	requestShutdown(): Promise<void> {
+		const joins: Promise<void>[] = [];
+		this._onWillShutdown.fire({ join: promise => joins.push(promise) });
+		return Promise.all(joins).then(() => undefined);
+	}
+
+	abortShutdown(): void {
+		this._onDidAbortShutdown.fire();
+	}
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
@@ -158,7 +173,7 @@ suite('ServerAgentHostManager', () => {
 
 	setup(() => {
 		starter = new MockAgentHostStarter();
-		lifetimeService = new MockServerLifetimeService();
+		lifetimeService = ds.add(new MockServerLifetimeService());
 		telemetryService = new TestTelemetryService();
 	});
 
@@ -196,6 +211,38 @@ suite('ServerAgentHostManager', () => {
 		const manager = createManager();
 		await waitForStart(manager);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
+	});
+
+	test('joins graceful Agent Host shutdown before server exit', async () => {
+		const manager = createManager();
+		await waitForStart(manager);
+
+		await lifetimeService.requestShutdown();
+
+		assert.deepStrictEqual({
+			shutdownCount: starter.shutdownCount,
+			connectionDisposed: starter.connectionStores[0].isDisposed,
+		}, {
+			shutdownCount: 1,
+			connectionDisposed: true,
+		});
+	});
+
+	test('restarts an eager Agent Host after server shutdown is aborted', async () => {
+		const manager = createManager();
+		await waitForStart(manager);
+		await lifetimeService.requestShutdown();
+
+		lifetimeService.abortShutdown();
+		await manager.ensureStarted();
+
+		assert.deepStrictEqual({
+			startCount: starter.startCount,
+			shutdownCount: starter.shutdownCount,
+		}, {
+			startCount: 2,
+			shutdownCount: 1,
+		});
 	});
 
 	test('acquires token when sessions become active', async () => {

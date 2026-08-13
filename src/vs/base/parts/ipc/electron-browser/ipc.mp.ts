@@ -8,8 +8,14 @@ import { Event } from '../../../common/event.js';
 import { generateUuid } from '../../../common/uuid.js';
 import { ipcMessagePort, ipcRenderer } from '../../sandbox/electron-browser/globals.js';
 
+interface IMessageChannelErrorResponse {
+	nonce: string;
+	error?: string;
+	fatal?: boolean;
+}
+
 interface IMessageChannelResult {
-	response: string | { nonce: string; error?: string; fatal?: boolean };
+	response: unknown;
 	port: MessagePort | undefined;
 	source: unknown;
 }
@@ -19,6 +25,13 @@ export class MessagePortAcquisitionError extends Error {
 	constructor(message: string, readonly fatal: boolean) {
 		super(message);
 	}
+}
+
+function isMessageChannelErrorResponse(response: unknown): response is IMessageChannelErrorResponse {
+	return typeof response === 'object'
+		&& response !== null
+		&& 'nonce' in response
+		&& typeof response.nonce === 'string';
 }
 
 export async function acquirePort(
@@ -43,10 +56,12 @@ export async function acquirePort(
 	// to the right response.
 	const onMessageChannelResult = Event.fromDOMEventEmitter<IMessageChannelResult>(mainWindow, 'message', (e: MessageEvent) => ({ response: e.data, port: e.ports[0], source: e.source }));
 	const result = await Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => {
-		const responseNonce = typeof e.response === 'string' ? e.response : e.response.nonce;
+		const responseNonce = typeof e.response === 'string'
+			? e.response
+			: isMessageChannelErrorResponse(e.response) ? e.response.nonce : undefined;
 		return responseNonce === nonce && e.source === mainWindow;
 	})));
-	if (typeof result.response !== 'string' && result.response.error) {
+	if (isMessageChannelErrorResponse(result.response) && result.response.error) {
 		throw new MessagePortAcquisitionError(result.response.error, result.response.fatal === true);
 	}
 	if (!result.port) {

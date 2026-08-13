@@ -558,17 +558,16 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	if (server instanceof UtilityProcessServer) {
-		server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
-			AgentHostManagementService,
-			agentService,
-			connectionTrackerService,
-			async () => {
-				protocolIngressDisposables.dispose();
-				await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
-			},
-		), disposables));
-	} else {
+	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
+		AgentHostManagementService,
+		agentService,
+		connectionTrackerService,
+		async () => {
+			protocolIngressDisposables.dispose();
+			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
+		},
+	), disposables));
+	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
 

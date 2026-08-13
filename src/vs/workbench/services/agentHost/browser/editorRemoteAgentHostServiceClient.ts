@@ -19,7 +19,7 @@ import { AgentHostIpcChannels, IAgentCreateChatOptions, IAgentCreateSessionConfi
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
+import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
@@ -95,6 +95,12 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 			this._logService.info(`${LOG_PREFIX} Protocol client closed`);
 			this._onAgentHostExit.fire(0);
 		}));
+		this._register(this._protocolClient.onDidChangeConnectionState(state => {
+			if (state === AgentHostClientState.Connected) {
+				this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient?.clientId}`);
+				this._onAgentHostStart.fire();
+			}
+		}));
 
 		this._register(autorun(reader => {
 			if (agentHostEnablementService.enabled.read(reader)) {
@@ -111,8 +117,6 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
 		await this._remoteAgentService.getRawEnvironment();
 		await this._protocolClient.connect();
-		this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient.clientId}`);
-		this._onAgentHostStart.fire();
 	}
 
 	private _requireClient(): RemoteAgentHostProtocolClient {
