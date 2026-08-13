@@ -215,7 +215,8 @@ export class ChatView extends AbstractChatView {
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
 				inputEditorMinLines: 2,
-				isSessionsWindow: true
+				isSessionsWindow: true,
+				enableFind: true
 			},
 			this._buildStyles(this._isActive)
 		));

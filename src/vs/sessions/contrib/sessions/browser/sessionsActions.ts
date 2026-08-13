@@ -5,14 +5,13 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { hash } from '../../../../base/common/hash.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader } from '../../../../base/common/observable.js';
+import { autorun, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
@@ -53,6 +52,8 @@ import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsN
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
+import { getSessionConversationActionId, getSessionConversationGroupId } from '../../../browser/sessionConversationGroups.js';
+import { SessionConversationsActionViewItem } from '../../../browser/parts/sessionConversationsActionViewItem.js';
 import './media/newSessionActionViewItem.css';
 
 // -- Show Sessions Picker --
@@ -80,35 +81,26 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const sessionsListModelService = accessor.get(ISessionsListModelService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		const { recent, other } = sessionsService.getRecentlyOpenedSessions();
-		const sessionGroups = groupSessionsForPicker(recent, other);
 		const activeSessionId = sessionsService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
 			session?: ISession;
 		}
 
-		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
-		let firstSessionItem: ISessionPickItem | undefined;
-
-		// New session item
-		items.push({
-			label: `$(add) ${localize('newSession', "New Session")}`,
-			session: undefined,
-		});
-
-		const toPickItem = (session: ISession): ISessionPickItem => {
-			const title = session.title.get() || getUntitledSessionTitle(session.isQuickChat?.get() ?? false);
+		const toPickItem = (session: ISession, reader: IReader): ISessionPickItem => {
+			const title = session.title.read(reader) || getUntitledSessionTitle(session.isQuickChat?.read(reader) ?? false);
 
 			// Status icon, mirroring the sessions list and session header.
-			const status = session.status.get();
-			const isRead = session.isRead.get();
-			const isArchived = session.isArchived.get();
-			const workspace = session.workspace.get();
-			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest?.icon;
-			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon);
+			const status = session.status.read(reader);
+			const isRead = session.isRead.read(reader);
+			const isArchived = session.isArchived.read(reader);
+			const workspace = session.workspace.read(reader);
+			const pullRequestIcon = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
+			const completedStateIcon = session.completedStateIcon?.read(reader) ?? pullRequestIcon;
+			const icon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, completedStateIcon);
 
 			// Second row: workspace (with its icon, like the session header /
 			// list) and the relative time. A leading blank icon aligns the
@@ -117,50 +109,68 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			const detailParts: string[] = [];
 			if (workspace?.label) {
 				const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-				const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
+				const workspaceIcon = workspace.typeIcon ?? (workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree);
 				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
 			}
-			detailParts.push(fromNow(session.updatedAt.get(), true, true));
+			detailParts.push(fromNow(session.updatedAt.read(reader), true, true));
 
 			return {
+				id: session.sessionId,
 				label: title,
 				detail: detailParts.join(' \u00B7 '),
 				iconClass: ThemeIcon.asClassName(icon),
+				iconColor: icon.color,
 				session,
 			};
 		};
 
-		const appendSessions = (label: string, sessions: readonly ISession[]): void => {
-			if (sessions.length === 0) {
-				return;
-			}
-			items.push({ type: 'separator', label });
-			for (const session of sessions) {
-				const item = toPickItem(session);
-				firstSessionItem ??= item;
-				items.push(item);
-			}
-		};
-
-		appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
-		appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
-		appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
-		appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
-
 		const picker = quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true });
-		picker.items = items;
 		picker.placeholder = localize('searchSessions', "Search sessions by name or folder");
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
-		if (firstSessionItem) {
-			picker.activeItems = [firstSessionItem];
-		}
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);
+		const sessionsChanged = observableSignalFromEvent('sessionsPickerSessionsChanged', sessionsManagementService.onDidChangeSessions);
+		disposables.add(autorun(reader => {
+			sessionsChanged.read(reader);
+			const { recent, other } = sessionsService.getRecentlyOpenedSessions();
+			const sessionGroups = groupSessionsForPicker(recent, other, reader);
+			const items: (ISessionPickItem | IQuickPickSeparator)[] = [{
+				id: 'newSession',
+				label: `$(add) ${localize('newSession', "New Session")}`,
+				session: undefined,
+			}];
+			let firstSessionItem: ISessionPickItem | undefined;
+			const appendSessions = (label: string, sessions: readonly ISession[]): void => {
+				if (sessions.length === 0) {
+					return;
+				}
+				items.push({ type: 'separator', label });
+				for (const session of sessions) {
+					const item = toPickItem(session, reader);
+					firstSessionItem ??= item;
+					items.push(item);
+				}
+			};
+
+			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
+			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
+			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
+
+			const activeItemId = picker.activeItems[0]?.id;
+			picker.items = items;
+			const activeItem = activeItemId
+				? items.find((item): item is ISessionPickItem => item.type !== 'separator' && item.id === activeItemId)
+				: firstSessionItem;
+			if (activeItem) {
+				picker.activeItems = [activeItem];
+			}
+		}));
 
 		// Expose a context key while the picker is open so the navigate
 		// keybindings (bound to the same chord as this command) can advance the
@@ -770,7 +780,7 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
 	// searchable palette flow instead skips untitled drafts (no meaningful title,
-	// mirroring the Conversations submenu) and adds the closed chats below.
+	// mirroring the Chats dropdown) and adds the closed chats below.
 	const openItems = (mru
 		? session.visibleChatTabs.get()
 		: session.visibleChatTabs.get().filter(chat => chat.status.get() !== SessionStatus.Untitled)
@@ -1200,15 +1210,30 @@ export class SessionNewChatActionViewItemContribution extends Disposable impleme
 	}
 }
 
-// The "Chats" toolbar entry is a submenu: it lists every chat in the session
-// with a checkbox. Checked chats are shown as tabs; unchecked chats are closed
-// (hidden from the tab strip). Toggling an entry closes or reopens the
-// corresponding chat. The main chat is always shown and cannot be closed, so its
-// entry is checked and disabled.
+export class SessionConversationsActionViewItemContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.conversationsActionViewItem';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+	) {
+		super();
+		this._register(actionViewItemService.register(Menus.SessionHeaderMeta, Menus.SessionConversations, (action, _options, instantiationService) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(SessionConversationsActionViewItem, action);
+		}));
+	}
+}
+
+// The "Chats" toolbar entry is backed by a submenu whose groups are rendered by
+// the Sessions workbench as an Action Widget dropdown. Selecting an entry opens
+// or focuses that chat.
 //
 // It is always rendered in the session header meta row, after the pills
 // (workspace folder / changes / pull request) as the meta toolbar's default
-// submenu icon, independent of whether the chat tab strip is shown. It surfaces
+// dropdown icon, independent of whether the chat tab strip is shown. It surfaces
 // once the session has more than one committed chat, or when the active chat has
 // subagents (a separate group at the bottom lists them) even if that is the only
 // committed chat.
@@ -1222,11 +1247,11 @@ MenuRegistry.appendMenuItem(Menus.SessionHeaderMeta, {
 });
 
 /**
- * Populates the {@link Menus.SessionConversations} submenu for every visible
+ * Populates the {@link Menus.SessionConversations} menu for every visible
  * session. {@link Menus.SessionBarToolbar} is rendered once per session view
  * (header/floating toolbar) against that view's scoped context key service, so
- * the submenu items are scoped per session via {@link SessionIdContext}: each
- * session's per-chat toggle actions only render in (and act on) their own
+ * the menu items are scoped per session via {@link SessionIdContext}: each
+ * session's per-chat navigation actions only render in (and act on) their own
  * session's toolbar. The actions are (re)registered whenever the set of visible
  * sessions or their chat lists change.
  */
@@ -1253,23 +1278,16 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 		const that = this;
 		const extUri = this._uriIdentityService.extUri;
 
-		// Scope every entry to this session's toolbar: the submenu is rendered once
+		// Scope every entry to this session's toolbar: the menu is rendered once
 		// per session view against its own scoped context key service, where
 		// `sessionId` resolves to that view's session.
 		const scopedToSession = ContextKeyExpr.equals(SessionIdContext.key, session.sessionId);
 
 		const allChats = session.chats.read(reader);
-		const mainResource = session.mainChat.read(reader).resource;
-		const visibleChatTabs = session.visibleChatTabs.read(reader);
-		const activeChatResource = session.activeChat.read(reader).resource;
+		const activeChat = session.activeChat.read(reader);
 
-		const registerToggle = (chat: IChat, group: string, order: number) => {
+		const registerOpen = (chat: IChat, group: string, order: number) => {
 			const chatResource = chat.resource;
-			// Whether the chat is currently shown as a tab. For regular chats this
-			// mirrors `openChats`; for subagents it reflects the shown-subagent set,
-			// which is what open/close toggles.
-			const isShown = visibleChatTabs.some(c => extUri.isEqual(c.resource, chatResource));
-			const isMain = extUri.isEqual(chatResource, mainResource);
 			const title = chat.title.read(reader) || localize('untitledChat', "Untitled Chat");
 			// Action IDs are global, so scope them to the session and a hash of the
 			// chat resource (which is stable per chat) rather than embedding the raw
@@ -1277,10 +1295,8 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 			store.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `sessions.toggleChat.${session.sessionId}.${hash(chatResource.toString())}`,
+						id: getSessionConversationActionId(session.sessionId, chatResource),
 						title,
-						toggled: isShown ? ContextKeyExpr.true() : undefined,
-						precondition: isMain ? ContextKeyExpr.false() : undefined,
 						menu: { id: Menus.SessionConversations, group, order, when: scopedToSession },
 					});
 				}
@@ -1290,40 +1306,23 @@ export class SessionConversationsMenuContribution extends Disposable implements 
 					if (!targetChat) {
 						return;
 					}
-					if (target.visibleChatTabs.get().some(c => extUri.isEqual(c.resource, chatResource))) {
-						await that._sessionsService.closeChat(target, targetChat);
-					} else {
-						// Opening a closed chat (or hidden subagent) un-hides it in the tab strip.
-						await that._sessionsService.openChat(target, targetChat.resource);
-					}
+					await that._sessionsService.openChat(target, targetChat.resource);
 				}
 			}));
 		};
 
 		allChats.forEach((chat, index) => {
 			// Skip untitled (in-composer) draft chats: they are transient "New
-			// Chat" drafts that can't be meaningfully closed/reopened, and listing
+			// Chat" drafts that cannot be meaningfully selected, and listing
 			// them here (titled "New Chat") just duplicates the New Chat action.
 			if (chat.status.read(reader) === SessionStatus.Untitled) {
 				return;
 			}
-			// Subagent (tool-origin) chats are surfaced in their own group below,
-			// scoped to the currently-active chat.
-			if (chat.origin?.kind === ChatOriginKind.Tool) {
-				return;
+			const group = getSessionConversationGroupId(chat, activeChat, extUri);
+			if (group) {
+				registerOpen(chat, group, index);
 			}
-			registerToggle(chat, '1_chats', index);
 		});
-
-		// Subagents of the currently-active chat, shown as a separate group at the
-		// bottom (a separator divides them from the session's chats). This group
-		// changes as the active chat changes.
-		allChats
-			.filter(chat =>
-				chat.origin?.kind === ChatOriginKind.Tool &&
-				!!chat.origin.parentChat &&
-				extUri.isEqual(chat.origin.parentChat, activeChatResource))
-			.forEach((chat, index) => registerToggle(chat, '2_subagents', index));
 
 		return store;
 	}

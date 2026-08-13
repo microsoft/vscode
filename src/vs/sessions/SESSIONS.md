@@ -41,7 +41,7 @@ Defines the foundational interfaces that all providers and consumers share:
 - **`ISession`** (`session.ts`) — Universal session facade. A self-contained observable object representing a session; consumers never reach back to provider internals. Each session has a globally unique ID built via `toSessionId(providerId, resource)` and groups one or more `IChat` instances.
 - **`ISessionsProvider`** (`sessionsProvider.ts`) — Contract every provider implements. Covers workspace discovery, session CRUD, sending requests, model enumeration/selection/presentation (`getModelsSnapshot`, `getModelPickerOptions`, `onDidChangeModels`, `setModel`), and firing change events.
 - **`ISessionsManagementService`** (`sessionsManagement.ts`) — The session **model** service. Aggregates sessions from all providers, owns the pending new-session draft (`createNewSession`/`newSession`), send (`sendNewChatRequest`/`createAndSendNewChatRequest`/`sendRequest`), current-request cancellation, CRUD (archive/delete/rename), and recency history. It performs **no** view/layout mutation and never imports the view or part service. It does **not** own the active session — that lives in the view service.
-  The Automation dialog uses a separate `automationSession` draft lifecycle so changing or closing the dialog never replaces the regular new-session draft.
+  The Automation dialog uses a separate `automationSession` draft lifecycle so changing or closing the dialog never replaces the regular new-session draft. Providers that own automation storage derive `ISession.isAutomation` by matching session resources against their run ledger; this provenance remains client-side and is not sent to the backing agent runtime.
 
 > **Model vs view.** The active session (`activeSession`), the visible-session slots and their arrangement, opening sessions, focus, Back/Forward navigation, and per-session view persistence live in **`ISessionsService`** (services — see `services/sessions/browser/sessionsService.ts`), not the management service. The split mirrors `IEditorService.activeEditor` (the active item is owned by the view-facing service) rather than the underlying model. See [Model vs View](#model-vs-view-session-services).
 
@@ -53,6 +53,8 @@ Concrete implementations of the core interfaces:
 - **`SessionsManagementService`** — The model implementation: aggregates provider sessions, owns the pending draft, send, CRUD, recency history, and provider subscriptions. Reduced send methods to provider calls + `onWillSendRequest`/`onDidStartSession`/`onDidSendRequest` events; the view reacts to those (and `onDidReplaceSession`) to keep the visible slot and active session in sync. It performs no visible-session/layout mutation and does not own the active session.
 
 The **view** counterpart, **`SessionsService`** (services, `services/sessions/browser/sessionsService.ts`), owns the canonical `activeSession` and the active-session context keys, the `VisibleSessions` model (slots/arrangement), immediate display (`showSession`), loading opens (`openSession`/`openChat`/`openNewSession`/`openNewChatInSession`), `insertAt`, stickiness, `close*`, focus (drives the passive part and honours `openSession(..., { preserveFocus })`), `SessionsNavigation` (Back/Forward), and `restoreVisibleSessions` + per-session view persistence. Living in the **services** layer, it imports the part service and the management service (both services); the concrete `SessionsPart` (core `browser/parts/`) implements `ISessionsPartService`. The active session is simply the wrapper of the active visible slot (`VisibleSessions.activeSession`) — there is no separate model mirror.
+
+The Agents-window authentication gate uses the live `authRequirement` values from every registered session type. When signed-out operation is enabled, the window bypasses GitHub sign-in only if at least one type does not require GitHub; it waits while no providers have advertised types and re-evaluates when credentials or model availability change.
 
 In the Agents window, Browser Back/Forward keybindings and mouse back/forward buttons route through `SessionsNavigation` while focus is outside the editor area. Editor focus retains the shared editor-history behavior, and mouse navigation continues to respect `workbench.editor.mouseBackForwardToNavigate`.
 
@@ -101,7 +103,7 @@ User selections in the Agents-window mode picker report the shared `chat.modeCha
 
 The `sessions.showSessionsPicker` command globally prioritizes non-archived sessions that need input, followed by other unread sessions. Each priority group preserves the picker's existing recent-first order, and sessions in neither group remain in the existing "recently opened" and "other sessions" sections. Archived-session exclusion is owned by the picker grouping helper so archived sessions cannot enter any section regardless of status or read state. The picker initially selects the first session rather than the preceding New Session item or the active session.
 
-The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer renders the shared chat-tip content above its input only after the cumulative Agents request counter reaches two; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface.
+The Agents-window composer uses the shared dictation toggle semantics: activating dictation again while the speech-to-text model is downloading or loading cancels preparation, while activating it during recording stops and transcribes. The new-session composer renders the shared chat-tip content above its input only after the cumulative Agents request counter reaches two; because it is not an `IChatWidget`, the chat-tip service treats an Agents window with zero registered foreground chat widgets as this single composer surface. The composer runs the **shared chat paste pipeline** rather than a hand-rolled one: it enables Monaco's `CopyPasteController` and registers an `IChatPasteTarget` (`newChatInputPasteTarget.ts`) keyed by its input model URI, so the workbench chat paste providers — code attachments, symbol references, HTML-to-Markdown, chat attachment transfer, and long pasted-text artifacts — behave identically here and in the in-session chat. Paste providers depend on `IChatPasteTarget`, never on `IChatWidget`. Image paste and the terminal-command paste veto remain composer-owned capture-phase handlers that run before the pipeline.
 
 The part (interface `services/sessions/browser/sessionsPartService.ts`; concrete `browser/parts/sessionsPart.ts`) is a **passive renderer**: it injects neither the model nor the view, and only exposes `updateVisibleSessions(visible, active)`, `focusSession`, and `onDidFocusSession`. The view owns the reconcile autorun and focus and wires `part.onDidFocusSession → view.setActive`.
 
@@ -115,6 +117,12 @@ src/vs/sessions/contrib/providers/
 ├── copilotChatSessions/  # Copilot chat sessions provider (wraps ChatSessionsService)
 └── remoteAgentHost/      # Remote agent host provider (one instance per connection)
 ```
+
+Providers can expose `automations` to own durable Automation entities and run history. `ProviderAutomationService` aggregates these stores behind `IAutomationService`, routes mutations to the owning store, and keeps the legacy global ledger mounted while equivalent entries migrate idempotently by Automation and run ID. Divergent same-ID snapshots remain in both stores for explicit conflict handling rather than silently discarding legacy data.
+When an update changes the resolved owning provider, the aggregate service transfers the updated Automation and run history before conditionally removing the matching source snapshot.
+Startup recovery attempts every available store independently, so one unavailable provider does not block stale-run recovery in the remaining stores.
+The scheduler activates stale-run recovery only while its window is leader. Provider stores added during that leadership period are recovered after migration, and leadership loss disables recovery for later registrations.
+Legacy migration also isolates failures by Automation and removes a source copy only when it still matches the imported Automation and run snapshot. Concurrent source changes are retried a bounded number of times, while a concurrent deletion rolls back the unchanged destination copy.
 
 Providers can import from all layers below them (core, services, non-provider contribs). **Non-provider contribs must NOT import from providers.** Shared symbols should be extracted to `services/` or `common/`.
 
@@ -187,6 +195,13 @@ Non-main chat tabs close from their close button, the active-chat close keybindi
 
 Subagent chats **persist** in the session catalog after the subagent completes (completion only marks the chat's turn complete; the chat is removed only when the whole session is disposed), so the read-only tab stays reviewable for the lifetime of the session.
 
+On restore, subagents remain chats of the parent rather than synthetic sessions.
+The handler prefers the canonical chat resource from the restored catalog and
+normalizes legacy resources retained in serialized tool history. Parent restore
+registers lightweight read-only chat summaries from the parent transcript;
+subscribing to a canonical subagent chat resolves its provider transcript on
+demand.
+
 **Opening a subagent chat from the transcript.** `ChatSubagentContentPart` and `OpenSubagentChatActionViewItem` provide one shared rich pill in both windows. The Agents window opens the surfaced peer chat; regular chat editors use the default-enabled `chat.subagents.useRichRendering` setting to open the child in a read-only editor instead of rendering its full activity inline. Editor-hosted children show the shared **This chat is read-only** banner above the transcript.
 
 The pill reads live status, timing, title/model metadata, and active-tool data from the parent invocation; history enrichment restores the same data after recreation. Inline model text is hidden only when it matches the parent, while hover/ARIA always include the child model. Streaming tools do not replace the current formed tool; same-tool updates render in place, and only a new `toolCallId` animates. Hover, pointer cursor, and click are scoped to the bordered pill, not its attached tool row.
@@ -199,11 +214,22 @@ A terminal parent response is authoritative for active subagent timing. Stop can
 
 **Subagent terminal progress.** When the last meaningful response part is the parent subagent invocation, its pill is the active progress affordance and `ChatListItemRenderer` must not append a second generic shimmering working-progress phrase below it. Child tool/hook updates can arrive later in the raw response array while still rendering inside an earlier pill, so they must not suppress progress that visually follows normal markdown. Subagent-tagged or regular markdown is supporting output, not the pill itself; if markdown follows the pill, normal working-progress rules apply.
 
-**Restoring subagent chats.** Subagent chats are in-memory only; on restart the agent host restores them as separate sessions but no longer re-adds them to the parent catalog. `AgentService._registerRestoredSubagent` mirrors the live `_handleSubagentStarted` flow on restore — it re-adds the subagent to the parent session's catalog (same `ahp-chat://subagent/...` chat URI, `origin: Tool`, `interactivity: ReadOnly`, restored turns) so it remains available to reopen as a read-only tab.
+**Restoring subagent chats.** Subagent chats are reconstructed as read-only chats
+in the parent catalog, never as separate sessions. Parent restoration registers
+their title/origin/interactivity without loading child transcripts. The
+state-manager resolver hydrates the exact `ahp-chat://subagent/...` chat only
+when subscribed, coalescing concurrent opens and preserving the same
+invalidation/retry semantics as restored peer chats.
 
 History restoration must also repair parent tool calls whose persisted `_meta`/subagent result content was lost. `AgentHostSessionHandler._enrichHistoryWithSubagentCalls` treats the session's tool-origin chat catalog as the canonical spawn record: a serialized tool call whose id matches `origin.toolCallId` is upgraded to `toolSpecificData.kind === "subagent"` with the catalog title/resource, so reload renders the pill instead of a generic "Delegating task" row.
 
-**Subagents in the Chats menu.** Subagents spawned by the **currently-active** chat are shown as a separate group (`2_subagents`) at the bottom of the **Chats** (Conversations) submenu, below the session's regular chats (`1_chats`); a separator divides the two groups. Per-chat association uses `IChatOrigin.parentChat` — the sessions-layer origin carries the spawning chat's resource (mapped from the protocol `ChatOrigin.chat` by the agent host provider's `_resolveParentChatResource`) — so the group changes as the active chat changes. Selecting a subagent entry toggles its read-only tab open/closed like any other chat entry. The entries are populated per session by `SessionConversationsMenuContribution` (only when the active chat has subagents). Subagents on their own do **not** show the chat tab strip: `IActiveSession.shouldShowChatTabs` is shown only when there is more than one visible tab (e.g. a subagent explicitly opened as a tab alongside the main chat) — a subagent that has not been opened as a tab is ignored. The **Chats** menu is always surfaced in the **session header meta row** (at the end of the pills), independent of the strip's visibility, kept available by `SessionActiveChatHasSubagentsContext` even when the parent is the only committed chat.
+**Chats dropdown groups.** `SessionConversationsMenuContribution` contributes each visible session's navigation actions to `Menus.SessionConversations`. Ordinary chats, forks, and side chats use `1_chats`; tool-origin chats associated with the active chat use `2_subagents`. These fixed group IDs map directly to local **Chats**/**Subagents** presentation metadata in `SessionConversationsActionViewItem`; no separate group registry or contribution is used. The top-level **Chats** header is hidden because it repeats the dropdown's own label; the existing **Subagents** group title explains the separation from first-level conversations. `SessionConversationsActionViewItemContribution` registers the custom renderer with `IActionViewItemService` for `(Menus.SessionHeaderMeta, Menus.SessionConversations)`, so the generic `MenuWorkbenchToolBar` resolves it before the normal meta-pill fallback. Conversation actions omit `checked`, so Action Widget renders them as ordinary menu items; only actions with an explicit boolean `checked` state use checkbox semantics. On open, `getInitialFocusActionId` focuses the active chat or active subagent directly.
+
+When the menu contains exactly one first-level chat, that row is redundant and is omitted; only the active chat's Subagents group remains. Side chats count as first-level chats, so their presence retains the first-level chat list.
+
+Each row displays the existing Sessions status icon (`ISessionsListModelService.getStatusIcon`). Non-default/actionable states also show localized text: **New**, **In Progress**, **Input Needed**, or **Failed**. **Completed** stays visually quiet (status icon only) because it is the common settled state, but its accessible description still says **State: Completed**; every other state likewise receives an explicit **State: _status_** label so progress is not color/icon-only. The Subagents group title and state indicators cover #329176 in the current design: separation is named, and each conversation exposes its progress without redundant subtitle or completion copy.
+
+Subagent association uses `IChatOrigin.parentChat`. A regular active chat scopes the flat Subagents group to children that name it as parent. When a subagent is active, its `origin.parentChat` is used as the scope so sibling subagents stay listed. Side chats remain ordinary first-level conversations and scope any of their own subagents normally. `SessionActiveChatHasSubagentsContext` uses the same expression so the dropdown remains visible even if no second committed user chat exists. Subagents on their own do **not** show the chat tab strip: `IActiveSession.shouldShowChatTabs` is shown only when there is more than one visible tab (e.g. a subagent explicitly opened as a tab alongside the main chat) — a subagent that has not been opened as a tab is ignored. The **Chats** dropdown is always surfaced in the **session header meta row** (at the end of the pills), independent of the strip's visibility.
 
 **Browsers and background activities above the chat input.** `SessionChatInputToolbar` mounts two independent activity pills, both rendered by the shared `SessionActivityPill` widget (which owns only the button, picker, and visibility — each control supplies its own activities, category titles, icons, and multi-activity summary): a **browsers** pill (`SessionBrowsersControl`) for live integrated browsers, and a **background activities** pill (`SessionBackgroundActivitiesControl`) for the viewed chat's active subagents — the latter is the extension point for further background-activity kinds. Browsers come from `IBrowserViewWorkbenchService.getKnownBrowserViews()` and belong to the viewed chat when their `IBrowserViewOwner.sessionId` matches that chat or one of its direct tool-origin subagents; subagents come from the owning session's tool-origin chats whose `origin.parentChat` is the viewed chat and whose status is active (`InProgress` or `NeedsInput`). Keeping `NeedsInput` visible is important because a pending tool or input confirmation does not end the subagent's active turn. A pill with a single activity shows its kind icon and label (browser page title, falling back to "Browser"; subagent title truncated after 30 characters with `...`). Multiple activities of one kind show **N Active Browsers/Subagents**; a pill holding mixed kinds shows **N Background Activities** with the session-in-progress icon. Any multi-item pill opens `IActionWidgetService` with categorized **Browsers** and **Subagents** sections (browser section first), where every selectable row has its kind icon and label. Opening a browser activity prefers a contextual browser page already **Sharing with Agent** for the same destination (exact URL first, then the browser tools' same-host rule), so the user sees the page the agent is driving; when no shared match exists, it opens the activity's normal browser input. The boolean `chat.turnStatusPills` setting gates the entire status-pills surface; for compatibility, any `true` member in the former per-pill object form enables the whole surface. When enabled, completed-turn pills replace the older checkpoint file-changes summary. Completed `create_session` and `create_chat` result pills are rendered once the response completes and ordered after the final response markdown has drained to the DOM, alongside the completed-turn adjuncts, so they remain visible instead of being folded into the completed-work disclosure or being repositioned while focused. `ChatView` mounts the toolbar in `ChatInputPart.persistentContentContainerElement`, which remains in layout when `ChatWidget.setReadOnly(true)` hides the rest of the composer, so these pills also remain available on read-only chats.
 
@@ -216,6 +242,16 @@ The active session (`IActiveSession`) extends `ISession` with an `activeChat` ob
 Chat input history in the Agents Window is scoped by `ISession.sessionId`. Pressing Up/Down in a chat input only navigates prompts previously submitted in the same session, including across multiple chats in that session. Users can disable `chat.agentSessions.scopedInputHistory` to restore shared input history across sessions. When a provider replaces a temporary untitled session with a committed session after the first send, history is moved from the temporary session id to the committed session id.
 
 Agent-host chat input completions preserve the host's result order through Monaco sorting and filtering. Every result uses the current trigger token as its filter text because the host has already applied path-aware filtering and ranking.
+
+#### Transcript Find
+
+`Ctrl/Cmd+F` opens a transcript Find widget over the chat message list, shared with the core `ChatViewPane`/`ChatEditor` hosts. The implementation lives entirely under `vs/workbench/contrib/chat` (`browser/widget/chatFind/`); `vs/sessions`'s `ChatView` only opts in by passing `enableFind: true` in its `ChatWidget` view options, preserving the workbench-to-sessions layer direction (sessions may depend on workbench, never the reverse).
+
+Find searches the chat's *logical* transcript — user prompts, response markdown, code blocks, tool invocation messages, references and error details — rather than the currently mounted DOM, so virtualized (off-screen) turns are searchable. Navigating to a match reveals its chat item through the existing `ChatWidget.reveal()`/virtualized-list machinery, expands the completed-response disclosure when the match is inside it, and highlights matches in the now-rendered DOM via the CSS Custom Highlight API — never by disabling virtualization or mutating rendered content. `Ctrl/Cmd+F` pressed while focus is in the composer or an embedded code block editor also routes to the same Find widget (both are "simple" editors without their own Monaco find controller), matching how the notebook editor routes Find from its cell editors.
+
+Content that is only built when its container is expanded is **not** indexed. `ChatThinkingContentPart` (reasoning) extends `ChatCollapsibleContentPart`, which creates its body lazily on first expansion and is not a `<details>` element, so a match inside collapsed reasoning could be counted but never revealed or highlighted. Reasoning is therefore excluded from the index (`getChatResponsePlaintextParts(item, false)`) rather than reported as an unreachable result. Several rendered response kinds (`warning`, `info`, `progressMessage`, `systemNotification`, `command`, `confirmation`) are likewise not yet extracted. Broadening either would require a typed expansion API on the collapsible parts and extending the shared accessible-view extraction.
+
+Each `ChatWidget` owns an independent Find widget/context-key set scoped to its own `IContextKeyService`, so multiple visible chats — including split chat editors and multiple Agents Window session panes — never cross-contaminate results or focus state.
 
 ### Workspaces and Folders
 
@@ -262,6 +298,12 @@ On the agent host, workspace-less is **inferred from an absent `workingDirectory
 Sessions produce file changes organized into **`ISessionChangeset`** groups — named, togglable collections of file modifications that let users review and selectively apply changes.
 
 Review-capable changesets expose `setReviewState(resource, reviewed)`. In the Changes multi-diff editor, the **Viewed** checkbox and a middle-click anywhere on the file-entry header invoke the same review action: marking a file viewed collapses its diff, while marking it not viewed expands it. Agent-host changesets dispatch the client-originated `changeset/filesReviewChanged` action to the changeset channel, where the subscription applies it optimistically and reconciles it with the server echo.
+
+Changesets can also advertise scoped operations. The Changes view uses `IChangesViewService.activeSessionChangesetOperationsObs` as the canonical visible operation list; this applies client-owned policy before toolbar and context-key consumers read it. In particular, an Agent Host `merge` operation is hidden when the session repository reports a protected base branch, leaving pull-request operations to lead the toolbar.
+
+Providers may expose `ISession.completedStateIcon` for a completed source-control workflow. The sessions list and picker prefer this observable over the legacy pull-request icon lookup. Agent Host derives it from durable source-control provenance: a successful direct merge shows `git-merge` with the merged-PR purple, while a pull request discovered afterward restores its live PR-state icon. Quick Pick items carry `iconColor` separately from their codicon class so the picker preserves the same theme color, and its item autorun keeps an open picker synchronized with outcome changes.
+
+Every `ISession` wrapper must delegate optional provider-owned observables such as `completedStateIcon`. `VisibleSession` and `ResourceOverrideSession` explicitly forward the complete session surface so active and transient resource consumers do not silently lose metadata.
 
 ---
 
@@ -339,6 +381,25 @@ the sent chat the active chat by reacting to the send events. When
 visible slot into the sent chat — see _Adding a Chat to an Existing Session_
 below.
 
+Every `onDidSendRequest` also emits `agents/requestSent`. The event distinguishes
+the first message in a new session (`isNewSession: true`, `isNewChat: true`), the
+first message in an additional chat (`false`, `true`), and a follow-up message in
+an existing chat (`false`, `false`). The shared chat submit event carries the
+submitted attachment context so mirrored follow-up telemetry retains the same
+attachment counts and kinds as requests sent through the sessions service.
+
+`ChatView` must **not** pass a `sessionTypePickerDelegate` to its `ChatWidget`.
+That option means "the user picks the session type here" (the welcome view and
+the automations dialog, which have no chat model of their own). `ChatInputPart`
+listens to `onDidChangeActiveSessionProvider` and reconciles the model and mode
+for the newly picked type, so a delegate that merely announces the displayed
+chat makes every navigation re-apply the remembered per-session-type model —
+while the input is still bound to the outgoing chat, which persists the wrong
+model into that chat's input state. A previous attempt to reduce picker flicker
+during loading did exactly this and desynchronized the model picker from the
+session; see the revert of #329889. Fix transient picker state during loading
+some other way.
+
 For agent-host sessions, the floating turn-status pills above the chat input read
 the viewed chat's `lastTurnChanges` while the turn streams. They remain visible
 when the chat transitions from `InProgress` to `NeedsInput`, since tool or input
@@ -385,26 +446,59 @@ up to two authored pull requests with failing CI or unaddressed review comments.
 `options` is the default when no variation treatment is assigned; `prompt` and
 `githubPrompt` remain available as explicit treatments and developer overrides.
 Any remaining slots are filled, in order, by the standard Implement a feature,
-Fix a bug, and Fix CI options. GitHub work is resolved
-silently with bounded cancellable lookups and shared issue/pull-request state
-icons; failures and timeouts leave every candidate completed by that point in
-place and fill the rest with standard options. Changing the selected workspace
-clears the repository-specific option set immediately, shows loading skeletons,
-and starts a fresh lookup for the replacement draft so cards from the previous
-repository cannot be inserted into the new workspace. Clearing the workspace
-cancels the active lookup, removes only untouched/generated option text, and
-hides the widget so stale results cannot reappear.
+Fix a bug, and Fix CI options. GitHub work is resolved silently with bounded
+cancellable lookups and shared issue/pull-request state icons. The complete
+lookup has a 10-second ceiling; summary requests receive up to 5 seconds,
+issue-linkage requests 2.5 seconds, and review-thread requests 4 seconds within
+that total budget. Failures and timeouts leave every candidate completed by that
+point in place and fill the rest with standard options. Repository discovery and
+API authentication use github.com by default. When GitHub Enterprise is
+configured, repository discovery accepts only that Enterprise host and API calls
+use its endpoint and `github-enterprise` authentication provider; hostless
+session metadata and github.com remotes are not mixed into that connection.
+Changing the selected
+workspace clears the repository-specific option set immediately, shows loading
+skeletons, and starts a fresh lookup for the replacement draft so cards from the
+previous repository cannot be inserted into the new workspace. Clearing the
+workspace cancels the active lookup, removes only untouched/generated option
+text, and hides the widget so stale results cannot reappear.
+
+Repository-backed cards lead with the issue or pull-request title beside its
+state icon. A quiet secondary row starts at the same content edge as that title
+and combines the option label, repository number, and a trailing directional
+affordance (for example, **Tackle issue #123 →**) so the generic action cannot
+be mistaken for the repository content title. The full action and content title
+remain available through the card's ARIA label and managed hover when either
+visible line is truncated.
 
 Selecting the first option focuses the input immediately and animates its prompt
 into an empty input. Later selections replace the generated prompt immediately.
 A different option can replace the input only while it is empty, exactly matches
 the previously selected prompt, or exactly matches that prompt after its editable
 placeholder was activated and removed. Any other edit disables every option but
-preserves the selected presentation; clearing the input or restoring either exact
-generated form enables them again. The option widget remains mounted after
-selection and is disposed with the composer. Standard prompts contain
-action-specific editable placeholders and the same inspect, explain, implement,
-and validate guidance as the prompt variation.
+preserves the selected presentation; clearing the input clears the selection and
+enables every option, while restoring either exact generated form enables the
+options without clearing the selection. The option widget remains mounted after
+selection and is disposed with the composer. Its heading row ends with a close
+action that cancels an in-flight lookup, hides the widget for the lifetime of
+that composer, preserves inserted or partially typed text, and returns focus to
+the input. GitHub numbers and repository titles use the standard foreground so
+they retain contrast across themes. Standard prompts contain action-specific
+editable placeholders followed by concise, task-specific guidance to ask the
+user questions when the intended behavior, bug context, or CI remediation is
+unclear.
+
+Successful option insertions and the close action emit
+`onboarding.promptOptionInteraction`. The event records only the interaction and
+a fixed option category (`implementFeature`, `fixBug`, `fixCI`, `githubIssue`,
+`githubPRCI`, or `githubPRComments`); it never records issue/PR numbers, titles,
+URLs, prompt text, or other repository content.
+
+GitHub prompt personalization must keep repository discovery and API connection
+selection on the same host. Do not add Enterprise hosts to the github.com
+allowlist while routing every API request through Enterprise; either preserve
+the resolved host through the request or make Enterprise discovery exclusive,
+including hostless metadata paths.
 
 The run step awaits typing or option resolution and forwards sequence
 cancellation; cancellation or composer disposal preserves only text already
@@ -742,8 +836,8 @@ context/restore implementation advertise it (currently Claude and Copilot).
 Origin: side chats carry `IChat.origin.kind === ChatOriginKind.SideChat`. They may also carry `IChat.origin.selection`, an immutable `{ text, responsePartId? }` snapshot captured when the side chat was created. It is provenance only, not a live range back into the source chat.
 Unlike subagent (`Tool`) chats, side chats participate in the normal
 user-facing peer-chat surfaces: the chat tab strip
-(`shouldShowChatTabs`/`visibleChatTabs`), the **Conversations** menu
-(`SessionConversationsMenuContribution`), the chats picker, close/reopen, the
+(`shouldShowChatTabs`/`visibleChatTabs`), the **Chats** dropdown's contributed
+**Chats** group (`SessionConversationsMenuContribution`), the chats picker, close/reopen, the
 active-chat fallback, and `committedChatCount`. Tool-origin subagents remain
 the special case: they stay hidden/read-only by default and surface only when
 explicitly opened.
@@ -783,7 +877,16 @@ Each invocation creates a **fresh** side chat (there is no "reuse the last side
 chat" behavior). After creating the chat, it activates that peer chat through
 the normal `ISessionsService.openChat(session, sideChat.resource)` flow so the
 standard session/chat focus behavior applies, then sends the prompt on that
-chat through the normal foreground send path.
+chat through the normal foreground send path. Its first request preserves
+explicitly attached context from the originating composer, including pasted
+text attachments. Agent Host sends pasted text as an embedded textual resource,
+then snapshots it into the session attachment directory before reducing the
+turn so synchronized state and later replay retain only the resource reference.
+Every chat in that Agent Host session may read the shared attachment directory
+without an additional permission confirmation; other sessions remain excluded.
+When the slash command has
+already been selected in the input UI, the remaining prompt is only the
+question text; `/btw` must not be inserted a second time.
 
 The agent host accepts the anchor when it is either in `turns` or
 `activeTurn`. Claude and Copilot serialize side-chat creation on the new chat's
@@ -975,6 +1078,20 @@ vice-versa. Auto-titling from the first message
 titles the _session_ for the default chat and the _chat itself_ (via
 `updateChatTitle`) for additional chats — see `agentHostSessionTitleController`.
 
+Agent-host rename tools persist the title and its source in one session-database
+transaction before publishing live state, so a failed write changes neither key
+nor the visible title. Tool schemas and runtime validation reject titles over 200
+Unicode code points. Normalization decodes entities, collapses whitespace, removes
+outer quoting/punctuation, and humanizes no-whitespace slugs without changing
+explicit casing such as GitHub, TypeScript, AppKit, or OAuth.
+
+The active-agent rename reminder travels in transient `IAgentChatContext.hostInstructions`,
+never in the user prompt. Copilot and Claude project it through their user-prompt
+hooks' hidden additional context, while Codex uses `turn/start.additionalContext`;
+provider history, replay, restore, and forks therefore retain only the original
+user message. Destructive deletion and idle eviction clear title-controller state
+for the session and every peer chat after pending session metadata writes settle.
+
 Single-chat providers implement `renameSession` by renaming their single main
 chat. `renameSession` is a mandatory
 `ISessionsProvider` method (no optional methods — see the interface guideline).
@@ -1066,8 +1183,9 @@ edited branch. The automation and new-session surfaces share the provider-agnost
 `contrib/chat/browser/branchPicker` trigger, ActionWidget, filtering, focus, and
 accessibility behavior; their adapters supply branch state and selection side
 effects. The Automations dialog keeps its form focus cycle, popup command
-allowlist, and popup-first Escape handling in its own adapter instead of changing
-the shared Dialog widget. An edited automation's saved provider/session type
+allowlist, editable-target-only undo/redo handling, and popup-first Escape
+handling in its own adapter instead of changing the shared Dialog widget. An
+edited automation's saved provider/session type
 remains pending while providers are discovered, so a provisional fallback cannot erase Worktree intent;
 the user can still explicitly choose an available alternative. `ISessionType`
 advertises Worktree configuration support; unsupported targets keep the branch

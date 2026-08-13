@@ -7,7 +7,10 @@ import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
+import { canRefineContributor, toolSourceKindFromContributor } from './agentHostToolCallTracker.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
+import type { ToolCallContributor } from '../common/state/sessionState.js';
 import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnHangReason, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
@@ -30,6 +33,19 @@ const MAX_HANG_CHECK_WINDOWS = 6;
 /** Sentinel `lastActivityKind` for a turn that never produced any activity. */
 export const TURN_ACTIVITY_NONE = 'none';
 
+/** Identity of a tool call that has started but not yet completed. */
+interface IInFlightToolCall {
+	readonly toolId: string;
+	contributor: ToolCallContributor | undefined;
+	toolSourceKind: string;
+}
+
+/** An outstanding session input request, and the tool call it gates if any. */
+interface ITurnBlocker {
+	readonly kind: SessionInputRequestKind;
+	readonly toolCallId: string | undefined;
+}
+
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
 	readonly stopWatch: StopWatch;
@@ -40,6 +56,7 @@ interface ITurnTiming {
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
 	readonly permissionLevel: string | undefined;
+	readonly interactionMode: SessionMode | undefined;
 	firstProgressMs: number | undefined;
 
 	// Hang watchdog state
@@ -47,10 +64,14 @@ interface ITurnTiming {
 	quietStopWatch: StopWatch;
 	/** Protocol action type of the last observed activity, or `none`. */
 	lastActivityKind: string;
-	/** Tool calls that have started but not completed, by tool call id. */
-	readonly inFlightToolCalls: Set<string>;
+	/**
+	 * Tool calls that have started but not completed, by tool call id. Insertion
+	 * ordered, so the first entry is the longest-running call.
+	 */
+	readonly inFlightToolCalls: Map<string, IInFlightToolCall>;
 	/** Outstanding session input requests for this turn, by request id. */
-	readonly blockers: Map<string, SessionInputRequestKind>;	/** Hang reasons already reported, so each is emitted at most once per turn. */
+	readonly blockers: Map<string, ITurnBlocker>;
+	/** Hang reasons already reported, so each is emitted at most once per turn. */
 	readonly reportedHangReasons: Set<AgentHostTurnHangReason>;
 	/** Number of hang reports emitted for this turn. */
 	hangReportCount: number;
@@ -111,7 +132,7 @@ export class AgentHostTurnTracker extends Disposable {
 		}));
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined): void {
+	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined, interactionMode: SessionMode | undefined): void {
 		const key = this._key(session, turnId);
 		this._turnTimings.set(key, {
 			stopWatch: StopWatch.create(false),
@@ -122,10 +143,11 @@ export class AgentHostTurnTracker extends Disposable {
 			modelTelemetryKind,
 			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
 			permissionLevel,
+			interactionMode,
 			firstProgressMs: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
-			inFlightToolCalls: new Set(),
+			inFlightToolCalls: new Map(),
 			blockers: new Map(),
 			reportedHangReasons: new Set(),
 			hangReportCount: 0,
@@ -176,9 +198,32 @@ export class AgentHostTurnTracker extends Disposable {
 	 * call explains an otherwise quiet turn (a long build, or a subagent whose
 	 * progress is reported on its own chat channel), so the hang is reported
 	 * with the `runningTool` reason rather than as an unexplained stall.
+	 *
+	 * The tool's identity is retained so a hang report can name what the turn
+	 * is stuck on. This matters most for agent-host-provided tools: those never
+	 * enter the session input queue, so `agentHost.toolCallStalled` — which
+	 * only fires for blocked tool calls — cannot see them at all.
 	 */
-	toolCallStarted(session: string, turnId: string, toolCallId: string): void {
-		this._turnTimings.get(this._key(session, turnId))?.inFlightToolCalls.add(toolCallId);
+	toolCallStarted(session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void {
+		this._turnTimings.get(this._key(session, turnId))?.inFlightToolCalls.set(toolCallId, {
+			toolId: toolName,
+			contributor,
+			toolSourceKind: toolSourceKindFromContributor(contributor),
+		});
+	}
+
+	/**
+	 * Refines an in-flight tool call's contributor once complete metadata is
+	 * available. Mirrors {@link AgentHostToolCallTracker.toolCallMetadataUpdated}
+	 * so `toolSourceKind` agrees between the two telemetry events for the same
+	 * tool call.
+	 */
+	toolCallMetadataUpdated(session: string, turnId: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
+		const inFlight = this._turnTimings.get(this._key(session, turnId))?.inFlightToolCalls.get(toolCallId);
+		if (inFlight && contributor && canRefineContributor(inFlight.contributor, contributor)) {
+			inFlight.contributor = contributor;
+			inFlight.toolSourceKind = toolSourceKindFromContributor(contributor);
+		}
 	}
 
 	toolCallEnded(session: string, turnId: string, toolCallId: string): void {
@@ -201,13 +246,13 @@ export class AgentHostTurnTracker extends Disposable {
 	 * Every outstanding request is recorded regardless, so unblocking can find
 	 * its turn and teardown can clean up its bookkeeping.
 	 */
-	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind): void {
+	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind, toolCallId: string | undefined): void {
 		const turnKey = this._key(session, turnId);
 		const timing = this._turnTimings.get(turnKey);
 		if (!timing) {
 			return;
 		}
-		timing.blockers.set(requestId, kind);
+		timing.blockers.set(requestId, { kind, toolCallId });
 		this._blockerTurnKeys.set(this._key(session, requestId), turnKey);
 		// A request appearing or being answered is itself a state change, so it
 		// restarts the quiet period. Without this, a user who answers just
@@ -265,6 +310,7 @@ export class AgentHostTurnTracker extends Disposable {
 			modelTelemetryKind: timing.modelTelemetryKind,
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
+			interactionMode: timing.interactionMode,
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
@@ -349,6 +395,7 @@ export class AgentHostTurnTracker extends Disposable {
 			timing.lastHangReason = hangReason;
 			timing.lastHangStopWatch = StopWatch.create(true);
 			const userBlocker = this._firstUserBlocker(timing);
+			const stuckTool = this._resolveStuckTool(timing, hangReason);
 			this._reporter.turnHung({
 				provider: timing.provider,
 				session: timing.session,
@@ -356,7 +403,9 @@ export class AgentHostTurnTracker extends Disposable {
 				hangReason,
 				hadAnyProgress: timing.lastActivityKind !== TURN_ACTIVITY_NONE,
 				lastActivityKind: timing.lastActivityKind,
-				blockedOn: userBlocker,
+				blockedOn: userBlocker?.kind,
+				toolId: stuckTool?.toolId,
+				toolSourceKind: stuckTool?.toolSourceKind,
 				inFlightToolCallCount: timing.inFlightToolCalls.size,
 				quietTimeMs: timing.quietStopWatch.elapsed(),
 				turnElapsedMs: timing.stopWatch.elapsed(),
@@ -373,15 +422,41 @@ export class AgentHostTurnTracker extends Disposable {
 	}
 
 	/**
-	 * The kind of the first outstanding request that blocks on the user, or
-	 * `undefined` when none does. See {@link turnBlocked} for why client tool
-	 * execution is not a user blocker.
+	 * The first outstanding request that blocks on the user, or `undefined`
+	 * when none does. See {@link turnBlocked} for why client tool execution is
+	 * not a user blocker.
 	 */
-	private _firstUserBlocker(timing: ITurnTiming): SessionInputRequestKind | undefined {
-		for (const kind of timing.blockers.values()) {
-			if (kind !== SessionInputRequestKind.ToolClientExecution) {
-				return kind;
+	private _firstUserBlocker(timing: ITurnTiming): ITurnBlocker | undefined {
+		for (const blocker of timing.blockers.values()) {
+			if (blocker.kind !== SessionInputRequestKind.ToolClientExecution) {
+				return blocker;
 			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Identifies the tool the turn appears to be stuck on, so a hang report can
+	 * name it rather than only counting it.
+	 *
+	 * For `waitingOnUser` this is the tool call gated by the blocking request.
+	 * A result-confirmation prompt resolves to `undefined`, because the tool
+	 * already completed and left the in-flight set — the turn is waiting on the
+	 * user reviewing a result, not on a tool. An elicitation has no tool at all.
+	 *
+	 * For `runningTool` this is the longest-running in-flight call. With
+	 * several tools running in parallel there is no way to tell which one is
+	 * wedged, so this is a heuristic; `inFlightToolCallCount` travels alongside
+	 * it, and filtering to `inFlightToolCallCount == 1` gives unambiguous
+	 * attribution.
+	 */
+	private _resolveStuckTool(timing: ITurnTiming, hangReason: AgentHostTurnHangReason): IInFlightToolCall | undefined {
+		if (hangReason === 'waitingOnUser') {
+			const toolCallId = this._firstUserBlocker(timing)?.toolCallId;
+			return toolCallId === undefined ? undefined : timing.inFlightToolCalls.get(toolCallId);
+		}
+		if (hangReason === 'runningTool') {
+			return timing.inFlightToolCalls.values().next().value;
 		}
 		return undefined;
 	}
@@ -407,4 +482,3 @@ export class AgentHostTurnTracker extends Disposable {
 		return `${session}\0${turnId}`;
 	}
 }
-

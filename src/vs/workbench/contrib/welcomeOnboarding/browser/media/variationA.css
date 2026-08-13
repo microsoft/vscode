@@ -557,10 +557,6 @@
 	padding: 0;
 }
 
-.onboarding-a-personalize > .onboarding-a-sessions-tip {
-	margin-top: auto;
-}
-
 .onboarding-a-personalize-section {
 	display: flex;
 	flex-direction: column;
@@ -778,94 +774,6 @@
 	text-align: center;
 }
 
-/* Agent Sessions step */
-.onboarding-a-sessions {
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-	flex: 1;
-	width: 100%;
-	min-height: 0;
-	margin: 0 auto;
-	padding: 0;
-}
-
-.onboarding-a-sessions-features {
-	display: flex;
-	flex-direction: column;
-	gap: 14px;
-	flex: 1;
-}
-
-.onboarding-a-sessions-group {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.onboarding-a-sessions-group-label {
-	font-size: 11px;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.onboarding-a-sessions-grid {
-	display: grid;
-	gap: 10px;
-}
-
-.onboarding-a-sessions-grid-2 {
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.onboarding-a-feature-card {
-	display: flex;
-	align-items: flex-start;
-	gap: 12px;
-	padding: 14px 16px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
-	font-family: inherit;
-	text-align: left;
-	color: inherit;
-}
-
-.onboarding-a-feature-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	width: 24px;
-	height: 24px;
-	margin-top: 1px;
-}
-
-.onboarding-a-feature-icon .codicon {
-	font-size: 20px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.onboarding-a-feature-text {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	min-width: 0;
-}
-
-.onboarding-a-feature-title {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--vscode-editor-foreground);
-}
-
-.onboarding-a-feature-desc {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.4;
-}
-
 .onboarding-a-kbd {
 	display: inline-block;
 	padding: 1px 6px;
@@ -878,33 +786,6 @@
 	border-bottom-color: var(--vscode-keybindingLabel-bottomBorder, rgba(68, 68, 68, 0.6));
 	border-radius: 3px;
 	vertical-align: middle;
-}
-
-.onboarding-a-sessions-docs {
-	display: flex;
-	align-items: center;
-	gap: 16px;
-	margin-top: auto;
-	padding: 14px 4px 4px 4px;
-}
-
-/* Tip banner */
-.onboarding-a-sessions-tip {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 14px;
-	font-size: 13px;
-}
-
-.onboarding-a-sessions-tip-icon .codicon {
-	font-size: 16px;
-	color: var(--vscode-textLink-foreground, #3794ff);
-}
-
-.onboarding-a-sessions-tip-text {
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
 }
 
 /* Sign-in nudge */
@@ -934,29 +815,6 @@
 .onboarding-a-signin-nudge-btn:focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
 	outline-offset: -2px;
-}
-
-.onboarding-a-doc-link {
-	font-size: 12px;
-	color: var(--vscode-textLink-foreground, #3794ff);
-	text-decoration: none;
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.onboarding-a-doc-link .codicon {
-	color: var(--vscode-textLink-foreground, #3794ff);
-}
-
-.onboarding-a-doc-link:hover {
-	text-decoration: underline;
-}
-
-.onboarding-a-doc-link:focus-visible {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-	border-radius: 2px;
 }
 
 /* Sign-in icon row */
@@ -1072,16 +930,11 @@
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
-	.onboarding-a-sessions-grid-2 {
-		grid-template-columns: 1fr;
-	}
-
 	.onboarding-a-ai-pref-cards {
 		grid-template-columns: 1fr;
 	}
 
-	.onboarding-a-personalize,
-	.onboarding-a-sessions {
+	.onboarding-a-personalize {
 		justify-content: flex-start;
 	}
 }

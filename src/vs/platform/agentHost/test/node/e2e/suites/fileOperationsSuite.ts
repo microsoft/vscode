@@ -15,7 +15,7 @@ import type { StringOrMarkdown } from '../../../../common/state/protocol/state.j
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
@@ -66,8 +66,7 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 	} as const;
 
 	if (config.streamingFileCreateToolName && config.provider !== 'codex') {
-		const fileToolDenialEnabled = config.provider !== 'copilotcli'
-			&& !(context.isLinux && config.fileToolDenialReplayUnstableOnLinux);
+		const fileToolDenialEnabled = !(context.isLinux && config.fileToolDenialReplayUnstableOnLinux);
 		(fileToolDenialEnabled ? test : test.skip)('declining a file creation tool prevents the mutation and completes the turn', async function () {
 			this.timeout(180_000);
 			const workspace = mkdtempSync(join(tmpdir(), 'ahp-decline-create-'));
@@ -142,7 +141,21 @@ export function defineFileOperationsTests(context: IAgentHostE2ETestContext): vo
 					},
 				});
 			}
-			assert.strictEqual(existsSync(join(workspace, 'denied.txt')), false);
+			const malformedPermissionErrors = context.client.receivedNotifications(n =>
+				isActionNotification(n, 'chat/toolCallComplete')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === toolCallId
+			).map(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.error?.message)
+				.filter((message): message is string => typeof message === 'string' && message.includes('permission host returned malformed payload'));
+			assert.deepStrictEqual({
+				fileCreated: existsSync(join(workspace, 'denied.txt')),
+				responseEndsWithDenied: getMarkdownResponseText(context.client).trim().endsWith('denied'),
+				malformedPermissionErrors,
+			}, {
+				fileCreated: false,
+				responseEndsWithDenied: true,
+				malformedPermissionErrors: [],
+			});
 		});
 
 		(config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for file-tool approval allows a replacement turn', async function () {
