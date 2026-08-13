@@ -543,6 +543,58 @@ describe('CopilotCLIModels', () => {
 		});
 	});
 
+	describe('context size options', () => {
+		function createLmMock() {
+			let capturedProvider: any;
+			return {
+				mock: {
+					registerLanguageModelChatProvider: (_id: string, provider: any) => {
+						capturedProvider = provider;
+						return { dispose: () => { } };
+					}
+				},
+				getProvider: () => capturedProvider,
+			};
+		}
+
+		it('exposes both context sizes with the smaller as default for a free long-context model', async () => {
+			// Default tier caps context at 200K while the full window is 1M, and there
+			// is no long-context surcharge, so the picker must offer both sizes.
+			const sdk = {
+				_serviceBrand: undefined,
+				getPackage: vi.fn(async () => ({
+					getAvailableModels: vi.fn(async () => [{
+						id: 'free-long-context',
+						name: 'Free Long Context',
+						billing: { token_prices: { default: { input_price: 1, output_price: 1, max_prompt_tokens: 200_000 } } },
+						capabilities: {
+							limits: { max_prompt_tokens: 1_000_000, max_output_tokens: 8_000, max_context_window_tokens: 1_000_000 },
+							supports: { vision: false },
+						},
+					}]),
+				})),
+				getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'test-token', host: 'https://github.com' })),
+				getRequestId: vi.fn(() => undefined),
+				setRequestId: vi.fn(),
+			} as unknown as ICopilotCLISDK;
+
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, false);
+			const { models } = createModels({ hasSession: true, sdk, configService });
+			const lm = createLmMock();
+			models.registerLanguageModelChatProvider(lm.mock as any);
+
+			await models.getModels();
+			await new Promise(r => setTimeout(r, 0));
+
+			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
+			const model = result.find((m: any) => m.id === 'free-long-context');
+			const contextSize = model?.configurationSchema?.properties?.contextSize;
+			expect(contextSize?.enum).toEqual([200_000, 1_000_000]);
+			expect(contextSize?.default).toBe(200_000);
+		});
+	});
+
 	describe('CLIAutoModelEnabled setting', () => {
 		function createLmMock() {
 			let capturedProvider: any;
