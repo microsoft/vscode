@@ -262,7 +262,7 @@ export interface IChatWidgetViewOptions {
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
 	inputEditorMaxHeight?: number;
-	renderGettingStartedTip?: boolean;
+	renderGettingStartedTip?: boolean | (() => boolean);
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**

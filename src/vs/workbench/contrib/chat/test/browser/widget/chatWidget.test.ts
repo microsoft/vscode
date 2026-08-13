@@ -13,7 +13,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { SaveReason } from '../../../../../common/editor.js';
 import { ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
-import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
+import { acceptAndAwaitSentRequest, ChatWidget, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome } from '../../../browser/widget/chatWidget.js';
 import { ChatSendResult, ChatSendResultSent, IChatSendRequestData } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -48,14 +48,25 @@ suite('ChatWidget', () => {
 
 	test('transcript overlays suppress the welcome state', () => {
 		assert.deepStrictEqual({
+			unavailable: shouldShowChatWelcome(undefined, false),
+			progressBeforeModel: shouldShowChatWelcome(undefined, true),
 			empty: shouldShowChatWelcome(0, false),
 			progress: shouldShowChatWelcome(0, true),
 			message: shouldShowChatWelcome(1, false),
 		}, {
+			unavailable: undefined,
+			progressBeforeModel: false,
 			empty: true,
 			progress: false,
 			message: false,
 		});
+	});
+
+	test('loading suppresses the getting-started tip', () => {
+		assert.deepStrictEqual([
+			shouldShowChatTip(0, false, false),
+			shouldShowChatTip(0, false, true),
+		], [true, false]);
 	});
 
 	test('identifies only leading silent execute-immediately slash commands', () => {

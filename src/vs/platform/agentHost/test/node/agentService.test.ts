@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
@@ -28,6 +29,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -42,6 +44,7 @@ import { AgentService } from '../../node/agentService.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
@@ -1081,7 +1084,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(await predicate(), message);
 		}
 
-		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: MockAgent; session: URI; db: TestSessionDatabase }> {
+		async function setupTitleGeneration(copilotApiService: TestCopilotApiService, activeAgentTitleGeneration = false): Promise<{ svc: AgentService; agent: MockAgent; session: URI; db: TestSessionDatabase }> {
 			const db = new TestSessionDatabase();
 			const sessionDataService = createSessionDataService(db);
 			const svc = disposables.add(new AgentService(
@@ -1095,6 +1098,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				copilotApiService,
 			));
+			svc.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: activeAgentTitleGeneration });
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			svc.registerProvider(agent);
@@ -1545,6 +1549,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('active-agent title generation skips the utility model and persists auto provenance', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			const { svc, session, db } = await setupTitleGeneration(copilotApiService, true);
+			const prompt = `Explain ${'active agent title generation '.repeat(4)}`;
+
+			svc.dispatchAction(
+				buildDefaultChatUri(session.toString()),
+				{ type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z', message: { text: prompt, origin: { kind: MessageKind.User } } },
+				'test-client', 1,
+			);
+
+			const title = svc.stateManager.getSessionState(session.toString())?.title;
+			assert.strictEqual(title, 'Explain active agent title generation active...');
+			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'active-agent fallback provenance should be persisted');
+
+			svc.dispatchAction(
+				buildDefaultChatUri(session.toString()),
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 },
+				'test-client', 2,
+			);
+			const forked = await svc.createSession({
+				provider: 'copilot',
+				fork: { session, chat: URI.parse(buildDefaultChatUri(session)), turnIndex: 0, turnId: 'turn-1' },
+			});
+			assert.strictEqual(svc.stateManager.getSessionState(forked.toString())?.title, `Forked: ${title}`);
+			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		});
+
 		test('leaves fallback title when AI title generation fails', async () => {
 			const copilotApiService = new TestCopilotApiService();
 			copilotApiService.error = new Error('title failed');
@@ -1669,6 +1702,48 @@ suite('AgentService (node dispatcher)', () => {
 				utilityCalls: 2,
 				includesForkedChat: true,
 			});
+		});
+
+		test('generates a utility title for imported conversations when active-agent naming is disabled', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			copilotApiService.response = 'Imported conversation title';
+			const { svc } = await setupTitleGeneration(copilotApiService);
+			const imported = await svc.createSession({
+				provider: 'copilot',
+				importConversation: {
+					turns: [{
+						id: 'imported-turn',
+						message: { text: 'Investigate imported conversation', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'imported-response', content: 'Found the import path.' }],
+						state: TurnState.Complete,
+						usage: undefined,
+					}],
+				},
+			});
+
+			await waitForCondition(() => svc.stateManager.getSessionState(imported.toString())?.title === 'Imported conversation title', 'imported title should be generated');
+			assert.strictEqual(copilotApiService.utilityCalls.length, 1);
+		});
+
+		test('keeps a deterministic imported title without utility generation in active-agent mode', async () => {
+			const copilotApiService = new TestCopilotApiService();
+			const { svc, db } = await setupTitleGeneration(copilotApiService, true);
+			const imported = await svc.createSession({
+				provider: 'copilot',
+				importConversation: {
+					turns: [{
+						id: 'imported-turn',
+						message: { text: 'Investigate imported conversation', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						state: TurnState.Complete,
+						usage: undefined,
+					}],
+				},
+			});
+
+			assert.strictEqual(svc.stateManager.getSessionState(imported.toString())?.title, 'Investigate imported conversation');
+			assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+			await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'imported fallback provenance should be persisted');
 		});
 	});
 
@@ -1950,7 +2025,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('accepts customization updates while creating a provisional session', async () => {
-			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin', enabled: true } as const;
+			const customization = { type: CustomizationType.Plugin, id: customizationId('file:///plugin'), uri: 'file:///plugin', name: 'Plugin' } as const;
 			class ProvisionalCustomizationAgent extends MockAgent {
 				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
@@ -2123,7 +2198,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('retries a transient registry registration failure before reporting creation success', async () => {
 			const db = new TransientRegistryWriteDatabase();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			await svc.listSessions();
@@ -2221,7 +2296,9 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			svc.registerProvider(copilotAgent);
 			const session = await svc.createSession({ provider: 'copilot' });
+			const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 			svc.setWorktreeIsolation({
+				onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 				prepareSessionDeletion: async () => {
 					order.push('prepareSessionDeletion');
 					return { repositoryRoot: URI.file('/repo'), worktree: URI.file('/worktree') };
@@ -2272,7 +2349,7 @@ suite('AgentService (node dispatcher)', () => {
 				...createSessionDataService(),
 				deleteSessionData: async () => { deleteSessionDataCalls++; },
 			};
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new MockAgent('copilot'));
 			svc.registerProvider(agent);
 			const session = await svc.createSession({ provider: 'copilot' });
@@ -2382,6 +2459,62 @@ suite('AgentService (node dispatcher)', () => {
 				listCalls: 1,
 				first: [legacy.toString()],
 				second: [legacy.toString()],
+			});
+		});
+
+		test('listSessions does not wait for a forced refresh after registry backfill', async () => {
+			const refreshGate = new DeferredPromise<void>();
+			class GatedRefreshAgent extends MockAgent {
+				listCalls = 0;
+				private readonly _onDidChangeChatList = new Emitter<void>();
+				readonly onDidChangeChatList = this._onDidChangeChatList.event;
+
+				override async listLegacyChats(): Promise<IAgentChatMetadata[]> {
+					this.listCalls++;
+					if (this.listCalls > 1) {
+						await refreshGate.p;
+					}
+					return super.listLegacyChats();
+				}
+
+				fireChatListChanged(): void {
+					this._onDidChangeChatList.fire();
+				}
+
+				override dispose(): void {
+					this._onDidChangeChatList.dispose();
+					super.dispose();
+				}
+			}
+
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new GatedRefreshAgent('copilot'));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.listSessions();
+
+			agent.fireChatListChanged();
+			for (let i = 0; i < 20 && agent.listCalls < 2; i++) {
+				await timeout(0);
+			}
+			assert.strictEqual(agent.listCalls, 2);
+
+			const listing = svc.listSessions();
+			let completed = false;
+			void listing.then(() => completed = true);
+			for (let i = 0; i < 20 && !completed; i++) {
+				await timeout(0);
+			}
+			const completedBeforeRefresh = completed;
+			refreshGate.complete();
+			const listed = await listing;
+
+			assert.deepStrictEqual({
+				completedBeforeRefresh,
+				sessions: listed.map(item => item.session.toString()),
+			}, {
+				completedBeforeRefresh: true,
+				sessions: [session.toString()],
 			});
 		});
 
@@ -2872,7 +3005,7 @@ suite('AgentService (node dispatcher)', () => {
 			// set, but nothing has ever written a per-provider marker (that
 			// concept did not exist yet), and there are no tombstones.
 			await db.markSessionRegistryBackfilled();
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
 			const agent = disposables.add(new ChatListChangeAgent('copilot'));
 			svc.registerProvider(agent);
 
@@ -3330,6 +3463,51 @@ suite('AgentService (node dispatcher)', () => {
 				before: linkedCheckout.toString(),
 				after: primaryRoot.toString(),
 				persistedRepositoryRoot: primaryRoot.toString(),
+			});
+		});
+
+		test('restoreSession recognizes an external linked worktree without persisted metadata', async () => {
+			const db = disposables.add(new TestSessionDatabase());
+			const primaryRoot = URI.file('/workspace/codex');
+			const sessionWorktree = URI.file('/home/user/.codex/worktrees/4b6d/codex');
+			const agent = new MockAgent('codex');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { workingDirectories: [sessionWorktree], project: undefined };
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sessionWorktree;
+			gitService.getWorktreeRoots = async () => [primaryRoot, sessionWorktree];
+			gitService.getCurrentBranch = async () => undefined;
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			svc.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			svc.registerProvider(agent);
+			const { session } = await createAgentSession(agent);
+			agent.sessionMessages = [];
+
+			await svc.restoreSession(session);
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({
+				isolation: svc.stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation],
+				project: listed[0].project && { uri: listed[0].project.uri.toString(), displayName: listed[0].project.displayName },
+				workingDirectory: listed[0].workingDirectories?.[0].toString(),
+				persistedRepositoryRoot: await db.getMetadata(WORKTREE_META_REPOSITORY_ROOT),
+				persistedBranch: await db.getMetadata('copilot.worktree.branchName'),
+				persistedPath: await db.getMetadata('copilot.worktree.path'),
+			}, {
+				isolation: 'folder',
+				project: { uri: primaryRoot.toString(), displayName: 'codex' },
+				workingDirectory: sessionWorktree.toString(),
+				persistedRepositoryRoot: primaryRoot.toString(),
+				persistedBranch: undefined,
+				persistedPath: undefined,
 			});
 		});
 
@@ -4193,7 +4371,7 @@ suite('AgentService (node dispatcher)', () => {
 			const activeClient: SessionActiveClient = {
 				clientId: 'client-eager',
 				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
-				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', enabled: true }],
+				customizations: [{ type: CustomizationType.Plugin, id: customizationId('file:///plugin-a'), uri: 'file:///plugin-a', name: 'A', }],
 			};
 			const session = await service.createSession({ provider: 'copilot', activeClient });
 
@@ -5005,7 +5183,7 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.getSessionCustomizations = async () => {
 				getSessionCustomizationsCalls++;
 				return [
-					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill', enabled: true },
+					{ type: CustomizationType.Plugin, id: customizationId('file:///restore-skill'), uri: 'file:///restore-skill', name: 'Restore Skill' },
 				];
 			};
 
@@ -5017,7 +5195,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(customizations?.[0]?.type, CustomizationType.Plugin);
 			assert.strictEqual(customizations?.[0]?.name, 'Restore Skill');
 			assert.strictEqual(customizations?.[0]?.id, customizationId('file:///restore-skill'));
-			assert.strictEqual(customizations?.[0]?.enabled, true);
+			assert.strictEqual(isCustomizationEnabled(customizations?.[0] ?? {}), true);
 		});
 
 		test('clears failed restore attempts so sessions can be retried', async () => {
@@ -8267,6 +8445,122 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	suite('rename server tools', () => {
+		test('rename session and chat replace live and persisted titles', async () => {
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const peerChat = buildChatUri(sessionUri, 'peer-rename');
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Previous peer title' });
+			await db.setMetadata('customTitle', 'Previous user title');
+			await db.setMetadata('customTitleSource', 'user');
+			await db.setMetadata(`customChatTitle:${peerChat}`, 'Previous peer title');
+			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
+
+			const sessionResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameSession, {
+				title: 'Complete replacement session title',
+			});
+			const chatResult = await agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
+				title: 'Complete replacement peer chat title',
+			});
+
+			assert.deepStrictEqual({
+				sessionResult,
+				chatResult,
+				liveSessionTitle: localService.stateManager.getSessionState(sessionUri)?.title,
+				liveChatTitle: localService.stateManager.getChatState(peerChat)?.title,
+				persistedSessionTitle: await db.getMetadata('customTitle'),
+				persistedSessionSource: await db.getMetadata('customTitleSource'),
+				persistedChatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
+				persistedChatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+			}, {
+				sessionResult: 'Renamed session to "Complete replacement session title".',
+				chatResult: 'Renamed chat to "Complete replacement peer chat title".',
+				liveSessionTitle: 'Complete replacement session title',
+				liveChatTitle: 'Complete replacement peer chat title',
+				persistedSessionTitle: 'Complete replacement session title',
+				persistedSessionSource: 'agent',
+				persistedChatTitle: 'Complete replacement peer chat title',
+				persistedChatSource: 'agent',
+			});
+		});
+
+		test('rename failures preserve live state and both persisted metadata values', async () => {
+			class FailingTitleDatabase extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (Object.keys(values).some(key => key.startsWith('customTitle') || key.startsWith('customChatTitle'))) {
+						throw new Error('title persistence failed');
+					}
+					return super.setMetadataValues(values);
+				}
+			}
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+
+			const db = new FailingTitleDatabase();
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.configurationService.updateRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: true });
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			localService.registerProvider(agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const peerChat = buildChatUri(sessionUri, 'peer-failure');
+			localService.stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Original session' });
+			localService.stateManager.addChat(sessionUri, peerChat, { title: 'Original chat' });
+			await db.setMetadata('customTitle', 'Original session');
+			await db.setMetadata('customTitleSource', 'user');
+			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
+			await db.setMetadata(`customChatTitleSource:${peerChat}`, 'user');
+
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameSession, { title: 'Will fail' }),
+				/title persistence failed/,
+			);
+			await assert.rejects(
+				async () => agent.serverToolHost!.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, {
+					chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`,
+					title: 'Chat will fail',
+				}),
+				/title persistence failed/,
+			);
+			assert.deepStrictEqual({
+				liveSession: localService.stateManager.getSessionState(sessionUri)?.title,
+				sessionTitle: await db.getMetadata('customTitle'),
+				sessionSource: await db.getMetadata('customTitleSource'),
+				liveChat: localService.stateManager.getChatState(peerChat)?.title,
+				chatTitle: await db.getMetadata(`customChatTitle:${peerChat}`),
+				chatSource: await db.getMetadata(`customChatTitleSource:${peerChat}`),
+			}, {
+				liveSession: 'Original session',
+				sessionTitle: 'Original session',
+				sessionSource: 'user',
+				liveChat: 'Original chat',
+				chatTitle: 'Original chat',
+				chatSource: 'user',
+			});
+		});
+	});
+
 	suite('subscriber refcount eviction', () => {
 
 		class DelayedReleaseMockAgent extends MockAgent {
@@ -8940,6 +9234,76 @@ suite('AgentService (node dispatcher)', () => {
 
 			const persisted = await sessionDb.getMetadata('configValues');
 			assert.strictEqual(persisted, undefined);
+		});
+
+		test('restoreSession defaults an external folder session with persisted config to folder isolation', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => workingDirectory;
+			gitService.revParse = async () => 'head';
+			gitService.getCurrentBranch = async () => 'main';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'main' });
+			const localAgent = new MockAgent('codex');
+			localAgent.sessionMetadataOverrides = { workingDirectories: [workingDirectory], project: undefined };
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			localService.setWorktreeIsolation(disposables.add(new WorktreeIsolation(
+				{ generateBranchName: async () => 'agents/test' },
+				gitService,
+				new TestCopilotApiService(),
+				sessionDataService,
+				new NullLogService(),
+			)));
+			localService.registerProvider(localAgent);
+
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
+			const { session } = await createAgentSession(localAgent);
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await localService.restoreSession(session);
+
+			const values = localService.stateManager.getSessionState(session.toString())?.config?.values;
+			assert.deepStrictEqual({
+				isolation: values?.[SessionConfigKey.Isolation],
+				autoApprove: values?.autoApprove,
+			}, {
+				isolation: 'folder',
+				autoApprove: 'autoApprove',
+			});
+		});
+
+		test('restoreSession seeds the provider model into the default chat draft', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('codex');
+			const model = { id: 'codex-model:openai:gpt-5.6-sol' };
+			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			localService.registerProvider(localAgent);
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setChatDraft(URI.parse(buildDefaultChatUri(session)), {
+				text: 'unsent text',
+				origin: { kind: MessageKind.User },
+				model: { id: 'codex-model:vscode-proxy:gpt-5-mini', config: { thinkingLevel: 'medium' } },
+			});
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual(localService.stateManager.getDefaultChatState(session.toString())?.draft, {
+				text: 'unsent text',
+				origin: { kind: MessageKind.User },
+				model,
+			});
 		});
 
 		test('restoreSession overlays persisted config values onto the resolved config', async () => {
