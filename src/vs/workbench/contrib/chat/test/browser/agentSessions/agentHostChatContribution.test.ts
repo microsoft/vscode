@@ -953,10 +953,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 				},
 				acquireScope: roots => acquireScope(sessionType, roots),
 				getOrigin: () => undefined,
+				isBundledMcpServer: () => false,
 				dispose: () => inner.dispose(),
 			};
 		},
 		acquireScope,
+		isBundledMcpServer: () => false,
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });

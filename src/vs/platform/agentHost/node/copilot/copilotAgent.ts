@@ -4987,7 +4987,7 @@ class SessionPluginController extends Disposable {
 	}
 
 	public resolveTopLevelMcpCustomizations(customizations: readonly Customization[], mcpServerOwners?: ReadonlyMap<string, string>): readonly Customization[] {
-		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, undefined, undefined, mcpServerOwners).customizations;
+		return resolveCustomizationEnablement(this._customizationEnablementService, this._session, customizations, this._clientChildEnablement(), undefined, mcpServerOwners).customizations;
 	}
 
 	private _resolveCustomizationEnablement() {
