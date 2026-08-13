@@ -268,6 +268,8 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	inputEditorMaxHeight?: number;
 	renderGettingStartedTip?: boolean | (() => boolean);
+	/** Whether notifications deferred during first-use flows may render in this widget. */
+	deferredNotificationsEnabled?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	/**

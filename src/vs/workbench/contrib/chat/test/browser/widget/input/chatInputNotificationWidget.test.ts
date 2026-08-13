@@ -214,6 +214,7 @@ suite('ChatInputNotificationWidget', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
 		let hasSessions = false;
 		const harness = {
+			options: {},
 			environmentService: { isSessionsWindow: false },
 			chatService: { hasSessions: () => hasSessions },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
@@ -248,6 +249,7 @@ suite('ChatInputNotificationWidget', () => {
 	test('Agents window bypasses the workbench first-session gate', () => {
 		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
 		const harness = {
+			options: {},
 			environmentService: { isSessionsWindow: true },
 			chatService: { hasSessions: () => false },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
@@ -261,6 +263,25 @@ suite('ChatInputNotificationWidget', () => {
 		update.call(harness);
 
 		assert.strictEqual(deferredNotificationsEnabled.get(), true);
+	});
+
+	test('widget option disables deferred notifications', () => {
+		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', true);
+		const harness = {
+			options: { deferredNotificationsEnabled: false },
+			environmentService: { isSessionsWindow: true },
+			chatService: { hasSessions: () => true },
+			_deferredNotificationsEnabled: deferredNotificationsEnabled,
+			_isFirstWorkbenchSession: undefined as boolean | undefined,
+		};
+		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
+			this: typeof harness,
+			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
+		) => void;
+
+		update.call(harness);
+
+		assert.strictEqual(deferredNotificationsEnabled.get(), false);
 	});
 
 	test('renders markdown descriptions as rich content', () => {
