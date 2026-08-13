@@ -755,10 +755,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._unlistedNewSessions.set(session.resource, session);
 		const requestActivity = new MutableDisposable();
 		try {
-			requestActivity.value = isDeferredNewSessionRequestOptions(options)
-				? provider.startNewSessionRequest?.(session.sessionId, options.activity)
-				: provider.startNewSessionRequest?.(session.sessionId);
 			try {
+				requestActivity.value = isDeferredNewSessionRequestOptions(options)
+					? provider.startNewSessionRequest?.(session.sessionId, options.activity)
+					: provider.startNewSessionRequest?.(session.sessionId);
 				createOptions?.onSessionCreated?.(session);
 			} catch (error) {
 				provider.deleteNewSession(session.sessionId);

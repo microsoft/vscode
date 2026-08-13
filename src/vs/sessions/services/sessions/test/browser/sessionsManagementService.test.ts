@@ -1148,6 +1148,52 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('createAndSendNewChatRequest disposes the draft when request activity startup fails', async () => {
+		const session = stubSession({
+			sessionId: 's1',
+			providerId: 'test',
+		});
+		let deleted = 0;
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] {
+				return [];
+			}
+			override resolveWorkspace(): ISessionWorkspace {
+				return {
+					uri: URI.parse('test:///folder'),
+					label: 'Test',
+					icon: Codicon.folder,
+					folders: [],
+					requiresWorkspaceTrust: false,
+					isVirtualWorkspace: false,
+				};
+			}
+			override startNewSessionRequest(): never {
+				throw new Error('start failed');
+			}
+			override deleteNewSession(): void {
+				deleted++;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await assert.rejects(service.createAndSendNewChatRequest(URI.parse('test:///folder'), {
+			kind: 'deferred',
+			activity: 'Fetching pull request...',
+			async resolve() {
+				return { query: 'prepared' };
+			},
+		}), /start failed/);
+
+		assert.deepStrictEqual({
+			deleted,
+			session: service.getSession(session.resource),
+		}, {
+			deleted: 1,
+			session: undefined,
+		});
+	});
+
 	test('createAndSendNewChatRequest refuses an untrusted required workspace before creating a session', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
