@@ -724,7 +724,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 			invocationTimeWatch = StopWatch.create(true);
 			const currentTool = this._tools.get(dto.toolId);
-			if (!currentTool?.impl) {
+			if (!currentTool) {
+				throw new Error(`Tool ${dto.toolId} was not contributed`);
+			}
+			if (!currentTool.impl) {
 				throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 			}
 			activeTool = currentTool;
