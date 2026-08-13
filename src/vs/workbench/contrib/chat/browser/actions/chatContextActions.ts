@@ -48,6 +48,7 @@ import { IChatRequestVariableEntry, OmittedState } from '../../common/attachment
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { IChatExecuteActionContext } from './chatExecuteActions.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { isQuickChat } from '../widget/chatWidget.js';
 import { resizeImage } from '../chatImageUtils.js';
@@ -512,8 +513,6 @@ export class AttachContextAction extends Action2 {
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat,
-					// Hide the attach-context button in the floating input window.
-					ChatContextKeys.inChatInputWindow.negate(),
 					ContextKeyExpr.or(
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.agentSupportsAttachments
@@ -535,7 +534,7 @@ export class AttachContextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 		const contextPickService = accessor.get(IChatContextPickService);
 
-		const context = args[0] as { widget?: IChatWidget; placeholder?: string } | undefined;
+		const context = args[0] as (IChatExecuteActionContext & { placeholder?: string }) | undefined;
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -558,11 +557,12 @@ export class AttachContextAction extends Action2 {
 			});
 		}
 
-		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder);
+		const quickInputService = await (context?.contextPicker ?? widget.contextPicker)?.prepare();
+		instantiationService.invokeFunction(this._show.bind(this), widget, quickPickItems, context?.placeholder, quickInputService);
 	}
 
-	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string) {
-		const quickInputService = accessor.get(IQuickInputService);
+	private _show(accessor: ServicesAccessor, widget: IChatWidget, additionPicks: IContextPickItemItem[] | undefined, placeholder?: string, quickInputServiceOverride?: IQuickInputService) {
+		const quickInputService = quickInputServiceOverride ?? accessor.get(IQuickInputService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
@@ -589,7 +589,7 @@ export class AttachContextAction extends Action2 {
 
 					if (!isDone) {
 						// restart picker when sub-picker didn't return anything
-						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder);
+						instantiationService.invokeFunction(this._show.bind(this), widget, additionPicks, placeholder, quickInputServiceOverride);
 						return;
 					}
 

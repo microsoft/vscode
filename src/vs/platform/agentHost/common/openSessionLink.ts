@@ -20,6 +20,12 @@ import { DEFAULT_CHAT_ID, isAhpChatChannel, parseChatUri } from './state/session
  */
 export const AGENT_HOST_SESSION_LINK_SCHEME = 'agent-host-session';
 
+export interface IAgentSessionLinkPresentation {
+	readonly title: string;
+	readonly description?: string;
+	readonly status: 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
+}
+
 /**
  * Whether {@link toolName} (as seen on a tool call) matches {@link bareName}.
  * Accepts the bare name and a transport prefix such as Claude's

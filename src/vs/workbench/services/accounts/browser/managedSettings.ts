@@ -34,7 +34,18 @@ export type IManagedMcpServerMatcher =
 export interface IManagedSettingsResponse {
 	readonly permissions?: {
 		readonly disableBypassPermissionsMode?: string;
+		/**
+		 * Legacy location for the default chat model. Retained for deployments authored against
+		 * the original schema; the top-level {@link IManagedSettingsResponse.model} wins when both
+		 * are present.
+		 */
+		readonly model?: string;
 	};
+	/**
+	 * Default chat model (`auto`, a model family name, or a full model id). Canonical top-level
+	 * location in the current schema; supersedes the legacy nested `permissions.model`.
+	 */
+	readonly model?: string;
 	readonly enabledPlugins?: Record<string, boolean>;
 	readonly extraKnownMarketplaces?: Record<string, {
 		readonly source:
