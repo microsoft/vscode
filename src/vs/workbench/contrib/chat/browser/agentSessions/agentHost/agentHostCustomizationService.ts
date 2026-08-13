@@ -210,7 +210,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
-		return this._flattenMcpServers(target.customizations)
+		return getPresentableMcpServerCustomizations(target.customizations)
 			.map((c): IAgentHostMcpServer => ({
 				id: this._scopedMcpServerId(sessionResource, c.id),
 				name: c.name,
@@ -473,6 +473,50 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		return separator >= 0 && serverId.slice(separator + 1) === rawId;
 	}
 }
+
+/**
+ * The MCP servers to *show* for a session: one row per server.
+ *
+ * A session can carry two customizations for a single server. The agent host publishes a
+ * declaration as a child of whatever declared it (a plugin, or the generated `.mcp.json`
+ * VS Code syncs into the agent), and separately mints a top-level customization for any
+ * server the SDK reports before that child can be resolved by name. Once minted, the
+ * top-level entry stays for the session, so both remain: the child holds the declaration and
+ * never leaves `stopped`, while the top-level entry is the one the host keeps up to date.
+ * Rendering both showed the same server twice, with contradictory status.
+ *
+ * A child is therefore dropped when a top-level customization already speaks for that name,
+ * because that is the copy the agent host treats as live -- it carries the running state and
+ * channel, and its id is what the host resolves for lifecycle and enablement. Position in the
+ * tree is the signal rather than the shape of the minted id, which is the host's own business.
+ *
+ * Nothing else is collapsed. Two plugins that each declare a server of the same name stay two
+ * rows, because they are two servers and this is not the place to decide otherwise. Lookups
+ * elsewhere still walk every customization, so an id from either copy continues to resolve.
+ */
+export function getPresentableMcpServerCustomizations(customizations: readonly Customization[]): McpServerCustomization[] {
+	const topLevelNames = new Set<string>();
+	for (const customization of customizations) {
+		if (customization.type === CustomizationType.McpServer) {
+			topLevelNames.add(customization.name);
+		}
+	}
+
+	const result: McpServerCustomization[] = [];
+	for (const customization of customizations) {
+		if (customization.type === CustomizationType.McpServer) {
+			result.push(customization);
+			continue;
+		}
+		for (const child of customization.children ?? []) {
+			if (child.type === CustomizationType.McpServer && !topLevelNames.has(child.name)) {
+				result.push(child);
+			}
+		}
+	}
+	return result;
+}
+
 
 class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
