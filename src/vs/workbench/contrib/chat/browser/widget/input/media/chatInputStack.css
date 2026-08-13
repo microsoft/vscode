@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The chat input stack: everything docked above a chat input, plus the input.
+ *
+ * A docked surface has a square bottom edge and the surface below it has rounded
+ * top corners, so sitting them flush left gaps at the corners. Members used to
+ * fix that themselves by pulling the next one up, which is why every surface had
+ * a different offset and why five presence checks were needed to decide whose
+ * corners to square.
+ *
+ * Now members meet directly and a docked member squares the top corners of what
+ * follows. Members only declare what they are showing - see `chatInputStack.ts`.
+ *
+ * `display` is not set here; hosts own that, and their layout, using the classes
+ * below. `gap` is the exception, since members meeting is the point.
+ */
+
+.chat-input-stack {
+	gap: 0;
+}
+
+/* Reset first, so a nested stack does not inherit its container's squaring. */
+.chat-input-stack > * {
+	--chat-input-stack-radius-top: initial;
+}
+
+/*
+ * Members read `--chat-input-stack-radius-top` for their top corners. It is
+ * unset outside a stack, so a notice used elsewhere keeps its own rounding.
+ */
+.chat-input-stack > .chat-input-stack-continues {
+	--chat-input-stack-radius-top: 0px;
+	margin-top: 0;
+}
+
+/*
+ * A slot showing nothing takes up no space. Shared so each producer does not
+ * repeat it, and so a new one cannot ship a permanently visible surface by
+ * forgetting to. Applies only to marked slots, since members that are always
+ * present - the input itself - never report a state.
+ */
+.chat-input-stack-slot:not(.chat-input-stack-docked):not(.chat-input-stack-standalone) {
+	display: none;
+}

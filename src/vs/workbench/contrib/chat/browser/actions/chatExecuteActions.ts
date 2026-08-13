@@ -33,7 +33,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { type IChatAcceptInputOptions, IChatContextPickerDelegate, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -49,6 +49,7 @@ export interface IChatExecuteActionContext {
 	inputValue?: string;
 	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
+	contextPicker?: IChatContextPickerDelegate;
 }
 
 abstract class SubmitAction extends Action2 {

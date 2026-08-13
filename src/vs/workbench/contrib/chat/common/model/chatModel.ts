@@ -69,6 +69,7 @@ export interface ISerializableSendOptions {
 	userSelectedModelConfiguration?: IStringDictionary<unknown>;
 	/** Static snapshot of user-selected tools (not an observable) */
 	userSelectedTools?: UserSelectedTools;
+	instructionContext?: IChatSendRequestOptions['instructionContext'];
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	attempt?: number;
@@ -3363,6 +3364,7 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		userSelectedModelId: options.userSelectedModelId,
 		userSelectedModelConfiguration: options.userSelectedModelConfiguration,
 		userSelectedTools: options.userSelectedTools?.get(),
+		instructionContext: options.instructionContext,
 		location: options.location,
 		locationData: options.locationData,
 		attempt: options.attempt,

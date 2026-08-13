@@ -3829,6 +3829,92 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
+	// ---- Multi-root customization scope ---------------------------------
+
+	suite('multi-root customization scope', () => {
+		const primary = URI.file('/workspace/mr-primary');
+		const secondary = URI.file('/workspace/mr-secondary');
+
+		function captureScopeRoots(instantiationService: TestInstantiationService): string[][] {
+			const activeClientService = instantiationService.get(IAgentHostActiveClientService);
+			const captured: string[][] = [];
+			const original = activeClientService.acquireScope;
+			activeClientService.acquireScope = (sessionType, roots) => {
+				captured.push(roots.map(root => root.toString()));
+				return original(sessionType, roots);
+			};
+			return captured;
+		}
+
+		function seedExistingSession(agentHostService: MockAgentHostService, id: string, workingDirectories: readonly URI[]): URI {
+			const backendSession = AgentSession.uri('copilot', id);
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: id,
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					workingDirectories: workingDirectories.map(directory => directory.toString()),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+			return URI.from({ scheme: 'agent-host-copilot', path: `/${id}` });
+		}
+
+		test('an existing single-folder session opened in a multi-root workspace keeps its own folder', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary, secondary] });
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } }],
+				activeSessions: 0,
+			});
+			const capturedRoots = captureScopeRoots(instantiationService);
+			const sessionResource = seedExistingSession(agentHostService, 'single-folder', [secondary]);
+
+			capturedRoots.length = 0;
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(capturedRoots.at(-1), [secondary.toString()]);
+		});
+
+		test('an existing multi-root session keeps all of its own folders', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary, secondary] });
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } }],
+				activeSessions: 0,
+			});
+			const capturedRoots = captureScopeRoots(instantiationService);
+			const sessionResource = seedExistingSession(agentHostService, 'multi-root', [primary, secondary]);
+
+			capturedRoots.length = 0;
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(capturedRoots.at(-1), [primary.toString(), secondary.toString()]);
+		});
+
+		test('an existing workspace-less session does not inherit the workspace folders', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary, secondary] });
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleWorkingDirectories: { immutablePrimary: true } } }],
+				activeSessions: 0,
+			});
+			const capturedRoots = captureScopeRoots(instantiationService);
+			// A hydrated session with an explicit empty working-directory set (a
+			// workspace-less session) must resolve to an empty scope rather than
+			// falling back to the current workspace's folders.
+			const sessionResource = seedExistingSession(agentHostService, 'workspace-less', []);
+
+			capturedRoots.length = 0;
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(capturedRoots.at(-1), []);
+		});
+	});
+
 	// ---- Workspace trust gating -----------------------------------------
 
 	suite('workspace trust', () => {
