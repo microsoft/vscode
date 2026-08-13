@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService, IManagedSettingsCompatibilityError, ManagedSettingsRefreshState } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -223,7 +223,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		this.chatEntitlementService.setForceHidden(blocked);
 	}
 
-	private updateManagedSettingsRefreshState(state: 'inactive' | 'pending' | 'satisfied' | 'blocked'): void {
+	private updateManagedSettingsRefreshState(state: ManagedSettingsRefreshState): void {
 		this.updatePolicyGateState();
 		if (state !== 'blocked' || this.refreshDialogVisible || this.defaultAccountService.managedSettingsCompatibilityError) {
 			return;
@@ -239,7 +239,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			title: localize('managedSettingsRefresh.dialog.title', "Managed Settings Unavailable"),
 			message: localize(
 				'managedSettingsRefresh.dialog.message',
-				"Copilot Chat is disabled because {0} could not refresh your organization's managed settings. Check your connection or sign in again, then retry.",
+				"AI features are disabled because {0} could not refresh your organization's managed settings. Check your connection or sign in again, then retry.",
 				this.productService.nameShort
 			),
 			custom: true,

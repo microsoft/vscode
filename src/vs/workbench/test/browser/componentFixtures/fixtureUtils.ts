@@ -594,6 +594,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		managedSettingsRawResponse: null,
 		managedSettingsCompatibilityError: null,
 		onDidChangeManagedSettingsCompatibilityError: Event.None,
+		managedSettingsRefreshState: 'inactive' as const,
+		onDidChangeManagedSettingsRefreshState: Event.None,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,

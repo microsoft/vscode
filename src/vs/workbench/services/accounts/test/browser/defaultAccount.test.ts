@@ -15,7 +15,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, IFileManagedSettingsService, INativeManagedSettingsService, ManagedSettingsData } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -133,27 +133,6 @@ suite('DefaultAccountProvider managed settings', () => {
 		const requestService = new TestRequestService(async () => {
 			throw new Error('managed settings unavailable');
 		});
-
-		test('failed forced refresh blocks without falling back to cached managed settings', async () => {
-			const requestService = new TestRequestService(async () => {
-				throw new Error('managed settings unavailable');
-			});
-			const provider = await createProvider(requestService);
-
-			const result = await provider['getManagedSettings'](sessions, createCachedPolicy(true));
-
-			assert.deepStrictEqual({
-				status: provider.managedSettingsFetchStatus,
-				refreshState: provider.managedSettingsRefreshState,
-				cacheControl: requestService.requests[0].headers?.['Cache-Control'],
-				data: result.data,
-			}, {
-				status: 'no-response',
-				refreshState: 'blocked',
-				cacheControl: 'no-cache',
-				data: { managedSettings: undefined },
-			});
-		});
 		const provider = await createProvider(requestService);
 		const cachedPolicy = createCachedPolicy(false);
 
@@ -167,6 +146,27 @@ suite('DefaultAccountProvider managed settings', () => {
 			requestCount: 1,
 			status: 'no-response',
 			data: cachedPolicy.policyData,
+		});
+	});
+
+	test('failed forced refresh blocks without falling back to cached managed settings', async () => {
+		const requestService = new TestRequestService(async () => {
+			throw new Error('managed settings unavailable');
+		});
+		const provider = await createProvider(requestService);
+
+		const result = await provider['getManagedSettings'](sessions, createCachedPolicy(true));
+
+		assert.deepStrictEqual({
+			status: provider.managedSettingsFetchStatus,
+			refreshState: provider.managedSettingsRefreshState,
+			cacheControl: requestService.requests[0].headers?.['Cache-Control'],
+			data: result.data,
+		}, {
+			status: 'no-response',
+			refreshState: 'blocked',
+			cacheControl: 'no-cache',
+			data: { managedSettings: undefined },
 		});
 	});
 
@@ -226,7 +226,19 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 	});
 
-	async function createProvider(requestService: TestRequestService): Promise<DefaultAccountProvider> {
+	test('startup refresh gate clears when no managed settings fetch can run', async () => {
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: false });
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+
+		assert.deepStrictEqual(provider.managedSettingsRefreshState, 'inactive');
+	});
+
+	async function createProvider(requestService: TestRequestService, nativeManagedSettings: ManagedSettingsData = {}): Promise<DefaultAccountProvider> {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAuthenticationService, {
@@ -264,8 +276,8 @@ suite('DefaultAccountProvider managed settings', () => {
 		});
 		instantiationService.stub(ICommandService, {});
 		instantiationService.stub(INativeManagedSettingsService, {
-			managedSettings: {},
-			initialize: async () => ({}),
+			managedSettings: nativeManagedSettings,
+			initialize: async () => nativeManagedSettings,
 		});
 		instantiationService.stub(IFileManagedSettingsService, { managedSettings: {} });
 

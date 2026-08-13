@@ -184,6 +184,9 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		if (this.defaultAccountProvider.managedSettingsCompatibilityError) {
 			this._onDidChangeManagedSettingsCompatibilityError.fire(this.defaultAccountProvider.managedSettingsCompatibilityError);
 		}
+		if (this.defaultAccountProvider.managedSettingsRefreshState !== 'inactive') {
+			this._onDidChangeManagedSettingsRefreshState.fire(this.defaultAccountProvider.managedSettingsRefreshState);
+		}
 		provider.refresh().then(account => {
 			this.defaultAccount = account;
 		}).finally(() => {
@@ -324,6 +327,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 	private readonly updateThrottler = this._register(new ThrottledDelayer(100));
 	private readonly accountDataPollScheduler = this._register(new RunOnceScheduler(() => this.refetchDefaultAccount(), ACCOUNT_DATA_POLL_INTERVAL_MS));
 	private readonly managedSettingsFetchAttemptedAccounts = new Set<string>();
+	private managedSettingsFetchesInFlight = 0;
 
 	constructor(
 		private readonly defaultAccountConfig: IDefaultAccountConfig,
@@ -402,6 +406,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		// account state drives the title bar and the welcome walkthrough.
 		if (isWeb && !this.environmentService.remoteAuthority && !this.environmentService.isSessionsWindow) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
+			this.resolvePendingRefreshStateIfIdle();
 			return;
 		}
 
@@ -545,6 +550,10 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		try {
 			const defaultAccount = await this.fetchDefaultAccount(options);
 			this.setDefaultAccount(defaultAccount);
+			// The startup gate optimistically starts as `pending` so AI features stay hidden until the
+			// forced managed-settings refresh resolves. When no fetch ran during this pass (no
+			// account, or chat disabled by entitlements) nothing will ever resolve it, so clear it.
+			this.resolvePendingRefreshStateIfIdle();
 			this.scheduleAccountDataPoll();
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Error while updating default account', getErrorMessage(error));
@@ -607,16 +616,28 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		if (equals(this._managedSettingsCompatibilityError, error)) {
 			return;
 		}
-
-		private setManagedSettingsRefreshState(state: ManagedSettingsRefreshState): void {
-			if (this._managedSettingsRefreshState === state) {
-				return;
-			}
-			this._managedSettingsRefreshState = state;
-			this._onDidChangeManagedSettingsRefreshState.fire(state);
-		}
 		this._managedSettingsCompatibilityError = error;
 		this._onDidChangeManagedSettingsCompatibilityError.fire(error);
+	}
+
+	private setManagedSettingsRefreshState(state: ManagedSettingsRefreshState): void {
+		if (this._managedSettingsRefreshState === state) {
+			return;
+		}
+		this._managedSettingsRefreshState = state;
+		this._onDidChangeManagedSettingsRefreshState.fire(state);
+	}
+
+	/**
+	 * Clears a `pending` refresh gate that no in-flight fetch can ever resolve, which happens when
+	 * initialization bails out early or when a refresh pass never reaches the managed-settings
+	 * endpoint (no account, or chat disabled by entitlements). Without this the gate would keep AI
+	 * features hidden forever.
+	 */
+	private resolvePendingRefreshStateIfIdle(): void {
+		if (this._managedSettingsRefreshState === 'pending' && this.managedSettingsFetchesInFlight === 0) {
+			this.setManagedSettingsRefreshState('inactive');
+		}
 	}
 
 	private setCopilotTokenInfo(copilotTokenInfo: ICopilotTokenInfo | null): void {
@@ -970,7 +991,13 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		);
 		this.setManagedSettingsRefreshState(forceRemoteSettingsRefresh ? 'pending' : 'inactive');
 		this.managedSettingsFetchAttemptedAccounts.add(accountId);
-		const result = await this.requestManagedSettings(sessions, forceRemoteSettingsRefresh);
+		this.managedSettingsFetchesInFlight++;
+		let result: ManagedSettingsRequestResult;
+		try {
+			result = await this.requestManagedSettings(sessions, forceRemoteSettingsRefresh);
+		} finally {
+			this.managedSettingsFetchesInFlight--;
+		}
 		const fetchedAt = Date.now();
 		switch (result.kind) {
 			case 'success':

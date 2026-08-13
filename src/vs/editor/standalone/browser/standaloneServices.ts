@@ -1136,6 +1136,8 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	readonly managedSettingsRawResponse: unknown = null;
 	readonly managedSettingsCompatibilityError = null;
 	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsRefreshState = 'inactive' as const;
+	readonly onDidChangeManagedSettingsRefreshState = Event.None;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;

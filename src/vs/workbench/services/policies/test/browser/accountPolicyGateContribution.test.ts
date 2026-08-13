@@ -193,7 +193,7 @@ suite('AccountPolicyGateContribution', () => {
 			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
 			refreshDialog: {
 				title: 'Managed Settings Unavailable',
-				message: 'Copilot Chat is disabled because Code could not refresh your organization\'s managed settings. Check your connection or sign in again, then retry.',
+				message: 'AI features are disabled because Code could not refresh your organization\'s managed settings. Check your connection or sign in again, then retry.',
 				buttons: ['Retry'],
 				cancelButton: 'Close',
 			},
