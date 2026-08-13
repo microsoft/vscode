@@ -184,6 +184,24 @@ class TerminalAutoApproveConfigurationService extends TestConfigurationService {
 	}
 }
 
+class ManagedPermissionsConfigurationService extends TestConfigurationService {
+	private globalAutoApprovePolicyValue: boolean | undefined = false;
+
+	override inspect<T>(key: string): IConfigurationValue<T> {
+		if (key === GLOBAL_AUTO_APPROVE_SETTING_ID) {
+			return {
+				...super.inspect<T>(key),
+				policyValue: this.globalAutoApprovePolicyValue as T | undefined,
+			};
+		}
+		return super.inspect<T>(key);
+	}
+
+	clearGlobalAutoApprovePolicy(): void {
+		this.globalAutoApprovePolicyValue = undefined;
+	}
+}
+
 suite('RemoteAgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -320,6 +338,27 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [{ name: 'late', type: 'file' }] } });
 		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
+	test('does not retain revoked authentication for reconnect replay', async () => {
+		const { client, transport } = createClient();
+		const authenticate = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user', 'write:user'], token: 'token' });
+		const authenticateRequest = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: authenticateRequest.id, result: { authenticated: true } });
+		await authenticate;
+		assert.deepStrictEqual(authenticateRequest.params, {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			scopes: ['read:user', 'write:user'],
+			token: 'token',
+		});
+
+		const revoke = client.authenticate({ resource: 'https://api.github.com', scopes: ['write:user', 'read:user'], token: '' });
+		const revokeRequest = transport.sentMessages[1] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: revokeRequest.id, result: { authenticated: true } });
+		await revoke;
+
+		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
 	test('listSessions carries the workspace-less marker back on _meta', async () => {
@@ -986,9 +1025,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 	});
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {
-		const configurationService = new TestConfigurationService({
+		const configurationService = new ManagedPermissionsConfigurationService({
 			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
-			[GLOBAL_AUTO_APPROVE_SETTING_ID]: false,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
 		const { client, transport } = createClientForIdentity(
@@ -1014,6 +1052,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		transport.sentMessages.length = 0;
+		configurationService.clearGlobalAutoApprovePolicy();
 		await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, true);
 		fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
 		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);

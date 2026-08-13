@@ -27,9 +27,9 @@ import { AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSch
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveSubagentChatParent } from '../../common/agent.js';
+import { AgentProvider, AgentSession, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
-import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -338,9 +338,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private readonly _onDidCustomizationsChange = this._register(new Emitter<void>());
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
-
-	private readonly _onDidRequireAuth = this._register(new Emitter<Omit<AuthRequiredParams, 'channel'>>());
-	readonly onDidRequireAuth = this._onDidRequireAuth.event;
 
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models: IObservable<readonly IAgentModelInfo[]> = this._models;
@@ -734,6 +731,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (resource !== this._gitHubEndpointService.getCopilotResource().resource) {
 			return false;
 		}
+		if (!token) {
+			const oldHandle = this._proxyHandle;
+			const changed = this._githubToken !== undefined || oldHandle !== undefined;
+			this._githubToken = undefined;
+			this._proxyHandle = undefined;
+			oldHandle?.dispose();
+			if (changed) {
+				this._models.set([], undefined);
+				void this._startModelRefresh();
+			}
+			this._logService.info(changed ? '[Claude] Auth token cleared' : '[Claude] Auth token unchanged');
+			return true;
+		}
 		// A GitHub Copilot token is arriving (sign-in). Always start the proxy so a
 		// session that picks a Copilot-routed model from the merged catalog has a
 		// started handle to run against — even while model-less sessions still
@@ -1116,7 +1126,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _makeCanUseTool(sdkSessionId: string, configurationResource: URI): NonNullable<Options['canUseTool']> {
 		return (toolName, input, options) =>
 			handleCanUseTool(
-				{ getSession: id => this._findSessionBySdkId(id), configurationService: this._configurationService, configurationResource, serverToolHost: this._serverToolHost },
+				{
+					getSession: id => this._findSessionBySdkId(id),
+					configurationService: this._configurationService,
+					configurationResource,
+					serverToolHost: this._serverToolHost,
+				},
 				sdkSessionId, toolName, input, options,
 			);
 	}
@@ -2257,7 +2272,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const turns = sideChat ? await this._reconstructTurns(session.sessionId, current.chat, session.subagents) : [];
 			const sdkPrompt = prepareSideChatPrompt(prompt, turns, sideChat);
 			const switchTransport = session.hasPendingTransportSwitch ? this._ensureAuthenticated(session.provisionalModel) : undefined;
-			await session.send(this._buildSdkPrompt(session.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport);
+			await session.send(this._buildSdkPrompt(session.sessionId, sdkPrompt, attachments, effectiveTurnId), effectiveTurnId, current.configurationResource, workingDirectories, switchTransport, resolveAgentHostInstructions(operationContext));
 			if (workingDirectories) {
 				await this._metadataStore.write(current.resource, { workingDirectories });
 			}

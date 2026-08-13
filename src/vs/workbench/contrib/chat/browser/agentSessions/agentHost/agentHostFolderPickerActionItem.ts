@@ -20,12 +20,14 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ISCMService } from '../../../../scm/common/scm.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -53,6 +55,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@ISCMService private readonly _scmService: ISCMService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IStorageService storageService: IStorageService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -87,6 +90,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			actionBarActionProvider,
 			showItemKeybindings: false,
 			reporter: { id: 'AgentHostFolderPicker', name: 'AgentHostFolderPicker', includeOptions: false },
+			listOptionsProvider: createFolderPickerTip(storageService),
 		};
 
 		super(action, folderPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

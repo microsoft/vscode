@@ -451,6 +451,7 @@ explicitly bound to the concrete chat URI AH supplies:
 - `_sessionIdByChatUri: Map<string, string>` is the exact chat-operation routing index; unbound chat URIs are rejected.
 - `_sessionIdByThreadId` continues to route app-server callbacks by thread id.
 - Initializing `chats.createChat` binds a thread to the exact host-supplied chat URI at provisioning time (including restored/forked threads); `materializeChat` re-attaches any chat's backing thread on restore.
+- A cold `getChatMetadata` read caches the backing thread's summary, timestamps, and working directories on the live runtime. Later metadata reads return those fields from memory (the app-server may be blocked on a dynamic tool call), so hydrating a runtime must never erase an already-listed session title.
 
 An additional chat is backed by a **fresh top-level thread minted eagerly** in
 `chats.createChat` (via `thread/start` or `thread/fork` at the

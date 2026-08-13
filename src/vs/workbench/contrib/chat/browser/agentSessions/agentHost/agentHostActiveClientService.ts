@@ -210,9 +210,8 @@ class AgentCustomizationScope extends Disposable {
 						this._sessionType,
 						shouldSyncWorkspaceDotMcp(this._sessionType, this._roots, this._configurationService.getValue(AgentHostCopilotMultiRootEnabledSettingId) === true),
 						this._options,
-						this._roots,
 					),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options, this._roots),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
 				]);
 				if (seq !== this._updateSeq) {
 					return;

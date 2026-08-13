@@ -7,7 +7,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { PassThrough } from 'stream';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -46,6 +46,8 @@ interface ITestWireRequest {
 		readonly cwd?: string;
 		readonly threadId?: string;
 		readonly numTurns?: number;
+		readonly input?: readonly { readonly type: string; readonly text?: string; readonly text_elements?: readonly object[] }[];
+		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 	};
 }
 
@@ -179,6 +181,9 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentSdkDownloader, {
 		_serviceBrand: undefined,
+		onDidDownloadProgress: Event.None,
+		acquireDownloadProgressInterest: () => toDisposable(() => { }),
+		loadSdkRoot: async () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
 		isAvailable: () => true,
 		isSdkResolvableWithoutDownload: async () => options.sdkResolvableWithoutDownload ?? false,
 	});
@@ -760,10 +765,18 @@ suite('CodexAgent createChat', () => {
 			const entry = agent['_sessions'].get('session-prewarm')!;
 			await entry.materializePromise;
 
-			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1');
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, {
+				configurationResource: sessionUri,
+				resource: chat,
+				hostInstructions: ['Rename with exact casing'],
+			});
 			const turn = await readNextRequest(peer.outbound);
 			assert.strictEqual(turn.method, 'turn/start');
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
+			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
+			assert.deepStrictEqual(turn.params.additionalContext, {
+				'vscode.agentHost': { kind: 'application', value: 'Rename with exact casing' },
+			});
 			peer.push({ id: turn.id, result: {} });
 			await sending;
 		} finally {
@@ -1332,7 +1345,11 @@ suite('CodexAgent chat backing durability', () => {
 			disposables.add(second.onDidChatProgress(signal => signals.push(signal)));
 
 			const restoring = second.getChatMetadata(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
+			const originalProbe = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(originalProbe.params.threadId, 'host-session');
+			secondPeer.push({ id: originalProbe.id, error: { code: -32000, message: 'thread not found' } });
 			const read = await readNextRequest(secondPeer.outbound);
+			assert.strictEqual(read.params.threadId, 'codex-thread');
 			secondPeer.push({ id: read.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await restoring;
 			await second.materializeChat(chat, { configurationResource: session, resource: chat }, receipt.result?.providerData);
@@ -1455,6 +1472,57 @@ suite('CodexAgent chat backing durability', () => {
 				workingDirectories: [folder.fsPath],
 				startedInThisRun: true,
 				modifiedAtOrAfterStart: true,
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('a restored runtime preserves its thread summary in subsequent live metadata lookups', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'named-session');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			const providerData = JSON.stringify({ sessionId: 'named-session' });
+			const restoring = agent.getChatMetadata(chat, context, providerData);
+			const read = await readNextRequest(peer.outbound);
+			assert.strictEqual(read.method, 'thread/read');
+			peer.push({
+				id: read.id,
+				result: {
+					thread: {
+						id: 'named-thread',
+						name: 'Investigate session title loss',
+						cwd: '/repo/named',
+						createdAt: 1_700_000_000,
+						updatedAt: 1_700_000_100,
+						turns: [],
+					},
+				},
+			});
+
+			const coldMetadata = await restoring;
+			// The first lookup registers a live runtime. The second must retain
+			// the title without another app-server request: that server may be
+			// blocked waiting on the very dynamic tool call requesting metadata.
+			const liveMetadata = await agent.getChatMetadata(chat, context, providerData);
+
+			assert.deepStrictEqual({
+				coldSummary: coldMetadata?.summary,
+				liveSummary: liveMetadata?.summary,
+				liveStartTime: liveMetadata?.startTime,
+				liveModifiedTime: liveMetadata?.modifiedTime,
+				pendingAppServerBytes: peer.outbound.readableLength,
+			}, {
+				coldSummary: 'Investigate session title loss',
+				liveSummary: 'Investigate session title loss',
+				liveStartTime: 1_700_000_000_000,
+				liveModifiedTime: 1_700_000_100_000,
+				pendingAppServerBytes: 0,
 			});
 		} finally {
 			peer.dispose();

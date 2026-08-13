@@ -226,6 +226,28 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 		assert.strictEqual(opts.plugins, undefined);
 	});
 
+	test('UserPromptSubmit adds transient host context', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			getUserPromptAdditionalContext: () => 'Rename with exact casing',
+		}, proxyTransport, () => { });
+		const hook = opts.hooks?.UserPromptSubmit?.[0].hooks[0];
+		const result = await hook?.({
+			hook_event_name: 'UserPromptSubmit',
+			prompt: 'Keep GitHub casing',
+			session_id: 's1',
+			transcript_path: '/tmp/transcript',
+			cwd: '/tmp/x',
+		}, undefined, { signal: new AbortController().signal });
+
+		assert.deepStrictEqual(result, {
+			hookSpecificOutput: {
+				hookEventName: 'UserPromptSubmit',
+				additionalContext: 'Rename with exact casing',
+			},
+		});
+	});
+
 	test('proxy transport sets ANTHROPIC_BASE_URL + per-session ANTHROPIC_AUTH_TOKEN', async () => {
 		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
 		const env = (opts.settings as { env?: Record<string, string> }).env ?? {};

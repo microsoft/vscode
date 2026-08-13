@@ -14,7 +14,7 @@ import { AgentSession, type AgentProvider, type AgentSignal, type IActiveClient,
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
@@ -58,6 +58,8 @@ export class MockAgent implements IAgent {
 	readonly onDidSendMessage = this._onDidSendMessage.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
+	private readonly _authenticationRequired = observableValue<Omit<AuthRequiredParams, 'channel'> | undefined>(this, undefined);
+	readonly authenticationRequired = this._authenticationRequired;
 
 	private readonly _sessions = new Map<string, URI>();
 	private readonly _initialChats = new Set<string>();
@@ -122,6 +124,10 @@ export class MockAgent implements IAgent {
 				}
 			}, () => { });
 		});
+	}
+
+	setAuthenticationRequired(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): void {
+		this._authenticationRequired.set(requirement, undefined);
 	}
 
 	getDescriptor(): IAgentDescriptor {
