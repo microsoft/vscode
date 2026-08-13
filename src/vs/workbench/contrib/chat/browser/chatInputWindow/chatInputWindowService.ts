@@ -542,7 +542,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			getRoutingProvider: () => this.routingProviderService.getProvider(),
 			getPendingReplySessionResource: () => this._activePendingSessionResource,
 			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
-			prepareForCommandExecution: () => this.hostService.focus(this._invokingWindow),
 			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),
 			onDidRejectRoute: resource => this.voiceSessionController.clearRoutedRequest(resource),
 			onDidResolveRoute: (resource, kind, _isVoiceModeInput, requestId) => {
