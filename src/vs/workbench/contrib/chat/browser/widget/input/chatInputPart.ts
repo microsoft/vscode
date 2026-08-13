@@ -205,6 +205,7 @@ export interface IChatInputPartOptions {
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
 	inputEditorMaxHeight?: number;
+	deferredNotificationsEnabled?: boolean;
 	widgetViewKindTag: string;
 	/**
 	 * Optional delegate for the session target picker.
@@ -2910,6 +2911,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private updateDeferredNotificationsEligibility(e?: IChatWidgetViewModelChangeEvent): void {
+		if (this.options.deferredNotificationsEnabled !== undefined) {
+			this._deferredNotificationsEnabled.set(this.options.deferredNotificationsEnabled, undefined);
+			return;
+		}
+
 		if (this.environmentService.isSessionsWindow) {
 			this._deferredNotificationsEnabled.set(true, undefined);
 			return;

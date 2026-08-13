@@ -434,6 +434,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				renderStyle: 'compact',
 				inputEditorMaxHeight: 250,
 				renderGettingStartedTip: false,
+				deferredNotificationsEnabled: false,
 				// Show only the input box — drop every response list item.
 				filter: () => false,
 				enableImplicitContext: false,
