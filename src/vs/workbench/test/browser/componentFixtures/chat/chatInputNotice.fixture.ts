@@ -36,8 +36,7 @@ function addNoticeStack(context: ComponentFixtureContext, variant: ChatInputNoti
 
 	const input = dom.append(stack, dom.$('div'));
 	input.textContent = 'Chat input';
-	// Reads the radius the way the real input does: rounded at the host's radius
-	// on its own corners, squared on top while something is docked above it.
+	// Match the real input's host radius and square its top corners when docked.
 	input.style.cssText = 'padding:10px;color:var(--vscode-descriptionForeground);'
 		+ 'background:var(--vscode-agentsChatInput-background, var(--vscode-input-background));'
 		+ 'border:var(--vscode-strokeThickness) solid var(--vscode-input-border);'
