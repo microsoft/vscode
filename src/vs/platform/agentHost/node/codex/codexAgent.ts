@@ -6303,24 +6303,41 @@ export class CodexAgent extends Disposable implements IAgent {
 		return session.threadId;
 	}
 
-	async shutdown(): Promise<void> {
-		this._disposeConnection();
+	private _clearRuntimeState(): void {
 		for (const s of this._sessions.values()) {
 			s.pendingCommandApprovals.denyAll('decline');
 			s.pendingClientToolCalls.rejectAll(new CancellationError());
 			s.pendingUserInputs.rejectAll(new CancellationError());
 			s.mcpController?.dispose();
 		}
-		this._sessions.clear();
+		for (const subagent of this._subagentsByThreadId.values()) {
+			subagent.session.pendingCommandApprovals.denyAll('decline');
+		}
 		for (const entry of this._sessionMcpDiscoveries.values()) {
 			entry.dispose();
 		}
+
+		this._desktopThreadIds.clear();
+		this._sessions.clear();
+		this._activeClientHandles.clear();
+		this._sessionIdByChatUri.clear();
+		this._sessionIdByThreadId.clear();
+		this._releasedManagedWorkingDirectories.clear();
+		this._configScopeChats.clear();
+		this._configScopeByChat.clear();
+		this._subagentsByThreadId.clear();
 		this._sessionMcpDiscoveries.clear();
 		this._pendingMcpStartupStatuses.clear();
-		this._sessionIdByThreadId.clear();
 		this._mcpInventory.clear();
 		this._mcpPublisherSessionIdByConfiguration.clear();
 		this._publishedMcpTopLevelIdsByConfiguration.clear();
+		this._mcpAuthTokens.clear();
+		this._mcpAuthServerUrlsByResource.clear();
+	}
+
+	async shutdown(): Promise<void> {
+		this._disposeConnection();
+		this._clearRuntimeState();
 	}
 
 	resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
@@ -6409,26 +6426,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	override dispose(): void {
 		this._disposeConnection();
-		for (const s of this._sessions.values()) {
-			s.pendingCommandApprovals.denyAll('decline');
-			s.pendingClientToolCalls.rejectAll(new CancellationError());
-			s.pendingUserInputs.rejectAll(new CancellationError());
-			s.mcpController?.dispose();
-		}
-		for (const subagent of this._subagentsByThreadId.values()) {
-			subagent.session.pendingCommandApprovals.denyAll('decline');
-		}
-		this._subagentsByThreadId.clear();
-		this._sessions.clear();
-		for (const entry of this._sessionMcpDiscoveries.values()) {
-			entry.dispose();
-		}
-		this._sessionMcpDiscoveries.clear();
-		this._pendingMcpStartupStatuses.clear();
-		this._sessionIdByThreadId.clear();
-		this._mcpInventory.clear();
-		this._mcpPublisherSessionIdByConfiguration.clear();
-		this._publishedMcpTopLevelIdsByConfiguration.clear();
+		this._clearRuntimeState();
 		super.dispose();
 	}
 }

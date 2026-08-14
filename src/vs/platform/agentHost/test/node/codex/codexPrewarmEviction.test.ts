@@ -472,6 +472,55 @@ suite('CodexAgent prewarm eviction', () => {
 		}]);
 	});
 
+	test('shutdown clears retained runtime lookup state', async () => {
+		const agent = await createAgent(disposables);
+		const configurationResource = AgentSession.uri('codex', 'cleanup');
+		const chat = defaultChatOf(configurationResource);
+		const configurationKey = configurationResource.toString();
+		agent['_desktopThreadIds'].add('desktop-thread');
+		agent['_sessionIdByChatUri'].set(chat.toString(), 'runtime');
+		agent['_sessionIdByThreadId'].set('thread', 'runtime');
+		agent['_releasedManagedWorkingDirectories'].set('runtime', URI.file('/managed'));
+		agent['_configScopeChats'].set(configurationKey, new Set([chat.toString()]));
+		agent['_configScopeByChat'].set(chat.toString(), configurationKey);
+		agent['_mcpPublisherSessionIdByConfiguration'].set(configurationKey, 'runtime');
+		agent['_publishedMcpTopLevelIdsByConfiguration'].set(configurationKey, new Set(['mcp']));
+		agent['_pendingMcpStartupStatuses'].set('thread', []);
+		agent['_mcpAuthTokens'].set('https://example.com/mcp', 'token');
+		agent['_mcpAuthServerUrlsByResource'].set('https://example.com/', new Set(['https://example.com/mcp']));
+		agent.getOrCreateActiveClient(chat, { configurationResource, resource: chat }, { clientId: 'client' });
+
+		await agent.shutdown();
+
+		assert.deepStrictEqual({
+			desktopThreads: agent['_desktopThreadIds'].size,
+			activeClients: agent['_activeClientHandles'].size,
+			chatBindings: agent['_sessionIdByChatUri'].size,
+			threadBindings: agent['_sessionIdByThreadId'].size,
+			releasedDirectories: agent['_releasedManagedWorkingDirectories'].size,
+			configurationScopes: agent['_configScopeChats'].size,
+			chatScopes: agent['_configScopeByChat'].size,
+			mcpPublishers: agent['_mcpPublisherSessionIdByConfiguration'].size,
+			publishedMcpServers: agent['_publishedMcpTopLevelIdsByConfiguration'].size,
+			pendingMcpStatuses: agent['_pendingMcpStartupStatuses'].size,
+			mcpAuthTokens: agent['_mcpAuthTokens'].size,
+			mcpAuthResources: agent['_mcpAuthServerUrlsByResource'].size,
+		}, {
+			desktopThreads: 0,
+			activeClients: 0,
+			chatBindings: 0,
+			threadBindings: 0,
+			releasedDirectories: 0,
+			configurationScopes: 0,
+			chatScopes: 0,
+			mcpPublishers: 0,
+			publishedMcpServers: 0,
+			pendingMcpStatuses: 0,
+			mcpAuthTokens: 0,
+			mcpAuthResources: 0,
+		});
+	});
+
 	test('peer client customization publication and removal target the owning session and reload MCP state', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
