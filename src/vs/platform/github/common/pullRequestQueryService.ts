@@ -196,7 +196,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				}
 				return {
 					fragment,
-					value: await this._fetchReviewThreads(ref, credential, signal, plan.priority, options.conversation?.includeBodies === true),
+					value: await this._fetchReviewThreads(ref, core, credential, signal, plan.priority, options.conversation?.includeBodies === true),
 					complete: true,
 					headSha: core.headSha,
 				};
@@ -295,6 +295,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 
 	private async _fetchReviewThreads(
 		ref: PullRequestRef,
+		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
 		priority: import('./githubTypes.js').GitHubRequestPriority,
@@ -314,6 +315,9 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			);
 			throwGraphQLErrors(response.errors);
 			const pullRequest = objectAt(response.data, 'repository', 'pullRequest');
+			if (requiredString(pullRequest, 'headRefOid') !== core.headSha) {
+				throw new GitHubRequestError('GitHub review threads response was for an old pull request head', 'unknown');
+			}
 			const connection = objectProperty(pullRequest, 'reviewThreads');
 			for (const node of arrayProperty(connection, 'nodes')) {
 				const thread = await this._toReviewThread(node, credential, signal, priority, includeBodies);

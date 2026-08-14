@@ -134,10 +134,12 @@ class PullRequestEntry {
 	readonly operations = new Map<PullRequestFragment, IFragmentOperation>();
 	readonly failureCounts = new Map<PullRequestFragment, number>();
 	readonly keys = new Set<string>();
+	readonly mirrors = new Set<PullRequestEntry>();
 	effective = new Map<PullRequestFragment, EffectivePullRequestFragmentInterest>();
 	generation = 1;
 	headGeneration = 0;
 	dormantAt: number | undefined;
+	mergedInto: PullRequestEntry | undefined;
 	disposed = false;
 
 	constructor(
@@ -160,13 +162,15 @@ class PullRequestSubscriptionImpl implements PullRequestSubscription {
 
 	constructor(
 		readonly resource: PullRequestResource,
-		readonly entry: PullRequestEntry,
+		entry: PullRequestEntry,
 		private readonly _service: PullRequestResourceService,
 		options: PullRequestSubscriptionOptions,
 	) {
+		this.entry = entry;
 		this.options = options;
 	}
 
+	entry: PullRequestEntry;
 	options: PullRequestSubscriptionOptions;
 
 	update(options: PullRequestSubscriptionOptions): void {
@@ -273,18 +277,18 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		token: CancellationToken,
 		options?: PullRequestRefreshOptions,
 	): Promise<void> {
-		const entry = subscription.entry;
-		if (!entry.subscriptions.has(subscription)) {
+		if (!subscription.entry.subscriptions.has(subscription)) {
 			throw new Error('Pull request subscription is no longer active');
 		}
 		if (fragment) {
-			if (!entry.effective.has(fragment)) {
+			if (!subscription.entry.effective.has(fragment)) {
 				throw new Error(`Pull request fragment ${fragment} is not part of the subscription interests`);
 			}
-			await this._refreshFragment(entry, fragment, token, options?.authoritative === true);
+			await this._refreshFragment(subscription.entry, fragment, token, options?.authoritative === true);
 			return;
 		}
-		await this._refreshFragment(entry, 'core', token, options?.authoritative === true);
+		await this._refreshFragment(subscription.entry, 'core', token, options?.authoritative === true);
+		const entry = subscription.entry;
 		await Promise.all([...entry.effective.keys()]
 			.filter(candidate => candidate !== 'core')
 			.map(candidate => this._refreshFragment(entry, candidate, token, options?.authoritative === true)));
@@ -367,6 +371,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		token: CancellationToken,
 		authoritative = false,
 	): Promise<void> {
+		entry = this._resolveEntry(entry);
 		if (entry.disposed || entry.subscriptions.size === 0 || !entry.effective.has(fragment)) {
 			return;
 		}
@@ -382,6 +387,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 		if (fragment !== 'core' && entry.snapshot.get().core.status !== 'ready') {
 			await this._refreshFragment(entry, 'core', token, authoritative);
+			entry = this._resolveEntry(entry);
 			if (entry.snapshot.get().core.status !== 'ready') {
 				return;
 			}
@@ -444,9 +450,9 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				}
 				return;
 			}
-			this._commitResult(entry, result);
-			entry.failureCounts.delete(fragment);
-			this._scheduleNext(entry, fragment, interest);
+			const committedEntry = this._commitResult(entry, result);
+			committedEntry.failureCounts.delete(fragment);
+			this._scheduleNext(committedEntry, fragment, committedEntry.effective.get(fragment) ?? interest);
 		} catch (error) {
 			if (credential && sameAccount(credential.account, entry.ref)) {
 				this._credentials.handleRequestError(credential, error);
@@ -481,9 +487,10 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		return !isHeadFragment(fragment) || entry.snapshot.get().core.value?.headSha === headAtStart;
 	}
 
-	private _commitResult(entry: PullRequestEntry, result: PullRequestFragmentResult): void {
+	private _commitResult(entry: PullRequestEntry, result: PullRequestFragmentResult): PullRequestEntry {
 		const observedAt = toTimestamp(this._clock.now());
 		if (result.fragment === 'core') {
+			entry = this._canonicalizeEntry(entry, result.value);
 			const previousHead = entry.snapshot.get().core.value?.headSha;
 			if (previousHead !== result.value.headSha) {
 				entry.headGeneration++;
@@ -498,7 +505,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				observedAt,
 				attemptedAt: observedAt,
 			});
-			this._canonicalizeEntry(entry, result.value);
 			if (result.value.state !== 'open') {
 				for (const fragment of entry.effective.keys()) {
 					this._scheduler.cancel(this._fragmentTaskKey(entry, fragment));
@@ -507,7 +513,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					}
 				}
 			}
-			return;
+			return entry;
 		}
 		switch (result.fragment) {
 			case 'topLevelComments':
@@ -532,10 +538,11 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
 				break;
 		}
+		return entry;
 	}
 
 	private _invalidateHeadFragments(entry: PullRequestEntry): void {
-		for (const fragment of ['checks', 'mergeability'] as const) {
+		for (const fragment of ['reviewThreads', 'checks', 'mergeability'] as const) {
 			this._cancelFragment(entry, fragment);
 			const current = fragmentState(entry.snapshot.get(), fragment);
 			this._setFragmentState(entry, fragment, {
@@ -574,11 +581,11 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	}
 
 	private _setFragmentState(entry: PullRequestEntry, fragment: PullRequestFragment, state: AnyFragmentState): void {
-		entry.snapshot.set({
+		this._publishSnapshot(entry, {
 			...withFragmentState(entry.snapshot.get(), fragment, state),
 			generation: entry.generation,
 			headGeneration: entry.headGeneration,
-		}, undefined);
+		});
 	}
 
 	private _cancelFragment(entry: PullRequestEntry, fragment: PullRequestFragment): void {
@@ -712,16 +719,32 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 	}
 
-	private _canonicalizeEntry(entry: PullRequestEntry, core: PullRequestCore): void {
+	private _canonicalizeEntry(entry: PullRequestEntry, core: PullRequestCore): PullRequestEntry {
 		const [owner, repo, extra] = core.repositoryNameWithOwner.split('/');
 		if (!owner || !repo || extra) {
-			return;
+			return entry;
 		}
 		const canonicalRef = { ...entry.ref, owner, repo };
 		const aliases = [
 			pullRequestKey(canonicalRef),
 			core.repositoryId ? stablePullRequestKey(canonicalRef, core.repositoryId) : undefined,
 		].filter((key): key is string => key !== undefined);
+		let target = entry;
+		let merged = false;
+		for (const key of aliases) {
+			const existing = this._entriesByKey.get(key);
+			if (!existing || existing === target) {
+				continue;
+			}
+			if (target === entry) {
+				target = existing;
+				this._mergeEntry(entry, target);
+			} else {
+				this._mergeEntry(existing, target);
+			}
+			merged = true;
+		}
+		entry = target;
 		const refChanged = entry.ref.owner !== owner || entry.ref.repo !== repo;
 		let aliasAdded = false;
 		entry.ref = canonicalRef;
@@ -733,7 +756,10 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				entry.keys.add(key);
 			}
 		}
-		if (refChanged || aliasAdded) {
+		if (merged) {
+			this._updateEffectiveInterests(entry);
+		}
+		if (refChanged || aliasAdded || merged) {
 			entry.generation++;
 			for (const fragment of entry.effective.keys()) {
 				if (fragment !== 'core') {
@@ -742,7 +768,54 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			}
 		}
 		const snapshot = entry.snapshot.get();
-		entry.snapshot.set({ ...snapshot, ref: entry.ref, generation: entry.generation, headGeneration: entry.headGeneration }, undefined);
+		this._publishSnapshot(entry, { ...snapshot, ref: entry.ref, generation: entry.generation, headGeneration: entry.headGeneration });
+		return entry;
+	}
+
+	private _mergeEntry(source: PullRequestEntry, target: PullRequestEntry): void {
+		const sourceSnapshot = source.snapshot.get();
+		source.disposed = true;
+		source.mergedInto = target;
+		source.generation++;
+		this._cancelEntryWork(source);
+		for (const subscription of source.subscriptions) {
+			subscription.entry = target;
+			target.subscriptions.add(subscription);
+		}
+		source.subscriptions.clear();
+		for (const key of source.keys) {
+			this._entriesByKey.set(key, target);
+			target.keys.add(key);
+		}
+		source.keys.clear();
+		target.mirrors.add(source);
+		for (const mirror of source.mirrors) {
+			target.mirrors.add(mirror);
+		}
+		source.mirrors.clear();
+		this._publishSnapshot(target, mergeSnapshotValues(target.snapshot.get(), sourceSnapshot));
+		this._dormant.delete(source.id);
+		this._entries.delete(source);
+		if (target.dormantAt !== undefined && target.subscriptions.size > 0) {
+			target.dormantAt = undefined;
+			this._dormant.delete(target.id);
+			this._scheduler.cancel(this._dormantTaskKey(target));
+		}
+	}
+
+	private _resolveEntry(entry: PullRequestEntry): PullRequestEntry {
+		while (entry.mergedInto) {
+			entry = entry.mergedInto;
+		}
+		return entry;
+	}
+
+	private _publishSnapshot(entry: PullRequestEntry, snapshot: PullRequestSnapshot): void {
+		entry.snapshot.set(snapshot, undefined);
+		for (const mirror of entry.mirrors) {
+			mirror.ref = entry.ref;
+			mirror.snapshot.set(snapshot, undefined);
+		}
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
@@ -785,6 +858,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 		this._dormant.delete(entry.id);
 		this._entries.delete(entry);
+		entry.mirrors.clear();
 	}
 
 	private _trimDormantEntries(): void {
@@ -869,8 +943,8 @@ function isConversationFragment(fragment: PullRequestFragment): fragment is 'top
 	return fragment === 'topLevelComments' || fragment === 'submittedReviews' || fragment === 'inlineComments' || fragment === 'reviewThreads';
 }
 
-function isHeadFragment(fragment: PullRequestFragment): fragment is 'checks' | 'mergeability' {
-	return fragment === 'checks' || fragment === 'mergeability';
+function isHeadFragment(fragment: PullRequestFragment): fragment is 'reviewThreads' | 'checks' | 'mergeability' {
+	return fragment === 'reviewThreads' || fragment === 'checks' || fragment === 'mergeability';
 }
 
 function checksPending(value: PullRequestChecks | undefined): boolean {
@@ -930,5 +1004,30 @@ function readyState<T>(value: T, complete: boolean, observedAt: string, headSha?
 		observedAt,
 		attemptedAt: observedAt,
 		headSha,
+	};
+}
+
+function mergeSnapshotValues(target: PullRequestSnapshot, source: PullRequestSnapshot): PullRequestSnapshot {
+	return {
+		...target,
+		topLevelComments: retainFragmentValue(target.topLevelComments, source.topLevelComments),
+		submittedReviews: retainFragmentValue(target.submittedReviews, source.submittedReviews),
+		inlineComments: retainFragmentValue(target.inlineComments, source.inlineComments),
+		reviewThreads: retainFragmentValue(target.reviewThreads, source.reviewThreads),
+		checks: retainFragmentValue(target.checks, source.checks),
+		mergeability: retainFragmentValue(target.mergeability, source.mergeability),
+		participants: retainFragmentValue(target.participants, source.participants),
+	};
+}
+
+function retainFragmentValue<T>(target: FragmentState<T>, source: FragmentState<T>): FragmentState<T> {
+	if (target.value !== undefined || source.value === undefined) {
+		return target;
+	}
+	return {
+		...source,
+		status: 'stale',
+		complete: false,
+		error: undefined,
 	};
 }

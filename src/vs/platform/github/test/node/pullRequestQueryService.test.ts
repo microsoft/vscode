@@ -259,6 +259,52 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	test('rejects review threads when the pull request head changes during pagination', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreads',
+					response: gitHubGraphQLResponse({
+						repository: {
+							pullRequest: {
+								headRefOid: 'head-1',
+								reviewThreads: {
+									nodes: [],
+									pageInfo: { hasNextPage: true, endCursor: 'threads-1' },
+								},
+							},
+						},
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestReviewThreads',
+					response: gitHubGraphQLResponse({
+						repository: {
+							pullRequest: {
+								headRefOid: 'head-2',
+								reviewThreads: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+
+			await assert.rejects(() => query.fetch(
+				'reviewThreads',
+				ref,
+				core('head-1'),
+				{ priority: 'visible', conversation: { reviewThreads: true } },
+				credential,
+				new AbortController().signal,
+			), /old pull request head/);
+			server.assertSatisfied();
+		});
+	});
+
 	test('fully paginates current-head checks and normalizes mergeability', async () => {
 		await withServer(async server => {
 			server.enqueue(

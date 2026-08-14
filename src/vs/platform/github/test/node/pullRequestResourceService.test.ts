@@ -274,28 +274,87 @@ suite('PullRequestResourceService', () => {
 		replaced.dispose();
 	});
 
-	test('does not churn generations when a canonical alias is owned by another entry', async () => {
-		const { service } = setup();
+	test('converges colliding canonical aliases onto shared state and scheduling', async () => {
+		const { clock, queries, service } = setup();
+		const canonical = service.subscribePullRequest({
+			...ref,
+			owner: 'new-owner',
+			repo: 'new-repo',
+		}, {
+			priority: 'visible',
+			conversation: { topLevelComments: true },
+		});
+		const renamed = service.subscribePullRequest(ref, {
+			priority: 'background',
+			checks: { required: true },
+		});
+		await renamed.refresh('checks');
+		await canonical.refresh('topLevelComments');
+
+		assert.deepStrictEqual({
+			distinctResources: canonical.resource !== renamed.resource,
+			sharedSnapshot: canonical.resource.snapshot.get() === renamed.resource.snapshot.get(),
+			ref: renamed.resource.ref,
+			generation: renamed.resource.snapshot.get().generation,
+			fragments: queries.calls.map(call => call.fragment),
+			comments: renamed.resource.snapshot.get().topLevelComments.value,
+			checks: canonical.resource.snapshot.get().checks.value?.checks,
+		}, {
+			distinctResources: true,
+			sharedSnapshot: true,
+			ref: { ...ref, owner: 'new-owner', repo: 'new-repo' },
+			generation: 2,
+			fragments: ['core', 'checks', 'topLevelComments'],
+			comments: [{ id: 'C1', body: undefined }],
+			checks: [{ id: 'check', type: 'checkRun', name: 'CI', status: 'IN_PROGRESS', required: true }],
+		});
+		canonical.dispose();
+		renamed.dispose();
+		queries.calls.length = 0;
+		clock.advanceBy(10_000);
+		await flushAsync();
+		assert.deepStrictEqual(queries.calls, []);
+	});
+
+	test('continues a full refresh on the canonical entry after merging', async () => {
+		const { queries, service } = setup();
+		let coreCall = 0;
+		queries.handlers.set('core', () => ({
+			fragment: 'core',
+			value: core('head-1', coreCall++ === 0 ? 'old-owner/old-repo' : 'new-owner/new-repo'),
+			complete: true,
+		}));
+		const renamed = service.subscribePullRequest(ref, {
+			priority: 'visible',
+			conversation: { topLevelComments: true },
+		});
+		await renamed.refresh();
 		const canonical = service.subscribePullRequest({
 			...ref,
 			owner: 'new-owner',
 			repo: 'new-repo',
 		}, { priority: 'background' });
-		const renamed = service.subscribePullRequest(ref, { priority: 'background' });
-		await canonical.refresh('core');
-		await renamed.refresh('core');
-		const generation = renamed.resource.snapshot.get().generation;
+		queries.calls.length = 0;
 
-		await renamed.refresh('core');
+		await renamed.refresh();
 
 		assert.deepStrictEqual({
 			distinctResources: canonical.resource !== renamed.resource,
-			generation,
-			generationAfterSecondRefresh: renamed.resource.snapshot.get().generation,
+			sharedSnapshot: canonical.resource.snapshot.get() === renamed.resource.snapshot.get(),
+			calls: queries.calls.map(call => call.fragment),
+			comments: canonical.resource.snapshot.get().topLevelComments,
 		}, {
 			distinctResources: true,
-			generation: 2,
-			generationAfterSecondRefresh: 2,
+			sharedSnapshot: true,
+			calls: ['core', 'topLevelComments'],
+			comments: {
+				value: [{ id: 'C1', body: undefined }],
+				status: 'ready',
+				complete: true,
+				observedAt: new Date(0).toISOString(),
+				attemptedAt: new Date(0).toISOString(),
+				headSha: undefined,
+			},
 		});
 		canonical.dispose();
 		renamed.dispose();
@@ -567,6 +626,44 @@ suite('PullRequestResourceService', () => {
 		const replacement = service.subscribePullRequest(ref, { priority: 'interactive' });
 		assert.notStrictEqual(replacement.resource, oldResource);
 		replacement.dispose();
+		subscription.dispose();
+	});
+
+	test('rejects review thread results after the core head changes', async () => {
+		const { queries, service } = setup();
+		const threadsStarted = new DeferredPromise<void>();
+		const releaseThreads = new DeferredPromise<void>();
+		let threadsCall = 0;
+		queries.handlers.set('reviewThreads', async () => {
+			threadsCall++;
+			if (threadsCall === 1) {
+				await threadsStarted.complete();
+				await releaseThreads.p;
+				return { fragment: 'reviewThreads', value: [], complete: true, headSha: 'head-1' };
+			}
+			return { fragment: 'reviewThreads', value: [], complete: true, headSha: 'head-2' };
+		});
+		const subscription = service.subscribePullRequest(ref, {
+			priority: 'interactive',
+			conversation: { reviewThreads: true },
+		});
+		await subscription.refresh('core');
+		const oldThreads = subscription.refresh('reviewThreads');
+		await threadsStarted.p;
+		queries.headSha = 'head-2';
+		await subscription.refresh('core');
+		await releaseThreads.complete();
+		await oldThreads;
+
+		assert.deepStrictEqual(subscription.resource.snapshot.get().reviewThreads, {
+			status: 'missing',
+			complete: false,
+			attemptedAt: new Date(0).toISOString(),
+			headSha: undefined,
+			error: undefined,
+		});
+		await subscription.refresh('reviewThreads');
+		assert.strictEqual(subscription.resource.snapshot.get().reviewThreads.headSha, 'head-2');
 		subscription.dispose();
 	});
 
