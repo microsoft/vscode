@@ -103,7 +103,11 @@
 	box-sizing: border-box;
 	width: 100%;
 	padding: 9px 11px;
-	border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
+	/*
+	 * `contrastBorder` is only set by high-contrast themes, where the
+	 * tinted border below is too faint to define the row.
+	 */
+	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent));
 	border-radius: 8px;
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
 	transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;

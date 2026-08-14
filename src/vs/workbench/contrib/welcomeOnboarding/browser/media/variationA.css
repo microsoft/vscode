@@ -335,7 +335,11 @@
 	box-sizing: border-box;
 	width: 100%;
 	padding: 13px 16px;
-	border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
+	/*
+	 * `contrastBorder` is only set by high-contrast themes, where the
+	 * tinted border below is too faint to define the row.
+	 */
+	border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent));
 	border-radius: 10px;
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
 	cursor: pointer;
@@ -394,6 +398,14 @@
 	padding: 2px;
 	border-radius: 999px;
 	background: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
+	/*
+	 * High-contrast themes carry meaning in borders rather than fills, where
+	 * the track's tint does not survive. `contrastBorder` is only defined by
+	 * those themes, so this is inert elsewhere. Drawn as an inset outline so
+	 * it costs no layout and the knob's travel stays the same.
+	 */
+	outline: 1px solid var(--vscode-contrastBorder, transparent);
+	outline-offset: -1px;
 	transition: background 140ms ease;
 }
 
@@ -412,13 +424,19 @@
 /*
  * The knob must read against both the neutral and accent track, so it uses
  * the button foreground rather than the editor background (dark on dark).
+ *
+ * The ring is what makes the off state legible on light themes: there the
+ * neutral track composites to a pale grey, and a white knob on it is about
+ * 1.5:1 — well under the 3:1 that a UI component's boundary needs. The ring
+ * restores that edge, and is harmless on dark themes where the track is
+ * already dark enough to carry the contrast on its own.
  */
 .onboarding-a-provider-toggle-knob {
 	width: 14px;
 	height: 14px;
 	border-radius: 999px;
 	background: var(--vscode-button-foreground, #ffffff);
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.3);
 	transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
