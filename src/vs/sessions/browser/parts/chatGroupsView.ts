@@ -145,7 +145,9 @@ export class ChatGroupsView extends Themable {
 
 		this._mainChatResource = derived(reader => session.mainChat.read(reader).resource.toString());
 
-		const grid = this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store);
+		const grid = session.isCreated.get()
+			? this._tryRestoreLayout(session, store) ?? this._createSingleGroupGrid(session, store)
+			: this._createSingleGroupGrid(session, store);
 		this._grid = grid;
 		store.add(grid);
 		this.element.replaceChildren(grid.element);
@@ -831,6 +833,10 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 		const sessionId = this._session.sessionId;
+		if (!this._session.isCreated.get()) {
+			this._saveStored(sessionId, undefined);
+			return;
+		}
 		if (this._groups.length <= 1) {
 			this._saveStored(sessionId, undefined);
 			return;

@@ -28,6 +28,7 @@ class TestChatView extends AbstractChatView {
 
 	constructor(readonly kind: ChatViewKind) {
 		super();
+		this.element.dataset.kind = kind;
 		this.element.appendChild(this._focusTarget);
 	}
 
@@ -77,11 +78,11 @@ class TestActiveSession extends mock<IActiveSession>() {
 	override readonly shouldShowChatTabs: IObservable<boolean>;
 	override readonly mainChat: IObservable<IChat>;
 	override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
-	override readonly isCreated: IObservable<boolean> = constObservable(true);
+	override readonly isCreated: IObservable<boolean>;
 	override readonly isArchived: IObservable<boolean> = constObservable(false);
 	override readonly loading: IObservable<boolean> = constObservable(false);
 
-	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats) {
+	constructor(chats: readonly IChat[], visibleChats: readonly IChat[] = chats, isCreated = true) {
 		super();
 		const mainChat = chats[0];
 		if (!mainChat) {
@@ -98,6 +99,7 @@ class TestActiveSession extends mock<IActiveSession>() {
 		});
 		this.shouldShowChatTabs = derived(reader => this.visibleChatTabs.read(reader).length > 1);
 		this.mainChat = constObservable(mainChat);
+		this.isCreated = constObservable(isCreated);
 	}
 }
 
@@ -201,6 +203,27 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			groupCount: 1,
 			groups: 1,
+		});
+	});
+
+	test('new session drafts do not restore a persisted chat grid', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const session = new TestActiveSession([main, secondary]);
+		view.setSession(session, options);
+		view.splitChatToSide(secondary.resource);
+		view.setSession(undefined, options);
+
+		const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+		view.setSession(draft, options);
+
+		assert.deepStrictEqual({
+			groupCount: view.groupCount.get(),
+			viewKind: view.element.querySelector<HTMLElement>('.chat-view')?.dataset.kind,
+		}, {
+			groupCount: 1,
+			viewKind: 'newSession',
 		});
 	});
 

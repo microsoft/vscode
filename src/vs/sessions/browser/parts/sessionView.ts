@@ -7,14 +7,14 @@ import './media/sessionView.css';
 import { $, size } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IChatViewOptions } from './chatView.js';
+import { AbstractChatView, IChatViewOptions } from './chatView.js';
 import { ChatGroupsView } from './chatGroupsView.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { ISessionContext, SessionContext } from '../../services/sessions/browser/sessionContext.js';
@@ -23,6 +23,7 @@ import { SessionIsMaximizedContext } from '../../common/contextkeys.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
 import { setActiveSessionContextKeys } from '../../services/sessions/common/sessionContextKeys.js';
 import { applySessionViewThemeColors } from './sessionBarStyles.js';
+import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 
 /**
  * Options passed to {@link SessionView.openSession}. Extends the chat view
@@ -55,6 +56,7 @@ export class SessionView extends Disposable implements ISerializableView {
 
 	private readonly _header: SessionHeader;
 	private readonly _groupsView: ChatGroupsView;
+	private readonly _standaloneView = this._register(new MutableDisposable<AbstractChatView>());
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
 	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
@@ -83,6 +85,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _sessionObs = observableValue<IActiveSession | undefined>(this, undefined);
 
 	constructor(
+		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -159,7 +162,18 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._openSessionDisposables.add(this._handleContextKeys(session));
 
 		this._header.setSession(session);
-		this._groupsView.setSession(session, options);
+		if (session) {
+			this._standaloneView.clear();
+			this._contentContainer.replaceChildren(this._groupsView.element);
+			this._groupsView.setSession(session, options);
+		} else {
+			this._groupsView.setSession(undefined, options);
+			const view = this._chatViewFactory.createNewChatView(false, options);
+			this._standaloneView.value = view;
+			this._contentContainer.replaceChildren(view.element);
+			view.setActive(this._isActive);
+			view.setVisible(this._isVisible);
+		}
 		this._floatingToolbar.setSession(session);
 		this._layoutChildren();
 	}
@@ -207,7 +221,14 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
-		this._groupsView.layout(width, height - barHeight, top + barHeight, left);
+		const contentHeight = height - barHeight;
+		const contentTop = top + barHeight;
+		const standaloneView = this._standaloneView.value;
+		if (standaloneView) {
+			standaloneView.layout(width, contentHeight, contentTop, left);
+		} else {
+			this._groupsView.layout(width, contentHeight, contentTop, left);
+		}
 	}
 
 	toJSON(): object {
@@ -215,7 +236,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	focus(): void {
-		this._groupsView.focus();
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.focus() : this._groupsView.focus();
 	}
 
 	startTitleEditing(): void {
@@ -223,7 +245,8 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {
-		this._groupsView.selectWorkspace(folderUri, providerId);
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.selectWorkspace(folderUri, providerId) : this._groupsView.selectWorkspace(folderUri, providerId);
 	}
 
 	/** Opens the given chat in a group beside the active one ("open to the side"). */
@@ -249,22 +272,25 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	prefillInput(text: string): void {
-		this._groupsView.prefillInput(text);
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.prefillInput(text) : this._groupsView.prefillInput(text);
 	}
 
 	sendQuery(text: string): void {
-		this._groupsView.sendQuery(text);
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.sendQuery(text) : this._groupsView.sendQuery(text);
 	}
 
 	submitInput(): Promise<boolean> {
-		return this._groupsView.submitInput();
+		return this._standaloneView.value?.submitInput() ?? this._groupsView.submitInput();
 	}
 
 	/**
 	 * Attaches the given resources as context to the active chat group's input.
 	 */
 	attach(uris: URI[]): void {
-		this._groupsView.attach(uris);
+		const standaloneView = this._standaloneView.value;
+		standaloneView ? standaloneView.attach(uris) : this._groupsView.attach(uris);
 	}
 
 	/**
@@ -287,6 +313,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._isActive = active;
 		this._applyActiveSessionStyles();
 		this._groupsView.setSessionActive(active);
+		this._standaloneView.value?.setActive(active);
 	}
 
 	/**
@@ -330,6 +357,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 		this._groupsView.setSessionVisible(visible);
+		this._standaloneView.value?.setVisible(visible);
 		if (visible) {
 			// Catch up on the layout passes that were skipped while hidden.
 			this._layoutChildren();
