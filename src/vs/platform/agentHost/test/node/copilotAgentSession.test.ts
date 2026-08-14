@@ -4806,6 +4806,7 @@ suite('CopilotAgentSession', () => {
 			// AHP `mcp://` channel is always available at `tool.execution_start`
 			// and is published as part of the initial `_meta.ui` payload.
 			const { mockSession, signals } = await createAgentSession(disposables, {
+				resource: AgentSession.uri('copilot', 'host-session'),
 				configureMockSession: m => {
 					m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
 				},
@@ -4837,13 +4838,13 @@ suite('CopilotAgentSession', () => {
 				}, {
 					contributor: {
 						kind: ToolCallContributorKind.MCP,
-						customizationId: 'mcp-top-level:copilot:test-session-1:docs',
+						customizationId: 'mcp-top-level:copilot:host-session:docs',
 					},
 					meta: {
 						mcpServerName: 'docs',
 						ui: {
 							resourceUri: 'ui://docs',
-							channel: 'mcp://copilot/test-session-1/docs',
+							channel: 'mcp://copilot/host-session/docs',
 						},
 					},
 				});
