@@ -107,6 +107,9 @@
 		"terminal.ansiBrightWhite": "#f8f8f2",
 		// modern ui
 		"surface.border": "#272822",
+		"agentsPanel.border": "#414339",
+		"agentsBottomPanel.border": "#00000000",
+		"agentsCard.border": "#00000000",
 	},
 	"tokenColors": [
 		{
