@@ -118,14 +118,9 @@ export function getBrowserPagesContext(
 }
 
 /**
- * Creates a markdown link to a browser page. Returns the plain label when no
- * page id is supplied, so callers that render a link during tool preparation
- * cannot throw on incomplete parameters.
+ * Creates a markdown link to a browser page.
  */
-export function createBrowserPageLink(pageId: string | URI | undefined): string {
-	if (pageId === undefined || pageId === '') {
-		return BrowserEditorInput.DEFAULT_LABEL;
-	}
+export function createBrowserPageLink(pageId: string | URI): string {
 	if (typeof pageId === 'string') {
 		pageId = BrowserViewUri.forId(pageId);
 	}
