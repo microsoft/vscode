@@ -65,7 +65,6 @@
 	background-color: transparent !important;
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	box-sizing: border-box;
 	font-size: var(--vscode-fontSize-body1) !important;
 	font-weight: var(--vscode-fontWeight-regular);
 	box-shadow: none !important;
@@ -121,7 +120,6 @@
 .modern-ui-tabs .modern-ui-editor-tab > .modern-ui-editor-tab-label {
 	position: relative;
 	z-index: 1;
-	line-height: var(--vscode-spacing-size240);
 }
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky-compact {
@@ -222,8 +220,13 @@
 }
 
 .modern-ui-tabs.monaco-workbench .modern-ui-editor-tab {
+	box-sizing: border-box;
 	min-height: calc(var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size40) * 2);
 	border-block: var(--vscode-spacing-size40) solid transparent;
+}
+
+.modern-ui-tabs.monaco-workbench .modern-ui-editor-tab > .modern-ui-editor-tab-label {
+	line-height: var(--editor-group-tab-height, var(--vscode-spacing-size240));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab {
@@ -252,21 +255,23 @@
 /* Tab fills retain the theme's transparency. The action overlay uses a separately flattened
  * version of the same color so labels beneath the close button cannot show through. */
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab:not(.selected):not(.active) > .tab-fill,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab:not(.active) > .modern-ui-editor-tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab:not(.active) > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-inactive-background);
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab:not(.selected):not(.active) > .tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab:not(.selected):not(.active) > .tab-fill,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab:not(.active) > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-unfocused-inactive-background);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab:hover:not(.active) > .modern-ui-editor-tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab:hover:not(.active) > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-hover-background);
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-hover-border);
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-fill,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab:hover:not(.active) > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-unfocused-hover-background);
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-unfocused-hover-border);
 }
@@ -276,24 +281,26 @@
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.active > .tab-fill,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-active-background);
 	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-active-border-top);
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-active-border);
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab.active > .tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab.active > .tab-fill,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-unfocused-active-background);
 	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-unfocused-active-border-top);
 	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-unfocused-active-border);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container.active .tabs-container > .tab.active:hover > .tab-fill,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab.active:hover > .modern-ui-editor-tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab.active:hover > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-active-hover-background);
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab.active:hover > .tab-fill {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .editor-group-container:not(.active) .tabs-container > .tab.active:hover > .tab-fill,
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab.active:hover > .modern-ui-editor-tab-fill {
 	background-color: var(--modern-ui-editor-tab-unfocused-active-hover-background);
 }
 
@@ -886,11 +893,12 @@
 	color: var(--modern-ui-editor-tab-inactive-foreground) !important;
 }
 
-.modern-ui-tabs .modern-ui-editor-tab:not(.active) {
+.modern-ui-tabs .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab:not(.active) {
 	color: var(--modern-ui-editor-tab-inactive-foreground) !important;
 }
 
-.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a {
+.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
+.modern-ui-tabs .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab:not(.active) {
 	color: var(--modern-ui-editor-tab-unfocused-inactive-foreground) !important;
 }
 
@@ -899,12 +907,13 @@
 	color: var(--modern-ui-editor-tab-hover-foreground) !important;
 }
 
-.modern-ui-tabs .modern-ui-editor-tab:hover:not(.active) {
+.modern-ui-tabs .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab:hover:not(.active) {
 	color: var(--modern-ui-editor-tab-hover-foreground) !important;
 }
 
 .modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:hover:not(.selected):not(.active) .tab-label:not([class*="monaco-decoration-itemColor"]) a,
-.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-actions .action-label {
+.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:hover:not(.selected):not(.active) > .tab-actions .action-label,
+.modern-ui-tabs .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab:hover:not(.active) {
 	color: var(--modern-ui-editor-tab-unfocused-hover-foreground) !important;
 }
 
@@ -913,12 +922,13 @@
 	color: var(--modern-ui-editor-tab-active-foreground) !important;
 }
 
-.modern-ui-tabs .modern-ui-editor-tab.active {
+.modern-ui-tabs .modern-ui-editor-tab-group.modern-ui-editor-tab-group-active .modern-ui-editor-tab.active {
 	color: var(--modern-ui-editor-tab-active-foreground) !important;
 }
 
 .modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active .tab-label:not([class*="monaco-decoration-itemColor"]) a,
-.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active > .tab-actions .action-label {
+.modern-ui-tabs .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active > .tab-actions .action-label,
+.modern-ui-tabs .modern-ui-editor-tab-group:not(.modern-ui-editor-tab-group-active) .modern-ui-editor-tab.active {
 	color: var(--modern-ui-editor-tab-unfocused-active-foreground) !important;
 }
 

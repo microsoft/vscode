@@ -31,4 +31,27 @@ suite('Sessions - Session View', () => {
 
 		assert.deepStrictEqual(forwarded, [false, true]);
 	});
+
+	test('exposes active state to shared editor tab presentation', () => {
+		const element = document.createElement('div');
+		element.classList.add('modern-ui-editor-tab-group');
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			_isActive: true,
+			element,
+			themeService: { getColorTheme: () => ({ getColor: () => undefined }) },
+			_currentView: { value: undefined },
+		});
+
+		view.setActive(false);
+		const inactiveClassName = element.className;
+		view.setActive(true);
+
+		assert.deepStrictEqual({
+			inactiveClassName,
+			activeClassName: element.className,
+		}, {
+			inactiveClassName: 'modern-ui-editor-tab-group',
+			activeClassName: 'modern-ui-editor-tab-group modern-ui-editor-tab-group-active',
+		});
+	});
 });
