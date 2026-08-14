@@ -9,7 +9,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { dirname, join } from '../../../../../base/common/path.js';
 import { FileAccess } from '../../../../../base/common/network.js';
-import { CORE_POLICY_NAMES } from '../../../../services/policies/browser/policyTelemetry.contribution.js';
+import { CORE_POLICY_NAMES } from '../../../../services/policies/common/policyTelemetry.js';
 import * as util from 'util';
 
 const execFile = util.promisify(cp.execFile);

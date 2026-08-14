@@ -11,7 +11,8 @@ import { PolicyName } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AbstractPolicyService, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../common/accountPolicyService.js';
-import { CORE_POLICY_NAMES, PolicyTelemetryContribution } from '../../browser/policyTelemetry.contribution.js';
+import { CORE_POLICY_NAMES } from '../../common/policyTelemetry.js';
+import { PolicyTelemetryContribution } from '../../browser/policyTelemetry.contribution.js';
 
 class TestPolicyService extends AbstractPolicyService {
 
