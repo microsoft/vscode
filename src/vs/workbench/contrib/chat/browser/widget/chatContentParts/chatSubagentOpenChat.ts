@@ -30,6 +30,7 @@ import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatWidgetService } from '../../chat.js';
+import { getChatMarkdownRenderOptions } from '../chatContentMarkdownRenderer.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
@@ -517,7 +518,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._activeToolRendered.clear();
 		this._activeToolFileWidgets.clear();
 		this._activeToolLabelElement.textContent = '';
-		const rendered = this.markdownRendererService.render(new MarkdownString(label), undefined, this._activeToolLabelElement);
+		const rendered = this.markdownRendererService.render(new MarkdownString(label), getChatMarkdownRenderOptions(), this._activeToolLabelElement);
 		renderFileWidgets(rendered.element, this.instantiationService, this.chatMarkdownAnchorService, this._activeToolFileWidgets);
 		this._activeToolRendered.value = rendered;
 		this._displayedToolLabel = label;

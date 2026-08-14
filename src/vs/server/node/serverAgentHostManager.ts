@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
@@ -50,6 +51,7 @@ interface IConnectionTrackerService {
 
 enum Constants {
 	MaxRestarts = 5,
+	ShutdownTimeoutMs = 6000,
 }
 
 export class ServerAgentHostManager extends Disposable implements IServerAgentHostManager {
@@ -57,6 +59,10 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _restartCount = 0;
 	private _startPromise: Promise<void> | undefined;
+	private _shuttingDown = false;
+	private _connection: IAgentHostConnection | undefined;
+	private readonly _connectionStore = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _startMode: 'eager' | 'lazy';
 
 	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
@@ -73,13 +79,26 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._startMode = options.startMode ?? 'eager';
 		this._register(this._starter);
-		if (options.startMode !== 'lazy') {
+		this._register(this._serverLifetimeService.onWillShutdown(event => {
+			this._shuttingDown = true;
+			event.join(this._shutdown());
+		}));
+		this._register(this._serverLifetimeService.onDidAbortShutdown(() => {
+			if (this._startMode === 'eager') {
+				void this.ensureStarted().catch(error => this._logService.error('ServerAgentHostManager: failed to restart after aborted server shutdown', error));
+			}
+		}));
+		if (this._startMode === 'eager') {
 			void this.ensureStarted().catch(() => undefined);
 		}
 	}
 
 	ensureStarted(): Promise<void> {
+		if (this._shuttingDown || this._store.isDisposed) {
+			return Promise.reject(new Error('Server Agent Host manager is shutting down.'));
+		}
 		if (!this._startPromise) {
 			const startPromise = this._start();
 			this._startPromise = startPromise;
@@ -109,7 +128,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					return;
 				}
 
-				const willRestart = this._restartCount <= Constants.MaxRestarts;
+				const willRestart = this._restartCount < Constants.MaxRestarts;
 				reportAgentHostProcessError(this._telemetryService, {
 					hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 					kind: 'startFailed',
@@ -132,7 +151,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	private async _startOnce(): Promise<void> {
 		const connection = await this._starter.start();
 
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || this._shuttingDown) {
 			connection.store.dispose();
 			return;
 		}
@@ -160,11 +179,12 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		// both restart the same failure.
 		connection.store.add(connection.onDidProcessExit(e => this._handleUnexpectedExit(connection, e)));
 
-		this._register(toDisposable(() => connection.store.dispose()));
+		this._connection = connection;
+		this._connectionStore.value = connection.store;
 	}
 
 	private _handleUnexpectedExit(connection: IAgentHostConnection, e: { code: number; signal: string }): void {
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || this._connection !== connection) {
 			return;
 		}
 
@@ -172,7 +192,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._connectionCount = 0;
 		this._lifetimeToken.clear();
 
-		const willRestart = this._restartCount <= Constants.MaxRestarts;
+		const willRestart = this._restartCount < Constants.MaxRestarts;
 		reportAgentHostProcessError(this._telemetryService, {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 			kind: 'unexpectedExit',
@@ -180,7 +200,8 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			restartCount: this._restartCount,
 			willRestart,
 		});
-		connection.store.dispose();
+		this._connection = undefined;
+		this._connectionStore.clear();
 		this._startPromise = undefined;
 		if (willRestart) {
 			this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
@@ -191,6 +212,37 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			// A future explicit request gets a fresh crash-retry budget.
 			this._restartCount = 0;
 		}
+	}
+
+	private async _shutdown(): Promise<void> {
+		try {
+			await raceTimeout(this._shutdownGracefully(), Constants.ShutdownTimeoutMs, () => {
+				this._logService.warn(`ServerAgentHostManager: agent host did not shut down within ${Constants.ShutdownTimeoutMs}ms; terminating it`);
+			});
+		} catch (error) {
+			this._logService.error('ServerAgentHostManager: failed to shut down agent host gracefully', error);
+		} finally {
+			const connection = this._connection;
+			this._startPromise = undefined;
+			this._shuttingDown = false;
+			if (connection) {
+				if (this._connection === connection) {
+					this._connection = undefined;
+					this._connectionStore.clear();
+				} else {
+					connection.store.dispose();
+				}
+			}
+		}
+	}
+
+	private async _shutdownGracefully(): Promise<void> {
+		try {
+			await this._startPromise;
+		} catch {
+			return;
+		}
+		await this._connection?.shutdown();
 	}
 
 	private _trackActiveSessions(connection: IAgentHostConnection): void {

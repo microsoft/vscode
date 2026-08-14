@@ -1303,6 +1303,26 @@ suite('CodexAgent chat backing durability', () => {
 		}
 	}
 
+	test('materializeChat rejects missing peer and corrupt default providerData', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'invalid-backing');
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+
+		const missingPeer = await agent.materializeChat(peer, { configurationResource: session, resource: peer }, undefined);
+		const corruptDefault = await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, '{');
+
+		assert.deepStrictEqual({
+			missingPeer,
+			corruptDefault,
+			sessions: [...agent['_sessions'].keys()],
+		}, {
+			missingPeer: undefined,
+			corruptDefault: undefined,
+			sessions: [],
+		});
+	});
+
 	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {
 		const sessionStore = createTestSessionStore();
 		const session = AgentSession.uri('codex', 'host-session');
@@ -1452,6 +1472,57 @@ suite('CodexAgent chat backing durability', () => {
 				workingDirectories: [folder.fsPath],
 				startedInThisRun: true,
 				modifiedAtOrAfterStart: true,
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('a restored runtime preserves its thread summary in subsequent live metadata lookups', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'named-session');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			const providerData = JSON.stringify({ sessionId: 'named-session' });
+			const restoring = agent.getChatMetadata(chat, context, providerData);
+			const read = await readNextRequest(peer.outbound);
+			assert.strictEqual(read.method, 'thread/read');
+			peer.push({
+				id: read.id,
+				result: {
+					thread: {
+						id: 'named-thread',
+						name: 'Investigate session title loss',
+						cwd: '/repo/named',
+						createdAt: 1_700_000_000,
+						updatedAt: 1_700_000_100,
+						turns: [],
+					},
+				},
+			});
+
+			const coldMetadata = await restoring;
+			// The first lookup registers a live runtime. The second must retain
+			// the title without another app-server request: that server may be
+			// blocked waiting on the very dynamic tool call requesting metadata.
+			const liveMetadata = await agent.getChatMetadata(chat, context, providerData);
+
+			assert.deepStrictEqual({
+				coldSummary: coldMetadata?.summary,
+				liveSummary: liveMetadata?.summary,
+				liveStartTime: liveMetadata?.startTime,
+				liveModifiedTime: liveMetadata?.modifiedTime,
+				pendingAppServerBytes: peer.outbound.readableLength,
+			}, {
+				coldSummary: 'Investigate session title loss',
+				liveSummary: 'Investigate session title loss',
+				liveStartTime: 1_700_000_000_000,
+				liveModifiedTime: 1_700_000_100_000,
+				pendingAppServerBytes: 0,
 			});
 		} finally {
 			peer.dispose();

@@ -29,7 +29,8 @@ import { ISessionDatabase, ISessionDataService } from '../common/sessionDataServ
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
-import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type Customization, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
+import { SessionInputRequestKind, ToolCallContributorKind, type AgentInfo, type SessionActiveClient, type SessionInputRequest } from '../common/state/protocol/state.js';
+import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatAction, type ChatToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentChatUri,
@@ -52,6 +53,7 @@ import {
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	SessionStatus,
+	CustomizationType,
 	ToolCallStatus,
 	ToolResultContentType,
 	type ErrorInfo,
@@ -63,18 +65,22 @@ import {
 	type ToolCallState,
 	type ToolCallResult,
 	type ToolResultContent,
-	type Turn
+	type Turn,
+	type Customization,
+	type McpServerCustomization,
+	type PluginCustomization
 } from '../common/state/sessionState.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostStateManager, resolveChatStateForUri } from './agentHostStateManager.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createAgentChatContext, getSessionChatsForFanOut } from './agentChatContext.js';
 import { AgentHostTelemetryReporter, type AgentHostModelTelemetryKind, type AgentHostTurnFailureStage, type AgentHostTurnResult, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 import { AgentHostToolCallTracker } from './agentHostToolCallTracker.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import type { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -82,6 +88,7 @@ import type { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.
 import type { ICopilotApiService } from './shared/copilotApiService.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import type { WorktreeIsolation } from './shared/worktreeIsolation.js';
 
 /**
@@ -148,6 +155,38 @@ interface ISubagentSessionRef {
 	readonly turnStopWatch: StopWatch;
 }
 
+interface ICustomizationEnablementCandidate {
+	readonly customization: PluginCustomization | McpServerCustomization;
+	readonly owningPluginUri?: string;
+}
+
+const MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES = 3;
+
+function getCustomizationEnablementCandidates(customizations: readonly Customization[] | undefined, mcpServerOwners?: ReadonlyMap<string, string>): readonly ICustomizationEnablementCandidate[] {
+	const candidates: ICustomizationEnablementCandidate[] = [];
+	for (const customization of customizations ?? []) {
+		if (customization.type === CustomizationType.Plugin) {
+			candidates.push({ customization });
+			for (const child of customization.children ?? []) {
+				if (child.type === CustomizationType.McpServer) {
+					candidates.push({ customization: child, owningPluginUri: customization.uri });
+				}
+			}
+		} else if (customization.type === CustomizationType.McpServer) {
+			candidates.push({ customization, owningPluginUri: mcpServerOwners?.get(customization.name) });
+		} else if (customization.type === CustomizationType.Directory) {
+			for (const child of customization.children ?? []) {
+				if (child.type === CustomizationType.McpServer) {
+					// Directory containers do not own durable plugin keys. Their
+					// MCP children therefore use the unowned `mcpServers#<name>` key.
+					candidates.push({ customization: child });
+				}
+			}
+		}
+	}
+	return candidates;
+}
+
 function getSessionMode(mode: unknown): SessionMode | undefined {
 	switch (mode) {
 		case 'interactive':
@@ -191,6 +230,9 @@ export class AgentSideEffects extends Disposable {
 
 	private readonly _subagentChats = new NKeyMap<ISubagentSessionRef, [ProtocolURI, string]>();
 	private readonly _cancelledTurnIds = new Map<ProtocolURI, Set<string>>();
+	/** Serializes refreshes per session so state-based deduplication observes the preceding dispatch. */
+	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
+	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -217,9 +259,9 @@ export class AgentSideEffects extends Disposable {
 	readonly onDidStartTurn: Event<string>;
 	/** Host-owned worktree isolation controller; injected post-construction. */
 	private _worktree: WorktreeIsolation | undefined;
-
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
+		private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
 		private readonly _options: IAgentSideEffectsOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -269,16 +311,42 @@ export class AgentSideEffects extends Disposable {
 
 			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length);
 		}));
+		this._register(this._customizationEnablementService.onDidChange(event => {
+			for (const session of event.sessions) {
+				const agent = this._options.getAgent(session);
+				if (agent === undefined) {
+					this._pendingCustomizationEnablementRefreshes.add(session);
+				} else if (this._stateManager.getSessionState(session)?.customizations !== undefined) {
+					this._publishSessionCustomizationsSoon(agent, session);
+				}
+			}
+		}));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
 			const agents = this._options.agents.read(reader);
 			this._publishAgentInfos(agents, reader);
+			this._publishPendingCustomizationEnablementRefreshes();
 		}));
 
 		// Observe envelopes for side effects that must include server-dispatched
 		// actions, which bypass handleAction.
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			const action = envelope.action;
+			if (action.type === ActionType.SessionCustomizationToggled) {
+				const sessionState = this._stateManager.getSessionState(envelope.channel);
+				const mcpServerOwners = this._options.getAgent(envelope.channel)?.getMcpServerOwners?.(URI.parse(envelope.channel));
+				const customization = getCustomizationEnablementCandidates(sessionState?.customizations, mcpServerOwners)
+					.find(candidate => candidate.customization.id === action.id);
+				if (customization === undefined) {
+					// Toggle actions target entries from the immediately preceding
+					// session snapshot. A removed entry cannot be re-enabled, so
+					// this stale action is harmless but should remain diagnosable.
+					this._logService.warn(`[AgentSideEffects] Ignoring customization toggle for missing ${action.id} in ${envelope.channel}`);
+				} else {
+					this._recordCustomizationEnablement(envelope.channel, customization, action.enablement);
+				}
+			}
 			if (isAhpChatChannel(envelope.channel) && isChatAction(envelope.action)) {
 				const chatState = this._stateManager.getChatState(envelope.channel);
 				const action = envelope.action;
@@ -430,9 +498,10 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
-	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI): Promise<void> {
+	private async _publishSessionCustomizations(agent: IAgent, session: ProtocolURI, supersededRetries: number): Promise<void> {
+		const currentBeforeFetch = this._stateManager.getSessionState(session)?.customizations;
 		const chat = URI.parse(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
-		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), this._hostCustomizations(session));
+		const customizations = await agent.getChatCustomizations(chat, this._chatContext(session, chat.toString()), currentBeforeFetch);
 
 		// Skip the dispatch when the resolved customizations match what the
 		// session state already holds. A single edit under a shared `~/.claude`
@@ -448,6 +517,13 @@ export class AgentSideEffects extends Disposable {
 		// published) never equals a resolved array, so the initial publish
 		// always goes through.
 		const current = this._stateManager.getSessionState(session)?.customizations;
+		// Agent progress received during the fetch is newer than this snapshot.
+		if (current !== currentBeforeFetch) {
+			if (supersededRetries < MAX_SUPERSEDED_CUSTOMIZATION_PUBLISH_RETRIES) {
+				this._publishSessionCustomizationsSoon(agent, session, supersededRetries + 1);
+			}
+			return;
+		}
 		if (current && equals(current, customizations)) {
 			return;
 		}
@@ -458,10 +534,28 @@ export class AgentSideEffects extends Disposable {
 		});
 	}
 
-	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI): void {
-		void this._publishSessionCustomizations(agent, session).catch(err => {
+	private _publishSessionCustomizationsSoon(agent: IAgent, session: ProtocolURI, supersededRetries = 0): void {
+		const previous = this._pendingSessionCustomizationPublishes.get(session) ?? Promise.resolve();
+		const publish = previous.then(() => this._publishSessionCustomizations(agent, session, supersededRetries)).catch(err => {
 			this._logService.error('[AgentSideEffects] getChatCustomizations failed', err);
 		});
+		this._pendingSessionCustomizationPublishes.set(session, publish);
+		void publish.finally(() => {
+			if (this._pendingSessionCustomizationPublishes.get(session) === publish) {
+				this._pendingSessionCustomizationPublishes.delete(session);
+			}
+		});
+	}
+
+	private _publishPendingCustomizationEnablementRefreshes(): void {
+		for (const session of this._pendingCustomizationEnablementRefreshes) {
+			const agent = this._options.getAgent(session);
+			if (agent === undefined) {
+				continue;
+			}
+			this._pendingCustomizationEnablementRefreshes.delete(session);
+			this._publishSessionCustomizationsSoon(agent, session);
+		}
 	}
 
 	private _publishSessionCustomizationsForAgent(agent: IAgent): void {
@@ -1715,6 +1809,13 @@ export class AgentSideEffects extends Disposable {
 	/** Injects the host-owned worktree isolation controller (see {@link AgentService.setWorktreeIsolation}). */
 	setWorktreeIsolation(worktree: WorktreeIsolation): void {
 		this._worktree = worktree;
+	}
+
+	private _recordCustomizationEnablement(session: ProtocolURI, candidate: ICustomizationEnablementCandidate, enablement: readonly CustomizationEnablement[]): void {
+		const target = candidate.customization.type === CustomizationType.Plugin
+			? targetForPlugin(candidate.customization)
+			: targetForMcpServer(candidate.customization, candidate.owningPluginUri, false);
+		this._customizationEnablementService.replaceEnablement(session, target, enablement);
 	}
 
 	cancelSessionTitleGeneration(session: ProtocolURI): void {

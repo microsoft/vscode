@@ -24,6 +24,7 @@ export interface ISinglePaneLayoutContext {
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
+	hasSavedWorkingSet(sessionResource: URI): boolean;
 }
 
 /**

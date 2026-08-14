@@ -1927,7 +1927,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!this.shouldShowPillsSummary(element)) {
 			return undefined;
 		}
-		return { kind: 'turnPills', requestId: element.requestId, sessionResource: element.sessionResource };
+		return {
+			kind: 'turnPills',
+			requestId: element.requestId,
+			sessionResource: element.sessionResource,
+			isLastTurn: element.session.model.lastRequest?.id === element.requestId,
+		};
 	}
 
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {

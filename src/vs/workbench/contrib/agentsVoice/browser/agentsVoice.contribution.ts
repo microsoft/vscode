@@ -8,7 +8,6 @@ import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
 import { IVoiceSessionController, isVoiceEntitled } from '../../chat/browser/voiceClient/voiceSessionController.js';
-import { IChatInputWindowService } from '../../chat/common/chatInputWindow.js';
 import { normalizeAgentsVoiceId, VOICE_AGENT_PROGRESS_SETTING } from '../../chat/common/voiceClient/voiceClientService.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
@@ -258,7 +257,7 @@ registerAction2(class extends Action2 {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
-		const omniHasFocus = accessor.get(IChatInputWindowService).hasFocus;
+		const omniHasFocus = accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.inChatInputWindow.key) === true;
 		const activeWindow = getActiveWindow();
 		voiceController.setActiveWindow(activeWindow);
 
