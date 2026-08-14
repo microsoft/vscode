@@ -76,7 +76,7 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly bypassPermissionsDisabled: boolean;
 	readonly permissionsAllowIntersected?: boolean;
 	readonly managedKeys: readonly string[];
-	readonly settings?: Readonly<Record<string, unknown>>;
+	readonly settings?: unknown;
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
