@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
 import { getErrorCode } from '../../../base/common/errors.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -968,7 +969,20 @@ export class AgentSideEffects extends Disposable {
 		const sessionUri = parseRequiredSessionUriFromChatUri(sessionKey);
 		const owner = this._stateManager.getSessionState(sessionUri)?.activeClients.find(client => client.tools.some(tool => tool.name === signal.toolName));
 		if (!owner) {
-			this._logService.warn(`[AgentSideEffects] No active client provides replayed tool ${signal.toolName}; cannot execute ${signal.toolCallId}`);
+			// The runtime is already parked on this call, so failing it is the
+			// only way to unwind: returning would wedge the turn indefinitely.
+			this._logService.warn(`[AgentSideEffects] No active client provides replayed tool ${signal.toolName}; failing ${signal.toolCallId}`);
+			const error = { message: localize('agentHost.clientTool.noOwner', "No connected client provides the tool \"{0}\".", signal.toolName), code: 'toolUnavailable' };
+			this._stateManager.dispatchServerAction(sessionKey, {
+				type: ActionType.ChatToolCallComplete,
+				turnId,
+				toolCallId: signal.toolCallId,
+				result: { success: false, pastTenseMessage: error.message, error },
+			});
+			this._options.getAgent(sessionUri)?.onClientToolCallComplete(
+				URI.parse(sessionKey), signal.toolCallId, { success: false, pastTenseMessage: error.message, error },
+				this._chatContext(sessionUri, sessionKey),
+			);
 			return;
 		}
 		this._logService.info(`[AgentSideEffects] Requesting client execution for replayed tool call ${signal.toolCallId} (${signal.toolName})`);
