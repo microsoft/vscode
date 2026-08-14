@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
-import { buildSandboxConfigForSdk, type CopilotSandboxConfig, type IAgentSandboxFileSystemSetting } from '../../node/copilot/sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, getServerManagedSandboxEnabled, type CopilotSandboxConfig, type IAgentSandboxFileSystemSetting } from '../../node/copilot/sandboxConfigForSdk.js';
 
 /**
  * Build the host-side `sandbox` root-config bag (the shape the workbench
@@ -154,6 +154,23 @@ suite('buildSandboxConfigForSdk', () => {
 				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 			}), undefined);
 		});
+
+		test('server-managed enablement overrides the local setting', () => {
+			assert.strictEqual(buildSandboxConfigForSdk('linux', undefined, true), undefined);
+			assert.strictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On), false), undefined);
+		});
+
+		test('does not apply local sandbox settings when enablement is server-managed', () => {
+			const localSandbox: ISandboxConfigValue = {
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.AllowNetwork]: true,
+				[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
+				[AgentHostSandboxKey.LinuxFileSystem]: { allowWrite: ['/workspace'] },
+			};
+
+			assert.strictEqual(buildSandboxConfigForSdk('linux', localSandbox, true), undefined);
+			assert.strictEqual(buildSandboxConfigForSdk('linux', localSandbox, false), undefined);
+		});
 	});
 
 	suite('filesystem policy', () => {
@@ -168,6 +185,26 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/linux'] }).userPolicy?.filesystem);
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/mac'] }).userPolicy?.filesystem);
 			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['C:\\windows'] }).userPolicy?.filesystem);
+		});
+
+		suite('getServerManagedSandboxEnabled', () => {
+			ensureNoDisposablesAreLeakedInTestSuite();
+
+			test('returns explicit server-managed sandbox enablement', () => {
+				assert.deepStrictEqual([
+					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: true } } }),
+					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: false } } }),
+				], [true, false]);
+			});
+
+			test('ignores non-server-managed, absent, and malformed sandbox values', () => {
+				assert.deepStrictEqual([
+					getServerManagedSandboxEnabled({ serverManaged: false, settings: { sandbox: { enabled: true } } }),
+					getServerManagedSandboxEnabled({ serverManaged: true, settings: {} }),
+					getServerManagedSandboxEnabled({ serverManaged: true, settings: { sandbox: { enabled: 'true' } } }),
+					getServerManagedSandboxEnabled({ serverManaged: true, settings: undefined }),
+				], [undefined, undefined, undefined, undefined]);
+			});
 		});
 
 		test('maps each setting to the corresponding SDK list', () => {
