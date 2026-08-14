@@ -69,7 +69,7 @@ import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js'
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerCacheState, McpServerInstallState, McpServerTransportType } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -590,11 +590,23 @@ const mcpUserServers = [
 	makeLocalMcpServer('mcp-filesystem', 'Filesystem', LocalMcpServerScope.User, 'Local file operations'),
 	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
+/**
+ * Runtime facts a row draws on: how the server connects, and what tools it last reported. Tools
+ * survive a stopped server, so a fixture that omits them hides the count entirely.
+ */
+function makeRuntimeFacts(toolCount: number, transport: McpServerTransportType, cacheState = McpServerCacheState.Live) {
+	return {
+		cacheState: constObservable(cacheState),
+		tools: constObservable(Array.from({ length: toolCount }, (_, index) => ({ referenceName: `tool_${index}` }))),
+		readDefinitions: () => constObservable({ server: { launch: { type: transport } }, collection: undefined }),
+	};
+}
+
 const mcpRuntimeServers = [
-	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), showOutput() { } },
-	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error }), showOutput() { } },
-	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
-	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { } },
+	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), showOutput() { }, ...makeRuntimeFacts(6, McpServerTransportType.Stdio) },
+	{ definition: { id: 'mcp-postgres', label: 'PostgreSQL' }, collection: { id: 'workspace-mcp', label: 'Workspace MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Error, message: 'spawn postgres ENOENT' }), showOutput() { }, ...makeRuntimeFacts(12, McpServerTransportType.Stdio, McpServerCacheState.Cached) },
+	{ definition: { id: 'mcp-web-search', label: 'Web Search' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.DisabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { }, ...makeRuntimeFacts(3, McpServerTransportType.HTTP, McpServerCacheState.Cached) },
+	{ definition: { id: 'mcp-filesystem', label: 'Filesystem' }, collection: { id: 'user-mcp', label: 'User MCP' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Stopped }), showOutput() { }, ...makeRuntimeFacts(8, McpServerTransportType.Stdio) },
 ];
 
 const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [

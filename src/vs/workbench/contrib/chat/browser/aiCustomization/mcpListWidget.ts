@@ -18,7 +18,7 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platf
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerCacheState, McpServerInstallState, McpServerTransportType, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../mcp/common/discovery/pluginMcpDiscovery.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -53,6 +53,8 @@ import { createAgentHostEnablePluginAction } from '../agentPluginActions.js';
 import { EnablementSwitch } from './enablementSwitch.js';
 
 const $ = DOM.$;
+
+const mcpToolsIcon = Codicon.tools;
 
 const MCP_ITEM_HEIGHT = 36;
 const MCP_ITEM_WITH_DESCRIPTION_HEIGHT = 44;
@@ -154,6 +156,59 @@ class ActiveSessionMcpServerReader {
 	}
 }
 
+/**
+ * Whether a cache state means "we know what tools this server has".
+ *
+ * `RefreshingFromUnknown` is a first refresh in flight: no tools have ever been read, so an empty
+ * list means "not yet", not "none". Treating it as a known result reported a server as offering no
+ * tools while its very first request was still outstanding.
+ */
+export function hasKnownMcpTools(cacheState: McpServerCacheState | undefined): boolean {
+	return cacheState !== undefined
+		&& cacheState !== McpServerCacheState.Unknown
+		&& cacheState !== McpServerCacheState.RefreshingFromUnknown;
+}
+
+/**
+ * Whether the tools currently shown came from the cache rather than a live connection.
+ *
+ * `RefreshingFromCached` is a refresh over cached tools: what is on screen is still the cached set
+ * until the refresh lands, so it keeps the same "from the last time this ran" caveat.
+ */
+export function areMcpToolsFromCache(cacheState: McpServerCacheState | undefined): boolean {
+	return cacheState === McpServerCacheState.Cached
+		|| cacheState === McpServerCacheState.Outdated
+		|| cacheState === McpServerCacheState.RefreshingFromCached;
+}
+
+/**
+ * Reads the facts a row shows about a running server.
+ *
+ * Tools are read even when the server is stopped: a cached result means we know what it offers
+ * from its last run, which is exactly what someone deciding whether to enable it wants to see.
+ */
+function readServerFacts(server: IMcpServer | undefined, reader: IReader | undefined): { toolCount?: number; toolsFromCache?: boolean; transport?: string } {
+	if (!server) {
+		return {};
+	}
+	const cacheState = server.cacheState.read(reader);
+	const launch = server.readDefinitions().read(reader).server?.launch;
+	return {
+		toolCount: hasKnownMcpTools(cacheState) ? server.tools.read(reader).length : undefined,
+		toolsFromCache: areMcpToolsFromCache(cacheState),
+		transport: launch?.type === McpServerTransportType.HTTP
+			? localize('transportHttp', "HTTP")
+			: launch?.type === McpServerTransportType.Stdio
+				? localize('transportLocal', "Local")
+				: undefined,
+	};
+}
+
+/** The failure an agent-host server is reporting, when it is reporting one. */
+function getAgentHostServerError(server: AgentHostMcpServer): string | undefined {
+	return server.state.kind === McpServerStatus.Error ? server.state.error.message : undefined;
+}
+
 /** The parts of a row that come from observables and change while the row is bound to an element. */
 interface IMcpRowState {
 	readonly status: McpStatusKind | undefined;
@@ -161,6 +216,17 @@ interface IMcpRowState {
 	readonly disabledReason?: CustomizationDisabledReason;
 	/** The live agent-host view of this row's server, re-read rather than the stale snapshot. */
 	readonly activeSessionServer?: AgentHostMcpServer;
+	/** Populated for a failing server, so the reason can be read in place. */
+	readonly errorMessage?: string;
+	readonly toolCount?: number;
+	/** Tools are last-known rather than live, so the count carries a caveat. */
+	readonly toolsFromCache?: boolean;
+	readonly transport?: string;
+}
+
+/** The parts of a row that do not change while the row is bound, but that line two draws from. */
+interface IMcpRowContext {
+	readonly description?: string;
 }
 
 /**
@@ -219,6 +285,8 @@ interface IMcpServerItemTemplateData {
 	renderedRowKey?: string;
 	/** What the actions currently show, so an unchanged status does not rebuild them. */
 	renderedStatusSignature?: string;
+	/** Static, per-element facts that the status update needs in order to draw line two. */
+	context: IMcpRowContext;
 }
 
 /**
@@ -268,6 +336,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			enablementSwitch,
 			elementDisposables: new DisposableStore(),
 			actionDisposables: new DisposableStore(),
+			context: {},
 		};
 	}
 
@@ -289,13 +358,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.container.classList.add('builtin');
 			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.label);
-			if (element.description) {
-				templateData.description.textContent = truncateToFirstLine(element.description);
-				templateData.description.style.display = '';
-			} else {
-				templateData.description.textContent = '';
-				templateData.description.style.display = 'none';
-			}
+			templateData.context = { description: element.description ? truncateToFirstLine(element.description) : undefined };
 			this.bindRowState(templateData, element);
 
 			// Add hover with plugin provenance for plugin-sourced builtin items
@@ -319,8 +382,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.server.name);
-			templateData.description.textContent = '';
-			templateData.description.style.display = 'none';
+			templateData.context = {};
 			this.bindRowState(templateData, element);
 			return;
 		}
@@ -334,13 +396,7 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		const isGallery = !element.server.local;
 		const hasDetail = !!description || isGallery;
 		templateData.container.classList.toggle('has-detail', hasDetail);
-		if (description) {
-			templateData.description.textContent = truncateToFirstLine(description);
-			templateData.description.style.display = '';
-		} else {
-			templateData.description.textContent = '';
-			templateData.description.style.display = 'none';
-		}
+		templateData.context = { description: description ? truncateToFirstLine(description) : undefined };
 
 		this.bindRowState(templateData, element);
 	}
@@ -394,6 +450,11 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			localServerId: localServer?.definition.id,
 			activeSessionResource: activeSessionResource.toString(),
 			switchChecked,
+			errorMessage: rowState.errorMessage,
+			toolCount: rowState.toolCount,
+			toolsFromCache: rowState.toolsFromCache,
+			transport: rowState.transport,
+			description: templateData.context.description,
 		});
 		if (templateData.renderedStatusSignature === signature) {
 			return;
@@ -406,6 +467,20 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 		templateData.status.className = 'mcp-server-status';
 
 		this.renderEnablementSwitch(templateData, enablementTarget, switchChecked, label);
+		this.renderMetaLine(templateData, rowState);
+
+		if (rowState.toolCount !== undefined && rowState.toolCount > 0) {
+			const toolsElement = DOM.append(templateData.actions, $('.mcp-server-tools'));
+			toolsElement.classList.toggle('is-cached', !!rowState.toolsFromCache);
+			DOM.append(toolsElement, $('span')).classList.add(...ThemeIcon.asClassNameArray(mcpToolsIcon));
+			DOM.append(toolsElement, $('span')).textContent = String(rowState.toolCount);
+			templateData.actionDisposables.add(this.hoverService.setupManagedHover(
+				getDefaultHoverDelegate('element'),
+				toolsElement,
+				rowState.toolsFromCache
+					? localize('mcpToolsCached', "{0} tools, from the last time this server ran", rowState.toolCount)
+					: localize('mcpTools', "{0} tools", rowState.toolCount)));
+		}
 
 		// Status reads as a word beside the name, including the states that used to resolve to an
 		// icon-less presentation and therefore drew nothing at all -- which was every idle server,
@@ -464,6 +539,55 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpS
 			outputButton.element.classList.add('mcp-server-inline-button');
 			registerMcpInlineButtonAction(templateData.actionDisposables, outputButton, showOutput);
 		}
+
+		if (rowState.errorMessage) {
+			// Anchored to the line the error is printed on, not the row. Built-in rows already
+			// register a provenance hover on the container, and the hover service keys delayed
+			// hovers by target element -- two registrations on one element overwrite each other's
+			// entry, so whichever was torn down last would take the survivor's with it.
+			templateData.actionDisposables.add(this.hoverService.setupDelayedHover(templateData.description, () => ({
+				content: rowState.errorMessage!,
+				appearance: { compact: false, skipFadeInAnimation: true },
+			})));
+		}
+	}
+
+	/**
+	 * Renders line two: how the server connects, and either the failure reason or its description.
+	 *
+	 * A failure replaces the description because when something is broken that is the only thing on
+	 * this line worth the user's attention, and transport drops out with it rather than truncating
+	 * the error to nothing.
+	 */
+	private renderMetaLine(templateData: IMcpServerItemTemplateData, rowState: IMcpRowState): void {
+		DOM.clearNode(templateData.description);
+		templateData.description.classList.toggle('is-error', !!rowState.errorMessage);
+
+		const parts: { text: string; isError?: boolean; isContext?: boolean }[] = [];
+		if (rowState.transport && !rowState.errorMessage) {
+			parts.push({ text: rowState.transport, isContext: true });
+		}
+		if (rowState.errorMessage) {
+			parts.push({ text: truncateToFirstLine(rowState.errorMessage), isError: true });
+		} else if (templateData.context.description) {
+			parts.push({ text: templateData.context.description });
+		}
+
+		if (!parts.length) {
+			templateData.description.style.display = 'none';
+			return;
+		}
+
+		templateData.description.style.display = '';
+		parts.forEach((part, index) => {
+			if (index > 0) {
+				DOM.append(templateData.description, $('span.mcp-server-meta-separator')).textContent = '·';
+			}
+			const span = DOM.append(templateData.description, $('span'));
+			span.textContent = part.text;
+			span.classList.toggle('mcp-server-meta-error', !!part.isError);
+			span.classList.toggle('mcp-server-meta-context', !!part.isContext);
+		});
 	}
 
 	/**
@@ -629,6 +753,17 @@ export interface IMcpStatusRenderInput {
 	readonly activeSessionResource: string | undefined;
 	/** The switch's rendered state: `undefined` when the row has no switch at all. */
 	readonly switchChecked: boolean | undefined;
+	/**
+	 * Line two is drawn from here down. It is built inside the guard because `transport` and
+	 * `errorMessage` are only known once the row's observables have been read, so unlike the name
+	 * it cannot be written in `renderElement`. Leaving one of these out does not throw -- it
+	 * freezes that text on screen until something else happens to move.
+	 */
+	readonly errorMessage: string | undefined;
+	readonly toolCount: number | undefined;
+	readonly toolsFromCache: boolean | undefined;
+	readonly transport: string | undefined;
+	readonly description: string | undefined;
 }
 
 /**
@@ -656,6 +791,11 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 		input.localServerId ?? null,
 		input.activeSessionResource ?? null,
 		input.switchChecked ?? null,
+		input.errorMessage ?? null,
+		input.toolCount ?? null,
+		input.toolsFromCache ?? null,
+		input.transport ?? null,
+		input.description ?? null,
 	]);
 }
 
@@ -833,13 +973,23 @@ function resolveMcpRowState(
 	isSessionsWindow: boolean,
 	reader: IReader | undefined,
 ): IMcpRowState {
+	// Facts about the running server are read for every row: a stopped server still knows what
+	// tools it offered last time it ran, which is exactly what someone deciding whether to turn it
+	// on wants to see.
+	const facts = readServerFacts(entry.type === 'session-server-item' ? undefined : entry.localServer, reader);
+
 	const activeSessionServer = activeSessionReader.read(getActiveSessionServer(entry), reader);
 	if (activeSessionServer !== undefined) {
 		const presentation = getActiveSessionServerPresentation(activeSessionServer);
 		return {
+			...facts,
 			status: presentation.status,
 			disabledReason: presentation.enabled ? undefined : activeSessionServer.disabledReason,
 			activeSessionServer,
+			// Read from whichever source decided the status. Reading the error off the local
+			// runtime regardless would let a row show the session's status beside an unrelated
+			// local failure -- or say "Failed" with nothing to read.
+			errorMessage: presentation.enabled ? getAgentHostServerError(activeSessionServer) : undefined,
 		};
 	}
 
@@ -858,6 +1008,7 @@ function resolveMcpRowState(
 			// Described as a scope reason so the wording comes from the same helper the agent-host
 			// rows use. A workspace choice is worth naming; "off everywhere" is just off.
 			return {
+				...facts,
 				status: 'disabled',
 				disabledReason: {
 					source: 'scope',
@@ -870,9 +1021,14 @@ function resolveMcpRowState(
 	// Only a plain local row reports its connection state. A built-in row has never shown it, and
 	// in the Agents window the local runtime is not what governs whether a server is working.
 	if (entry.type === 'server-item' && !isSessionsWindow) {
-		return { status: entry.localServer?.connectionState.read(reader).state };
+		const connectionState = entry.localServer?.connectionState.read(reader);
+		return {
+			...facts,
+			status: connectionState?.state,
+			errorMessage: connectionState?.state === McpConnectionState.Kind.Error ? connectionState.message : undefined,
+		};
 	}
-	return { status: undefined };
+	return { ...facts, status: undefined };
 }
 
 /**

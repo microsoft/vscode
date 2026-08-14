@@ -1760,6 +1760,41 @@ for its own name and badge, is not dragged into this sizing. */
 	line-height: 14px;
 }
 
+/* Line two is a sequence of spans rather than one string, so a failure can be coloured and the
+context around it can drop out when the line runs short. */
+.mcp-server-item .mcp-server-description > span {
+	min-width: 0;
+}
+
+.mcp-server-item .mcp-server-meta-separator {
+	margin: 0 var(--vscode-spacing-size40);
+	opacity: 0.6;
+}
+
+.mcp-server-item .mcp-server-meta-error {
+	color: var(--vscode-testing-iconFailed, var(--vscode-errorForeground));
+}
+
+/* Tool counts stay legible while the server is off -- what a server offers is exactly what someone
+deciding whether to turn it back on is looking for. */
+.mcp-server-item .mcp-server-tools {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	font-size: var(--vscode-agents-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.mcp-server-item .mcp-server-tools .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+/* Cached counts are last-known rather than live, and read a shade quieter to say so. */
+.mcp-server-item .mcp-server-tools.is-cached {
+	opacity: 0.7;
+}
+
 .mcp-server-item .mcp-server-actions {
 	flex-shrink: 0;
 	display: flex;

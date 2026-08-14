@@ -699,6 +699,11 @@ suite('mcpListWidget', () => {
 			localServerId: 'mcp.config.workspace/notion',
 			activeSessionResource: 'vscode-agent-session:///session-1',
 			switchChecked: true,
+			errorMessage: 'spawn ENOENT',
+			toolCount: 4,
+			toolsFromCache: true,
+			transport: 'Local',
+			description: 'Issue tracking',
 		};
 
 		// A different, and differently-typed-where-possible, value for every field. The mapped type
@@ -715,6 +720,11 @@ suite('mcpListWidget', () => {
 			localServerId: 'mcp.config.user/notion',
 			activeSessionResource: 'vscode-agent-session:///session-2',
 			switchChecked: false,
+			errorMessage: 'connection refused',
+			toolCount: 5,
+			toolsFromCache: false,
+			transport: 'HTTP',
+			description: 'Issue tracking and boards',
 		};
 
 		const fields = Object.keys(base) as (keyof IMcpStatusRenderInput)[];
