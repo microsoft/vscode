@@ -323,7 +323,7 @@ export class AgentSideEffects extends Disposable {
 					return; // Not a chat channel; ignore (already logged elsewhere).
 				}
 				const sessionChannel = parseRequiredSessionUriFromChatUri(envelope.channel);
-				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
+				this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.turnId, action.toolCallId, action.result, 'server-envelope');
 			}
 			if (envelope.action.type === ActionType.ChatDraftChanged) {
 				this._persistChatDraft(envelope.channel, envelope.action.draft);
@@ -1340,7 +1340,15 @@ export class AgentSideEffects extends Disposable {
 	 * via `resolveSubagentChatParent(context)` instead of walking host state.
 	 * The two differ only when the addressed chat is a subagent.
 	 */
-	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
+	private _notifyClientToolCallComplete(sessionChannel: ProtocolURI, chatChannel: ProtocolURI, turnId: string, toolCallId: string, result: ToolCallResult, source: 'client-dispatch' | 'server-envelope'): void {
+		// Only a client-contributed call has a parked handler awaiting it, and
+		// SDK-owned calls carry no contributor at all. Forwarding one leaves its
+		// result buffered in the provider for the life of the session. An
+		// unknown call is still forwarded, since it cannot be ruled out.
+		const toolCall = this._findToolCall(chatChannel, turnId, toolCallId);
+		if (toolCall && toolCall.contributor?.kind !== ToolCallContributorKind.Client) {
+			return;
+		}
 		const completionChat = this._toolCallCompletionChat(chatChannel);
 		const agent = this._options.getAgent(sessionChannel);
 		if (!agent) {
@@ -1700,7 +1708,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					break; // Not a chat channel; ignore.
 				}
-				this._notifyClientToolCallComplete(sessionChannel, chatChannel, action.toolCallId, action.result, 'client-dispatch');
+				this._notifyClientToolCallComplete(sessionChannel, chatChannel, action.turnId, action.toolCallId, action.result, 'client-dispatch');
 				break;
 			}
 		}

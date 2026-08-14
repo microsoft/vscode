@@ -1153,21 +1153,12 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Resolve a parked client-tool MCP handler with the workbench-supplied
-	 * result. Returns `true` if a matching deferred was found and settled.
-	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
-	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
-	 * here too and must NOT throw. Buffers when nothing is parked, since the
-	 * workbench can finish the tool before the SDK registers the handler that
-	 * awaits the result.
+	 * Resolves a parked client-tool MCP handler with the workbench result, or
+	 * buffers it when the workbench finished before the SDK registered the
+	 * handler. Returns whether a parked deferred was settled.
 	 */
 	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
-		const converted = convertToolCallResult(result, toolCallId);
-		const settled = this._pendingClientToolCalls.respond(toolCallId, converted);
-		if (!settled) {
-			this._pendingClientToolCalls.respondOrBuffer(toolCallId, converted);
-		}
-		return settled;
+		return this._pendingClientToolCalls.respondOrBuffer(toolCallId, convertToolCallResult(result, toolCallId));
 	}
 
 	/**
