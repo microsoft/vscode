@@ -411,6 +411,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = this._onDidSpawnChat.event;
 
 	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
+		// Discovery is provider-owned and only has observable value once the host
+		// subscribes. Registered chats remain independently available through
+		// listChatsToMigrate().
 		onDidAddFirstListener: () => { void this._startClaudeCodeChatDiscovery(); },
 	}));
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
@@ -2038,7 +2041,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		if (!(await this._sdkService.canLoadWithoutDownload())) {
+		try {
+			await this._sdkService.ensureAvailableForDiscovery();
+		} catch (err) {
+			this._logService.warn('[Claude] SDK unavailable while listing chats to migrate', err);
 			return undefined;
 		}
 		const chats = await this._listClaudeCodeChats();

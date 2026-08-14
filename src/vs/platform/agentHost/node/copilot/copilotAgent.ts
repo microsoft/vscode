@@ -39,7 +39,7 @@ import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBil
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostMcpServersConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostPreferLongContextEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { prepareSideChatPrompt, stripSideChatContext } from '../agentPeerChats.js';
@@ -577,7 +577,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * responds with an additive discovery pass.
 	 */
 	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
-		onDidAddFirstListener: () => { void this._emitExtHostChats(); },
+		onDidAddFirstListener: () => {
+			if (this._isMigrateLegacyCopilotCliEnabled()) {
+				void this._emitExtHostChats();
+			}
+		},
 	}));
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 	/**
@@ -810,6 +814,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.error('[Copilot] Failed to apply managed settings change', err)
 			);
 		}));
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			const enabled = this._isMigrateLegacyCopilotCliEnabled();
+			if (enabled !== this._lastMigrateLegacyEnabled) {
+				this._lastMigrateLegacyEnabled = enabled;
+				if (enabled) {
+					void this._emitExtHostChats();
+				}
+			}
+		}));
 
 		// Surface renderer BYOK models in the picker: republish them whenever the
 		// set of connected renderer bridges, or any renderer's models, change.
@@ -855,6 +868,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastEnterpriseHost: string | undefined = this._getEnterpriseHost();
 	private _lastSystemProxyEnabled: boolean = this._isSystemProxyEnabled();
 	private _lastManagedSettingsPermissions: IAgentHostManagedSettingsPermissions;
+	private _lastMigrateLegacyEnabled: boolean = this._isMigrateLegacyCopilotCliEnabled();
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -882,6 +896,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isSystemProxyEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSystemProxyEnabledConfigKey) !== false;
+	}
+
+	private _isMigrateLegacyCopilotCliEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
 	}
 
 	/**
@@ -2038,7 +2056,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const session = AgentSession.uri(this.id, s.sessionId);
 			const chat = URI.parse(buildDefaultChatUri(session));
 			const metadata = await this._readStoredSessionMetadata(session);
-			if (!metadata) {
+			if (!metadata || !(
+				metadata.model !== undefined
+				|| metadata.agent !== undefined
+				|| metadata.workingDirectory !== undefined
+				|| metadata.workingDirectories !== undefined
+				|| metadata.customizationDirectory !== undefined
+				|| metadata.project !== undefined
+				|| metadata.resolved
+				|| metadata.workspaceless !== undefined
+			)) {
 				return undefined;
 			}
 			let { project, resolved } = metadata;
@@ -2065,7 +2092,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _emitExtHostChats(): Promise<void> {
 		try {
 			const chats = await this._discoverExtHostChats();
-			if (chats) {
+			if (chats && this._isMigrateLegacyCopilotCliEnabled()) {
 				this._onDidDiscoverChats.fire(chats);
 			}
 		} catch (err) {
@@ -4329,7 +4356,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				ref.object.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
 			]);
 			if ([model, agent, cwd, cwds, customizationDirectory, resolved, uri, displayName, workspaceless].every(value => value === undefined)) {
-				return undefined;
+				return { resolved: false };
 			}
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			const project = uri && displayName ? { uri: URI.parse(uri), displayName } : undefined;
@@ -4341,7 +4368,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
 				project,
 				resolved: resolved === 'true' || project !== undefined,
-				workspaceless: workspaceless === 'true',
+				workspaceless: workspaceless === undefined ? undefined : workspaceless === 'true',
 			};
 		} finally {
 			ref.dispose();

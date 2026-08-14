@@ -4828,6 +4828,7 @@ suite('ClaudeAgent', () => {
 			},
 		};
 		const sdk = new FakeClaudeAgentSdkService();
+		sdk.canLoadWithoutDownloadResult = false;
 		sdk.sessionList = [
 			{ sessionId: 'a', summary: 'Session A', lastModified: 1000, createdAt: 900 },
 			{ sessionId: 'b', summary: 'Session B', lastModified: 2000, createdAt: 1900 },
@@ -4863,6 +4864,7 @@ suite('ClaudeAgent', () => {
 			modifiedA: a?.modifiedTime,
 			modifiedB: b?.modifiedTime,
 			sdkCalls: sdk.listSessionsCallCount,
+			availabilityRequests: sdk.ensureAvailableForDiscoveryCalls,
 			migrationChats: chatsToMigrate.map(r => sessionIdOfChat(r.chat)),
 		}, {
 			count: 3,
@@ -4872,6 +4874,7 @@ suite('ClaudeAgent', () => {
 			modifiedA: 1000,
 			modifiedB: 2000,
 			sdkCalls: 2,
+			availabilityRequests: 1,
 			migrationChats: ['a'],
 		});
 	});
