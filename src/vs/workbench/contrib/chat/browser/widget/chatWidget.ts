@@ -83,6 +83,7 @@ import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
+import { setChatInputStackInputWorking } from './input/chatInputStack.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
@@ -166,6 +167,10 @@ export function shouldShowChatWelcome(itemCount: number | undefined, hasTranscri
 		return undefined;
 	}
 	return itemCount === 0 && !hasTranscriptOverlay;
+}
+
+export function shouldShowChatTip(itemCount: number | undefined, hasTranscriptOverlay: boolean, isLoading: boolean): boolean {
+	return !isLoading && shouldShowChatWelcome(itemCount, hasTranscriptOverlay) === true;
 }
 
 export async function saveAllBeforeChatSend(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
@@ -388,6 +393,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
+	private _isLoading = false;
 
 	// Coding agent locking state
 	private _lockedAgent?: {
@@ -819,6 +825,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input' ? this.inlineInputPart : this.inputPart;
 	}
 
+	get contextPicker() {
+		return this.viewOptions.contextPicker;
+	}
+
 	/**
 	 * The main input part at the buttom of the chat widget. Use `input` to get the active input (main or inline editing part).
 	 */
@@ -843,7 +853,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			&& !this.accessibilityService.isMotionReduced()
 			&& !isInlineChat(this);
 		const inProgress = !!this.viewModel?.model.requestInProgress.get();
-		inputContainer.classList.toggle('working', enabled && inProgress);
+		const working = enabled && inProgress;
+		inputContainer.classList.toggle('working', working);
+		setChatInputStackInputWorking(inputContainer, working);
 	}
 
 	get inputEditor(): ICodeEditor {
@@ -1389,13 +1401,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._gettingStartedTip.value?.update();
 	}
 
+	updateGettingStartedTip(): void {
+		this.renderGettingStartedTipIfNeeded();
+	}
+
 	/**
 	 * Whether this surface currently wants to show a getting-started tip. Mirrors
 	 * the conditions under which the welcome view is shown, since the tip only
 	 * belongs to the empty state of the standard chat layout.
 	 */
 	private isGettingStartedTipEligible(): boolean {
-		if (this.viewOptions.renderGettingStartedTip === false) {
+		if (typeof this.viewOptions.renderGettingStartedTip === 'function'
+			? !this.viewOptions.renderGettingStartedTip()
+			: this.viewOptions.renderGettingStartedTip === false) {
 			return false;
 		}
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -1404,7 +1422,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return false;
 		}
-		return shouldShowChatWelcome(this.viewModel.getItems().length, this.transcriptProgressActive || this.transcriptContextValue !== undefined) === true;
+		if (this._isLoading) {
+			return false;
+		}
+		return shouldShowChatTip(this.viewModel.getItems().length, this.transcriptProgressActive || this.transcriptContextValue !== undefined, this._isLoading);
 	}
 
 	private clearGettingStartedTip(): void {
@@ -2201,6 +2222,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dndContainer: this.viewOptions.dndContainer,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
 			inputEditorMaxHeight: this.viewOptions.inputEditorMaxHeight,
+			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
@@ -2212,6 +2234,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inputPickerContainer: this.viewOptions.inputPickerContainer,
 			inputPickerAnchor: this.viewOptions.inputPickerAnchor,
 			inputPickerOpenOnMouseUp: this.viewOptions.inputPickerOpenOnMouseUp,
+			contextPicker: this.viewOptions.contextPicker,
 		};
 
 		if (this.viewModel?.editing) {
@@ -2592,6 +2615,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
 		this.input.renderArtifactsWidget(this.viewModel.sessionResource);
+	}
+
+	setLoading(isLoading: boolean): void {
+		this._isLoading = isLoading;
+		this.renderGettingStartedTipIfNeeded();
 	}
 
 	getFocus(): ChatTreeItem | undefined {

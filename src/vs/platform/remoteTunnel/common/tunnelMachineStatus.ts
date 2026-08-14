@@ -10,6 +10,7 @@ export const TUNNEL_MACHINE_STATUS_PREFIX = '__VSCODE_CLI_STATUS__';
 export interface IConnectedTunnelMachineStatus {
 	readonly type: 'connected';
 	readonly tunnelName: string;
+	readonly tunnelId?: string;
 	readonly isAttached: boolean;
 	readonly link?: string;
 	readonly domain?: string;
@@ -42,6 +43,7 @@ export function parseTunnelMachineStatus(message: string): TunnelMachineStatus |
 
 	if (value.type === 'connected') {
 		if (!isString(value.tunnelName) || typeof value.isAttached !== 'boolean'
+			|| (value.tunnelId !== undefined && !isString(value.tunnelId))
 			|| (value.link !== undefined && !isString(value.link))
 			|| (value.domain !== undefined && !isString(value.domain))
 			|| (value.link === undefined) !== (value.domain === undefined)) {
@@ -50,6 +52,7 @@ export function parseTunnelMachineStatus(message: string): TunnelMachineStatus |
 		return {
 			type: 'connected',
 			tunnelName: value.tunnelName,
+			...(value.tunnelId === undefined ? {} : { tunnelId: value.tunnelId }),
 			isAttached: value.isAttached,
 			...(value.link === undefined ? {} : { link: value.link, domain: value.domain }),
 		};

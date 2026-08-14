@@ -53,6 +53,11 @@ pub struct SingletonServerArgs<'a> {
 
 struct StatusInfo {
 	name: String,
+	tunnel_id: String,
+	/// Whether this singleton serves the editor as well as the agent host, so
+	/// attaching clients can describe what is actually running rather than
+	/// what their own invocation asked for.
+	has_editor_link: bool,
 	lock: StatusLock,
 }
 
@@ -110,6 +115,8 @@ pub fn make_singleton_server(
 				.as_ref()
 				.map(|s| protocol::singleton::StatusWithTunnelName {
 					name: Some(s.name.clone()),
+					tunnel_id: Some(s.tunnel_id.clone()),
+					has_editor_link: Some(s.has_editor_link),
 					status: s.lock.read(),
 				})
 				.unwrap_or_default())
@@ -167,6 +174,8 @@ pub async fn start_singleton_server(
 		let mut status = args.server.current_status.lock().unwrap();
 		*status = Some(StatusInfo {
 			name: args.tunnel.name.clone(),
+			tunnel_id: args.tunnel.id.clone(),
+			has_editor_link: !args.agent_host_only,
 			lock: args.tunnel.status(),
 		})
 	}

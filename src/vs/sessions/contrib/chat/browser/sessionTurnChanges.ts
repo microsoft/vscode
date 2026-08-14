@@ -42,21 +42,22 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			return;
 		}
 		if (context.isLastTurn) {
+			if (requestId === undefined) {
+				const changes = owner.chat.lastTurnChanges;
+				if (changes) {
+					this._openTransientLastTurnChanges(owner.session, owner.chat.resource.toString(), changes);
+				}
+				return;
+			}
+
 			if (this._isMostRecentChat(owner.session, owner.chat)) {
 				void this._openSessionTurnChanges(owner.session);
 				return;
 			}
 
-			const changes = requestId === undefined
-				? owner.chat.lastTurnChanges
-				: this._getSessionFileChanges(chatResource, requestId);
+			const changes = this._getSessionFileChanges(chatResource, requestId);
 			if (changes) {
-				void this._openSessionTurnChanges(owner.session, {
-					id: `${TURN_CHANGES_CHANGESET_ID}:${requestId ?? owner.chat.resource.toString()}`,
-					label: localize('lastTurnChanges.label', "Last Turn Changes"),
-					description: localize('lastTurnChanges.description', "Changes from the viewed chat's last turn."),
-					changes,
-				});
+				this._openTransientLastTurnChanges(owner.session, requestId, changes);
 			}
 			return;
 		}
@@ -117,6 +118,15 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 			insertions: diff.added,
 			deletions: diff.removed,
 		})));
+	}
+
+	private _openTransientLastTurnChanges(session: ISession, id: string, changes: IObservable<readonly ISessionFileChange[]>): void {
+		void this._openSessionTurnChanges(session, {
+			id: `${TURN_CHANGES_CHANGESET_ID}:${id}`,
+			label: localize('lastTurnChanges.label', "Last Turn Changes"),
+			description: localize('lastTurnChanges.description', "Changes from the viewed chat's last turn."),
+			changes,
+		});
 	}
 
 	private async _openSessionTurnChanges(session: ISession, transientTurn?: ISessionTransientTurnChanges): Promise<void> {

@@ -52,14 +52,14 @@ suite('DefaultAccountProvider managed settings', () => {
 
 		assert.deepStrictEqual({
 			requestCount: requestService.requestCount,
-			editorVersion: requestService.requests[0].headers?.['Editor-Version'],
-			runtimeVersion: requestService.requests[0].headers?.['Copilot-Runtime-Version'],
+			headers: requestService.requests[0].headers,
 			first: first.data,
 			second: second.data,
 		}, {
 			requestCount: 1,
-			editorVersion: 'vscode/1.132.0',
-			runtimeVersion: 'copilot-runtime/0.0.344',
+			// The request carries authorization only: client-identity headers are dropped by
+			// GitHub's edge, so we do not send any.
+			headers: { 'Authorization': 'Bearer token' },
 			first: cachedPolicy.policyData,
 			second: cachedPolicy.policyData,
 		});

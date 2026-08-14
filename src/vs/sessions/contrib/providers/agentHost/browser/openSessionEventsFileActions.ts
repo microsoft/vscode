@@ -14,9 +14,9 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IsAgentHostSession } from './agentHostSkillButtons.js';
 
 /**
- * Sessions-app variant of "Open Copilot CLI State File". Uses the Agents
+ * Sessions-app variant of "Open Copilot State File". Uses the Agents
  * window's `ISessionsService.activeSession` to find the active
- * Copilot CLI session, then defers to the shared workbench helper for
+ * Copilot session, then defers to the shared workbench helper for
  * the actual resolution and editor opening.
  *
  * The vscode workbench registers a separate action class
@@ -31,7 +31,7 @@ export class OpenSessionEventsFileAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenSessionEventsFileAction.ID,
-			title: localize2('openSessionEventsFile', "Open Copilot CLI State File"),
+			title: localize2('openSessionEventsFile', "Open Copilot State File"),
 			f1: true,
 			category: Categories.Developer,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsAgentHostSession),
