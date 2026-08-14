@@ -925,7 +925,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const currentCustomGlyphs = this._getWebglCustomGlyphs();
 		if (customGlyphs !== currentCustomGlyphs) {
 			this._webglAddonCustomGlyphs = undefined;
-			this._enableWebglRenderer();
+			await this._enableWebglRenderer();
 			return;
 		}
 
