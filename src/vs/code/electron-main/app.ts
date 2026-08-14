@@ -126,7 +126,7 @@ import { ILoggerMainService } from '../../platform/log/electron-main/loggerServi
 import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
 import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
-import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
+import { ILocalPtyService, IPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
@@ -1444,7 +1444,17 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
-		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables);
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService), disposables, {
+			// The window consumes every `IPtyService` event over a direct message port to the pty host
+			// (TerminalIpcChannels.PtyHostWindow), never over this channel, so buffering them here only
+			// retains: `onProcessData` carries raw terminal output and grows by hundreds of MBs an hour.
+			// The `IPtyHostController` events are left buffered, those do have a client on this channel.
+			// See https://github.com/microsoft/vscode/issues/328885
+			unbufferedEvents: [
+				'onProcessData', 'onProcessReady', 'onProcessReplay', 'onProcessOrphanQuestion',
+				'onDidRequestDetach', 'onDidChangeProperty', 'onProcessExit'
+			] satisfies readonly (keyof IPtyService)[]
+		});
 		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
