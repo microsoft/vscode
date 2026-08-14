@@ -644,6 +644,34 @@ describe('AutomodeService', () => {
 			expect(secondResult.model).toBe('gpt-4o');
 		});
 
+		it('should serve every lookup of a request with the endpoint it routed to', async () => {
+			enableRouter();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const gpt4oMiniEndpoint = createEndpoint('gpt-4o-mini', 'OpenAI');
+
+			// `available_models` lists mini first, so a second lookup that skipped the
+			// router would pick it over the routed model of the same provider.
+			mockRouterResponse(
+				['gpt-4o-mini', 'gpt-4o'],
+				{ chosen_model: 'gpt-4o', candidate_models: ['gpt-4o', 'gpt-4o-mini'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				id: 'request-per-turn',
+				location: ChatLocation.Panel,
+				prompt: 'first question',
+				sessionId: 'session-per-request'
+			};
+
+			// A turn resolves its endpoint several times: what is reported to the
+			// user and what the request actually runs against must not differ.
+			const reported = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, gpt4oMiniEndpoint]);
+			const used = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, gpt4oMiniEndpoint]);
+
+			expect([reported.model, used.model]).toEqual(['gpt-4o', 'gpt-4o']);
+		});
+
 		it('should re-route on subsequent turns after invalidateRouterCache', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
@@ -1558,6 +1586,33 @@ describe('AutomodeService', () => {
 			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
 			automodeService.invalidateRouterCache(chatRequest as ChatRequest);
 			await automodeService.resolveAutoModeEndpoint({ ...chatRequest, prompt: 'after compaction' } as ChatRequest, [gpt4oEndpoint]);
+
+			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
+			expect(autoCalls).toHaveLength(2);
+		});
+
+		it('re-runs /auto when the cache is invalidated mid-turn', async () => {
+			enableAutoV2();
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto({
+				session_token: 'auto-v2-token',
+				expires_at: Math.floor(Date.now() / 1000) + 86400,
+				selected_model: { id: 'gpt-4o' },
+			});
+
+			automodeService = createService();
+			// Background compaction invalidates within the turn, so the endpoint
+			// memoized for this request has to go with the rest of the cache.
+			const chatRequest: Partial<ChatRequest> = {
+				id: 'request-compacted-mid-turn',
+				location: ChatLocation.Panel,
+				prompt: 'first prompt',
+				sessionId: 'session-auto-v2-invalidate-mid-turn'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
+			automodeService.invalidateRouterCache(chatRequest as ChatRequest);
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
 
 			const autoCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls.filter(c => c[1]?.type === RequestType.Auto);
 			expect(autoCalls).toHaveLength(2);

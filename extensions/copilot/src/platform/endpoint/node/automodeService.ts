@@ -162,6 +162,12 @@ export interface AutoModePickerMetadata {
 export interface IAutomodeService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Resolves the endpoint Auto serves a request with. Repeated calls for the
+	 * same {@link IAutoModeRoutingRequest.id} return the endpoint the request was
+	 * first resolved with, so what the UI reports and what the request runs
+	 * against cannot drift apart.
+	 */
 	resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
 
 	/**
@@ -199,7 +205,8 @@ export interface IAutomodeService {
 	/**
 	 * Marks the router cache for this conversation as needing re-evaluation.
 	 * The next call to {@link resolveAutoModeEndpoint} will re-run the router
-	 * instead of returning the cached endpoint.
+	 * instead of returning the cached endpoint, including for a request whose
+	 * endpoint was already resolved.
 	 */
 	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest): void;
 }
@@ -212,6 +219,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private readonly _routerDecisionFetcher: RouterDecisionFetcher;
 	private readonly _autoV2Fetcher: AutoV2Fetcher;
 	private _lastRoutingDecision: AutoModeRoutingDecision | undefined;
+	/**
+	 * Endpoint each in-flight chat request resolved to, keyed by request id.
+	 * See {@link resolveAutoModeEndpoint}.
+	 */
+	private readonly _requestResolutions = new Map<string, { conversationId: string; endpoint: Promise<IChatEndpoint> }>();
+	/** Upper bound on memoized per-request resolutions. */
+	private static readonly REQUEST_RESOLUTION_MAX_ENTRIES = 8;
 	/** Set on a 404 (API-version or feature-flag gate); pins us to V1. */
 	private _autoV2Unavailable = false;
 	/** Upper bound on live V2 sessions. See {@link _pruneAutoV2Cache}. */
@@ -243,6 +257,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 			this._autoModelCache.clear();
 			this._autoV2Cache.clear();
+			this._requestResolutions.clear();
 			// All of this is scoped to the signed-in account. Tier support can come
 			// back with the latch, but LanguageModelAccess already republishes
 			// models on this same event, so there is nothing to announce here.
@@ -265,6 +280,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		}
 		this._autoModelCache.clear();
 		this._autoV2Cache.clear();
+		this._requestResolutions.clear();
 		this._reserveTokens.dispose();
 		super.dispose();
 	}
@@ -293,12 +309,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		return { discountRange: this._calculateDiscountRange(knownEndpoints) };
 	}
 
-	/**
-	 * Resolve an auto mode endpoint
-	 * Optionally uses a router model to select the best endpoint based on the prompt.
-	 */
 	invalidateRouterCache(chatRequest: IAutoModeRoutingRequest): void {
-		const conversationId = chatRequest.sessionResource?.toString() ?? chatRequest.sessionId ?? 'unknown';
+		const conversationId = this._getConversationId(chatRequest);
+		// Invalidation can land mid-turn (background compaction), and the point of
+		// it is that the next lookup re-routes — so the per-request endpoints
+		// memoized for this conversation have to go with it.
+		this._forgetRequestResolutions(conversationId);
 		const entry = this._autoModelCache.get(conversationId);
 		if (entry) {
 			entry.needsReEval = true;
@@ -311,11 +327,72 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		}
 	}
 
+	/**
+	 * Resolve an auto mode endpoint. Optionally uses a router model to select the
+	 * best endpoint based on the prompt. Resolutions are memoized per chat
+	 * request, so a turn is served by exactly one endpoint no matter how many
+	 * times it is looked up.
+	 */
 	async resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
 		if (!knownEndpoints.length) {
 			throw new Error('No auto mode endpoints provided.');
 		}
 
+		// A single turn resolves the endpoint several times (the routing report,
+		// the intent invocation, the response footer), but only the first of those
+		// routes: the legacy flow skips the router from then on and re-picks a
+		// default model, which can land on a model other than the one already
+		// reported to the user and used to build the prompt. Hand every later
+		// lookup the exact endpoint this request was resolved with.
+		const requestId = chatRequest?.id;
+		const memoized = requestId !== undefined ? this._requestResolutions.get(requestId) : undefined;
+		if (memoized) {
+			return memoized.endpoint;
+		}
+
+		const resolution = this._resolveAutoModeEndpoint(chatRequest, knownEndpoints);
+		if (requestId !== undefined) {
+			this._rememberRequestResolution(requestId, this._getConversationId(chatRequest), resolution);
+		}
+		return resolution;
+	}
+
+	/**
+	 * Memoizes the endpoint a request resolved to. Entries are only retired
+	 * implicitly — nothing tells us a request is done with — so the map is
+	 * bounded and evicts in insertion order.
+	 */
+	private _rememberRequestResolution(requestId: string, conversationId: string, endpoint: Promise<IChatEndpoint>): void {
+		this._requestResolutions.set(requestId, { conversationId, endpoint });
+		endpoint.catch(() => {
+			// A failed resolution must not be pinned; let the next lookup retry.
+			if (this._requestResolutions.get(requestId)?.endpoint === endpoint) {
+				this._requestResolutions.delete(requestId);
+			}
+		});
+		while (this._requestResolutions.size > AutomodeService.REQUEST_RESOLUTION_MAX_ENTRIES) {
+			const oldest = this._requestResolutions.keys().next();
+			if (oldest.done) {
+				break;
+			}
+			this._requestResolutions.delete(oldest.value);
+		}
+	}
+
+	private _forgetRequestResolutions(conversationId: string): void {
+		for (const [requestId, resolution] of this._requestResolutions) {
+			if (resolution.conversationId === conversationId) {
+				this._requestResolutions.delete(requestId);
+			}
+		}
+	}
+
+	/** The key auto mode scopes a conversation's routing state to. */
+	private _getConversationId(chatRequest: IAutoModeRoutingRequest | undefined): string {
+		return chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
+	}
+
+	private async _resolveAutoModeEndpoint(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
 		// Clear any previous routing decision upfront so stale data cannot
 		// leak to a consumer if this call takes a non-router path.
 		this._lastRoutingDecision = undefined;
@@ -327,7 +404,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 		}
 
-		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
+		const conversationId = this._getConversationId(chatRequest);
 		const entry = this._autoModelCache.get(conversationId);
 		const tokenBank = this._acquireTokenBank(entry, chatRequest?.location, conversationId);
 		const token = await tokenBank.getToken();
@@ -536,7 +613,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	 * request, so the caller falls back to the legacy flow.
 	 */
 	private async _tryResolveWithAutoV2(chatRequest: IAutoModeRoutingRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint | undefined> {
-		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
+		const conversationId = this._getConversationId(chatRequest);
 		const prompt = chatRequest?.prompt?.trim();
 		// `/auto` only needs a prompt and a conversation to key the session on;
 		// every surface routes, and the tier carries the surface's intent.

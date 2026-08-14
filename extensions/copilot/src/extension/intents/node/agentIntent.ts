@@ -454,7 +454,8 @@ export class AgentIntent extends EditCodeIntent {
 		// Resolve the endpoint first so the routing decision belongs to this turn:
 		// `invoke()` otherwise resolves it only after this point, leaving the
 		// previous turn's decision (or none, on the first turn) to be reported.
-		// Resolution is cached per conversation, so `invoke()` reuses this result.
+		// Auto memoizes the resolution per request, so `invoke()` runs against
+		// exactly the endpoint reported here.
 		try {
 			await this.endpointProvider.getChatEndpoint(request);
 		} catch {
