@@ -12,11 +12,11 @@ import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEd
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IConfirmationResult } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { StartOverActionId } from '../../../browser/chatEditing/chatEditingActions.js';
+import { RestoreCheckpointActionId, StartOverActionId } from '../../../browser/chatEditing/chatEditingActions.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -30,7 +30,7 @@ import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 suite('Chat editing actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function runStartOver(initialInput: string) {
+	async function runCheckpointAction(actionId: string, initialInput: string, confirmRestore?: boolean) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const sessionResource = URI.parse('test://session');
 		const requestId = 'request-1';
@@ -58,8 +58,12 @@ suite('Chat editing actions', () => {
 		let activeInputSetCount = 0;
 		let restoredAttachmentIds: string[] = [];
 
+		const modifiedEntry = new class extends mock<IModifiedFileEntry>() {
+			override readonly modifiedURI = URI.parse('test://file.ts');
+			override readonly lastModifyingRequestId = requestId;
+		};
 		const editingSession = new class extends mock<IChatEditingSession>() {
-			override readonly entries = observableValue<readonly IModifiedFileEntry[]>('entries', []);
+			override readonly entries = observableValue<readonly IModifiedFileEntry[]>('entries', confirmRestore === undefined ? [] : [modifiedEntry]);
 			override async restoreSnapshot(snapshotRequestId: string, _stopId: string | undefined): Promise<void> {
 				restoredSnapshot = snapshotRequestId;
 			}
@@ -124,10 +128,18 @@ suite('Chat editing actions', () => {
 				return chatModel;
 			}
 		});
-		instantiationService.set(IConfigurationService, new TestConfigurationService());
-		instantiationService.set(IDialogService, new class extends mock<IDialogService>() { });
+		const configurationService = new TestConfigurationService();
+		if (confirmRestore !== undefined) {
+			await configurationService.setUserConfiguration('chat.editing.confirmEditRequestRemoval', true);
+		}
+		instantiationService.set(IConfigurationService, configurationService);
+		instantiationService.set(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm(): Promise<IConfirmationResult> {
+				return { confirmed: confirmRestore ?? true };
+			}
+		});
 
-		const commandHandler = CommandsRegistry.getCommand(StartOverActionId)?.handler;
+		const commandHandler = CommandsRegistry.getCommand(actionId)?.handler;
 		assert.ok(commandHandler);
 		await commandHandler(instantiationService, requestItem);
 
@@ -142,7 +154,7 @@ suite('Chat editing actions', () => {
 	}
 
 	test('Start Over restores the first request to an empty main input', async () => {
-		assert.deepStrictEqual(await runStartOver(''), {
+		assert.deepStrictEqual(await runCheckpointAction(StartOverActionId, ''), {
 			inputValue: 'original request',
 			mainInputFocusCount: 1,
 			activeInputSetCount: 0,
@@ -153,13 +165,31 @@ suite('Chat editing actions', () => {
 	});
 
 	test('Start Over preserves existing main input content', async () => {
-		assert.deepStrictEqual(await runStartOver('existing draft'), {
+		assert.deepStrictEqual(await runCheckpointAction(StartOverActionId, 'existing draft'), {
 			inputValue: 'existing draft',
 			mainInputFocusCount: 0,
 			activeInputSetCount: 0,
 			checkpoint: 'request-1',
 			restoredSnapshot: 'request-1',
 			restoredAttachmentIds: [],
+		});
+	});
+
+	test('checkpoint actions do not change the input when restore is canceled', async () => {
+		const expected = {
+			inputValue: '',
+			mainInputFocusCount: 0,
+			activeInputSetCount: 0,
+			checkpoint: undefined,
+			restoredSnapshot: undefined,
+			restoredAttachmentIds: [],
+		};
+		assert.deepStrictEqual({
+			restoreCheckpoint: await runCheckpointAction(RestoreCheckpointActionId, '', false),
+			startOver: await runCheckpointAction(StartOverActionId, '', false),
+		}, {
+			restoreCheckpoint: expected,
+			startOver: expected,
 		});
 	});
 });

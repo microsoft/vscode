@@ -544,12 +544,14 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
-		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
-
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		if (!confirmed) {
+			return;
+		}
 
-		if (confirmed && userAttachments?.length) {
+		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
+		if (userAttachments?.length) {
 			await widget?.inputPart.restoreAttachments(userAttachments);
 		}
 	}
@@ -588,12 +590,14 @@ registerAction2(class StartOverAction extends Action2 {
 			return;
 		}
 
-		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
-
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		if (!confirmed) {
+			return;
+		}
 
-		if (confirmed && userAttachments?.length) {
+		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
+		if (userAttachments?.length) {
 			await widget?.inputPart.restoreAttachments(userAttachments);
 		}
 	}
