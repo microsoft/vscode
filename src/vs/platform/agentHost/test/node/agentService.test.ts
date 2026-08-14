@@ -30,7 +30,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
@@ -38,7 +38,7 @@ import { META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agent
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType } from '../../common/state/sessionActions.js';
-import { AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, withSessionEhcliAdoptable, withSessionMultiRootMetadata, ChatOriginKind, type ChangesetState, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { ChatInteractivity, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -2456,6 +2456,62 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('aggregation', () => {
 
+		class TimedExternalAgent extends MockAgent {
+			readonly catalog = new Map<string, { session: URI; modifiedTime: number }>();
+
+			addSession(id: string, modifiedTime: number): URI {
+				const session = AgentSession.uri(this.id, id);
+				this.catalog.set(id, { session, modifiedTime });
+				(this as unknown as { _sessions: Map<string, URI> })._sessions.set(id, session);
+				return session;
+			}
+
+			override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				return [...this.catalog.values()].map(entry => ({
+					chat: URI.parse(buildDefaultChatUri(entry.session)),
+					startTime: entry.modifiedTime,
+					modifiedTime: entry.modifiedTime,
+				}));
+			}
+
+			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+				const session = resolveAgentChatContext(context, chat).configurationResource;
+				const entry = this.catalog.get(AgentSession.id(session));
+				return entry ? { chat, startTime: entry.modifiedTime, modifiedTime: entry.modifiedTime } : undefined;
+			}
+		}
+
+		function createExternalSessionService(now: () => number, sessionDataService = createSessionDataService()): AgentService {
+			return disposables.add(new AgentService(
+				new NullLogService(),
+				fileService,
+				sessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				undefined,
+				undefined,
+				undefined,
+				now,
+			));
+		}
+
+		function setExternalSessionsMode(service: AgentService, mode: AgentHostExternalSessionsMode, clientSeq: number): void {
+			service.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostShowExternalSessionsConfigKey]: mode },
+			}, 'test-client', clientSeq);
+		}
+
+		async function waitForSessionListReconciliation(service: AgentService): Promise<void> {
+			await (service as unknown as { _sessionListReconciliation: Promise<void> })._sessionListReconciliation;
+		}
+
 		test('listSessions aggregates sessions from all providers', async () => {
 			service.registerProvider(copilotAgent);
 
@@ -2466,7 +2522,8 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('listSessions discovers provider-native sessions as external and restore preserves provenance', async () => {
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const db = new TestSessionDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 
@@ -2478,6 +2535,7 @@ suite('AgentService (node dispatcher)', () => {
 			const listed = new Set((await svc.listSessions()).map(s => s.session.toString()));
 			assert.deepStrictEqual(listed, new Set([external.toString()]));
 			assert.strictEqual(readSessionExternal((await svc.listSessions())[0]._meta), true);
+			assert.strictEqual(await db.getMetadata(AH_META_IS_READ_DB_KEY), 'true');
 			await svc.restoreSession(external);
 
 			const registered = await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.list();
@@ -2486,6 +2544,99 @@ suite('AgentService (node dispatcher)', () => {
 				external: entry.external,
 				source: entry.source,
 			})), [{ session: external.toString(), external: true, source: 'discovery' }]);
+		});
+
+		test('rediscovery does not overwrite durable unread state for an existing external session', async () => {
+			const db = new TestSessionDatabase();
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			const session = AgentSession.uri('copilot', 'rediscovered-external');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			await db.setMetadata(AH_META_IS_READ_DB_KEY, '');
+
+			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [discoveredChat(session)]);
+
+			assert.strictEqual(await db.getMetadata(AH_META_IS_READ_DB_KEY), '');
+		});
+
+		test('filters external sessions in every mode with inclusive time boundaries', async () => {
+			const day = 24 * 60 * 60 * 1000;
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			agent.addSession('recent', now);
+			agent.addSession('at-24-hours', now - day);
+			agent.addSession('older-than-24-hours', now - day - 1);
+			agent.addSession('at-7-days', now - 7 * day);
+			agent.addSession('older-than-7-days', now - 7 * day - 1);
+			svc.registerProvider(agent);
+
+			const listedByMode: Record<AgentHostExternalSessionsMode, string[]> = {
+				[AgentHostExternalSessionsMode.None]: [],
+				[AgentHostExternalSessionsMode.All]: [],
+				[AgentHostExternalSessionsMode.Last24Hours]: [],
+				[AgentHostExternalSessionsMode.Last7Days]: [],
+			};
+			let clientSeq = 1;
+			for (const mode of [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days]) {
+				setExternalSessionsMode(svc, mode, clientSeq++);
+				await waitForSessionListReconciliation(svc);
+				listedByMode[mode] = (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort();
+			}
+
+			assert.deepStrictEqual(listedByMode, {
+				[AgentHostExternalSessionsMode.None]: [],
+				[AgentHostExternalSessionsMode.All]: ['at-24-hours', 'at-7-days', 'older-than-24-hours', 'older-than-7-days', 'recent'],
+				[AgentHostExternalSessionsMode.Last24Hours]: ['at-24-hours', 'recent'],
+				[AgentHostExternalSessionsMode.Last7Days]: ['at-24-hours', 'at-7-days', 'older-than-24-hours', 'recent'],
+			});
+		});
+
+		test('configuration changes add and remove non-live external sessions immediately', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const session = agent.addSession('config-visible', now);
+			const notifications: string[] = [];
+			disposables.add(svc.onDidNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded) {
+					notifications.push(`add:${notification.summary.resource}`);
+				} else if (notification.type === NotificationType.SessionRemoved) {
+					notifications.push(`remove:${notification.session}`);
+				}
+			}));
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			for (let attempt = 0; attempt < 20 && (await svc.getRegisteredSessions()).length === 0; attempt++) {
+				await timeout(0);
+			}
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
+			await waitForSessionListReconciliation(svc);
+			notifications.length = 0;
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.All, 2);
+			await waitForSessionListReconciliation(svc);
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 3);
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual(notifications, [`add:${session.toString()}`, `remove:${session.toString()}`]);
+		});
+
+		test('retains a restored external session when the configured mode hides external sessions', async () => {
+			const now = Date.now();
+			const svc = createExternalSessionService(() => now);
+			const agent = disposables.add(new TimedExternalAgent('copilot'));
+			const session = agent.addSession('restored-external', now);
+			svc.registerProvider(agent);
+			await svc.listSessions();
+			await svc.restoreSession(session);
+
+			setExternalSessionsMode(svc, AgentHostExternalSessionsMode.None, 1);
+			await waitForSessionListReconciliation(svc);
+
+			assert.deepStrictEqual((await svc.listSessions()).map(entry => entry.session.toString()), [session.toString()]);
 		});
 
 		test('discovery registration preserves provider-supplied internal provenance', async () => {
@@ -2651,7 +2802,7 @@ suite('AgentService (node dispatcher)', () => {
 				return originalIsTombstoned(candidate);
 			};
 
-			agent.fireDiscoveredChats([discoveredChat(session)]);
+			agent.fireDiscoveredChats([discoveredChat(session, false)]);
 			for (let i = 0; i < 50 && fail; i++) {
 				await timeout(0);
 			}
