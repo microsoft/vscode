@@ -1041,19 +1041,21 @@
 	gap: 8px;
 }
 
-.ai-customization-management-editor .prompt-migration-open-button {
-	all: unset;
-	display: flex;
+.ai-customization-management-editor .prompt-migration-open-button.monaco-text-button {
 	flex: 1;
 	flex-direction: column;
+	align-items: stretch;
+	justify-content: center;
 	min-width: 0;
+	width: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
 	cursor: pointer;
 	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.ai-customization-management-editor .prompt-migration-open-button:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .ai-customization-management-editor .prompt-migration-item .icon-button {

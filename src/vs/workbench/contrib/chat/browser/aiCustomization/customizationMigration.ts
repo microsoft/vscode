@@ -157,8 +157,8 @@ export async function migrateCustomizations(
 
 				await fileService.createFolder(targetFolder.uri);
 				await fileService.createFolder(dirname(targetUri));
+				await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
 				writtenTargetUris.push(targetUri);
-				await fileService.writeFile(targetUri, VSBuffer.fromString(migratedContent));
 				migratedSourceCustomizations.push({ uri: targetUri, type: targetType });
 			}
 

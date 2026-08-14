@@ -1374,17 +1374,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			const itemLeft = DOM.append(row, $('span.item-left'));
 			const displayName = customization.name ?? basename(customization.uri);
-			const itemText = DOM.append(itemLeft, $('button.item-text.prompt-migration-open-button', {
-				type: 'button',
-				'aria-label': localize('openCustomizationFile', "Open {0}", displayName),
-			})) as HTMLButtonElement;
-			this.migrationPageDisposables.add(DOM.addDisposableListener(itemText, 'click', () => openCustomizationInEmbeddedEditor(customization)));
+			const relativePath = this.labelService.getUriLabel(customization.uri, { relative: true });
+			const openButton = this.migrationPageDisposables.add(new Button(itemLeft, {
+				ariaLabel: localize('openCustomizationFile', "Open {0}, {1}", displayName, relativePath),
+			}));
+			openButton.label = displayName;
+			DOM.clearNode(openButton.element);
+			openButton.element.classList.add('item-text', 'prompt-migration-open-button');
+			this.migrationPageDisposables.add(openButton.onDidClick(() => openCustomizationInEmbeddedEditor(customization)));
+			const itemText = openButton.element;
 			const nameRow = DOM.append(itemText, $('span.item-name-row'));
 			const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
 			nameLabel.textContent = displayName;
 
 			const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
-			pathLabel.textContent = this.labelService.getUriLabel(customization.uri, { relative: true });
+			pathLabel.textContent = relativePath;
 
 			const itemRight = DOM.append(row, $('span.item-right'));
 			const deleteButton = DOM.append(itemRight, $('button.icon-button', {

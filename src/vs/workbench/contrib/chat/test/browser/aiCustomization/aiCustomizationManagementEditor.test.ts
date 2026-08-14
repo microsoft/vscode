@@ -388,7 +388,7 @@ suite('aiCustomizationManagementEditor', () => {
 		}
 	});
 
-	test('opens a migration candidate through its native button', () => {
+	test('opens a migration candidate through the shared Button widget', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
 		}));
@@ -409,19 +409,28 @@ suite('aiCustomizationManagementEditor', () => {
 
 		try {
 			editor.renderCustomizationMigrationPage();
-			const openButton = editor.migrationListContainer.querySelector<HTMLButtonElement>('.prompt-migration-open-button');
-			openButton?.click();
+			const openButton = editor.migrationListContainer.querySelector<HTMLElement>('.prompt-migration-open-button');
+			const activateWithKey = (key: string, keyCode: number): void => {
+				const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+				Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+				openButton?.dispatchEvent(event);
+			};
+			activateWithKey('Enter', 13);
+			activateWithKey(' ', 32);
 
 			assert.deepStrictEqual({
 				tagName: openButton?.tagName,
-				type: openButton?.type,
+				role: openButton?.getAttribute('role'),
 				ariaLabel: openButton?.getAttribute('aria-label'),
 				openedItems,
 			}, {
-				tagName: 'BUTTON',
-				type: 'button',
-				ariaLabel: 'Open Review',
-				openedItems: [[promptFile.uri, 'Review', PromptsType.prompt, PromptsStorage.local, true]],
+				tagName: 'A',
+				role: 'button',
+				ariaLabel: 'Open Review, /workspace/.github/prompts/review.prompt.md',
+				openedItems: [
+					[promptFile.uri, 'Review', PromptsType.prompt, PromptsStorage.local, true],
+					[promptFile.uri, 'Review', PromptsType.prompt, PromptsStorage.local, true],
+				],
 			});
 		} finally {
 			editor.migrationListContainer.remove();

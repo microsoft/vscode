@@ -11,7 +11,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { IFileDeleteOptions } from '../../../../../../platform/files/common/files.js';
+import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
@@ -27,6 +27,24 @@ class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
 			throw new Error('Expected delete failure');
 		}
 		await super.delete(resource, options);
+	}
+}
+
+class ConcurrentTargetFileSystemProvider extends InMemoryFileSystemProvider {
+	conflictResource: URI | undefined;
+
+	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+		if (this.conflictResource && isEqual(resource, this.conflictResource)) {
+			this.conflictResource = undefined;
+			await super.writeFile(resource, VSBuffer.fromString('foreign content').buffer, {
+				create: true,
+				overwrite: true,
+				unlock: false,
+				atomic: false,
+			});
+			throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+		}
+		await super.writeFile(resource, content, options);
 	}
 }
 
@@ -374,6 +392,51 @@ suite('customizationMigration', () => {
 				targetExists: true,
 				suffixedTargetExists: false,
 			},
+		});
+	});
+
+	test('does not overwrite or roll back a concurrently created target', async () => {
+		const sourceUri = URI.file('/user-data/style.instructions.md');
+		const customization: IPromptPath = {
+			uri: sourceUri,
+			name: 'Style',
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+		const instructionsRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/instructions'), label: '~/.copilot/instructions', source: PromptsStorage.user };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.instructions, new Map([[PromptsStorage.user, instructionsRoot]])],
+		]);
+
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new ConcurrentTargetFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('Use tabs.'));
+		const targetUri = URI.joinPath(instructionsRoot.uri, 'style.instructions.md');
+		fileSystemProvider.conflictResource = targetUri;
+
+		const migrationErrors: Error[] = [];
+		const result = await migrateCustomizations([customization], targetFolders, fileService, error => migrationErrors.push(error));
+		const targetEntries = await fileSystemProvider.readdir(instructionsRoot.uri);
+
+		assert.deepStrictEqual({
+			result,
+			sourceExists: await fileService.exists(sourceUri),
+			targetContent: (await fileService.readFile(targetUri)).value.toString(),
+			targetEntries,
+			migrationErrorCount: migrationErrors.length,
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['style.instructions.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+			},
+			sourceExists: true,
+			targetContent: 'foreign content',
+			targetEntries: [['style.instructions.md', FileType.File]],
+			migrationErrorCount: 1,
 		});
 	});
 
