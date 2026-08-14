@@ -80,10 +80,12 @@
 }
 
 /* A card closes its own box and sits clear of the input, so it reports itself
-	standalone and the input below keeps its own frame. */
+	standalone and the input below keeps its own frame. Its bottom corners are its
+	own, so they take the run's radius directly rather than through the stack. */
 .chat-input-notice.chat-input-notice-onboarding {
+	--chat-input-notice-radius: var(--chat-input-stack-radius-outer, var(--vscode-cornerRadius-large));
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
-	border-radius: var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) var(--chat-input-stack-radius-top, var(--vscode-cornerRadius-large)) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+	border-radius: var(--chat-input-stack-radius-top, var(--chat-input-notice-radius)) var(--chat-input-stack-radius-top, var(--chat-input-notice-radius)) var(--chat-input-notice-radius) var(--chat-input-notice-radius);
 	margin-bottom: var(--vscode-spacing-size40);
 }
 

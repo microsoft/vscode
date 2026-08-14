@@ -86,7 +86,7 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
 const $ = DOM.$;
 
@@ -329,6 +329,7 @@ interface ISessionItemTemplate {
 	readonly contextKeyService: IContextKeyService;
 	readonly statusContext: IContextKey<SessionStatus>;
 	readonly isReadContext: IContextKey<boolean>;
+	readonly supportsDeleteContext: IContextKey<boolean>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -469,6 +470,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const statusContext = SessionItemStatusContext.bindTo(contextKeyService);
 		const isReadContext = SessionIsReadContext.bindTo(contextKeyService);
+		const supportsDeleteContext = SessionSupportsDeleteContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.toolbarMenuId) {
@@ -479,7 +481,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleToolbar, pendingVoiceIndicator, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -582,6 +584,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const isRead = element.isRead.read(reader);
 			template.isReadContext.set(isRead);
 			const isArchived = element.isArchived.read(reader);
+			const capabilities = element.capabilities.read(reader);
+			template.supportsDeleteContext.set(capabilities.supportsDelete === true);
 			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
 			const completedStateIcon = element.completedStateIcon?.read(reader) ?? gitHubInfo?.pullRequest?.icon;
@@ -875,17 +879,26 @@ function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefine
 
 //#region Section Header Renderer
 
-interface ISessionSectionTemplate {
+interface ISessionHeaderTemplate {
+	readonly toolbarContainer: HTMLElement;
+	readonly toolbar: MenuWorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
+}
+
+function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element: T, select: (element: T, event: MouseEvent) => void): void {
+	template.elementDisposables.add(DOM.addDisposableListener(template.toolbarContainer, DOM.EventType.CONTEXT_MENU, event => select(element, event), true));
+	template.toolbar.context = element;
+}
+
+interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly icon: HTMLElement;
 	readonly statusIndicator: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
-	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
 }
 
 export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
@@ -930,6 +943,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	constructor(
 		private readonly hideSectionCount: boolean,
+		private readonly select: (element: ISessionSection, event: MouseEvent) => void,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
@@ -959,7 +973,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, icon, statusIndicator, label, count, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, statusIndicator, label, count, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -968,6 +982,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		if (!isSessionSection(element)) {
 			return;
 		}
+		renderSessionHeaderToolbar(template, element, this.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
@@ -1042,7 +1057,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			hasGitHubRepository.set(hasGitHub);
 			hasNonCloudRepository.set(hasNonCloudWorkspace);
 		}));
-		template.toolbar.context = element;
 	}
 
 	/**
@@ -1088,15 +1102,13 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 //#region Session Group Renderer
 
-interface ISessionGroupTemplate {
+interface ISessionGroupTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly inputContainer: HTMLElement;
-	readonly toolbar: MenuWorkbenchToolBar;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
-	readonly elementDisposables: DisposableStore;
 }
 
 /**
@@ -1105,6 +1117,7 @@ interface ISessionGroupTemplate {
 interface ISessionGroupRendererDelegate {
 	commitEdit(group: ISessionGroup, name: string): void;
 	cancelEdit(group: ISessionGroup): void;
+	select(element: ISessionGroupItem, event: MouseEvent): void;
 }
 
 class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionGroupTemplate> {
@@ -1136,7 +1149,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, inputContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		return { container, label, inputContainer, toolbarContainer, toolbar, chevron, contextKeyService, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
@@ -1145,6 +1158,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 			return;
 		}
 		template.elementDisposables.clear();
+		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.templatesByElement.set(element, template);
 		this.templatesById.set(element.group.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
@@ -1153,7 +1167,6 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		this.updateChevron(template, node.collapsible, node.collapsed);
 		SessionGroupHasVisibleSessionsContext.bindTo(template.contextKeyService).set(element.sessions.length > 0);
 		SessionGroupIsEmptyContext.bindTo(template.contextKeyService).set(element.isEmpty);
-		template.toolbar.context = element;
 
 		template.container.classList.toggle('session-group-editing', element.editing);
 		if (element.editing) {
@@ -1977,11 +1990,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService);
-		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
+		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
+			this.tree.setFocus([element], event);
+			this.tree.setSelection([element], event);
+		};
+		const sectionRenderer = new SessionSectionRenderer(true /* hideSectionCount */, selectHeader, instantiationService, contextKeyService, this.automationService, this.automationSessions, this.uriIdentityService, this.customViewService);
 		this._sectionRenderer = sectionRenderer;
 		const groupRenderer = new SessionGroupRenderer({
 			commitEdit: (group, name) => this.commitGroupEdit(group, name),
 			cancelEdit: group => this.cancelGroupEdit(group),
+			select: selectHeader,
 		}, instantiationService, contextKeyService);
 		this._groupRenderer = groupRenderer;
 
@@ -3673,6 +3691,13 @@ export interface ISessionsFlatListOptions {
 	readonly toolbarMenuId?: MenuId;
 	/** Allows focused list surfaces to handle actions from their custom toolbar menu. */
 	readonly onToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>;
+	/** Whether opening a row immediately marks its session as read. Defaults to `true`. */
+	readonly markSessionReadOnOpen?: boolean;
+	/**
+	 * When `false` wheel events bubble to the parent scroller instead of being
+	 * consumed by the embedded tree. Defaults to `true` (standard list behavior).
+	 */
+	readonly alwaysConsumeMouseWheel?: boolean;
 }
 
 /**
@@ -3760,6 +3785,7 @@ export class SessionsFlatList extends Disposable {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
 				},
 				horizontalScrolling: false,
+				alwaysConsumeMouseWheel: this.options.alwaysConsumeMouseWheel ?? true,
 				multipleSelectionSupport: false,
 				indent: 0,
 				overrideStyles: this.options.overrideStyles,
@@ -3773,7 +3799,9 @@ export class SessionsFlatList extends Disposable {
 			if (!element || !isSessionItem(element)) {
 				return;
 			}
-			this._sessionsManagementService.markRead(element);
+			if (this.options.markSessionReadOnOpen !== false) {
+				this._sessionsManagementService.markRead(element);
+			}
 			const isLeftClick = DOM.isMouseEvent(e.browserEvent) && e.browserEvent.button === 0;
 			const preserveFocus = isLeftClick ? false : (e.editorOptions.preserveFocus ?? false);
 			this.options.onSessionOpen(element.resource, preserveFocus, e.sideBySide);
@@ -3808,6 +3836,14 @@ export class SessionsFlatList extends Disposable {
 	}
 
 	focus(): void {
+		this.tree.domFocus();
+	}
+
+	focusSession(session: ISession): void {
+		if (!this.tree.hasElement(session)) {
+			return;
+		}
+		this.tree.setFocus([session]);
 		this.tree.domFocus();
 	}
 }

@@ -411,6 +411,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent> = this._onDidSpawnChat.event;
 
 	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
+		// Discovery is provider-owned and only has observable value once the host
+		// subscribes. Registered chats remain independently available through
+		// listChatsToMigrate().
 		onDidAddFirstListener: () => { void this._startClaudeCodeChatDiscovery(); },
 	}));
 	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
@@ -1004,10 +1007,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * operation, so the session-shaped first parameter is unused.
 	 */
 	async truncateChat(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void> {
-		const operationContext = this._requireChatContext(chat, context, 'truncateChat');
-		const initialContext = this._resolveChatContext(chat, operationContext);
+		if (!context) {
+			throw new Error(`[Claude] truncateChat requires host chat context for ${chat.toString()}`);
+		}
+		const initialContext = this._resolveChatContext(chat, context);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
-			const current = this._resolveChatContext(chat, operationContext);
+			const current = this._resolveChatContext(chat, context);
 			const existing = current.target;
 			const sdkSessionId = current.sdkSessionId;
 			if (!sdkSessionId) {
@@ -1099,8 +1104,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			return this._sendMessage(chatUri, prompt, workingDirectories, attachments, turnId, senderClientId, operationContext);
 		},
-		abort: chatUri => {
-			return this._abortSession(chatUri);
+		abort: (chatUri, context) => {
+			return this._abortSession(chatUri, context);
 		},
 		changeModel: (chatUri, model, context) => {
 			return this._changeModel(chatUri, model, context);
@@ -1561,9 +1566,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * own `resource` (the configuration scope, for a session's primary chat)
 	 * is released right here, once, when that exact chat is disposed.
 	 */
-	private async _disposeChat(chat: URI, operationContext?: URI | IAgentChatContext): Promise<void> {
+	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
-		const initialContext = this._resolveChatContext(chat, this._requireChatContext(chat, operationContext, 'disposeChat'));
+		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
 			if (target) {
@@ -1579,9 +1584,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// resumed again.
 	}
 
-	private async _releaseChat(chat: URI, operationContext?: URI | IAgentChatContext): Promise<void> {
+	private async _releaseChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const chatKey = chat.toString();
-		const initialContext = this._resolveChatContext(chat, this._requireChatContext(chat, operationContext, 'releaseChat'));
+		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
 			if (!target || !target.isPipelineReady || target.hasActiveTurn) {
@@ -1883,8 +1888,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return { providerData: encodeProviderData(_toPersistedChat(backing)) };
 	}
 
-	private async _getChatMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> {
-		return this._readChatMessages(this._resolveChatContext(chat, this._requireChatContext(chat, context, 'getMessages')));
+	private async _getChatMessages(chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> {
+		return this._readChatMessages(this._resolveChatContext(chat, context));
 	}
 
 	// #endregion
@@ -2038,7 +2043,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
-		if (!(await this._sdkService.canLoadWithoutDownload())) {
+		try {
+			await this._sdkService.ensureAvailableForDiscovery();
+		} catch (err) {
+			this._logService.warn('[Claude] SDK unavailable while listing chats to migrate', err);
 			return undefined;
 		}
 		const chats = await this._listClaudeCodeChats();
@@ -2328,7 +2336,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return [...this._chatEntriesBySdkId.values()].map(entry => entry.chatSession);
 	}
 
-	private async _abortSession(chat: URI): Promise<void> {
+	private async _abortSession(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		resolveAgentChatContext(context, chat);
 		// Cancel via the abort controller, NOT `Query.interrupt()`. Abort is a
 		// control-plane operation — it must NOT serialize through
 		// `_sessionSequencer` because an in-flight `sendMessage` task is
@@ -2365,11 +2374,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _changeModel(chat: URI, model: ModelSelection, operationContext?: URI | IAgentChatContext): Promise<void> {
-		const modelContext = this._requireChatContext(chat, operationContext, 'changeModel');
-		const context = this._resolveChatContext(chat, modelContext);
+	private async _changeModel(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
+		const context = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(context.sequencerKey, async () => {
-			const current = this._resolveChatContext(chat, modelContext);
+			const current = this._resolveChatContext(chat, operationContext);
 			await this._metadataStore.write(current.resource, { model });
 			const sess = current.target;
 			if (sess) {
@@ -2395,11 +2403,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * the overlay so a later resume picks it up. When `chat` is an additional
 	 * chat, the change targets that chat's own overlay.
 	 */
-	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext?: URI | IAgentChatContext): Promise<void> {
-		const agentContext = this._requireChatContext(chat, operationContext, 'changeAgent');
-		const context = this._resolveChatContext(chat, agentContext);
+	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		const context = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(context.sequencerKey, async () => {
-			const current = this._resolveChatContext(chat, agentContext);
+			const current = this._resolveChatContext(chat, operationContext);
 			await this._metadataStore.write(current.resource, { agent: agent ?? null });
 			const sess = current.target;
 			if (sess) {

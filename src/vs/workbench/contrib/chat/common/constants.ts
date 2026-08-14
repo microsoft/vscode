@@ -47,6 +47,7 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
+	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -93,6 +94,7 @@ export enum ChatConfiguration {
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
+	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	AssistedPermissionsEnabled = 'chat.assistedPermissions.enabled',

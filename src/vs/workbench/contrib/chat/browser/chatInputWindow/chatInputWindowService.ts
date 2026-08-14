@@ -62,8 +62,8 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { getQuickInputWidth } from '../../../../../platform/quickinput/browser/quickInputController.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatSessionRoutingProviderService, OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { QuickInputService } from '../../../../services/quickinput/browser/quickInputService.js';
-import { OmniChatEnabledSettingId } from '../../common/sessionRouter.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { derivePendingId, getVoiceToolApprovalCommand, isPendingIdResolved, markPendingIdResolved } from '../../common/voiceClient/voiceClientService.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -197,6 +197,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IHostService private readonly hostService: IHostService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IChatSessionRoutingProviderService private readonly routingProviderService: IChatSessionRoutingProviderService,
 	) {
 		super();
 
@@ -363,7 +364,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			tabindex: '0',
 			'aria-label': localize('chatInputWindow.close.label', "Close"),
 		}));
-		close.appendChild(renderIcon(Codicon.close));
+		close.appendChild(renderIcon(Codicon.closeSmall));
 		this._windowDisposables.add(dom.addDisposableListener(close, dom.EventType.CLICK, () => this.closeWindow()));
 		this._windowDisposables.add(dom.addStandardDisposableListener(close, dom.EventType.KEY_DOWN, event => {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -528,6 +529,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const modelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true, debugOwner: 'ChatInputWindow' });
 		this._modelRef = modelRef;
 		widget.setModel(modelRef.object);
+		widget.setInputPlaceholder(localize('chatInputWindow.inputPlaceholder', "Send a request to any session or folder..."));
 
 		let fitWindowToInput = () => { };
 
@@ -537,10 +539,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const host: IChatSessionRoutingHost = {
 			widget,
 			getOwnSessionResource: () => this._modelRef?.object.sessionResource,
+			getRoutingProvider: () => this.routingProviderService.getProvider(),
 			getPendingReplySessionResource: () => this._activePendingSessionResource,
-			getNewSessionTarget: () => AgentSessionProviders.AgentHostCopilot,
 			onWillRoute: () => this.voiceSessionController.prepareForRoutingRequest(),
-			prepareForCommandExecution: () => this.hostService.focus(this._invokingWindow),
 			onWillDispatchRoute: resource => this.voiceSessionController.markRoutedRequestPending(resource),
 			onDidRejectRoute: resource => this.voiceSessionController.clearRoutedRequest(resource),
 			onDidResolveRoute: (resource, kind, _isVoiceModeInput, requestId) => {

@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetService } from '../common/agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, platformRootSchema, type SessionMode } from '../common/agentHostSchema.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
@@ -204,6 +204,21 @@ function getConfiguredSessionMode(config: SessionState['config']): SessionMode |
 }
 
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
+
+function createMarkdownPlanRichLinksInstruction(chat: ProtocolURI): string {
+	const currentChatLink = buildOpenSessionLinkForChatResource(chat);
+	return [
+		'<rich_plan_markdown>',
+		'When creating or editing a Markdown plan document, use these formats when the exact target is known:',
+		'- Use canonical HTTPS links for GitHub issues and pull requests.',
+		'- Use `commit://<sha>` for commits in the current Git repository.',
+		'- Preserve exact `agent-host-session://...` links returned by session and chat tools when referring to sessions, chats, or subagents. Do not construct these links yourself.',
+		...(currentChatLink ? [`- Link to the current chat as [Current chat](${currentChatLink}).`] : []),
+		'- Use `- [ ] :running: Description` for a task that is actively running, `- [ ]` for a pending task, and `- [x]` for a completed task.',
+		'- Keep link labels meaningful so the document remains readable without rich rendering.',
+		'</rich_plan_markdown>',
+	].join('\n');
+}
 
 /**
  * Shared implementation of agent side-effect handling.
@@ -2137,7 +2152,13 @@ export class AgentSideEffects extends Disposable {
 			failureStage = 'sendMessage';
 			const resolvedAttachments = await this._resolveChatAttachments(message.attachments);
 			const renameInstruction = await this._titleController.prepareInstructionForAgent(sessionChannel, chat);
-			const sendContext = renameInstruction ? { ...chatContext, hostInstructions: [renameInstruction] } : chatContext;
+			const hostInstructions = [
+				...(this._agentConfigService.getRootValue(platformRootSchema, AgentHostMarkdownPlanRichLinksEnabledConfigKey)
+					? [createMarkdownPlanRichLinksInstruction(chat)]
+					: []),
+				...(renameInstruction ? [renameInstruction] : []),
+			];
+			const sendContext = hostInstructions.length ? { ...chatContext, hostInstructions } : chatContext;
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) { return; }
 			await this._checkpointService.captureTurnStartCheckpoint(URI.parse(sessionChannel), chatUri, turnId, resolvedWorkingDirectories);
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {

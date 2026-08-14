@@ -37,7 +37,7 @@ import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackSer
 import { VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
 import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
 import { CHAT_INPUT_WINDOW_ACCEPT_VOICE_COMMAND_ID } from '../../../common/chatInputWindow.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -383,6 +383,78 @@ class TestChatService extends mock<IChatService>() {
 }
 
 /**
+ * Chat service that records session creation and sends, so the `new_session`
+ * flag on `send_to_chat` can be checked end to end.
+ */
+class NewSessionChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	readonly created: URI[] = [];
+	readonly sent: { resource: string; message: string }[] = [];
+	override getSession(): undefined { return undefined; }
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${this.created.length + 1}`);
+		this.created.push(resource);
+		return { object: { sessionResource: resource }, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async acquireOrLoadSession(): Promise<IChatModelReference> {
+		return { object: {}, dispose: () => { } } as unknown as IChatModelReference;
+	}
+	override async sendRequest(resource: URI, message: string): Promise<ChatSendResult> {
+		this.sent.push({ resource: resource.toString(), message });
+		return { kind: 'rejected', reason: 'test' };
+	}
+}
+
+/**
+ * Chat service with real reference-lifecycle semantics: it refcounts the model
+ * references it hands out and drops the session once the last one is disposed,
+ * mirroring how `ChatService` deletes empty untitled local sessions in
+ * `willDisposeModel`. Lets a test tell "the session is still alive" apart from
+ * "voice is targeting a session that no longer exists".
+ */
+class RefCountingChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	/** Sessions that still exist, keyed by resource string. */
+	readonly live = new Set<string>();
+	private readonly _refCounts = new Map<string, number>();
+	private _createdCount = 0;
+
+	override getSession(): undefined { return undefined; }
+
+	override startNewLocalSession(): IChatModelReference {
+		const resource = URI.parse(`chat-session://new/${++this._createdCount}`);
+		this.live.add(resource.toString());
+		return this._acquire(resource);
+	}
+
+	/** Outstanding references for a session, for asserting nothing is leaked. */
+	refCount(resource: string): number {
+		return this._refCounts.get(resource) ?? 0;
+	}
+
+	private _acquire(resource: URI): IChatModelReference {
+		const key = resource.toString();
+		this._refCounts.set(key, this.refCount(key) + 1);
+		let disposed = false;
+		return {
+			object: { sessionResource: resource },
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				const remaining = this.refCount(key) - 1;
+				this._refCounts.set(key, remaining);
+				if (remaining === 0) {
+					// Last reference gone: an empty untitled local session is deleted.
+					this.live.delete(key);
+				}
+			},
+		} as unknown as IChatModelReference;
+	}
+}
+
+/**
  * Chat service whose tracked models can be driven from a test, so the
  * controller's always-on pending-confirmation tracker can be exercised.
  */
@@ -548,6 +620,16 @@ class TestCommandService extends mock<ICommandService>() {
 			result = this.omniFocused;
 		}
 		return result as T;
+	}
+}
+
+/** Command service whose chat pane adopts the session on `switchToSession`. */
+class AdoptingCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.switchToSession') {
+			return true as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
 	}
 }
 
@@ -6284,6 +6366,230 @@ suite('VoiceSessionController', () => {
 		}, {
 			omniInputs: ['run the focused omni request'],
 			panelInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session routes the text to the freshly created session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+		}, {
+			created: 1,
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			acceptedInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session bypasses a focused omni input', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService(true);
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-omni-focused',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			sent: chatService.sent,
+			omniInputs: commandService.acceptedOmniInputs,
+			panelInputs: commandService.acceptedInputs,
+		}, {
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			omniInputs: [],
+			panelInputs: [],
+		});
+	});
+
+	test('send_to_chat with new_session and no text creates and targets a session without sending', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-empty',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+			target: target?.toString(),
+		}, {
+			created: 1,
+			sent: [],
+			acceptedInputs: [],
+			target: 'chat-session://new/1',
+		});
+	});
+
+	test('send_to_chat without new_session keeps the request in the current session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'same-session-send',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service' },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			created: chatService.created.length,
+			sent: chatService.sent,
+			acceptedInputs: commandService.acceptedInputs,
+		}, {
+			created: 0,
+			sent: [],
+			acceptedInputs: ['refactor the upload service'],
+		});
+	});
+
+	test('send_to_chat with new_session keeps the created session alive when no pane adopts it', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		// TestCommandService leaves `_chat.voice.switchToSession` unhandled, so
+		// this is the "no chat pane picked it up" case.
+		const commandService = new TestCommandService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-unadopted',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		const target = (Reflect.get(controller, '_targetSession') as { get(): URI | undefined }).get();
+		assert.deepStrictEqual({
+			target: target?.toString(),
+			targetStillExists: target ? chatService.live.has(target.toString()) : false,
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			target: 'chat-session://new/1',
+			targetStillExists: true,
+			retainedRefs: 1,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on retarget', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.setTargetSession(URI.parse('chat-session://existing/1'));
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on disconnect', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.disconnect();
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('send_to_chat with new_session releases the reference once a pane adopts the session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new AdoptingCommandService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-adopted',
+			name: 'send_to_chat',
+			args: { text: '', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+		await Promise.resolve();
+		await Promise.resolve();
+
+		// The pane holds its own reference, so voice must not keep one too.
+		assert.strictEqual(chatService.refCount('chat-session://new/1'), 0);
+	});
+
+	test('send_to_chat with new_session outranks a pinned submit session', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService();
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+		// A focus change pinned an earlier session; an explicit "start a new
+		// session" has to win over it, or the request lands in the pinned one.
+		Reflect.set(controller, '_pinnedSubmitSession', URI.parse('chat-session://pinned/1'));
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-over-pin',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			sent: chatService.sent,
+			pinned: (Reflect.get(controller, '_pinnedSubmitSession') as URI | undefined)?.toString(),
+		}, {
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			pinned: undefined,
 		});
 	});
 
