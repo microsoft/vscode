@@ -40,8 +40,6 @@ export interface IAgentHostTelemetryServiceOptions {
 }
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
-	readonly copilotSku: string | undefined;
-	setCopilotSku(copilotSku: string | undefined): void;
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
 }
 
@@ -49,8 +47,6 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 	declare readonly _serviceBrand: undefined;
 
 	private _telemetryLevel = TelemetryLevel.USAGE;
-	// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU for the authenticated Agent Host user, when account discovery returned one." }
-	private _copilotSku: string | undefined;
 
 	/**
 	 * Whether the current Copilot token opts into enhanced/restricted telemetry (`rt=1`). Defaults
@@ -82,10 +78,6 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	get telemetryLevel(): TelemetryLevel {
 		return Math.min(this._delegate.telemetryLevel, this._telemetryLevel);
-	}
-
-	get copilotSku(): string | undefined {
-		return this._copilotSku;
 	}
 
 	get sendErrorTelemetry(): boolean {
@@ -148,39 +140,35 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		if (this.telemetryLevel < TelemetryLevel.USAGE) {
 			return;
 		}
-		this._restricted?.sendGHTelemetryEvent(eventName, this._withCopilotSkuProperties(properties), measurements);
+		this._restricted?.sendGHTelemetryEvent(eventName, properties, measurements);
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._restrictedTelemetryEnabled) {
 			return;
 		}
-		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, this._withCopilotSkuProperties(properties), measurements);
+		this._restricted?.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
 	}
 
 	sendEnhancedGHTelemetryEventForContext(context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !context.restrictedTelemetryEnabled) {
 			return;
 		}
-		this._restricted?.sendEnhancedGHTelemetryEventForContext(context, eventName, this._withCopilotSkuProperties(properties), measurements);
+		this._restricted?.sendEnhancedGHTelemetryEventForContext(context, eventName, properties, measurements);
 	}
 
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !this._internalTelemetryEnabled) {
 			return;
 		}
-		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, this._withCopilotSkuProperties(properties), measurements);
+		this._restricted?.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
 	}
 
 	sendInternalMSFTTelemetryEventForContext(context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		if (this.telemetryLevel < TelemetryLevel.USAGE || !context.isInternal) {
 			return;
 		}
-		this._restricted?.sendInternalMSFTTelemetryEventForContext(context, eventName, this._withCopilotSkuProperties(properties), measurements);
-	}
-
-	private _withCopilotSkuProperties(properties: TelemetryProps | undefined): TelemetryProps | undefined {
-		return this._copilotSku ? { ...properties, copilotSku: this._copilotSku } : properties;
+		this._restricted?.sendInternalMSFTTelemetryEventForContext(context, eventName, properties, measurements);
 	}
 
 	setCopilotTrackingId(trackingId: string | undefined): void {
@@ -209,13 +197,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	setCommonProperty(name: string, value: string | boolean): void {
 		this._delegate.setCommonProperty(name, value);
-	}
-
-	setCopilotSku(copilotSku: string | undefined): void {
-		this._copilotSku = copilotSku;
-		if (copilotSku) {
-			this._delegate.setCommonProperty('copilotSku', copilotSku);
-		}
+		this._restricted?.setCommonProperty(name, value);
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {

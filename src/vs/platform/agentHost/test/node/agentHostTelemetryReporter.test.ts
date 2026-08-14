@@ -17,7 +17,6 @@ import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAge
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -40,20 +39,15 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	readonly internalEvents: IRestrictedCall[] = [];
 	readonly githubStandardEvents: IRestrictedCall[] = [];
 	readonly standardEvents: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
-	private readonly _commonProperties: Record<string, string | boolean> = {};
 
 	publicLog(): void { }
 	publicLogError(): void { }
 	publicLog2(eventName: string, data?: ITelemetryData): void {
-		this.standardEvents.push({ eventName, data: { ...data, ...this._commonProperties } });
+		this.standardEvents.push({ eventName, data });
 	}
-	publicLogError2(eventName: string, data?: ITelemetryData): void {
-		this.standardEvents.push({ eventName, data: { ...data, ...this._commonProperties } });
-	}
+	publicLogError2(): void { }
 	setExperimentProperty(): void { }
-	setCommonProperty(name: string, value: string | boolean): void {
-		this._commonProperties[name] = value;
-	}
+	setCommonProperty(): void { }
 
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
 		this.githubStandardEvents.push({ eventName, properties });
@@ -78,7 +72,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 }
 
 suite('AgentHostTelemetryReporter', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = 'agent-session://copilot/abc';
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
@@ -166,16 +160,7 @@ suite('AgentHostTelemetryReporter', () => {
 
 	test('toolCallDetails emits standard and restricted aggregates whenever tools were available, and no-ops when none were', async () => {
 		const service = new TestRestrictedTelemetryService();
-		const telemetryService = store.add(new AgentHostTelemetryService(service, service));
-		telemetryService.setCopilotSku('copilot_for_business_seat');
-		telemetryService.setRestrictedTelemetryEnabled(true);
-		telemetryService.setInternalTelemetryContext({
-			isInternal: true,
-			trackingId: undefined,
-			userName: undefined,
-			isVscodeTeamMember: false,
-		});
-		const reporter = new AgentHostTelemetryReporter(telemetryService);
+		const reporter = new AgentHostTelemetryReporter(service);
 
 		await reporter.toolCallDetails({
 			provider: 'copilot', session, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.Unknown, model: 'gpt-x', responseType: 'success',
@@ -200,7 +185,6 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'toolCallDetails',
 			data: {
 				provider: 'copilot',
-				copilotSku: 'copilot_for_business_seat',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				conversationId: AgentSession.id(session),
@@ -221,7 +205,6 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'toolCallDetails',
 			data: {
 				provider: 'copilot',
-				copilotSku: 'copilot_for_business_seat',
 				agentSessionId: AgentSession.id(session),
 				isSubagentSession: false,
 				conversationId: AgentSession.id(session),
@@ -248,7 +231,6 @@ suite('AgentHostTelemetryReporter', () => {
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				initiatorClientType: 'editor_window',
 				responseType: 'success',
-				copilotSku: 'copilot_for_business_seat',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({}),
 				availableTools: JSON.stringify(['grep', 'edit']),
@@ -261,7 +243,6 @@ suite('AgentHostTelemetryReporter', () => {
 				messageId: 'a1b2c3d4-0000-4000-8000-000000000000',
 				initiatorClientType: 'agents_window',
 				responseType: 'cancelled',
-				copilotSku: 'copilot_for_business_seat',
 				model: 'gpt-x',
 				toolCounts: JSON.stringify({ grep: 2, edit: 1 }),
 				availableTools: JSON.stringify(['grep', 'edit']),
@@ -270,45 +251,6 @@ suite('AgentHostTelemetryReporter', () => {
 		assert.strictEqual(service.internalEvents.length, 2);
 		assert.strictEqual(service.internalEvents[0].eventName, 'toolCallDetailsInternal');
 		assert.strictEqual(service.internalEvents[1].eventName, 'toolCallDetailsInternal');
-	});
-
-	test('turn telemetry includes Copilot SKU for every provider', () => {
-		const service = new TestRestrictedTelemetryService();
-		const telemetryService = store.add(new AgentHostTelemetryService(service, service));
-		telemetryService.setCopilotSku('copilot_for_business_seat');
-		const reporter = new AgentHostTelemetryReporter(telemetryService);
-		const common = {
-			session,
-			turnId: 'turn-1',
-			timeToFirstProgress: 10,
-			totalTime: 20,
-			result: 'error' as const,
-			model: 'gpt-x',
-			modelTelemetryKind: 'trusted' as const,
-			modelSelectionKind: 'explicit' as const,
-			permissionLevel: 'default',
-			interactionMode: 'interactive' as const,
-			failure: {
-				stage: 'provider' as const,
-				error: { errorType: 'providerError', message: 'failed' },
-			},
-			isMultiRoot: false,
-			folderCount: 1,
-		};
-
-		reporter.turnCompleted({ provider: 'copilotcli', ...common });
-		reporter.turnCompleted({ provider: 'claude', ...common });
-
-		assert.deepStrictEqual(service.standardEvents.map(event => ({
-			eventName: event.eventName,
-			provider: event.data?.provider,
-			copilotSku: event.data?.copilotSku,
-		})), [
-			{ eventName: 'agentHost.turnCompleted', provider: 'copilotcli', copilotSku: 'copilot_for_business_seat' },
-			{ eventName: 'agentHost.turnFailed', provider: 'copilotcli', copilotSku: 'copilot_for_business_seat' },
-			{ eventName: 'agentHost.turnCompleted', provider: 'claude', copilotSku: 'copilot_for_business_seat' },
-			{ eventName: 'agentHost.turnFailed', provider: 'claude', copilotSku: 'copilot_for_business_seat' },
-		]);
 	});
 
 	test('toolApproval emits chat.toolApproval with AH discriminators and reason mapping', () => {

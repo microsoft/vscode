@@ -1309,9 +1309,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
-		if (isAgentHostTelemetryService(this._telemetryService)) {
-			this._telemetryService.setCopilotSku(undefined);
-		}
 		if (!token) {
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
@@ -1352,8 +1349,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _resolveCopilotSku(githubToken: string): Promise<void> {
 		try {
 			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
-			if (this._githubToken === githubToken && isAgentHostTelemetryService(this._telemetryService)) {
-				this._telemetryService.setCopilotSku(copilotSku);
+			if (copilotSku && this._githubToken === githubToken) {
+				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
+				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
 			}
 		} catch (err) {
 			this._logService.debug(`[Copilot] SKU resolution failed: ${err instanceof Error ? err.message : String(err)}`);
