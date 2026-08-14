@@ -386,14 +386,24 @@
 	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
 }
 
-/* The real input stays in the accessibility tree; the pill below is its skin. */
+/*
+ * The real input stays in the accessibility tree and keeps keyboard focus;
+ * the pill below is its skin. Clipped rather than faded because a native
+ * checkbox still paints its box at low opacity, which showed through the
+ * toggle. `appearance: none` removes that painting outright.
+ */
 .onboarding-a-provider-checkbox {
 	position: absolute;
 	width: 1px;
 	height: 1px;
 	margin: 0;
 	padding: 0;
-	opacity: 0;
+	border: 0;
+	appearance: none;
+	-webkit-appearance: none;
+	background: none;
+	clip-path: inset(50%);
+	overflow: hidden;
 	pointer-events: none;
 }
 

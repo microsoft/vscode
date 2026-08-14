@@ -169,6 +169,11 @@
 	min-width: 0;
 }
 
+/*
+ * The name stays on one line so the column scans; the description wraps
+ * instead of truncating, because a description cut to "Use your OpenAI
+ * account…" spends a line to say nothing.
+ */
 .chat-provider-setup-name {
 	font-size: 12px;
 	font-weight: 600;
@@ -183,9 +188,6 @@
 	font-size: 11px;
 	line-height: 1.35;
 	color: var(--vscode-descriptionForeground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .chat-provider-setup-action {
@@ -245,10 +247,6 @@
 	.chat-provider-setup-copy {
 		flex: 1 1 auto;
 		gap: 2px;
-	}
-
-	.chat-provider-setup-description {
-		white-space: normal;
 	}
 
 	.chat-provider-setup-action {
