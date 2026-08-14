@@ -6315,9 +6315,7 @@ suite('CopilotAgent', () => {
 			const { agent, stateManager } = createTestAgentContext(disposables, { otelService: otel });
 			try {
 				const session = AgentSession.uri('copilotcli', 'ah-session-id');
-				// A live session-backed chat whose SDK id differs from the AH session
-				// id (as after fork/import): the title span must correlate on the SDK
-				// id the CLI stamps, not the AH id.
+				// Model a fork/import whose live SDK id differs from its AH session id.
 				setLiveChatStub(agent, 'sdk-conversation-id', { sessionId: 'sdk-conversation-id', resourceUri: session });
 				const now = new Date().toISOString();
 				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
