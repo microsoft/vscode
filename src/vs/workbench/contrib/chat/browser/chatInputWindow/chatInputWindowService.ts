@@ -1394,7 +1394,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const sourceWindow = auxiliaryWindow.window;
 		const [cursorScreenPoint, nativeSourceBounds] = await Promise.all([
 			this.hostService.getCursorScreenPoint(),
-			sourceWindow.document.hasFocus() ? this.hostService.getActiveWindowPosition() : undefined,
+			this.hostService.getWindowPosition(sourceWindow),
 		]);
 		const sourceBounds = nativeSourceBounds ?? {
 			x: sourceWindow.screenX,

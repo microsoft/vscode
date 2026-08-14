@@ -585,13 +585,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return undefined;
 	}
 
-	async getActiveWindowPosition(): Promise<IRectangle> {
-		const activeWindow = getActiveWindow();
+	async getWindowPosition(targetWindow: Window): Promise<IRectangle> {
 		return {
-			x: activeWindow.screenX,
-			y: activeWindow.screenY,
-			width: activeWindow.outerWidth,
-			height: activeWindow.outerHeight,
+			x: targetWindow.screenX,
+			y: targetWindow.screenY,
+			width: targetWindow.outerWidth,
+			height: targetWindow.outerHeight,
 		};
 	}
 

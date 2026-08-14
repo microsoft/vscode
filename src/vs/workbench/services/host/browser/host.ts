@@ -116,10 +116,8 @@ export interface IHostService {
 	 */
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
 
-	/**
-	 * Get the native bounds of the active window or `undefined` if unavailable.
-	 */
-	getActiveWindowPosition(): Promise<IRectangle | undefined>;
+	/** Get the native bounds of a window or `undefined` if unavailable. */
+	getWindowPosition(targetWindow: Window): Promise<IRectangle | undefined>;
 
 	/**
 	 * Get the list of opened windows, optionally including auxiliary windows.

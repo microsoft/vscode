@@ -181,8 +181,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.getCursorScreenPoint();
 	}
 
-	getActiveWindowPosition(): Promise<IRectangle | undefined> {
-		return this.nativeHostService.getActiveWindowPosition();
+	getWindowPosition(targetWindow: Window): Promise<IRectangle | undefined> {
+		return this.nativeHostService.getWindowPosition({ targetWindowId: getWindowId(targetWindow) });
 	}
 
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
