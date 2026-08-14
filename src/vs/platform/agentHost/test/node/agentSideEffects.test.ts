@@ -6042,6 +6042,39 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(sessionInputNeeded(), []);
 		});
 
+		test('a runtime that announces invocations executes on the invocation, not on the streamed ready', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.drivesClientToolExecution = true;
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+				toolCallId: 'tc-client', toolName: 'runTask', displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+				toolCallId: 'tc-client', invocationMessage: 'Run Task', toolInput: '{"task":"build"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			const afterReady = sessionInputNeeded().filter(r => r.kind === SessionInputRequestKind.ToolClientExecution);
+
+			agent.fireProgress({
+				kind: 'client_tool_invoked', chat: URI.parse(defaultChatUri),
+				toolCallId: 'tc-client', toolName: 'runTask', toolInput: '{"task":"build"}',
+			});
+			const afterInvocation = sessionInputNeeded().filter(r => r.kind === SessionInputRequestKind.ToolClientExecution);
+
+			assert.deepStrictEqual({
+				requestsAfterReady: afterReady.length,
+				requestsAfterInvocation: afterInvocation.map(r => r.toolCall.toolCallId),
+			}, {
+				requestsAfterReady: 0,
+				requestsAfterInvocation: ['tc-client'],
+			});
+		});
+
 		test('client tool execution is produced while running and removed once complete', () => {
 			setupSession();
 			startTurn('turn-1');

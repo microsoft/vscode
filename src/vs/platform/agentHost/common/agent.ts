@@ -1073,6 +1073,13 @@ export interface IAgent {
 	/** Provider descriptor and capabilities. */
 	getDescriptor(): IAgentDescriptor;
 
+	/**
+	 * Whether the runtime announces each client tool invocation, so the host
+	 * executes on {@link IAgentClientToolInvokedSignal} rather than on the
+	 * streamed tool call reaching {@link ToolCallStatus.Running}.
+	 */
+	readonly drivesClientToolExecution?: boolean;
+
 	/** Available provider models. */
 	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
