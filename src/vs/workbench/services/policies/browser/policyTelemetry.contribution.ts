@@ -9,18 +9,73 @@ import { PolicyName } from '../../../../base/common/policy.js';
 import { IPolicyService, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../common/accountPolicyService.js';
 
 const enum PolicyNames {
 	DefaultModel = 'ChatDefaultModel',
 	ToolsAutoApprove = 'ChatToolsAutoApprove',
-	EnabledPlugins = 'ChatEnabledPlugins',
-	ExtraMarketplaces = 'ChatExtraMarketplaces',
 	StrictMarketplaces = 'ChatStrictMarketplaces',
-	ApprovedOrgs = 'ChatApprovedAccountOrganizations',
 	OtelEnabled = 'CopilotOtelEnabled',
 	TelemetryLevel = 'TelemetryLevel',
-	EnableFeedback = 'EnableFeedback',
 }
+
+export const CORE_POLICY_NAMES = [
+	'AllowedExtensions',
+	'BrowserChatTools',
+	'ChatAgentAllowedNetworkDomains',
+	'ChatAgentDeniedNetworkDomains',
+	'ChatAgentExtensionTools',
+	'ChatAgentMode',
+	'ChatAgentNetworkFilter',
+	'ChatAgentSandboxAllowAutoApprove',
+	'ChatAgentSandboxAllowNetwork',
+	'ChatAgentSandboxAllowUnsandboxedCommands',
+	'ChatAgentSandboxEnabled',
+	'ChatAllowedMcpServers',
+	'ChatAllowManagedHooksOnly',
+	'ChatAllowManagedMcpServersOnly',
+	'ChatApprovedAccountOrganizations',
+	'ChatDefaultModel',
+	'ChatDeniedMcpServers',
+	'ChatEditorPreferCopilotHarness',
+	'ChatEnabledPlugins',
+	'ChatExtraMarketplaces',
+	'ChatHooks',
+	'ChatMCP',
+	'ChatPluginsEnabled',
+	'ChatStrictMarketplaces',
+	'ChatStrictPluginOnlyCustomization',
+	'ChatToolsAutoApprove',
+	'ChatToolsEligibleForAutoApproval',
+	'ChatToolsTerminalEnableAutoApprove',
+	'Claude3PIntegration',
+	'Codex3PIntegration',
+	'CopilotNextEditSuggestions',
+	'CopilotOtelCaptureContent',
+	'CopilotOtelEnabled',
+	'CopilotOtelEndpoint',
+	'CopilotOtelHeaders',
+	'CopilotOtelOtlpProtocol',
+	'CopilotOtelOutfile',
+	'CopilotOtelProtocol',
+	'CopilotOtelResourceAttributes',
+	'CopilotOtelServiceName',
+	'CopilotReviewAgent',
+	'CopilotReviewSelection',
+	'CopilotSessionSync',
+	'DictationEnabled',
+	'EnableFeedback',
+	'ExtensionGalleryServiceUrl',
+	'ExtensionsAutoUpdate',
+	'ExtensionsAutoUpdateDelay',
+	'McpEnterpriseManagedAuthIdp',
+	'McpGalleryServiceUrl',
+	'TelemetryLevel',
+	'UpdateMode',
+].sort() satisfies readonly PolicyName[];
+
+const CORE_POLICY_NAME_SET = new Set<PolicyName>(CORE_POLICY_NAMES);
+type ReportedPolicyValueSource = Exclude<PolicyValueSource, PolicyValueSource.AccountGate>;
 
 type PolicyAppliedEvent = {
 	devicePolicyCount: number;
@@ -29,47 +84,43 @@ type PolicyAppliedEvent = {
 	fileManagedSettingsPolicyCount: number;
 	mixedManagedSettingsPolicyCount: number;
 	accountPolicyCount: number;
-	accountGatePolicyCount: number;
-	defaultModelSet: boolean;
-	toolsAutoApproveSet: boolean;
-	enabledPluginsSet: boolean;
-	extraMarketplacesSet: boolean;
-	strictMarketplacesSet: boolean;
-	approvedOrgsSet: boolean;
-	otelSet: boolean;
-	telemetryLevelSet: boolean;
-	enableFeedbackSet: boolean;
+	accountGateActive: boolean;
+	accountGateBlocked: boolean;
 	defaultModelForcedToAuto: boolean;
 	toolsAutoApproveForcedOff: boolean;
 	strictMarketplacesLockdown: boolean;
 	otelForcedEnabled: boolean;
 	telemetryLevel: string | undefined;
+	devicePolicyKeys: string;
+	nativeMdmPolicyKeys: string;
+	serverManagedSettingsPolicyKeys: string;
+	fileManagedSettingsPolicyKeys: string;
+	mixedManagedSettingsPolicyKeys: string;
+	accountPolicyKeys: string;
 };
 
 type PolicyAppliedClassification = {
 	owner: 'joshspicer';
 	comment: 'Reports effective policy values by privacy-safe delivery source and selected value buckets, to distinguish device policy, managed-settings channels, and account-driven restrictions. No raw policy values are collected.';
-	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values from OS or device policy, including values without more specific tracked provenance.' };
-	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through native MDM.' };
-	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered from GitHub services.' };
-	fileManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings delivered through a policy file.' };
-	mixedManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values caused by managed settings from more than one delivery channel.' };
-	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values derived from GitHub account policy or entitlement data.' };
-	accountGatePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of effective policy values forced by an unsatisfied approved-account gate.' };
-	defaultModelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy is applied.' };
-	toolsAutoApproveSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy is applied.' };
-	enabledPluginsSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the enabled-plugins policy is applied.' };
-	extraMarketplacesSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the extra-marketplaces policy is applied.' };
-	strictMarketplacesSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is applied.' };
-	approvedOrgsSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the approved-account-organizations policy is applied.' };
-	otelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry-enabled policy is applied.' };
-	telemetryLevelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the telemetry-level policy is applied.' };
-	enableFeedbackSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the enable-feedback policy is applied.' };
+	devicePolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, from OS or device policy or without more specific tracked provenance.' };
+	nativeMdmPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings delivered through native MDM.' };
+	serverManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings delivered from GitHub services.' };
+	fileManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings delivered through a policy file.' };
+	mixedManagedSettingsPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, caused by managed settings from more than one delivery channel.' };
+	accountPolicyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of all effective policy values, including dynamically registered policies, derived from GitHub account policy or entitlement data.' };
+	accountGateActive: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True when an approved-account gate is configured, whether it is satisfied or restrictive.' };
+	accountGateBlocked: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True when an unsatisfied approved-account gate actively restricts access to AI features.' };
 	defaultModelForcedToAuto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy forces the "auto" model.' };
 	toolsAutoApproveForcedOff: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy forces auto-approve off.' };
 	strictMarketplacesLockdown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is an empty allowlist (blocks all marketplaces).' };
 	otelForcedEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry policy forces export enabled.' };
 	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all, or "unknown") when the telemetry-level policy is applied.' };
+	devicePolicyKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, lexicographically sorted names of effective core VS Code policies from OS or device policy. Contains no policy values or dynamically registered policy names.' };
+	nativeMdmPolicyKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, lexicographically sorted names of effective core VS Code policies caused by native MDM settings. Contains no policy values or dynamically registered policy names.' };
+	serverManagedSettingsPolicyKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, lexicographically sorted names of effective core VS Code policies caused by server-managed settings. Contains no policy values or dynamically registered policy names.' };
+	fileManagedSettingsPolicyKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, lexicographically sorted names of effective core VS Code policies caused by a policy file. Contains no policy values or dynamically registered policy names.' };
+	mixedManagedSettingsPolicyKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, lexicographically sorted names of effective core VS Code policies caused by multiple managed-settings channels. Contains no policy values or dynamically registered policy names.' };
+	accountPolicyKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated, lexicographically sorted names of effective core VS Code policies derived from GitHub account policy or entitlement data. Contains no policy values or dynamically registered policy names.' };
 };
 
 export class PolicyTelemetryContribution extends Disposable implements IWorkbenchContribution {
@@ -81,11 +132,13 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IPolicyService private readonly policyService: IPolicyService,
+		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.scheduler.schedule();
 		this._register(this.policyService.onDidChange(() => this.scheduler.schedule()));
+		this._register(this.accountPolicyGateService.onDidChangeGateInfo(() => this.scheduler.schedule()));
 	}
 
 	private report(): void {
@@ -106,10 +159,24 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		let fileManagedSettingsPolicyCount = 0;
 		let mixedManagedSettingsPolicyCount = 0;
 		let accountPolicyCount = 0;
-		let accountGatePolicyCount = 0;
+		const policyKeysBySource: Record<ReportedPolicyValueSource, PolicyName[]> = {
+			[PolicyValueSource.Device]: [],
+			[PolicyValueSource.NativeMdm]: [],
+			[PolicyValueSource.ServerManagedSettings]: [],
+			[PolicyValueSource.FileManagedSettings]: [],
+			[PolicyValueSource.MixedManagedSettings]: [],
+			[PolicyValueSource.Account]: [],
+		};
 		for (const name in this.policyService.policyDefinitions) {
 			if (value(name) !== undefined) {
-				switch (this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device) {
+				const source = this.policyService.getPolicyValueSource(name) ?? PolicyValueSource.Device;
+				if (source === PolicyValueSource.AccountGate) {
+					continue;
+				}
+				if (CORE_POLICY_NAME_SET.has(name)) {
+					policyKeysBySource[source].push(name);
+				}
+				switch (source) {
 					case PolicyValueSource.Device:
 						devicePolicyCount++;
 						break;
@@ -128,9 +195,6 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 					case PolicyValueSource.Account:
 						accountPolicyCount++;
 						break;
-					case PolicyValueSource.AccountGate:
-						accountGatePolicyCount++;
-						break;
 				}
 			}
 		}
@@ -140,6 +204,7 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 		const strictMarketplaces = value(PolicyNames.StrictMarketplaces);
 		const otel = value(PolicyNames.OtelEnabled);
 		const telemetryLevel = value(PolicyNames.TelemetryLevel);
+		const accountGateInfo = this.accountPolicyGateService.gateInfo;
 
 		return {
 			devicePolicyCount,
@@ -148,21 +213,19 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 			fileManagedSettingsPolicyCount,
 			mixedManagedSettingsPolicyCount,
 			accountPolicyCount,
-			accountGatePolicyCount,
-			defaultModelSet: defaultModel !== undefined,
-			toolsAutoApproveSet: toolsAutoApprove !== undefined,
-			enabledPluginsSet: value(PolicyNames.EnabledPlugins) !== undefined,
-			extraMarketplacesSet: value(PolicyNames.ExtraMarketplaces) !== undefined,
-			strictMarketplacesSet: strictMarketplaces !== undefined,
-			approvedOrgsSet: value(PolicyNames.ApprovedOrgs) !== undefined,
-			otelSet: otel !== undefined,
-			telemetryLevelSet: telemetryLevel !== undefined,
-			enableFeedbackSet: value(PolicyNames.EnableFeedback) !== undefined,
+			accountGateActive: accountGateInfo.state !== AccountPolicyGateState.Inactive,
+			accountGateBlocked: accountGateInfo.state === AccountPolicyGateState.Restricted && accountGateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved,
 			defaultModelForcedToAuto: defaultModel === 'auto',
 			toolsAutoApproveForcedOff: toolsAutoApprove === false,
 			strictMarketplacesLockdown: isEmptyMarketplaceAllowlist(strictMarketplaces),
 			otelForcedEnabled: otel === true,
 			telemetryLevel: telemetryLevelBucket(telemetryLevel),
+			devicePolicyKeys: policyKeysBySource[PolicyValueSource.Device].sort().join(','),
+			nativeMdmPolicyKeys: policyKeysBySource[PolicyValueSource.NativeMdm].sort().join(','),
+			serverManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.ServerManagedSettings].sort().join(','),
+			fileManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.FileManagedSettings].sort().join(','),
+			mixedManagedSettingsPolicyKeys: policyKeysBySource[PolicyValueSource.MixedManagedSettings].sort().join(','),
+			accountPolicyKeys: policyKeysBySource[PolicyValueSource.Account].sort().join(','),
 		};
 	}
 }

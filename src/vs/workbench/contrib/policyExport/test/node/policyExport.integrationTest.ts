@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import * as fs from 'fs';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { dirname, join } from '../../../../../base/common/path.js';
 import { FileAccess } from '../../../../../base/common/network.js';
+import { CORE_POLICY_NAMES } from '../../../../services/policies/browser/policyTelemetry.contribution.js';
 import * as util from 'util';
 
 const execFile = util.promisify(cp.execFile);
@@ -31,5 +34,13 @@ suite('PolicyExport Integration Tests', () => {
 			env: { ...process.env, DISTRO_PRODUCT_JSON: fixturePath, VSCODE_SKIP_PRELAUNCH: '1' },
 			maxBuffer: 10 * 1024 * 1024,
 		});
+	});
+
+	test('policy telemetry covers every exported core policy', async () => {
+		const rootPath = dirname(FileAccess.asFileUri('').fsPath);
+		const policyDataPath = join(rootPath, 'build/lib/policies/policyData.jsonc');
+		const policyData = JSON.parse(await fs.promises.readFile(policyDataPath, 'utf8').then(content => content.replace(/^\/\*[\s\S]*?\*\/\s*/, ''))) as { policies: { name: string }[] };
+
+		assert.deepStrictEqual(CORE_POLICY_NAMES, policyData.policies.map(policy => policy.name).sort());
 	});
 });
