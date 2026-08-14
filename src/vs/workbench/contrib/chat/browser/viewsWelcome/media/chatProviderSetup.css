@@ -49,13 +49,6 @@
 	letter-spacing: -0.005em;
 }
 
-.chat-provider-setup-subtitle {
-	margin: 0;
-	font-size: 12px;
-	line-height: 1.4;
-	color: var(--vscode-descriptionForeground);
-}
-
 /* Quiet until sought: the panel is the point, dismissing it is the exception. */
 .chat-provider-setup-dismiss {
 	display: flex;
@@ -243,8 +236,8 @@
 		flex: 1 1 0;
 		flex-direction: column;
 		align-items: flex-start;
-		gap: 8px;
-		padding: 14px;
+		gap: 6px;
+		padding: 12px;
 		min-width: 0;
 	}
 

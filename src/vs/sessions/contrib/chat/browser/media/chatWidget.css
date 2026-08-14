@@ -490,3 +490,12 @@
 .new-session-provider-setup.hidden {
 	display: none;
 }
+
+/*
+ * While the provider list is up there is no model to run, so the workspace
+ * question has no meaning yet. Hiding it keeps one instruction on screen
+ * instead of two competing ones.
+ */
+.new-chat-widget-container .new-session-workspace-picker-container.hidden {
+	display: none;
+}

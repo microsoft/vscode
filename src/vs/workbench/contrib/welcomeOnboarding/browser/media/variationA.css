@@ -366,6 +366,70 @@
 	background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent);
 }
 
+/* Copilot leads, so its row is taller — weight without a louder colour. */
+.onboarding-a-provider-row.primary {
+	padding-top: 21px;
+	padding-bottom: 21px;
+}
+
+/* Alternate GitHub accounts: available at a glance, quiet until wanted. */
+.onboarding-a-provider-accounts {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 4px;
+	margin-left: 10px;
+	padding-left: 10px;
+	border-left: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+}
+
+.onboarding-a-provider-account {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: none;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	opacity: 0.75;
+	transition: background 120ms ease, opacity 120ms ease;
+}
+
+.onboarding-a-provider-account:hover {
+	background: color-mix(in srgb, var(--vscode-editor-foreground) 10%, transparent);
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
+.onboarding-a-provider-account:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	opacity: 1;
+}
+
+.onboarding-a-provider-account .codicon {
+	font-size: 15px;
+}
+
+.onboarding-a-provider-account.google::before {
+	content: '';
+	width: 15px;
+	height: 15px;
+	background-image: url('./google.svg');
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: contain;
+}
+
+/* Terms bind whoever signs in to Copilot, so they follow that choice. */
+.onboarding-a-signin-disclaimer.hidden {
+	visibility: hidden;
+}
+
 /*
  * The real input stays in the accessibility tree and keeps keyboard focus;
  * the pill below is its skin. Clipped rather than faded because a native
@@ -494,18 +558,6 @@
 	letter-spacing: -0.005em;
 }
 
-.onboarding-a-provider-badge {
-	flex: 0 0 auto;
-	padding: 2px 7px;
-	border-radius: 999px;
-	background: color-mix(in srgb, var(--vscode-focusBorder) 26%, transparent);
-	color: var(--vscode-foreground);
-	font-size: 9px;
-	font-weight: 600;
-	letter-spacing: 0.04em;
-	text-transform: uppercase;
-}
-
 /*
  * The description trails on the same line and truncates rather than wrapping,
  * so every row stays one line tall and the column keeps its rhythm.
@@ -520,34 +572,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-/* Copilot's other sign-in routes: available, but not competing with the list. */
-.onboarding-a-provider-alternates {
-	margin-top: 2px;
-	padding: 0 2px;
-	font-size: 12px;
-	line-height: 1.45;
-	color: var(--vscode-descriptionForeground);
-}
-
-.onboarding-a-provider-alternate {
-	padding: 0;
-	border: none;
-	background: none;
-	color: var(--vscode-textLink-foreground);
-	font: inherit;
-	cursor: pointer;
-}
-
-.onboarding-a-provider-alternate:hover {
-	text-decoration: underline;
-}
-
-.onboarding-a-provider-alternate:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-	border-radius: 2px;
 }
 
 .onboarding-a-signin-footer {

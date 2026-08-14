@@ -81,8 +81,6 @@ export class ChatProviderSetupPart extends Disposable {
 		const heading = dom.append(intro, $('.chat-provider-setup-heading'));
 		const title = dom.append(heading, $('h2.chat-provider-setup-title'));
 		title.textContent = localize('chat.providerSetup.title', "Choose how to get models");
-		const subtitle = dom.append(heading, $('p.chat-provider-setup-subtitle'));
-		subtitle.textContent = localize('chat.providerSetup.subtitle', "Pick a provider to start chatting. You can add more later.");
 
 		if (this.options.showDismiss) {
 			const dismiss = dom.append(intro, $<HTMLButtonElement>('button.chat-provider-setup-dismiss'));

@@ -347,7 +347,7 @@ export class NewChatWidget extends Disposable {
 		}
 
 		this._renderFeedbackBanner(chatWidgetContent);
-		this._renderProviderSetup(chatWidgetContent);
+		this._renderProviderSetup(chatWidgetContent, workspacePickerContainer);
 		this._chatTipContainer = dom.append(chatWidgetContent, dom.$('.chat-getting-started-tip-container'));
 		this._renderChatTip();
 		this._newChatInput.render(chatWidgetContent, parent);
@@ -875,11 +875,17 @@ export class NewChatWidget extends Disposable {
 	 * no way to run a model yet it offers the provider list above the input
 	 * rather than an input that cannot do anything.
 	 *
+	 * The workspace picker is hidden while this shows. Picking a workspace is
+	 * meaningless without a model, and two headings stacked ("Start by picking
+	 * a workspace" over "Choose how to get models") leave the user with no idea
+	 * which to answer first. One decision at a time: get models, then pick
+	 * where to work.
+	 *
 	 * Driven by an autorun because entitlement resolves asynchronously — the
 	 * composer is built while the sign-in dialog is still up, so a one-shot
 	 * check at render time reads a state that has not settled yet.
 	 */
-	private _renderProviderSetup(container: HTMLElement): void {
+	private _renderProviderSetup(container: HTMLElement, workspacePicker: HTMLElement): void {
 		const host = dom.append(container, dom.$('.new-session-provider-setup'));
 		const part = this._register(new MutableDisposable<DisposableStore>());
 		let dismissed = false;
@@ -895,6 +901,7 @@ export class NewChatWidget extends Disposable {
 			part.clear();
 			dom.clearNode(host);
 			host.classList.toggle('hidden', !needsProvider);
+			workspacePicker.classList.toggle('hidden', needsProvider);
 			if (!needsProvider) {
 				return;
 			}
@@ -906,6 +913,7 @@ export class NewChatWidget extends Disposable {
 				dismissed = true;
 				dom.clearNode(host);
 				host.classList.add('hidden');
+				workspacePicker.classList.remove('hidden');
 				part.clear();
 			}));
 			dom.append(host, setup.element);

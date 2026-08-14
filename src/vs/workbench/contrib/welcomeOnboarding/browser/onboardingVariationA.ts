@@ -87,7 +87,8 @@ interface IOnboardingProviderRow {
 	readonly icon?: ThemeIcon;
 	readonly name: string;
 	readonly description: string;
-	readonly badge?: string;
+	/** Copilot leads the list, so its row is taller and carries account marks. */
+	readonly primary?: boolean;
 }
 
 assertDefined(product.defaultChatAgent, 'Onboarding requires a default chat agent product configuration.');
@@ -144,6 +145,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private _userSignedIn = false;
 	/** Providers switched on in the sign-in step; Copilot leads by default. */
 	private readonly selectedProviders = new Set<string>(['copilot']);
+	private copilotTermsEl: HTMLElement | undefined;
 	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 	private enterpriseSignInUiState: EnterpriseSignInUiState = 'options';
 	private enterpriseInstanceValue = '';
@@ -532,7 +534,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const disclaimerCol = append(footer, $('.onboarding-a-signin-disclaimer-col'));
 
 		// GitHub Copilot disclaimer
-		const copilotDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
+		const copilotDisclaimer = this.copilotTermsEl = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By signing in, you agree to {0}'s ", defaultChat.provider.default.name));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.terms', "Terms"), defaultChat.termsStatementUrl);
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.middle', " and "));
@@ -544,6 +546,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.settingsPrefix', "You can change these "));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.settings', "settings"), this.defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings));
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.suffix', " anytime."));
+		this._updateCopilotTermsVisibility();
 	}
 
 	/**
@@ -562,24 +565,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		for (const descriptor of this._getProviderRows()) {
 			this._renderProviderRow(list, descriptor);
 		}
-
-		const alternates = append(list, $('.onboarding-a-provider-alternates'));
-		alternates.append(localize('onboarding.signIn.copilot.alternatesPrefix', "Prefer a different GitHub account? Continue with "));
-		const googleBtn = this._registerStepFocusable(append(alternates, $<HTMLButtonElement>('button.onboarding-a-provider-alternate')));
-		googleBtn.type = 'button';
-		googleBtn.textContent = localize('onboarding.signIn.copilot.google', "Google");
-		this.stepDisposables.add(addDisposableListener(googleBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'google');
-			void this._handleSignIn('google');
-		}));
-		alternates.append(' · ');
-		const gheBtn = this._registerStepFocusable(append(alternates, $<HTMLButtonElement>('button.onboarding-a-provider-alternate')));
-		gheBtn.type = 'button';
-		gheBtn.textContent = localize('onboarding.signIn.copilot.ghe', "GitHub Enterprise");
-		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
-			this._logAction('signIn', undefined, 'github-enterprise');
-			void this._handleEnterpriseSignIn();
-		}));
 	}
 
 	private _getProviderRows(): readonly IOnboardingProviderRow[] {
@@ -588,20 +573,20 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				id: 'copilot',
 				icon: Codicon.github,
 				name: localize('onboarding.signIn.copilot.name', "GitHub Copilot"),
-				description: localize('onboarding.signIn.copilot.description', "Free with your GitHub account. Works in every agent."),
-				badge: localize('onboarding.signIn.copilot.badge', "Recommended"),
+				description: localize('onboarding.signIn.copilot.description', "Free with your GitHub account."),
+				primary: true,
 			},
 			{
 				id: 'chatgpt',
 				markClass: 'openai',
 				name: localize('onboarding.signIn.chatgpt.name', "ChatGPT"),
-				description: localize('onboarding.signIn.chatgpt.description', "Use your OpenAI account or API key."),
+				description: localize('onboarding.signIn.chatgpt.description', "Your OpenAI account or key."),
 			},
 			{
 				id: 'byok',
 				icon: Codicon.key,
 				name: localize('onboarding.signIn.byok.name', "Your own key"),
-				description: localize('onboarding.signIn.byok.description', "Anthropic, Azure, Foundry, OpenRouter and more."),
+				description: localize('onboarding.signIn.byok.description', "Anthropic, Azure, OpenRouter."),
 			},
 		];
 	}
@@ -614,6 +599,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const selected = this.selectedProviders.has(descriptor.id);
 		const row = append(list, $('label.onboarding-a-provider-row'));
 		row.classList.toggle('selected', selected);
+		row.classList.toggle('primary', !!descriptor.primary);
 
 		const checkbox = this._registerStepFocusable(append(row, $<HTMLInputElement>('input.onboarding-a-provider-checkbox')));
 		checkbox.type = 'checkbox';
@@ -637,15 +623,37 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const name = append(row, $('span.onboarding-a-provider-name'));
 		name.textContent = descriptor.name;
 
-		if (descriptor.badge) {
-			const badge = append(row, $('span.onboarding-a-provider-badge'));
-			badge.textContent = descriptor.badge;
-		}
-
 		const description = append(row, $('span.onboarding-a-provider-description'));
 		description.id = `onboarding-a-provider-description-${descriptor.id}`;
 		description.textContent = descriptor.description;
 		checkbox.setAttribute('aria-describedby', description.id);
+
+		// Copilot's other account routes live in its own row, as marks rather
+		// than a sentence: they are alternatives to this provider, not to the
+		// list, and a line of prose here would outweigh the choice itself.
+		if (descriptor.primary) {
+			const accounts = append(row, $('.onboarding-a-provider-accounts'));
+			const google = this._registerStepFocusable(append(accounts, $<HTMLButtonElement>('button.onboarding-a-provider-account.google')));
+			google.type = 'button';
+			google.title = localize('onboarding.signIn.copilot.google', "Continue with Google");
+			google.setAttribute('aria-label', google.title);
+			this.stepDisposables.add(addDisposableListener(google, EventType.CLICK, e => {
+				e.preventDefault();
+				this._logAction('signIn', undefined, 'google');
+				void this._handleSignIn('google');
+			}));
+
+			const ghe = this._registerStepFocusable(append(accounts, $<HTMLButtonElement>('button.onboarding-a-provider-account')));
+			ghe.type = 'button';
+			ghe.appendChild(renderIcon(Codicon.organization));
+			ghe.title = localize('onboarding.signIn.copilot.ghe', "Continue with GitHub Enterprise");
+			ghe.setAttribute('aria-label', ghe.title);
+			this.stepDisposables.add(addDisposableListener(ghe, EventType.CLICK, e => {
+				e.preventDefault();
+				this._logAction('signIn', undefined, 'github-enterprise');
+				void this._handleEnterpriseSignIn();
+			}));
+		}
 
 		this.stepDisposables.add(addDisposableListener(checkbox, EventType.CHANGE, () => {
 			if (checkbox.checked) {
@@ -658,8 +666,18 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			status(checkbox.checked
 				? localize('onboarding.signIn.provider.selected', "{0} selected.", descriptor.name)
 				: localize('onboarding.signIn.provider.deselected', "{0} deselected.", descriptor.name));
+			this._updateCopilotTermsVisibility();
 			this._updateButtonStates();
 		}));
+	}
+
+	/**
+	 * The GitHub terms only bind someone who is actually signing in to Copilot,
+	 * so they appear with that choice rather than sitting under the list as a
+	 * permanent wall of text.
+	 */
+	private _updateCopilotTermsVisibility(): void {
+		this.copilotTermsEl?.classList.toggle('hidden', !this.selectedProviders.has('copilot'));
 	}
 
 	/**
