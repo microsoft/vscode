@@ -95,7 +95,10 @@
 }
 
 .chat-input-window .chat-input-window-close .codicon[class*='codicon-'] {
+	display: inline-block;
+	flex: 0 0 var(--vscode-codiconFontSize-compact);
 	font-size: var(--vscode-codiconFontSize-compact);
+	width: var(--vscode-codiconFontSize-compact);
 }
 
 .chat-input-window .chat-side-toolbar {

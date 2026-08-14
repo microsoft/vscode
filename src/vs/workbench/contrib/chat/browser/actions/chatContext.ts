@@ -38,6 +38,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
+import { IChatSessionRoutingProviderService } from '../../common/sessionRouter.js';
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -331,6 +332,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IPathService private readonly _pathService: IPathService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@IChatSessionRoutingProviderService private readonly _routingProviderService: IChatSessionRoutingProviderService,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
@@ -344,11 +346,36 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
 			picks: (async () => {
 				const picks: IChatContextPickerPickItem[] = [];
+				const includedResources = new Set<string>();
+				const routingProvider = this._routingProviderService.getProvider();
+				if (routingProvider) {
+					const candidates = await routingProvider.getCandidateSessions(CancellationToken.None);
+					for (const candidate of candidates) {
+						const sessionResource = routingProvider.resolveSessionResource(candidate.sessionId);
+						if (!sessionResource
+							|| sessionResource.toString() === currentSessionResource?.toString()
+							|| (onlyShowAttachableCopilotCliSessions && !this._canAttachCopilotCliSession(sessionResource))) {
+							continue;
+						}
+						includedResources.add(sessionResource.toString());
+						picks.push({
+							label: candidate.label,
+							description: candidate.lastActivity ? new Date(candidate.lastActivity).toLocaleString() : undefined,
+							asAttachment: (): IChatRequestVariableEntry => ({
+								kind: 'generic',
+								id: `session:${candidate.sessionId}`,
+								name: candidate.label,
+								value: { sessionReference: true, sessionResource: sessionResource.toString() },
+							}),
+						});
+					}
+				}
 				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.AgentHostCopilot];
 				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
 					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
 					for (const item of group.items) {
-						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+						if ((currentSessionResource && item.resource.toString() === currentSessionResource.toString())
+							|| includedResources.has(item.resource.toString())) {
 							continue;
 						}
 						const sessionResource = item.resource;

@@ -159,6 +159,8 @@ export interface IChatSessionRoutingHost extends IChatSessionRoutingFolderPicker
 	getPendingReplySessionResource?(): URI | undefined;
 	/** Session provider selected for a newly created destination. */
 	getNewSessionTarget?(): AgentSessionTarget | undefined;
+	/** Display name of the model selected for a newly created destination. */
+	getSelectedModelLabel?(): string | undefined;
 	/**
 	 * Insert the advisory badge into the host DOM near the input.
 	 * If the host has no surface to place it, leave the badge disconnected and
@@ -378,7 +380,7 @@ export class ChatSessionRoutingController extends Disposable {
 			if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
 				this._showDeliveryConfirmation(target.label, result);
 			} else {
-				this._showDispatchFailure(target.label);
+				this._showDispatchFailure(target.label, result.reason);
 			}
 		});
 	}
@@ -768,7 +770,7 @@ export class ChatSessionRoutingController extends Disposable {
 					? localize('chatSessionRouting.bestMatchSessionModel', "Best Match · Session model")
 					: localize('chatSessionRouting.highConfidenceSessionModel', "High Confidence · Session model")
 				: requestOptions.userSelectedModelId
-					? localize('chatSessionRouting.selectedModel', "Selected model")
+					? this.host.getSelectedModelLabel?.() ?? requestOptions.userSelectedModelId
 					: '';
 			if (option.kind === 'new' && this._hasWorkspacePickerOptions()) {
 				const selectedFolderName = option.folder
@@ -910,7 +912,7 @@ export class ChatSessionRoutingController extends Disposable {
 				if ((result.status === 'sent' || result.status === 'queued') && result.resource) {
 					this._showDeliveryConfirmation(selected.label, result);
 				} else {
-					this._showDispatchFailure(selected.label);
+					this._showDispatchFailure(selected.label, result.reason);
 				}
 			});
 		};
@@ -1266,12 +1268,14 @@ export class ChatSessionRoutingController extends Disposable {
 		ariaAlert(localize('chatSessionRouting.fanoutResult', "{0} sent, {1} queued, {2} failed.", sent, queued, failed));
 	}
 
-	private _showDispatchFailure(label?: string): void {
+	private _showDispatchFailure(label?: string, reason?: string): void {
 		const badge = dom.$('.chat-routing-badge');
 		const mark = dom.append(badge, dom.$('span.chat-routing-badge-sent-mark'));
 		mark.appendChild(renderIcon(Codicon.error));
 		const message = dom.append(badge, dom.$('span.chat-routing-badge-label'));
-		message.textContent = label
+		message.textContent = label && reason
+			? localize('chatSessionRouting.sendFailedToWithReason', "Could not send to {0}: {1} Your draft was preserved.", label, reason)
+			: label
 			? localize('chatSessionRouting.sendFailedTo', "Could not send to {0}. Your draft was preserved.", label)
 			: localize('chatSessionRouting.sendFailed', "Could not send the request. Your draft was preserved.");
 		this.host.placeBadge(badge);
@@ -1397,13 +1401,15 @@ export class ChatSessionRoutingController extends Disposable {
 				}
 				return result.status === 'rejected' ? result : { status: 'rejected', reasonCode: 'providerRemoved' };
 			}
+			const requestId = result.requestId ?? this.chatService.getSession(resource)?.lastRequest?.id;
 			if (notifyRoute) {
-				this.host.onDidResolveRoute?.(resource, 'existing_session', requestOptions.isVoiceModeInput, result.requestId);
+				this.host.onDidResolveRoute?.(resource, 'existing_session', requestOptions.isVoiceModeInput, requestId);
 			}
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return {
 				...result,
 				resource,
+				requestId,
 				reveal: () => routingProvider.revealSession(resource),
 			};
 		} catch (error) {
@@ -1500,13 +1506,15 @@ export class ChatSessionRoutingController extends Disposable {
 				}
 				return result.status === 'rejected' ? result : { status: 'rejected', reasonCode: 'providerRemoved' };
 			}
+			const requestId = result.requestId ?? this.chatService.getSession(resource)?.lastRequest?.id;
 			if (notifyRoute) {
-				this.host.onDidResolveRoute?.(resource, 'new_session', requestOptions.isVoiceModeInput, result.requestId);
+				this.host.onDidResolveRoute?.(resource, 'new_session', requestOptions.isVoiceModeInput, requestId);
 			}
 			this._clearInputIfUnchanged(submittedInput, submittedAttachmentIds);
 			return {
 				...result,
 				resource,
+				requestId,
 				reveal: () => routingProvider.revealSession(resource),
 			};
 		} catch (error) {

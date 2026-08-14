@@ -3271,11 +3271,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		const model = this.chatService.getSession(resource);
-		if (!model && this._isOmniVoiceInboxActive()) {
-			// Sessions-layer routes can resolve before their chat model is resident
-			// in this renderer. Keep the routed model loaded so its response text is
-			// observable when the provider later reports completion.
-			this._ensureModelLoaded(resource);
+		if (this._isOmniVoiceInboxActive()) {
+			// The provider's send path can leave a model transiently resident while
+			// dispatch resolves, then release its final reference. Acquire our own
+			// reference even when the model is currently visible so the completed
+			// response remains observable for narration.
+			this._ensureModelLoaded(resource, true);
 		}
 		if (model && this._isCurrentRoutedRequest(resource.toString(), routedRequest)) {
 			const state = this._getAgentStateInfo(model);
@@ -7420,13 +7421,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 * opened in the UI yet. Once loaded, the autorun observables will re-fire
 	 * with full confirmation detail so the backend can narrate properly.
 	 */
-	private _ensureModelLoaded(resource: URI): void {
+	private _ensureModelLoaded(resource: URI, retainExisting = false): void {
 		const key = resource.toString();
 		// Skip if already loaded, resident in the UI, or a load is in flight.
 		// The in-flight guard prevents repeated onDidChangeSessions/autorun
 		// cycles from starting concurrent loads whose refs would overwrite each
 		// other in _eagerModelRefs and leak the prior ref.
-		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || this.chatService.getSession(resource)) {
+		if (this._eagerModelRefs.has(key) || this._eagerModelLoading.has(key) || (!retainExisting && this.chatService.getSession(resource))) {
 			return;
 		}
 		// A surfaced-but-un-adopted legacy Copilot CLI session must NOT be eagerly

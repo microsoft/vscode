@@ -182,11 +182,11 @@ suite('OmniSessionRoutingAdapter', () => {
 			participant: 'assistant',
 		}];
 		let watchedCount = 0;
-		store.add(adapter.watchSession(provisional.resource, () => watchedCount++));
+		store.add(adapter.watchSession(provisional.mainChat.get().resource, () => watchedCount++));
 
 		managementService.fireSessionReplaced(provisional, committed);
-		const snapshot = await adapter.getSessionSnapshot(provisional.resource, CancellationToken.None);
-		await adapter.revealSession(provisional.resource);
+		const snapshot = await adapter.getSessionSnapshot(provisional.mainChat.get().resource, CancellationToken.None);
+		await adapter.revealSession(provisional.mainChat.get().resource);
 
 		assert.deepStrictEqual({
 			watchedCount,
@@ -340,7 +340,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		}, {
 			result: {
 				status: 'sent',
-				resource: session.resource,
+				resource: session.mainChat.get().resource,
 				activityBaseline: session.lastTurnEnd.get()!.getTime(),
 			},
 			send: {
@@ -360,6 +360,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		const result = await adapter.dispatchToNewSession({ folder, providerId: 'provider' }, 'Build it', {
 			attachedContext: [attachment],
 			userSelectedModelId: 'model',
+			userSelectedModelConfiguration: { reasoningEffort: 'high', contextSize: 1_000_000 },
 			modeInfo: {
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
@@ -376,7 +377,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		}, {
 			result: {
 				status: 'sent',
-				resource: created.resource,
+				resource: created.mainChat.get().resource,
 				activityBaseline: created.createdAt.getTime(),
 			},
 			folderSend: {
@@ -399,7 +400,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		}, {
 			result: {
 				status: 'sent',
-				resource: created.resource,
+				resource: created.mainChat.get().resource,
 				activityBaseline: created.createdAt.getTime(),
 			},
 			quickSend: {

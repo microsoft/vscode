@@ -373,7 +373,7 @@ function agentSessionEntry(id: string, label: string | undefined, status: AgentS
 class TestChatService extends mock<IChatService>() {
 	override readonly chatModels = observableValue('chatModels', []);
 	readonly sendRequestOptions: (IChatSendRequestOptions | undefined)[] = [];
-	override getSession(): undefined { return undefined; }
+	override getSession(): IChatModel | undefined { return undefined; }
 	override async sendRequest(_sessionResource: URI, _message: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
 		this.sendRequestOptions.push(options);
 		return { kind: 'rejected', reason: 'test' };
@@ -385,6 +385,18 @@ class TestChatService extends mock<IChatService>() {
 
 class TrackingLoadChatService extends TestChatService {
 	readonly loaded: string[] = [];
+	private residentModel: IChatModel | undefined;
+
+	setResident(resource: URI): void {
+		this.residentModel = {
+			sessionResource: resource,
+			getRequests: () => [],
+		} as unknown as IChatModel;
+	}
+
+	override getSession(): IChatModel | undefined {
+		return this.residentModel;
+	}
 
 	override async acquireOrLoadSession(resource?: URI): Promise<undefined> {
 		if (resource) {
@@ -5927,6 +5939,20 @@ suite('VoiceSessionController', () => {
 		const chatService = new TrackingLoadChatService();
 		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
 		const resource = URI.parse('agent-host-copilotcli:/new-omni-target');
+
+		await connectWithOmniOpen(controller, voiceClientService);
+		controller.markRoutedRequestPending(resource, 'new-request');
+		await Promise.resolve();
+
+		assert.deepStrictEqual(chatService.loaded, [resource.toString()]);
+	});
+
+	test('retains a resident omni-routed session until its final response is observable', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new TrackingLoadChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('agent-host-copilotcli:/resident-omni-target');
+		chatService.setResident(resource);
 
 		await connectWithOmniOpen(controller, voiceClientService);
 		controller.markRoutedRequestPending(resource, 'new-request');
