@@ -1260,12 +1260,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						if (finishedNarration?.kind === 'response') {
 							this._clearPendingResponse(spokenSessionKey);
 							this._completeRoutedResponse(spokenSessionId);
-						} else if (this._routedRequests.has(spokenSessionKey)) {
+						} else if (this._routedRequests.has(spokenSessionKey) || this._isOmniVoiceInboxActive()) {
 							// An untagged voice-backend reply can be a short acknowledgement
-							// after an approval, not the routed chat task's final response. Keep
+							// after an approval, not the chat task's final response. Keep
 							// ownership until the model's completed summary is heard. If that
 							// summary arrived while this audio was playing, resume it now.
-							this._resumeRoutedCompletionAfterPlayback(spokenSessionId);
+							this._resumePendingResponseAfterPlayback(spokenSessionId);
 						} else {
 							this._clearPendingResponse(spokenSessionKey);
 						}
@@ -1885,10 +1885,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (e.responseId && codingSessionId) {
 				this._responseSessionIds.set(e.responseId, codingSessionId);
 			}
-			if (e.responseId && this._isOmniVoiceInboxActive()) {
+			if (e.responseId && this._isOmniVoiceInboxSession(codingSessionId)) {
 				this._omniNarrationIds.add(e.responseId);
 			}
-			if (codingSessionId && !isCheckpointNarration && this._isOmniVoiceInboxActive()) {
+			if (codingSessionId && !isCheckpointNarration && this._isOmniVoiceInboxSession(codingSessionId)) {
 				this._omniClaimedResponseSummaries.set(this._sessionKey(codingSessionId), e.transcript ?? '');
 			}
 			const routedRequest = codingSessionId ? this._routedRequests.get(this._sessionKey(codingSessionId)) : undefined;
@@ -1955,7 +1955,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// replies bypass this inside _isRenarration.
 			const isRenarration = this._isRenarration(e.responseId, codingSessionId, e.transcript, e.isFirstChunk, e.isFinal);
 			const targetSessionId = this._targetSession.get()?.toString();
-			const belongsToVoiceSession = this._isOmniVoiceInboxActive()
+			const belongsToVoiceSession = this._isOmniVoiceInboxSession(codingSessionId)
 				|| !codingSessionId
 				|| (!this._hasDraftTarget.get() && (!targetSessionId || this._isSameSession(codingSessionId, targetSessionId)));
 			if (!belongsToVoiceSession) {
@@ -1980,7 +1980,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this.logService.trace(`[voice] dropping audio for non-target session=${codingSessionId} target=${targetSessionId}`);
 				return;
 			}
-			const deferForOmniInbox = !isRenarration && !!codingSessionId && this._isOmniVoiceInboxActive()
+			const deferForOmniInbox = !isRenarration && !!codingSessionId && this._isOmniVoiceInboxSession(codingSessionId)
 				&& (this._isUserActivelySpeaking()
 					|| this._omniNarrationQueue.length > 0
 					|| this._omniDeferredSessionKeys.size > 0
@@ -3308,7 +3308,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Omni is the visible owner while connected. Hide any voice-only list
 			// indicators; their underlying state remains available in omni itself.
 			for (const key of this._pendingVoiceIndicatorKeys()) {
-				this._markPendingResponse(key, false);
+				if (this._isOmniInboxEligibleSession(key)) {
+					this._markPendingResponse(key, false);
+				}
 			}
 			// A panel narration can have been deferred while the backend was busy.
 			// Revalidate it before draining Omni: a stale entry otherwise blocks
@@ -4578,7 +4580,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return false;
 			}
 		}
-		if (!fromOmniQueue && kind !== 'checkpoint' && this._isOmniVoiceInboxActive() && this._shouldQueueOmniNarration()) {
+		if (!fromOmniQueue && kind !== 'checkpoint' && this._isOmniVoiceInboxSession(sessionId) && this._shouldQueueOmniNarration()) {
 			this._queueOmniNarration({ sessionId, kind, text, confirmationType, ...(pending ? { pending } : {}) });
 			return false;
 		}
@@ -4638,7 +4640,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 		}
 		this._solicitedNarrationIds.add(narrationId);
-		if (this._isOmniVoiceInboxActive() || fromOmniQueue) {
+		if (this._isOmniVoiceInboxSession(sessionId) || fromOmniQueue) {
 			this._omniNarrationIds.add(narrationId);
 		}
 		// Do NOT mark the reply narrated / clear its pending indicator yet - a
@@ -4721,6 +4723,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				.map(sessionKey => ({ sessionKey, ordinal: this._omniDeferredSessionOrdinals.get(sessionKey) ?? Number.MAX_SAFE_INTEGER }))
 				.sort((a, b) => a.ordinal - b.ordinal)[0];
 			if (nextDeferredSession && (!nextNarration || nextDeferredSession.ordinal < nextNarration.ordinal)) {
+				if (!this._isOmniVoiceInboxSession(nextDeferredSession.sessionKey)) {
+					this._omniDeferredSessionKeys.delete(nextDeferredSession.sessionKey);
+					this._omniDeferredSessionOrdinals.delete(nextDeferredSession.sessionKey);
+					this._omniClaimedResponseSummaries.delete(nextDeferredSession.sessionKey);
+					this._markPendingResponse(nextDeferredSession.sessionKey, true);
+					continue;
+				}
 				const result = this._flushDeferredResponse(nextDeferredSession.sessionKey);
 				if (!result.retained) {
 					this._omniDeferredSessionKeys.delete(nextDeferredSession.sessionKey);
@@ -4741,6 +4750,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const current = resource ? this._currentNarratable(resource) : undefined;
 			const itemIdentity = this._narratableIdentity(item);
 			const sessionKey = this._sessionKey(item.sessionId);
+			if (!this._isOmniVoiceInboxSession(item.sessionId)) {
+				if (item.kind === 'response') {
+					this._pendingResponseSummaries.set(sessionKey, item.text);
+					this._omniClaimedResponseSummaries.delete(sessionKey);
+				} else {
+					this._confirmationPendingSessions.add(sessionKey);
+					this._omniClaimedPendingIds.delete(sessionKey);
+				}
+				this._markPendingResponse(sessionKey, true);
+				continue;
+			}
 			const cachedResponseStillCurrent = item.kind === 'response'
 				&& this._omniClaimedResponseSummaries.get(sessionKey) === item.text;
 			const cachedPendingStillCurrent = item.kind !== 'response'
@@ -4867,7 +4887,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	private _resumeRoutedCompletionAfterPlayback(sessionId: string): void {
+	private _resumePendingResponseAfterPlayback(sessionId: string): void {
 		const sessionKey = this._sessionKey(sessionId);
 		const summary = this._pendingResponseSummaries.get(sessionKey);
 		if (!summary) {
@@ -5368,6 +5388,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this._omniInputOpen.get() && (this._isConnected.get() || this._isConnecting.get());
 	}
 
+	private _isOmniVoiceInboxSession(sessionId: string | undefined): boolean {
+		return this._isOmniVoiceInboxActive() && this._isOmniInboxEligibleSession(sessionId);
+	}
+
+	private _isOmniInboxEligibleSession(sessionId: string | undefined): boolean {
+		if (!sessionId) {
+			return false;
+		}
+		return this._isOmniRoutedSession(sessionId) || this.agentSessionsService.model.sessions.some(session =>
+			!session.isArchived() && this._isSameSession(session.resource.toString(), sessionId));
+	}
+
 	/** Whether a response for `sessionId` should defer: true unless it is the
 	 *  session currently shown to the user or selected through omni-chat
 	 *  (untagged audio → play). A non-omni reply the user is awaiting is NOT
@@ -5377,7 +5409,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!sessionId) {
 			return false;
 		}
-		if (this._isOmniVoiceInboxActive()) {
+		if (this._isOmniVoiceInboxSession(sessionId)) {
 			return false;
 		}
 		return !this._isOmniRoutedSession(sessionId) && !this._isSameSession(this._shownSessionId(), sessionId);
@@ -5701,7 +5733,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _markPendingResponse(sessionId: string, pending: boolean): void {
 		try {
-			this.voicePlaybackService.setPendingResponse(URI.parse(sessionId), pending && !this._isOmniVoiceInboxActive());
+			this.voicePlaybackService.setPendingResponse(URI.parse(sessionId), pending && !this._isOmniVoiceInboxSession(sessionId));
 		} catch {
 			// sessionId isn't a parseable resource - nothing to indicate.
 		}
@@ -6459,7 +6491,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** React to a session reaching a narratable state. If it's the shown or omni-routed session, speak it now; a completed reply on another background session instead shows the sessions-list pending indicator and is read when focused. A new turn (`thinking`) clears both the dedup and any stale pending indicator. */
 	private _handleNarratableStateChange(sessionId: string, currentState: string, detail: string | undefined, lastResponseSummary: string | undefined, shownNow: string | undefined, confirmationType?: VoiceConfirmationType): void {
 		const sessionKey = this._sessionKey(sessionId);
-		const omniInboxActive = this._isOmniVoiceInboxActive();
+		const omniInboxActive = this._isOmniVoiceInboxSession(sessionId);
 		if (currentState === 'thinking') {
 			this._omniClaimedResponseSummaries.delete(sessionKey);
 		}
@@ -6555,7 +6587,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Playback may be an approval acknowledgement rather than this final
 				// response. Preserve the completed summary so playback completion can
 				// either recognize it as already heard or request its narration.
-				if (routedRequest) {
+				if (routedRequest || omniInboxActive) {
 					this._pendingResponseSummaries.set(sessionKey, lastResponseSummary);
 				}
 			} else {

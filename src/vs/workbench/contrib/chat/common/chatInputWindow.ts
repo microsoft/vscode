@@ -24,12 +24,18 @@ export const CHAT_INPUT_WINDOW_DEFAULT_HEIGHT = 110;
  */
 export const enum ChatInputWindowStorageKeys {
 	WindowOpen = 'chatInputWindow.windowOpen',
+	WindowPositionOffset = 'chatInputWindow.windowPositionOffset',
 }
 
-export function getCenteredChatInputWindowBounds(invokingWindowBounds: IRectangle, width: number, height: number): IRectangle {
+export interface IChatInputWindowPositionOffset {
+	readonly x: number;
+	readonly y: number;
+}
+
+export function getChatInputWindowBounds(invokingWindowBounds: IRectangle, width: number, height: number, offset?: IChatInputWindowPositionOffset): IRectangle {
 	return {
-		x: Math.round(invokingWindowBounds.x + (invokingWindowBounds.width - width) / 2),
-		y: Math.round(invokingWindowBounds.y + (invokingWindowBounds.height - height) / 2),
+		x: Math.round(invokingWindowBounds.x + (offset?.x ?? (invokingWindowBounds.width - width) / 2)),
+		y: Math.round(invokingWindowBounds.y + (offset?.y ?? (invokingWindowBounds.height - height) / 2)),
 		width,
 		height,
 	};

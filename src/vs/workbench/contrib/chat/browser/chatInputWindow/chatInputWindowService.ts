@@ -48,7 +48,7 @@ import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
-import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, getCenteredChatInputWindowBounds } from '../../common/chatInputWindow.js';
+import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, getChatInputWindowBounds, IChatInputWindowPositionOffset } from '../../common/chatInputWindow.js';
 import { autorun, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -380,6 +380,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (this._window !== auxiliaryWindow) {
 				return;
 			}
+			this._storeWindowPosition(auxiliaryWindow);
 			this._disposeWidget();
 			this._desiredOpen = false;
 			this._ownershipClaim = undefined;
@@ -399,6 +400,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._ownershipClaim = undefined;
 		if (!this._window) { return; }
 
+		this._storeWindowPosition(this._window);
 		this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		// Cancel any in-flight submission so routing can't dispatch after close.
@@ -645,7 +647,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			lastContentHeight = contentHeight;
 			if (!didInitialPosition) {
 				didInitialPosition = true;
-				const initialBounds = getCenteredChatInputWindowBounds(this._invokingWindowBounds, width, contentHeight);
+				const initialBounds = this._positionedBounds(width, contentHeight);
 				currentPosition = { x: initialBounds.x, y: initialBounds.y };
 			} else if (!applyingBounds) {
 				currentPosition = { x: win.screenX, y: win.screenY };
@@ -1478,7 +1480,32 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		return getCenteredChatInputWindowBounds(this._invokingWindowBounds, this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+		return this._positionedBounds(this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
+	}
+
+	private _positionedBounds(width: number, height: number): IRectangle {
+		const offset = this.storageService.getObject<IChatInputWindowPositionOffset>(
+			ChatInputWindowStorageKeys.WindowPositionOffset,
+			StorageScope.WORKSPACE,
+		);
+		const validOffset = offset && Number.isFinite(offset.x) && Number.isFinite(offset.y) ? offset : undefined;
+		return getChatInputWindowBounds(this._invokingWindowBounds, width, height, validOffset);
+	}
+
+	private _storeWindowPosition(auxiliaryWindow: IAuxiliaryWindow): void {
+		const bounds = auxiliaryWindow.createState().bounds;
+		if (bounds?.x === undefined || bounds.y === undefined) {
+			return;
+		}
+		this.storageService.store(
+			ChatInputWindowStorageKeys.WindowPositionOffset,
+			JSON.stringify({
+				x: bounds.x - this._invokingWindowBounds.x,
+				y: bounds.y - this._invokingWindowBounds.y,
+			} satisfies IChatInputWindowPositionOffset),
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE,
+		);
 	}
 
 	private _defaultWidth(): number {
