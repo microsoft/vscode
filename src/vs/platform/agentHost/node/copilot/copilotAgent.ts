@@ -777,8 +777,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
-		// Session titles are host-owned; mirror them into telemetry under the SDK
-		// conversation id so the span correlates with the agent's turn spans.
+		// Mirror host-owned titles under the SDK conversation id used by the agent's turn spans.
 		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, title }) => {
 			if (provider === this.id) {
 				this._otelService.emitSessionTitleChanged(this._sdkConversationId(session), session.toString(), title);
