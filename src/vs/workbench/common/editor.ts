@@ -1283,6 +1283,7 @@ interface IEditorPartConfiguration {
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabActionLocation?: 'left' | 'right';
+	tabActionReserveSpace?: boolean;
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
 	showTabIndex?: boolean;

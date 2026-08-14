@@ -44,6 +44,8 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 
 The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. Sessions-owned styles define only the part surface and inset; action geometry, active/hover/focus states, and badge placement remain owned by the shared pane-tab stylesheet so the Editor and Agents windows stay aligned.
 
+Clean editor tabs in the Agents window use the compact action-overlay presentation, while tabs with persistent dirty or pinned indicators still reserve the indicator column. The Sessions-owned `EditorParts` enforces `tabActionReserveSpace: false`, independent of the global `workbench.editor.tabActionReserveSpace` preference (which reserves the action column by default), because its editor is commonly shown as a narrow side pane. Other workbench windows reserve the action column by default and may opt out through that preference or `enforcePartOptions()`.
+
 Standard dialogs retain their full-window modal blocker. The Agents sign-in blocker occupies a lower layer; while it is visible, notification toasts and Quick Input surfaces are placed between it and normal dialogs so authentication progress, its actions, and PAT input remain pointer-interactive without appearing above a later modal. The sign-in dialog also allows Quick Input focus and keybindings through its focus trap, and does not consume the Quick Input's Escape dismissal.
 
 ### 2.2 Grid Tree
