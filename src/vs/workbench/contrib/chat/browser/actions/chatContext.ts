@@ -391,7 +391,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 						this._logService.warn('[chatContext] Failed to resolve routed session attachments:', error);
 					}
 					for (const candidate of candidates) {
-						const sessionResource = routingProvider.resolveSessionResource(candidate.sessionId);
+						const sessionResource = candidate.resource ?? routingProvider.resolveSessionResource(candidate.sessionId);
 						if (!sessionResource) {
 							continue;
 						}

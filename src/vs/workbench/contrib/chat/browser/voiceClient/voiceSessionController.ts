@@ -544,6 +544,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// incorrectly cleared the flag.
 	private _suppressIncomingAudio = false;
 	private _suppressOmniDispatchAcknowledgement = false;
+	private readonly _pendingAfterOmniDispatchAcknowledgement = new Map<string, IVoiceNarratable>();
 	/** Turn/response ids whose playback was cancelled by barge-in. */
 	private readonly _interruptedAudioIds = new Set<string>();
 
@@ -698,6 +699,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	// are no-ops on the BE because the merge-patch detects no field changes.
 	private readonly _confirmationFlushWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
 	private static readonly _CONFIRMATION_FLUSH_DELAY_MS = 1500;
+	private readonly _staleContextNarrationRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly _staleContextRetriedPending = new Map<string, string>();
+	private static readonly _STALE_CONTEXT_NARRATION_RETRY_DELAY_MS = 500;
 
 	/**
 	 * Latest state change per session, buffered and flushed once after a short
@@ -1885,6 +1889,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				} else {
 					if (e.isFinal) {
 						this._suppressOmniDispatchAcknowledgement = false;
+						const pendingNarrations = [...this._pendingAfterOmniDispatchAcknowledgement];
+						this._pendingAfterOmniDispatchAcknowledgement.clear();
+						queueMicrotask(() => {
+							for (const [sessionId, pending] of pendingNarrations) {
+								this._retryPendingNarration(sessionId, pending);
+							}
+						});
 					}
 					this.logService.trace(`[voice] dropping Omni dispatch acknowledgement isFinal=${e.isFinal}`);
 					return;
@@ -2214,6 +2225,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return;
 			}
 			if (allowedTools.includes(e.name)) {
+				const codingSessionId = e.args?.['coding_session_id'];
+				if (typeof codingSessionId === 'string') {
+					const uiSessionId = this._sessionKey(codingSessionId);
+					if (uiSessionId !== codingSessionId && e.args) {
+						e.args['coding_session_id'] = uiSessionId;
+						this.logService.trace(`[voice] resolved backend tool target ${codingSessionId.slice(-32)} -> ${uiSessionId.slice(-32)}`);
+					}
+				}
 				// Answer read-only backend queries without touching PTT/state, so the backend's connect-time probe can't end a just-started auto-listen.
 				const passiveTools = ['get_session_info', 'get_session_changes', 'get_session_thread'];
 				if (passiveTools.includes(e.name)) {
@@ -2237,6 +2256,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 				this._suppressIncomingAudio = false;
 				this._suppressOmniDispatchAcknowledgement = false;
+				this._pendingAfterOmniDispatchAcknowledgement.clear();
 				this._setAwaitingReply();
 				const settle = (): void => {
 					this._voiceState.set('idle', undefined);
@@ -2501,6 +2521,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._userCancelledSessions.clear();
 		for (const t of this._confirmationFlushWatchdogs.values()) { clearTimeout(t); }
 		this._confirmationFlushWatchdogs.clear();
+		for (const t of this._staleContextNarrationRetryTimers.values()) { clearTimeout(t); }
+		this._staleContextNarrationRetryTimers.clear();
+		this._staleContextRetriedPending.clear();
 		if (this._stateChangeEmitTimer) { clearTimeout(this._stateChangeEmitTimer); this._stateChangeEmitTimer = undefined; }
 		this._pendingStateChanges.clear();
 		for (const ref of this._eagerModelRefs.values()) { ref.dispose(); }
@@ -4769,6 +4792,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				return false;
 			}
 		}
+		if (kind !== 'response' && kind !== 'checkpoint' && this._suppressOmniDispatchAcknowledgement && this._isOmniVoiceInboxSession(sessionId)) {
+			this._pendingAfterOmniDispatchAcknowledgement.set(sessionKey, { kind, text, confirmationType, ...(pending ? { pending } : {}) });
+			this.logService.trace(`[voice] deferring ${kind} until Omni dispatch acknowledgement completes session=${sessionKey.slice(-32)}`);
+			return false;
+		}
 		if (!fromOmniQueue && kind !== 'checkpoint' && this._isOmniVoiceInboxSession(sessionId) && this._shouldQueueOmniNarration()) {
 			this._queueOmniNarration({ sessionId, kind, text, confirmationType, ...(pending ? { pending } : {}) });
 			return false;
@@ -5126,6 +5154,29 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._clearPendingSolicitedNarration(e.narrationId, solicited);
 		}
 		this._solicitedNarrationIds.delete(e.narrationId);
+		if (e.disposition === 'invalid' && e.reason === 'stale_context' && solicited && solicited.kind !== 'checkpoint') {
+			this._omniNarrationIds.delete(e.narrationId);
+			this._clearDeferred(key);
+			const pending: IVoiceNarratable = {
+				kind: solicited.kind,
+				text: solicited.text,
+				confirmationType: solicited.confirmationType,
+				...(solicited.pending ? { pending: solicited.pending } : {}),
+			};
+			const identity = this._narratableIdentity(pending);
+			if (this._staleContextRetriedPending.get(key) !== identity) {
+				this._staleContextRetriedPending.set(key, identity);
+				this.logService.trace(`[voice] narration_ack invalid id=${e.narrationId.slice(0, 8)} reason=stale_context; queueing one revalidated retry`);
+				this._sendContext();
+				this.voiceClientService.flushSessionContext();
+				const timer = setTimeout(() => {
+					this._staleContextNarrationRetryTimers.delete(key);
+					this._retryPendingNarration(key, pending);
+				}, VoiceSessionController._STALE_CONTEXT_NARRATION_RETRY_DELAY_MS);
+				this._staleContextNarrationRetryTimers.set(key, timer);
+				return;
+			}
+		}
 		if (e.disposition === 'invalid' || e.disposition === 'suppressed') {
 			this._omniNarrationIds.delete(e.narrationId);
 			this.logService.trace(`[voice] narration_ack ${e.disposition} id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; dropping`);
@@ -6333,6 +6384,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _stopPendingNarration(sessionId: string): void {
 		const sessionKey = this._sessionKey(sessionId);
+		this._pendingAfterOmniDispatchAcknowledgement.delete(sessionKey);
+		const staleContextRetry = this._staleContextNarrationRetryTimers.get(sessionKey);
+		if (staleContextRetry) {
+			clearTimeout(staleContextRetry);
+			this._staleContextNarrationRetryTimers.delete(sessionKey);
+		}
 		for (let index = this._omniNarrationQueue.length - 1; index >= 0; index--) {
 			const queued = this._omniNarrationQueue[index];
 			if (queued.kind !== 'response' && this._sessionKey(queued.sessionId) === sessionKey) {
@@ -7313,6 +7370,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const sessionList: IVoiceSessionContext['sessions'] = sessions.map(s => {
 			const model = this.chatService.getSession(s.resource);
 			const isActive = s.resource.toString() === targetSessionId;
+			const backendSessionId = (toAgentHostBackendSessionUri(s.resource) ?? s.resource).toString();
 			if (!model) {
 				const sessionIdStr = s.resource.toString();
 				let fallbackState = s.status === AgentSessionStatus.InProgress ? 'thinking'
@@ -7341,7 +7399,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// narrates instead of shipping a summary-less (silent) idle.
 				const cachedSummary = fallbackState === 'idle' ? this._lastResponseSummaryById.get(sessionIdStr) : undefined;
 				return {
-					id: sessionIdStr,
+					id: backendSessionId,
 					...(s.label ? { label: s.label } : {}),
 					session_type: 'agent' as const,
 					is_active: isActive,
@@ -7369,7 +7427,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// see with no way to answer it by voice.
 			const pending = this._buildPendingPayload(model);
 			return {
-				id: s.resource.toString(),
+				id: backendSessionId,
 				...(s.label ? { label: s.label } : {}),
 				session_type: 'agent' as const,
 				is_active: isActive,
@@ -7400,7 +7458,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const scoped = this._reportedAgentState(stateInfo.state, isActive);
 			const pending = this._buildPendingPayload(chatModel);
 			sessionList.push({
-				id: key,
+				id: (toAgentHostBackendSessionUri(chatModel.sessionResource) ?? chatModel.sessionResource).toString(),
 				...(chatModel.title ? { label: chatModel.title } : {}),
 				session_type: 'chat',
 				is_active: isActive,

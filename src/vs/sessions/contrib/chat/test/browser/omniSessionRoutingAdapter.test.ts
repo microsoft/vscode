@@ -89,6 +89,7 @@ suite('OmniSessionRoutingAdapter', () => {
 		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None), [
 			{
 				sessionId: 'provider-a:one',
+				resource: URI.from({ scheme: 'session', path: '/provider-a:one' }),
 				label: 'One',
 				repo: 'microsoft/vscode',
 				cwd: '/work/vscode',
@@ -98,6 +99,7 @@ suite('OmniSessionRoutingAdapter', () => {
 			},
 			{
 				sessionId: 'provider-b:two',
+				resource: URI.from({ scheme: 'session', path: '/provider-b:two' }),
 				label: 'Two',
 				repo: 'microsoft/repo',
 				cwd: '/work/repo',
@@ -112,7 +114,13 @@ suite('OmniSessionRoutingAdapter', () => {
 		const session = createSession('provider:session');
 		managementService.sessions = [session];
 		managementService.fireSessionsChanged({ added: [session], removed: [], changed: [] });
-		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None).map(candidate => candidate.sessionId), ['provider:session']);
+		assert.deepStrictEqual(adapter.getCandidateSessions(CancellationToken.None).map(candidate => ({
+			sessionId: candidate.sessionId,
+			resource: candidate.resource?.toString(),
+		})), [{
+			sessionId: 'provider:session',
+			resource: session.resource.toString(),
+		}]);
 		assert.strictEqual(adapter.resolveSessionResource(session.sessionId)?.toString(), session.mainChat.get().resource.toString());
 
 		managementService.sessions = [];
@@ -162,6 +170,7 @@ suite('OmniSessionRoutingAdapter', () => {
 			watchedCount: 3,
 			snapshot: {
 				sessionId: 'provider:session',
+				resource: original.resource,
 				label: 'Update routing badge',
 				repo: 'microsoft/repo',
 				cwd: '/work/repo',

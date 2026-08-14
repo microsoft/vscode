@@ -25,6 +25,7 @@ export const CHAT_INPUT_WINDOW_DEFAULT_HEIGHT = 110;
 export const enum ChatInputWindowStorageKeys {
 	WindowOpen = 'chatInputWindow.windowOpen',
 	WindowPositionOffset = 'chatInputWindow.windowPositionOffset',
+	DismissedCIFailures = 'chatInputWindow.dismissedCIFailures',
 }
 
 export interface IChatInputWindowPositionOffset {

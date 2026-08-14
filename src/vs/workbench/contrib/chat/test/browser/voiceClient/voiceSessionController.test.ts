@@ -5524,7 +5524,7 @@ suite('VoiceSessionController', () => {
 			routeBeforePlayback: Reflect.get(controller, '_routedRequests'),
 		}, {
 			narration: { sessionId, kind: 'response', text: 'The routed task is complete.' },
-			routeBeforePlayback: new Map([[sessionId, { requestId: lastRequest.id, phase: 'queued' }]]),
+			routeBeforePlayback: new Map([[sessionId, { requestId: lastRequest.id, hasMatchedModelRequest: true, phase: 'queued' }]]),
 		});
 
 		markNarrationHeard.call(controller, narration.narrationId);
@@ -5838,7 +5838,7 @@ suite('VoiceSessionController', () => {
 
 		assert.deepStrictEqual(
 			Reflect.get(controller, '_routedRequests'),
-			new Map([[resource.toString(), { requestId: undefined, modelRequestId: 'new-request', phase: 'running' }]]),
+			new Map([[resource.toString(), { requestId: undefined, modelRequestId: 'new-request', hasMatchedModelRequest: true, phase: 'running' }]]),
 		);
 	});
 
@@ -6766,6 +6766,104 @@ suite('VoiceSessionController', () => {
 		});
 
 		assert.deepStrictEqual(ttsPlaybackService.playedAudio, ['The actual task is complete.']);
+	});
+
+	test('omni waits for the dispatch acknowledgement before narrating a confirmation', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService(true);
+		const chatService = new ControllableChatService();
+		const resource = URI.parse('agent-host-copilotcli:/omni-confirmation-after-dispatch');
+		const backendResource = URI.parse('copilotcli:/omni-confirmation-after-dispatch');
+		const response = {
+			onDidChange: Event.None,
+			isPendingConfirmation: observableValue<{ detail?: string } | undefined>('pending', { detail: 'Needs approval' }),
+			isIncomplete: observableValue('incomplete', false),
+			response: { value: [] as readonly { kind: string }[], getMarkdown: () => '' },
+		};
+		const lastRequest = { id: 'confirmation-request', response };
+		chatService.setModels([{
+			sessionResource: resource,
+			title: 'Chat',
+			getRequests: () => [lastRequest],
+			lastRequestObs: observableValue('lastRequest', lastRequest),
+		} as unknown as IChatModel]);
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		showSessionsInAgentsList(controller, resource.toString());
+		await connectWithOmniOpen(controller, voiceClientService);
+
+		voiceClientService.fireToolCall({
+			callId: 'omni-confirmation-dispatch',
+			name: 'send_to_chat',
+			args: { text: 'run the tests' },
+		});
+		controller.announceSessionInOmni(resource);
+		assert.deepStrictEqual(voiceClientService.requests, []);
+
+		voiceClientService.fireAudioResponse({
+			audio: 'I sent that request.',
+			isFirstChunk: true,
+			isFinal: true,
+			transcript: 'I sent that request.',
+		});
+		await Promise.resolve();
+
+		const contextBeforeNarration = voiceClientService.wireEvents
+			.filter(event => event.type === 'session_context')
+			.at(-1);
+		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
+			sessionId: request.sessionId,
+			kind: request.kind,
+			text: request.text,
+		})), [{
+			sessionId: backendResource.toString(),
+			kind: 'confirmation',
+			text: 'tool approval: GitHub Copilot needs your approval to continue.',
+		}]);
+		assert.strictEqual(
+			contextBeforeNarration?.type === 'session_context'
+				&& contextBeforeNarration.context.sessions.some(session => session.id === backendResource.toString()),
+			true,
+		);
+
+		const firstRequest = voiceClientService.requests[0];
+		voiceClientService.fireNarrationAck({
+			narrationId: firstRequest.narrationId,
+			codingSessionId: backendResource.toString(),
+			disposition: 'invalid',
+			reason: 'stale_context',
+		});
+		clock.tick(499);
+		assert.strictEqual(voiceClientService.requests.length, 1);
+		clock.tick(1);
+		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
+			sessionId: request.sessionId,
+			kind: request.kind,
+			text: request.text,
+		})), [
+			{ sessionId: backendResource.toString(), kind: 'confirmation', text: 'tool approval: GitHub Copilot needs your approval to continue.' },
+			{ sessionId: backendResource.toString(), kind: 'confirmation', text: 'tool approval: GitHub Copilot needs your approval to continue.' },
+		]);
+	});
+
+	test('resolves a backend session id before dispatching a spoken approval', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('agent-host-copilotcli:/spoken-approval');
+		controller.setTargetSession(resource, 'existing_session');
+		await controller.connect(mainWindow);
+		const toolCall: IVoiceToolCall = {
+			callId: 'spoken-approval',
+			name: 'respond_to_session',
+			args: {
+				coding_session_id: 'copilotcli:/spoken-approval',
+				response: { type: 'approve' },
+			},
+		};
+
+		voiceClientService.fireToolCall(toolCall);
+		await Promise.resolve();
+
+		assert.strictEqual(toolCall.args?.['coding_session_id'], resource.toString());
 	});
 
 	test('focused omni chat routes voice input instead of the panel session', async () => {

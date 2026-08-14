@@ -335,6 +335,8 @@
 .chat-input-window .chat-input-window-pending-ci-actions {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .chat-input-window .chat-input-window-pending-approval-title {

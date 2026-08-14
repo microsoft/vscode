@@ -134,6 +134,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	private _pendingPromptIndex = 0;
 	private _activePendingSessionResource: URI | undefined;
 	private readonly _dismissedPendingRequests = observableValue<ReadonlySet<string>>(this, new Set());
+	private readonly _dismissedCIFailures = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly _ciFailureProviders = observableValue<readonly IChatInputWindowCIFailureProvider[]>(this, []);
 	private _fitWindowToContent: () => void = () => { };
 	/** The single input row; routing results are inserted immediately after it. */
@@ -230,18 +231,23 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		if (wasOpen) {
 			this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
+		this._dismissedCIFailures.set(new Set(
+			this.storageService.getObject<readonly string[]>(ChatInputWindowStorageKeys.DismissedCIFailures, StorageScope.PROFILE, [])
+		), undefined);
 
-		const closeWhenDisabled = () => {
+		const closeAndResetPositionWhenDisabled = () => {
 			if (!this._isEnabled()) {
 				this.closeWindow();
+				this.storageService.remove(ChatInputWindowStorageKeys.WindowPositionOffset, StorageScope.WORKSPACE);
 			}
 		};
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OmniChatEnabledSettingId)) {
-				closeWhenDisabled();
+				closeAndResetPositionWhenDisabled();
 			}
 		}));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(closeWhenDisabled));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(closeAndResetPositionWhenDisabled));
+		closeAndResetPositionWhenDisabled();
 	}
 
 	async openWindow(invokingWindowBounds?: IRectangle): Promise<void> {
@@ -799,6 +805,24 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 						entry.provider.fixCI(entry.failure.sessionResource);
 						this._widget?.focusInput();
 					}));
+					const dismissButton = ciActionDisposables.value.add(new Button(ciActions, {
+						...defaultButtonStyles,
+						small: true,
+						secondary: true,
+					}));
+					dismissButton.label = localize('chatInputWindow.pending.dismissCI', "Dismiss");
+					ciActionDisposables.value.add(dismissButton.onDidClick(() => {
+						const dismissed = new Set(this._dismissedCIFailures.get());
+						dismissed.add(entry.id);
+						this._dismissedCIFailures.set(dismissed, undefined);
+						this.storageService.store(
+							ChatInputWindowStorageKeys.DismissedCIFailures,
+							JSON.stringify([...dismissed].slice(-100)),
+							StorageScope.PROFILE,
+							StorageTarget.MACHINE,
+						);
+						this._widget?.focusInput();
+					}));
 				}
 			}
 			if (!entry) {
@@ -1132,6 +1156,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(autorun(reader => {
 			this.voiceSessionController.omniInputOpen.read(reader);
 			const dismissedPendingRequests = this._dismissedPendingRequests.read(reader);
+			const dismissedCIFailures = this._dismissedCIFailures.read(reader);
 			const displayedResource = this._activePendingSessionResource;
 			if (displayedResource && displayedPendingOccurrence) {
 				const displayedModel = this.chatService.getSession(displayedResource);
@@ -1160,12 +1185,15 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			const ciFailures: IChatInputWindowPendingCIFailure[] = [];
 			for (const provider of this._ciFailureProviders.read(reader)) {
 				for (const failure of provider.failures.read(reader)) {
-					ciFailures.push({
+					const item: IChatInputWindowPendingCIFailure = {
 						kind: 'ciFailure',
 						id: `ci:${failure.sessionResource.toString()}:${failure.occurrenceId}`,
 						failure,
 						provider,
-					});
+					};
+					if (!dismissedCIFailures.has(item.id)) {
+						ciFailures.push(item);
+					}
 				}
 			}
 			ciFailures.sort((a, b) => b.failure.updatedAt - a.failure.updatedAt);
@@ -1585,7 +1613,18 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			StorageScope.WORKSPACE,
 		);
 		const validOffset = offset && Number.isFinite(offset.x) && Number.isFinite(offset.y) ? offset : undefined;
-		return getChatInputWindowBounds(this._invokingWindowBounds, width, height, validOffset);
+		const bounds = getChatInputWindowBounds(this._invokingWindowBounds, width, height, validOffset);
+		const screen = this._invokingWindow.screen as Screen & { readonly availLeft?: number; readonly availTop?: number };
+		const availableLeft = screen.availLeft;
+		const availableTop = screen.availTop;
+		if (typeof availableLeft !== 'number' || typeof availableTop !== 'number' || !Number.isFinite(availableLeft) || !Number.isFinite(availableTop) || screen.availWidth <= 0 || screen.availHeight <= 0) {
+			return bounds;
+		}
+		return {
+			...bounds,
+			x: Math.min(Math.max(bounds.x, availableLeft), availableLeft + Math.max(0, screen.availWidth - width)),
+			y: Math.min(Math.max(bounds.y, availableTop), availableTop + Math.max(0, screen.availHeight - height)),
+		};
 	}
 
 	private _storeWindowPosition(auxiliaryWindow: IAuxiliaryWindow): void {

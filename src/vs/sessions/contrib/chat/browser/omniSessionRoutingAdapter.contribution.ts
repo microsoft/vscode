@@ -471,6 +471,7 @@ export class OmniSessionRoutingAdapter extends Disposable implements IChatSessio
 		const gitHubInfo = folder?.gitRepository?.gitHubInfo.get();
 		return {
 			sessionId: session.sessionId,
+			resource: session.resource,
 			label: session.title.get(),
 			repo: gitHubInfo ? `${gitHubInfo.owner}/${gitHubInfo.repo}` : undefined,
 			cwd: folder?.workingDirectory.path,
