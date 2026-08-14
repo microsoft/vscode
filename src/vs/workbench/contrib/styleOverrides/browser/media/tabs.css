@@ -165,7 +165,7 @@
 
 .modern-ui-tabs .part.editor .tabs-container > .tab.tab-actions-left:not(.sticky-compact):not(.close-action-off),
 .modern-ui-tabs .part.editor .tabs-container > .tab.sticky.tab-actions-left:not(.sticky-compact):not(.pinned-action-off) {
-	padding-left: var(--vscode-spacing-size240) !important;
+	padding-left: var(--vscode-spacing-size280) !important;
 	padding-right: var(--vscode-spacing-size80) !important;
 }
 
