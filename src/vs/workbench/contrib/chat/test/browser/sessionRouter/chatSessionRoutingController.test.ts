@@ -621,6 +621,7 @@ suite('ChatSessionRoutingController', () => {
 			reveal: async () => { },
 		});
 		await Promise.resolve();
+		assert.strictEqual(container.querySelector('.chat-routing-badge-label')?.textContent, 'In progress: New session');
 		snapshot = {
 			sessionId: 'provider:session',
 			label: 'Update routing badge',

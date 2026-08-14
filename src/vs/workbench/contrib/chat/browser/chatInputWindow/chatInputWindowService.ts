@@ -882,6 +882,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				renderInputOnTop: true,
 				renderStyle: 'compact',
 				renderGettingStartedTip: false,
+				rendererOptions: { questionCarouselFitContent: true },
 				filter: item => isResponseVM(item) && (
 					!!item.model.isPendingConfirmation.get()
 					|| item.model.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed)

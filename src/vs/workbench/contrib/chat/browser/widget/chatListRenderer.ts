@@ -3803,6 +3803,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus: false,
+				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, part)
 			});
 			return part;
@@ -3812,6 +3813,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isEditing = !!this.viewModel?.editing;
 		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
+			fitContent: this.rendererOptions.questionCarouselFitContent,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});
 
@@ -3819,6 +3821,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
+				fitContent: this.rendererOptions.questionCarouselFitContent,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
 			return fallbackPart;
