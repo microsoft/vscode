@@ -4747,6 +4747,37 @@ suite('VoiceSessionController', () => {
 		assert.ok(voiceClientService.requests[0].pendingId);
 	});
 
+	test('visible omni question card announces while omni owns the draft target', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://visible-omni-question');
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'runtime',
+			type: 'singleSelect',
+			title: 'runtime',
+			message: 'Which runtime should be used?',
+			options: [
+				{ id: 'node', label: 'Node.js', value: 'node' },
+				{ id: 'deno', label: 'Deno', value: 'deno' },
+			],
+		}], true, 'select-runtime');
+		chatService.setModels([pendingResponsePartModel(resource, carousel, 'questions: runtime')]);
+		showSessionsInAgentsList(controller, resource.toString());
+		await connectWithOmniOpen(controller, voiceClientService);
+		controller.setDraftTarget();
+
+		controller.announceSessionInOmni(resource);
+
+		assert.deepStrictEqual(voiceClientService.requests.map(request => ({
+			kind: request.kind,
+			text: request.text,
+		})), [{
+			kind: 'question',
+			text: 'Which runtime should be used? Options: 1, Node.js. 2, Deno. You can also give your own answer. Or say skip.',
+		}]);
+	});
+
 	test('open omni queues background narration while passive listening has detected speech', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const controller = createController(voiceClientService);

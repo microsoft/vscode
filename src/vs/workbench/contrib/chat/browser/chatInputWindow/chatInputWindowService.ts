@@ -741,7 +741,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		const ciActions = dom.append(ciFallback, dom.$('.chat-input-window-pending-ci-actions'));
 		const approvalActionDisposables = this._windowDisposables.add(new MutableDisposable<DisposableStore>());
 		const ciActionDisposables = this._windowDisposables.add(new MutableDisposable<DisposableStore>());
-		let lastActivatedApproval: string | undefined;
+		let lastActivatedPendingItem: string | undefined;
 		let displayedApproval: { readonly invocation: IChatToolInvocation; readonly occurrence: string } | undefined;
 		let displayedCIFailure: IChatInputWindowPendingCIFailure | undefined;
 		let renderedCIFailureId: string | undefined;
@@ -1009,7 +1009,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				displayedApproval = undefined;
 				renderApprovalFallback(undefined);
 				renderCIFailure(undefined);
-				lastActivatedApproval = undefined;
+				lastActivatedPendingItem = undefined;
 				this._activePendingSessionResource = undefined;
 				panel.classList.remove('shown', 'question', 'tool-approval-fallback', 'ci-failure');
 				widget.setModel(undefined);
@@ -1055,23 +1055,24 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			panel.classList.remove('ci-failure');
 			const hasPendingQuestion = this._hasPendingQuestion(model);
 			const pendingApproval = this._getPendingToolApproval(model);
+			const pendingOccurrence = pendingApproval?.occurrence ?? this._getPendingQuestionOccurrence(model);
 			displayedApproval = pendingApproval;
 			renderApprovalFallback(pendingApproval);
-			const omniVoiceActive = this.voiceSessionController.omniInputActive.get();
-			if (!omniVoiceActive) {
-				lastActivatedApproval = undefined;
+			const omniInputOpen = this.voiceSessionController.omniInputOpen.get();
+			if (!omniInputOpen) {
+				lastActivatedPendingItem = undefined;
 			}
 			panel.classList.toggle('question', hasPendingQuestion);
 			panel.classList.toggle('tool-approval-fallback', !hasPendingQuestion && !!pendingApproval);
 			widget.setModel(model);
-			if (pendingApproval && omniVoiceActive && pendingApproval.occurrence !== lastActivatedApproval) {
+			if (pendingOccurrence && omniInputOpen && pendingOccurrence !== lastActivatedPendingItem) {
 				// The pending card is the most direct observation that this exact
-				// approval is visible in omni. Activate it once so a coalesced/missed
-				// session-state transition cannot leave hands-free mode listening over
-				// an unannounced confirmation. Voice narration dedup is occurrence-based,
-				// so the normal state-change path and this UI path remain exactly-once.
-				lastActivatedApproval = pendingApproval.occurrence;
-				this.voiceSessionController.activateSession(model.sessionResource);
+				// question or approval is visible in omni. Activate it once so a
+				// coalesced/missed state transition cannot leave a visible prompt
+				// unannounced. Voice narration dedup is occurrence-based, so the
+				// normal state-change path and this UI path remain exactly-once.
+				lastActivatedPendingItem = pendingOccurrence;
+				this.voiceSessionController.announceSessionInOmni(model.sessionResource);
 			}
 			scheduleLayout();
 		};
@@ -1187,6 +1188,13 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 
 	private _hasPendingQuestion(model: IChatModel): boolean {
 		return model.lastRequest?.response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed) ?? false;
+	}
+
+	private _getPendingQuestionOccurrence(model: IChatModel): string | undefined {
+		const request = model.lastRequest;
+		const question = request?.response?.response.value.find(part =>
+			part.kind === 'questionCarousel' && !part.isUsed && !part.answeredExternally);
+		return request && question ? derivePendingId(request.id, question, this._windowDisposables) : undefined;
 	}
 
 	private _hasOnlyResolvedPendingTools(model: IChatModel, reader: IReader): boolean {

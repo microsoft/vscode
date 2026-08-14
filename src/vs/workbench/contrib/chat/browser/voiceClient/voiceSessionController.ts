@@ -334,6 +334,8 @@ export interface IVoiceSessionController {
 	 * view-model change event fired.
 	 */
 	activateSession(resource: URI): void;
+	/** Narrate the current actionable item for a session owned by the visible Omni inbox. */
+	announceSessionInOmni(resource: URI): void;
 
 	/**
 	 * Submit user feedback along with full diagnostic data (transcript history,
@@ -5304,6 +5306,28 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._activateShownSession(resource);
 	}
 
+	announceSessionInOmni(resource: URI): void {
+		const sessionId = resource.toString();
+		if (!this._isOmniVoiceInboxSession(sessionId)) {
+			return;
+		}
+		const sessionKey = this._sessionKey(sessionId);
+		const narratable = this._currentNarratable(resource);
+		if (!narratable) {
+			this._ensureModelLoaded(resource);
+			return;
+		}
+		if (narratable.kind === 'response') {
+			if (!this._pendingResponseSummaries.has(sessionKey)) {
+				return;
+			}
+			this._omniClaimedResponseSummaries.set(sessionKey, narratable.text);
+		} else {
+			this._omniClaimedPendingIds.set(sessionKey, this._narratableIdentity(narratable));
+		}
+		this._narrate(sessionId, narratable.kind, narratable.text, undefined, undefined, narratable.confirmationType, narratable.pending);
+	}
+
 	/**
 	 * Routing decision for one audio-response chunk. When the backend echoes a
 	 * per-response id, decide the whole response's fate once (on its first chunk),
@@ -7209,16 +7233,24 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._eagerModelRefs.set(key, ref);
 					// Model state/detail are now readable; flush so confirmation narrates
 					// immediately instead of waiting for the next context send.
+					const wasPendingIdleNarration = this._pendingIdleNarration.has(key);
 					this._checkSessionStateChanges();
 					this._sendContext();
 					this.voiceClientService.flushSessionContext();
-					// If the user is looking at this session, narrate its now-resident
-					// pending item directly. _checkSessionStateChanges only narrates on
-					// a state transition, but a completed reply focused after it settled
-					// shows no idle->idle transition and would otherwise stay silent.
-					// _narrate's _lastNarratedText guard prevents double-reading an
-					// already-read reply; this mirrors the confirmation-on-focus path.
-					if (this._shownSessionId() === key) {
+					if (wasPendingIdleNarration && this._isOmniVoiceInboxSession(key) && !this._pendingResponseSummaries.has(key)) {
+						const narratable = this._currentNarratable(resource);
+						if (narratable?.kind === 'response') {
+							this._pendingResponseSummaries.set(key, narratable.text);
+						}
+					}
+					// Narrate a now-resident pending item for the focused session or
+					// the global Omni inbox. _checkSessionStateChanges only narrates on
+					// a state transition, but an eagerly loaded completion may already
+					// be idle and would otherwise stay silent. Existing occurrence and
+					// response dedup prevents double-reading.
+					if (this._isOmniVoiceInboxSession(key)) {
+						this.announceSessionInOmni(resource);
+					} else if (this._shownSessionId() === key) {
 						this._activateShownSession(resource);
 					}
 				}
