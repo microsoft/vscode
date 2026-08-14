@@ -42,7 +42,7 @@ Editors open as modal overlays via `ModalEditorPart`. The main editor part exist
 | Auxiliary Bar | Right side | Visible | Changes view, file tree |
 | Panel | Below Sessions Part + Aux Bar | Hidden | Terminal, debug output |
 
-The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. Sessions-owned styles define only the part surface and inset; action geometry, active/hover/focus states, and badge placement remain owned by the shared pane-tab stylesheet so the Editor and Agents windows stay aligned.
+The Panel and Auxiliary Bar tab strips inherit the shared Modern UI pane-tab presentation from `workbench/contrib/styleOverrides/browser/media/tabs.css` through the workbench root's `modern-ui-tabs` class. The chat tab strip consumes the reusable editor-tab hooks from the same stylesheet. Sessions-owned styles define only the part surface, inset, and chat-specific adornments; tab geometry, typography, and active/hover/focus states remain owned by the shared editor-tab stylesheet so the Editor and Agents windows stay aligned.
 
 Clean editor tabs in the Agents window use the compact action-overlay presentation, while tabs with persistent dirty or pinned indicators still reserve the indicator column. The Sessions-owned `EditorParts` enforces `tabActionReserveSpace: false`, independent of the global `workbench.editor.tabActionReserveSpace` preference (which reserves the action column by default), because its editor is commonly shown as a narrow side pane. Other workbench windows reserve the action column by default and may opt out through that preference or `enforcePartOptions()`.
 

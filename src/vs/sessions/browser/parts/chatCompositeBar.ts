@@ -253,17 +253,17 @@ export class ChatCompositeBar extends Disposable {
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
 		const session = this._session;
-		const tab = $('.chat-composite-bar-tab');
+		const tab = $('.chat-composite-bar-tab.modern-ui-editor-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
 		// Expose the bound chat resource for diagnostics / test automation.
 		tab.dataset.chatResource = chat.resource.toString();
 		tab.dataset.isMainChat = String(isMainChat);
 
-		const tabFill = $('.chat-composite-bar-tab-fill', { 'aria-hidden': true });
+		const tabFill = $('.chat-composite-bar-tab-fill.modern-ui-editor-tab-fill', { 'aria-hidden': true });
 		tab.appendChild(tabFill);
 
-		const labelEl = $('.chat-composite-bar-tab-label');
+		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
 			labelEl.textContent = title;
