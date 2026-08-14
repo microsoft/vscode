@@ -655,7 +655,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			[ACCOUNTS_AVATAR_SETTING]: {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('accountsShowAvatar', "Controls whether the profile image (avatar) of a signed-in account is shown in account related UI, for example in the Accounts menu in the Activity Bar.")
+				'description': localize('accountsShowAvatar', "Controls whether signed-in account profile images (avatars) are shown in account-related UI, such as the Accounts item in the Activity Bar.")
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',

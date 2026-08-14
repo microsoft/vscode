@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/globalCompositeBar.css';
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
@@ -40,11 +41,13 @@ import { ILifecycleService, LifecyclePhase } from '../../services/lifecycle/comm
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { DEFAULT_ICON } from '../../services/userDataProfile/common/userDataProfileIcons.js';
 import { isString } from '../../../base/common/types.js';
+import { FileAccess } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../actions/menuMotion.js';
 import { createCodexAccountMenuActions, ICodexAccountService, shouldShowCodexAccount } from '../../services/agentHost/browser/codexAccountService.js';
 
@@ -295,6 +298,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ICodexAccountService private readonly codexAccountService: ICodexAccountService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		const action = instantiationService.createInstance(CompositeBarAction, {
 			id: ACCOUNTS_ACTIVITY_ID,
@@ -340,6 +344,10 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				this.updateAvatar();
 			}
 		}));
+
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.updateAvatar();
+		}));
 	}
 
 	// This function exists to ensure that the accounts are added for auth providers that had already been registered
@@ -379,6 +387,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		this.avatarImg.alt = '';
 		this.avatarImg.setAttribute('aria-hidden', 'true');
 		this.avatarImg.draggable = false;
+		this.avatarImg.referrerPolicy = 'no-referrer';
 		this.avatarImg.style.display = 'none';
 		this.avatarImg.onerror = () => {
 			this.avatarImg!.style.display = 'none';
@@ -394,24 +403,26 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			return;
 		}
 
-		// Find the first account that has an icon
 		let avatarIcon: URI | undefined;
 		if (this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING)) {
-			for (const accounts of this.groupedAccounts.values()) {
-				for (const account of accounts) {
-					if (account.icon) {
-						avatarIcon = account.icon;
+			avatarIcon = this.getDefaultAccountAvatarIcon();
+			if (!avatarIcon) {
+				for (const accounts of this.groupedAccounts.values()) {
+					for (const account of accounts) {
+						if (account.icon) {
+							avatarIcon = account.icon;
+							break;
+						}
+					}
+					if (avatarIcon) {
 						break;
 					}
-				}
-				if (avatarIcon) {
-					break;
 				}
 			}
 		}
 
 		if (avatarIcon) {
-			this.avatarImg.src = avatarIcon.toString(true);
+			this.avatarImg.src = FileAccess.uriToBrowserUri(avatarIcon).toString(true);
 			this.avatarImg.style.display = '';
 			this.label.classList.add('has-avatar');
 		} else {
@@ -419,6 +430,16 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			this.avatarImg.style.display = 'none';
 			this.label.classList.remove('has-avatar');
 		}
+	}
+
+	private getDefaultAccountAvatarIcon(): URI | undefined {
+		const currentDefaultAccount = this.defaultAccountService.currentDefaultAccount;
+		if (!currentDefaultAccount) {
+			return undefined;
+		}
+
+		const accounts = this.groupedAccounts.get(currentDefaultAccount.authenticationProvider.id);
+		return accounts?.find(account => account.label === currentDefaultAccount.accountName)?.icon;
 	}
 
 	//#region overrides
@@ -615,10 +636,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			if (!canSignOut) {
 				existingAccount.canSignOut = canSignOut;
 			}
-			// Update the icon if the provider supplied a new one
-			if (account.icon) {
-				existingAccount.icon = account.icon;
-			}
+			existingAccount.icon = account.icon;
 		} else {
 			accounts.push({ ...account, canSignOut });
 		}
@@ -764,6 +782,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService,
 		@ICodexAccountService codexAccountService: ICodexAccountService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super(() => simpleActivityContextMenuActions(storageService, true),
 			{
@@ -774,7 +793,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 				}),
 				hoverOptions,
 				compact: true,
-			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService, codexAccountService);
+			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService, codexAccountService, defaultAccountService);
 	}
 }
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../base/common/codicons.js';
+import { FileAccess } from '../../base/common/network.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
 import { localize } from '../../nls.js';
@@ -38,7 +39,7 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
-			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.accountName),
+			accountIcon: await getSessionAccountIcon(authenticationService, account.authenticationProvider.id, account.sessionId),
 		};
 	}
 
@@ -61,12 +62,12 @@ export async function resolveAccountInfo(
 
 /**
  * Looks up the icon (avatar) that the authentication provider supplied for the
- * given account, if any.
+ * session backing the default account, if any.
  */
-async function getSessionAccountIcon(authenticationService: IAuthenticationService, providerId: string, accountName: string): Promise<URI | undefined> {
+async function getSessionAccountIcon(authenticationService: IAuthenticationService, providerId: string, sessionId: string): Promise<URI | undefined> {
 	try {
 		const sessions = await authenticationService.getSessions(providerId);
-		return sessions.find(session => session.account.label === accountName)?.account.icon;
+		return sessions.find(session => session.id === sessionId)?.account.icon;
 	} catch {
 		// Provider not available yet
 		return undefined;
@@ -107,11 +108,8 @@ export interface IAccountTitleBarState {
 }
 
 export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined, accountIcon?: URI): string | undefined {
-	// Prefer the icon supplied by the authentication provider (see the
-	// `authSessionAccountIcon` API proposal) and fall back to the public
-	// GitHub avatar URL for GitHub accounts.
 	if (accountIcon) {
-		return accountIcon.toString(true);
+		return FileAccess.uriToBrowserUri(accountIcon).toString(true);
 	}
 
 	if (accountProviderId !== 'github' || !accountName?.trim()) {

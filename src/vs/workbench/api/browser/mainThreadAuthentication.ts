@@ -54,7 +54,7 @@ export interface AuthenticationGetSessionOptions {
  * The account icon is a {@link URI} that does not survive being sent over the RPC boundary,
  * so it needs to be revived when sessions are received from the extension host.
  */
-function reviveSessionAccountIcon(session: Dto<AuthenticationSession>): AuthenticationSession {
+export function reviveSessionAccountIcon(session: Dto<AuthenticationSession>): AuthenticationSession {
 	return { ...session, account: { ...session.account, icon: URI.revive(session.account.icon) } };
 }
 
@@ -283,7 +283,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 	}
 
-	async $sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
+	async $sendDidChangeSessions(providerId: string, event: Dto<AuthenticationSessionsChangeEvent>): Promise<void> {
 		const obj = this._registrations.get(providerId);
 		if (obj instanceof Emitter) {
 			obj.fire({
@@ -545,7 +545,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return undefined;
 	}
 
-	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<Dto<AuthenticationSession> | undefined> {
 		const scopes = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) ? scopeListOrRequest.fallbackScopes : scopeListOrRequest;
 		if (scopes) {
 			this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
@@ -560,7 +560,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return session;
 	}
 
-	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
+	async $getAccounts(providerId: string): Promise<ReadonlyArray<Dto<AuthenticationSessionAccount>>> {
 		const accounts = await this.authenticationService.getAccounts(providerId);
 		return accounts;
 	}

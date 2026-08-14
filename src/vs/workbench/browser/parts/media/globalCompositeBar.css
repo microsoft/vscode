@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
-	export interface AuthenticationSessionAccountInformation {
-		/**
-		 * An optional icon for the account. This is typically a URI to a profile image/avatar.
-		 */
-		readonly icon?: Uri;
-	}
+.monaco-workbench .monaco-action-bar .action-label.has-avatar::before {
+	display: none;
+}
+
+.monaco-workbench .monaco-action-bar .action-label .accounts-avatar {
+	width: 1em;
+	height: 1em;
+	object-fit: cover;
+	border-radius: var(--vscode-cornerRadius-circle);
 }

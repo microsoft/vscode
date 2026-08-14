@@ -44,7 +44,7 @@ interface ProviderWithMetadata {
  * The account icon is a {@link vscode.Uri} that does not survive being sent over the RPC boundary,
  * so it needs to be revived when an account is received from the main thread.
  */
-function reviveAccountIcon<T extends { readonly icon?: vscode.Uri | UriComponents }>(account: T): T & { readonly icon?: vscode.Uri } {
+export function reviveAccountIcon<T extends { readonly icon?: vscode.Uri | UriComponents }>(account: T): T & { readonly icon?: vscode.Uri } {
 	return { ...account, icon: URI.revive(account.icon) };
 }
 
