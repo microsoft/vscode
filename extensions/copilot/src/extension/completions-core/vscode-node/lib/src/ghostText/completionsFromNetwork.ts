@@ -266,8 +266,16 @@ export class CompletionsFromNetwork {
 		telemetryBuilder.setModelName(requestContext.engineModelId);
 
 		// Request one choice for automatic requests, three for invoked (cycling) requests.
-		const n = requestContext.isCycling ? 3 : 1;
-		const temperature = getTemperatureForSamples(this.runtimeMode, n);
+		// Custom BYOK (OpenAI-compatible) endpoints typically only support n = 1 (e.g.
+		// DeepSeek FIM), so cycling falls back to re-requesting a single sample: each
+		// Alt+] with <= 1 cached candidate fires a new request (see ghostText.ts) and the
+		// fresh sample is merged with the cached candidates (deduplicated by text).
+		// Because candidates now come from separate requests instead of one n=3 batch,
+		// keep the cycling sampling temperature (0.2): with temperature 0 (the n=1
+		// default) a greedy server would return the same completion every time and
+		// cycling would degrade to a single candidate.
+		const n = requestContext.isCycling && !requestContext.customModel ? 3 : 1;
+		const temperature = getTemperatureForSamples(this.runtimeMode, requestContext.isCycling ? 3 : 1);
 		const extra: CompletionRequestExtra = {
 			language: requestContext.languageId,
 			next_indent: requestContext.indentation.next ?? 0,
@@ -320,6 +328,7 @@ export class CompletionsFromNetwork {
 				postOptions,
 				headers: requestContext.headers,
 				extra,
+				customModel: requestContext.customModel,
 			};
 			const res = await this.fetcherService.fetchAndStreamCompletions(completionParams, baseTelemetryData, finishedCb, cancellationToken);
 			if (res.type === 'failed') {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ByokCompletionModel } from '../../../../../byok/common/byokCompletionModels';
 import { BlockMode } from '../config';
 import { CompletionHeaders } from '../openai/fetch';
 import { ContextIndentation } from '../prompt/parseBlock';
@@ -39,5 +40,7 @@ export interface RequestContext {
 	maxTokens?: number;
 	/** Whether the current request is following an accepted completion. */
 	afterAccept: boolean;
+	/** Custom BYOK (OpenAI-compatible) completion model, when the user selected one. */
+	customModel?: ByokCompletionModel;
 }
 

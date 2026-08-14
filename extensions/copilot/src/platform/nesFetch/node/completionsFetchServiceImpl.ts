@@ -51,6 +51,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 		requestId: string,
 		ct: CancellationToken,
 		headerOverrides?: Record<string, string>,
+		isCustomEndpoint?: boolean,
 	): Promise<Result<ResponseStream, Completions.CompletionsFetchFailure>> {
 		const startTimeMs = Date.now();
 
@@ -62,14 +63,14 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 
 		const options = {
 			requestId,
-			headers: this.getHeaders(requestId, secretKey, headerOverrides),
+			headers: this.getHeaders(requestId, secretKey, headerOverrides, isCustomEndpoint),
 			body: JSON.stringify({
 				...params,
 				stream: true,
 			})
 		};
 
-		const fetchResponse = await this._fetchFromUrl(url, options, ct);
+		const fetchResponse = await this._fetchFromUrl(url, options, ct, isCustomEndpoint);
 
 		if (fetchResponse.isError()) {
 			this._logCompletionsRequest(url, params, requestId, startTimeMs, fetchResponse);
@@ -101,7 +102,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 		}
 	}
 
-	protected async _fetchFromUrl(url: string, options: Completions.Internal.FetchOptions, ct: CancellationToken): Promise<Result<FetchResponse, Completions.CompletionsFetchFailure>> {
+	protected async _fetchFromUrl(url: string, options: Completions.Internal.FetchOptions, ct: CancellationToken, isCustomEndpoint?: boolean): Promise<Result<FetchResponse, Completions.CompletionsFetchFailure>> {
 
 		const fetchAbortCtl = this.fetcherService.makeAbortController();
 
@@ -121,12 +122,14 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 
 			const response = await this.fetcherService.fetch(url, request);
 
-			if (response.status === 200 && this.authService.copilotToken?.isFreeUser && this.authService.copilotToken?.isChatQuotaExceeded) {
+			// Free-tier quota and 402 handling only apply to the Copilot proxy; custom
+			// (BYOK) endpoints have no Copilot token semantics.
+			if (!isCustomEndpoint && response.status === 200 && this.authService.copilotToken?.isFreeUser && this.authService.copilotToken?.isChatQuotaExceeded) {
 				this.authService.resetCopilotToken();
 			}
 
 			if (response.status !== 200) {
-				if (response.status === 402) {
+				if (!isCustomEndpoint && response.status === 402) {
 					// When we receive a 402, we have exceed the free tier quota
 					// This is stored on the token so let's refresh it
 					if (!this.authService.copilotToken?.isCompletionsQuotaExceeded) {
@@ -288,15 +291,21 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 		requestId: string,
 		secretKey: string,
 		headerOverrides: Record<string, string> = {},
+		isCustomEndpoint?: boolean,
 	): Record<string, string> {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
-			'x-policy-id': 'nil',
-			Authorization: 'Bearer ' + secretKey,
 			'X-Request-Id': requestId,
-			'X-GitHub-Api-Version': '2025-04-01',
+			// Copilot-specific headers are omitted for custom (BYOK) endpoints.
+			...(isCustomEndpoint ? {} : { 'x-policy-id': 'nil', 'X-GitHub-Api-Version': '2025-04-01' }),
 			...headerOverrides,
 		};
+
+		// Custom endpoints without an API key (e.g. local servers like llama.cpp)
+		// send no Authorization header at all.
+		if (secretKey) {
+			headers['Authorization'] = 'Bearer ' + secretKey;
+		}
 
 		return headers;
 	}
