@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -856,12 +856,14 @@ export class AgentHostE2EServerLease {
 		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
 	) {
 		const dataDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		const codexHomeDir = join(dataDir, '.codex');
+		mkdirSync(codexHomeDir);
 		this._dataDir = dataDir;
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
-			codexHomeDir: join(dataDir, '.codex'),
+			codexHomeDir,
 			homeDir: dataDir,
 			userDataDir: join(dataDir, 'user-data'),
 			env: { [AgentHostSessionReleaseGraceMsEnvVar]: '0' },

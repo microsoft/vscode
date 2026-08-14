@@ -242,6 +242,7 @@ export function getCopilotSmokeTestEnv(mockServer?: MockLlmServer, opts?: { user
 	if (opts?.userDataDir) {
 		xdgStateHome = `${opts.userDataDir}-copilot-state`;
 		codexHome = join(opts.userDataDir, 'codex-home');
+		fs.mkdirSync(codexHome, { recursive: true });
 		// Anchor the Copilot runtime's home (`COPILOT_HOME`) at the same
 		// `.copilot` directory the extension resolves from `XDG_STATE_HOME`,
 		// so the runtime's process logs land in a known, per-run location we
