@@ -323,7 +323,7 @@
 	display: none !important;
 }
 
-/* Helpfulness feedback prototype. For the MAI-Code-1-Flash cohort the footer
+/* Helpfulness feedback prototype. For the Auto model cohort the footer
 thumbs are replaced by "Helpful"/"Unhelpful" buttons shown inline on the footer
 toolbar row; casting a rating reveals a full-width detail box below, and
 submitting replaces the buttons inline with a short acknowledgement. */

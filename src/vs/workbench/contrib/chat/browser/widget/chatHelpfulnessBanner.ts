@@ -31,11 +31,11 @@ export interface IChatHelpfulnessFeedback {
 }
 
 /**
- * A prototype for the helpfulness feedback experiment shown to the
- * MAI-Code-1-Flash cohort in place of the footer thumbs. It presents
- * "Helpful"/"Unhelpful" buttons inline on the footer toolbar row; once a rating
- * is cast it reveals an optional full-width detail text box below, and once
- * submitted the buttons are replaced inline by a short "thanks" acknowledgement.
+ * A prototype for the helpfulness feedback experiment shown to the Auto model
+ * cohort in place of the footer thumbs. It presents "Helpful"/"Unhelpful"
+ * buttons inline on the footer toolbar row; once a rating is cast it reveals an
+ * optional full-width detail text box below, and once submitted the buttons are
+ * replaced inline by a short "thanks" acknowledgement.
  */
 export class ChatHelpfulnessBanner extends Disposable {
 

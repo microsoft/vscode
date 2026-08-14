@@ -123,6 +123,11 @@ const COPILOT_USERNAME = 'GitHub Copilot';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
 const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
+/**
+ * The id of the synthetic "Auto" model, which dynamically routes to a backend model.
+ */
+const AUTO_MODEL_ID = 'auto';
+
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	/**
@@ -864,9 +869,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	/**
 	 * The helpfulness feedback prototype only applies to Microsoft-internal
-	 * users whose response was produced by the MAI-Code-1-Flash model and that
-	 * actually produced file edits. For this cohort the standard thumbs up/down
-	 * are replaced by the inline rating UX in the footer toolbar.
+	 * users whose response was produced by the Auto model and that actually
+	 * produced file edits. For this cohort the standard thumbs up/down are
+	 * replaced by the inline rating UX in the footer toolbar.
 	 */
 	private isInHelpfulnessCohort(element: ChatTreeItem): boolean {
 		if (!isResponseVM(element)) {
@@ -883,7 +888,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-		if (metadata?.name !== 'MAI-Code-1-Flash') {
+		if (metadata?.id !== AUTO_MODEL_ID) {
 			return false;
 		}
 
@@ -953,10 +958,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Helpfulness feedback prototype: for Microsoft-internal users on the
-		// MAI-Code-1-Flash model, the thumbs in the footer toolbar are replaced
-		// by inline "Helpful"/"Unhelpful" buttons. Once the user rates the
-		// response, a full-width detail box is revealed below the toolbar; after
-		// submitting, the buttons are replaced inline by a short acknowledgement.
+		// Auto model, the thumbs in the footer toolbar are replaced by inline
+		// "Helpful"/"Unhelpful" buttons. Once the user rates the response, a
+		// full-width detail box is revealed below the toolbar; after submitting,
+		// the buttons are replaced inline by a short acknowledgement.
 		const inFeedbackCohort = this.isInHelpfulnessCohort(element);
 		ChatContextKeys.responseInFeedbackCohort.bindTo(templateData.contextKeyService).set(inFeedbackCohort);
 		templateData.rowContainer.classList.toggle('cohort-feedback', inFeedbackCohort);
