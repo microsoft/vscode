@@ -62,6 +62,7 @@ interface ITurnTiming {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	firstProgressMs: number | undefined;
 	currentStage: AgentHostTurnFailureStage;
+	billedNanoAiu: number | undefined;
 
 	// Hang watchdog state
 	/** Reset on every observed activity; measures the current quiet period. */
@@ -151,6 +152,7 @@ export class AgentHostTurnTracker extends Disposable {
 			clientContext,
 			firstProgressMs: undefined,
 			currentStage: 'validation',
+			billedNanoAiu: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
 			inFlightToolCalls: new Map(),
@@ -299,6 +301,13 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 	}
 
+	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing && typeof billedNanoAiu === 'number' && Number.isFinite(billedNanoAiu) && billedNanoAiu >= 0) {
+			timing.billedNanoAiu = billedNanoAiu;
+		}
+	}
+
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
@@ -332,6 +341,7 @@ export class AgentHostTurnTracker extends Disposable {
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
+			billedNanoAiu: timing.billedNanoAiu,
 		});
 
 		// Paired recovery event: the turn was reported as hung but did finish,
