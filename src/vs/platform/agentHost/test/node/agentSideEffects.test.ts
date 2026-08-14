@@ -1542,7 +1542,7 @@ suite('AgentSideEffects', () => {
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
 			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'Keep GitHub casing');
-			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_session`'));
+			assert.ok(!URI.isUri(sendContext) && sendContext?.hostInstructions?.[0].includes('`rename_chat`'));
 		});
 
 		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
