@@ -79,6 +79,12 @@ export function isSameSessionWorkspace(current: SessionWorkspaceIdentity, candid
 	return !!currentCwd && currentCwd === candidateCwd;
 }
 
+export function getSessionWorkspaceName(workspace: SessionWorkspaceIdentity): string {
+	const repoName = workspace.repo?.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1);
+	const folderName = workspace.cwd?.replace(/[\\/]+$/, '').split(/[\\/]/).at(-1);
+	return repoName || folderName || localize('chatContext.sessions.thisWorkspace', "This Workspace");
+}
+
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.contextContributions';
@@ -446,7 +452,7 @@ class SessionReferenceContextPickerPick implements IChatContextPickerItem {
 				const otherWorkspaces = entries.filter(entry => !isSameSessionWorkspace(currentWorkspace, entry.workspace));
 				const groupedPicks: (IChatContextPickerPickItem | IQuickPickSeparator)[] = [];
 				if (sameWorkspace.length > 0) {
-					groupedPicks.push({ type: 'separator', label: localize('chatContext.sessions.thisWorkspace', "This Workspace") });
+					groupedPicks.push({ type: 'separator', label: getSessionWorkspaceName(currentWorkspace) });
 					groupedPicks.push(...sameWorkspace.map(entry => entry.pick));
 				}
 				if (otherWorkspaces.length > 0) {

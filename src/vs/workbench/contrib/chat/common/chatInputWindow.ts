@@ -80,7 +80,7 @@ export interface IChatInputWindowService {
 	registerCIFailureProvider(provider: IChatInputWindowCIFailureProvider): IDisposable;
 
 	/** Routes voice input through omni when its auxiliary window owns focus. */
-	acceptVoiceInput(text: string): Promise<boolean>;
+	acceptVoiceInput(text: string): Promise<URI | false>;
 
 	/**
 	 * Opens the floating chat input window. No-op if already open.

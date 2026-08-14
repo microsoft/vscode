@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { isSameSessionWorkspace, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { getSessionWorkspaceName, isSameSessionWorkspace, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { IChatWidget } from '../../../browser/chat.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
@@ -78,6 +78,16 @@ suite('ChatContext', () => {
 			sameRepositoryWorktree: true,
 			caseInsensitiveRepository: true,
 			differentRepository: false,
+		});
+	});
+
+	test('labels a session workspace by repository or folder name', () => {
+		assert.deepStrictEqual({
+			repository: getSessionWorkspaceName({ repo: 'microsoft/vscode', cwd: '/Users/megan/repo-worktree' }),
+			folder: getSessionWorkspaceName({ cwd: '/Users/megan/Repos/typescript/' }),
+		}, {
+			repository: 'vscode',
+			folder: 'typescript',
 		});
 	});
 });
