@@ -8,7 +8,7 @@ The sessions list is the primary navigation surface in the Agents Window. It occ
 
 The sessions list (`SessionsView` + `SessionsList`) displays user-facing sessions known to `ISessionsManagementService`. Sessions marked with `ISession.isAutomation` by their provider-owned run ledger are excluded before filtering and grouping. Other sessions are aggregated from all registered providers and shown in collapsible **sections**. The user can group, sort, filter, pin, and archive sessions. Selecting a session navigates to it.
 
-When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the floating chat input window.
+When `chat.omni.enabled` is enabled, the Sessions header includes a `Codicon.arrowCircleUpSparkle` action after **New Session** that toggles the Agents-only floating chat input window. The window routes through a provider-neutral Sessions adapter and is not registered in editor workbenches. Its New Session row uses the same recent-workspace/provider model as the welcome picker: Local/GitHub/Remote/custom tabs, workspace labels/descriptions/icons, provider `Select...` actions, search, restored selection, and exact provider identity are rendered in Omni's separate action-widget window.
 
 ### Key Files
 
@@ -44,6 +44,8 @@ Quick-chat rows (`.session-item.quick-chat`, driven by the reactive `ISession.is
 Continuous row animations preserve their existing appearance while limiting rendering work: the title shimmer follows the same three-second path with at most 30 visual updates per second, then rests for three seconds before repeating. Both it and the shared pixel spinner pause outside the viewport and whenever their document is hidden, while their visibility tracking survives temporary row-template detachment. Status icons cross-fade only for state changes within the same session; when virtualization rebinds a row template to another session, the new icon renders immediately so stale status is never shown.
 
 `SessionsFlatList` reuses the same session row renderer for sectionless surfaces, including the approval row and dynamic row height updates. Consumers that size their own container listen for content-height changes and relayout the list. When embedded inside another hover, consumers disable row hovers so moving over the list does not replace the parent hover.
+
+Automation run history uses `SessionsFlatList` for runs backed by a live session. Pending and running runs without a resolved session use a lightweight `Working...` row; date grouping and run actions remain owned by the Automations view.
 
 ### Grouping
 

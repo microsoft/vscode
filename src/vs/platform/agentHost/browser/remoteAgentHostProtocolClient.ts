@@ -31,7 +31,7 @@ import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents,
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
-import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { isClientTransport, NonReconnectableTransportError, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ChatSourceKind, ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -490,7 +490,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._transitionTo({ kind: AgentHostClientState.Incompatible, error: protocolError });
 				throw error;
 			}
-			if (this._state.kind === AgentHostClientState.Reconnecting && this._transportFactory) {
+			if (error instanceof NonReconnectableTransportError) {
+				this._handleClose(protocolError);
+				throw error;
+			}
+			if (this._state.kind === AgentHostClientState.Reconnecting) {
+				throw error;
+			}
+			if (protocolError.code === AHP_CLIENT_CONNECTION_CLOSED && this._beginReconnectFromConnecting(protocolError)) {
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -527,18 +534,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			case AgentHostClientState.Closed:
 				return;
 			case AgentHostClientState.Connecting:
-				if (!this._transportFactory) {
+				if (!this._beginReconnectFromConnecting(connectionClosedError(this._address))) {
 					this._handleClose(connectionClosedError(this._address));
-					return;
 				}
-				this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
-				this._transitionTo({
-					kind: AgentHostClientState.Reconnecting,
-					reconnect: { ...this._newReconnectState(), outbox: this._state.outbox },
-				});
-				this._cancelLivenessTimers();
-				this._rejectPendingRequests(transportLostError(this._address));
-				this._scheduleReconnect();
 				return;
 			case AgentHostClientState.Incompatible:
 				this._handleClose(connectionClosedError(this._address));
@@ -573,6 +571,38 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._rejectPendingRequests(transportLostError(this._address));
 				return;
 		}
+	}
+
+	private _beginReconnectFromConnecting(error: ProtocolError): boolean {
+		if (this._state.kind !== AgentHostClientState.Connecting || !this._transportFactory) {
+			return false;
+		}
+		this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
+		// Carry the pre-handshake outbox into the reconnect state so queued
+		// messages are replayed once the fresh initialize succeeds.
+		const outbox = this._state.outbox;
+		this._rejectPendingRequests(error);
+		this._grantedImplicitReadUris.clear();
+		this._implicitReadGrants.clear();
+		this._transitionTo({
+			kind: AgentHostClientState.Reconnecting,
+			reconnect: { ...this._newReconnectState(), outbox },
+		});
+		this._cancelLivenessTimers();
+		this._scheduleReconnect();
+		return true;
+	}
+
+	/**
+	 * Reopens a terminal connection after its host has been explicitly restarted.
+	 */
+	reconnectFromClosed(): boolean {
+		if (this._state.kind !== AgentHostClientState.Closed || !this._transportFactory || this._store.isDisposed) {
+			return false;
+		}
+		this._transitionTo({ kind: AgentHostClientState.Reconnecting, reconnect: this._newReconnectState() });
+		this._scheduleReconnect();
+		return true;
 	}
 
 	private _scheduleReconnect(): void {
@@ -655,6 +685,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
 			transport?.dispose();
 			if (this._state.kind !== AgentHostClientState.Reconnecting) {
+				return;
+			}
+			if (err instanceof NonReconnectableTransportError) {
+				this._handleClose(new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, err.message));
 				return;
 			}
 			// Replace the gate so awaiting callers see the failure but new

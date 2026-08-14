@@ -1577,24 +1577,43 @@ suite('CopilotAgent', () => {
 
 	test('queries managed settings with pre-resolved token authentication', async () => {
 		let receivedInput: { authInfo?: { type: 'token'; host: string; token: string }; token?: string; signal?: AbortSignal } | undefined;
+		let proxyEnvironment: Record<string, string | undefined> | undefined;
 		const runtimeSdk = {
 			getManagedSettings: async (input?: typeof receivedInput) => {
 				receivedInput = input;
+				proxyEnvironment = {
+					HTTP_PROXY: process.env['HTTP_PROXY'],
+					HTTPS_PROXY: process.env['HTTPS_PROXY'],
+				};
 				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
 			},
 		};
 		const signal = new AbortController().signal;
+		const before = {
+			HTTP_PROXY: process.env['HTTP_PROXY'],
+			HTTPS_PROXY: process.env['HTTPS_PROXY'],
+		};
 
-		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal);
+		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, 'http://proxy.example.com:8080');
 
 		assert.deepStrictEqual({
 			authInfo: receivedInput?.authInfo,
 			token: receivedInput?.token,
 			signalForwarded: receivedInput?.signal === signal,
+			proxyEnvironment,
+			environmentRestored: {
+				HTTP_PROXY: process.env['HTTP_PROXY'],
+				HTTPS_PROXY: process.env['HTTPS_PROXY'],
+			},
 		}, {
 			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
 			token: 'token',
 			signalForwarded: true,
+			proxyEnvironment: {
+				HTTP_PROXY: 'http://proxy.example.com:8080',
+				HTTPS_PROXY: 'http://proxy.example.com:8080',
+			},
+			environmentRestored: before,
 		});
 	});
 

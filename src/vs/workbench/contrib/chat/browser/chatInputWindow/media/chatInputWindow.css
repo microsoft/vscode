@@ -15,6 +15,16 @@
 	overflow: hidden;
 }
 
+.chat-input-window:focus-within {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-input-window .monaco-editor [tabindex]:focus,
+.chat-input-window .monaco-editor textarea:focus {
+	outline: none;
+}
+
 .chat-input-window-body {
 	background: transparent !important;
 	overflow: hidden !important;
@@ -107,7 +117,7 @@
 }
 
 .chat-input-window .interactive-input-part.compact {
-	padding-top: var(--vscode-spacing-size40);
+	padding-top: var(--vscode-spacing-sizeNone);
 }
 
 .chat-input-window .interactive-input-part.compact .chat-input-container {
@@ -135,7 +145,8 @@
 	display: none;
 }
 
-.chat-input-window .chat-input-container:not(.working) {
+.chat-input-window .chat-input-container:not(.working),
+.agent-sessions-workbench .chat-input-window .interactive-session .chat-input-container:not(.working) {
 	border-color: transparent !important;
 	background: transparent !important;
 }
