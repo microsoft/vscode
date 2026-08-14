@@ -27,6 +27,7 @@ import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatPr
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -98,6 +99,7 @@ export interface IChatWidgetFixtureOptions {
 	 * Markdown previews under the response.
 	 */
 	readonly turnStatusPills?: ChatTurnStatusPillsSetting;
+	readonly linkPresentationService?: ILinkPresentationService;
 	readonly onRendered?: (handle: IChatWidgetFixtureHandle) => void;
 	/** Selects the input-height consumer used by the ResizeObserver harness. */
 	readonly hostLayoutMode?: 'none' | 'listOnly' | 'stackedFull' | 'stackedTargeted';
@@ -157,6 +159,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg);
+			if (options.linkPresentationService) {
+				reg.defineInstance(ILinkPresentationService, options.linkPresentationService);
+			}
 			// Override widget service so the chat list renderer can route tool
 			// confirmations to the carousel attached to our input part.
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {

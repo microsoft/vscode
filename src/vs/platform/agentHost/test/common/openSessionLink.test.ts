@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, createAgentSessionLinkPresentation, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
@@ -75,5 +75,19 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parseOpenSessionLinkUri('https://example.com/x'), undefined);
 		assert.strictEqual(parseOpenSessionLinkUri('copilotcli:/abc'), undefined);
 		assert.strictEqual(parseOpenSessionLinkUri('agent-host-session://copilotcli/'), undefined);
+	});
+
+	test('creates generic link presentations for agent sessions', () => {
+		assert.deepStrictEqual(
+			createAgentSessionLinkPresentation('Implement rich links', 'Updating core', 'needsInput'),
+			{
+				kind: 'session',
+				title: 'Implement rich links',
+				detail: 'Updating core',
+				status: { kind: 'warning', label: 'Needs input' },
+				tooltip: 'Implement rich links · Needs input',
+				ariaLabel: 'Agent session Implement rich links, Needs input',
+			},
+		);
 	});
 });
