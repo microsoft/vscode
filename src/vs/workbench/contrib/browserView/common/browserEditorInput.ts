@@ -24,7 +24,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewEditorId, isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -78,7 +78,7 @@ function stripUrlQueryAndFragment(url: string): string {
 
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
-	static readonly EDITOR_ID = 'workbench.editor.browser';
+	static readonly EDITOR_ID = BrowserViewEditorId;
 	static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
