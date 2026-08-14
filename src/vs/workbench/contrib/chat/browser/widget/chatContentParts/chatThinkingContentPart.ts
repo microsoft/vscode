@@ -953,11 +953,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (!this.diffButton) {
-			const container = this._collapseButton?.element.parentElement;
+			const collapseButton = this._collapseButton;
+			const container = collapseButton?.element.parentElement;
 			if (!container) {
 				return;
 			}
 
+			collapseButton.element.classList.add('chat-thinking-title-with-diff');
 			const button = this.diffButtonStore.add(new Button(container, {}));
 			button.element.classList.add('chat-thinking-title-diff');
 			this.diffButtonStore.add(button.onDidClick(event => {
@@ -994,6 +996,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private clearDiffButton(): void {
 		this.diffButtonStore.clear();
 		this.diffButton = undefined;
+		this._collapseButton?.element.classList.remove('chat-thinking-title-with-diff');
 		if (this._collapseButton && this._hoverChevron) {
 			this._collapseButton.element.appendChild(this._hoverChevron);
 		}

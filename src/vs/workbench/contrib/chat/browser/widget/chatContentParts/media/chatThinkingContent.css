@@ -34,6 +34,10 @@
 		line-height: 1.5em;
 		font-size: 13px;
 
+		&.chat-thinking-title-with-diff {
+			padding-right: var(--vscode-spacing-size20);
+		}
+
 		.monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);
 		}

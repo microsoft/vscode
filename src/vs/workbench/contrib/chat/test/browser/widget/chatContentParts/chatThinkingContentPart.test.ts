@@ -2205,7 +2205,7 @@ suite('ChatThinkingContentPart', () => {
 				added: '+10',
 				removed: '-3',
 				childClasses: [
-					'monaco-button monaco-icon-button monaco-text-button',
+					'monaco-button monaco-icon-button monaco-text-button chat-thinking-title-with-diff',
 					'monaco-button chat-thinking-title-diff',
 					'chat-collapsible-hover-chevron codicon codicon-chevron-right expanded',
 				],
