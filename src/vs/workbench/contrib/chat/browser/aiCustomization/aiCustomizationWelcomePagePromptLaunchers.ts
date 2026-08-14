@@ -405,11 +405,6 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		}
 
 		const migrationCard = DOM.append(this.cardsContainer, $('.welcome-prompts-card.welcome-prompts-migration-card'));
-		migrationCard.setAttribute('tabindex', '0');
-		migrationCard.setAttribute('role', 'button');
-		if (!this.firstCard) {
-			this.firstCard = migrationCard;
-		}
 
 		const cardHeader = DOM.append(migrationCard, $('.welcome-prompts-card-header'));
 		const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
@@ -424,20 +419,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		const migrateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 		migrateBtn.textContent = category.actionLabel;
 		migrateBtn.setAttribute('aria-label', category.actionAriaLabel);
-		this.cardDisposables.add(DOM.addDisposableListener(migrateBtn, 'click', e => {
-			e.stopPropagation();
-			this.callbacks.migrateCustomizations(category.id);
-		}));
-
-		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'click', () => {
-			this.callbacks.migrateCustomizations(category.id);
-		}));
-		this.cardDisposables.add(DOM.addDisposableListener(migrationCard, 'keydown', e => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.callbacks.migrateCustomizations(category.id);
-			}
-		}));
+		if (!this.firstCard) {
+			this.firstCard = migrateBtn;
+		}
+		this.cardDisposables.add(DOM.addDisposableListener(migrateBtn, 'click', () => this.callbacks.migrateCustomizations(category.id)));
 	}
 
 	focus(): void {

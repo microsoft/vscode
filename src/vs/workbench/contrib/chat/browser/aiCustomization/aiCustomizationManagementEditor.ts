@@ -14,7 +14,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -341,7 +341,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private migrationSearchQuery = '';
 	private activeMigrationCategoryId: CustomizationMigrationCategoryId | undefined;
 	private readonly collapsedCustomizationMigrationGroups = new Set<string>();
-	private selectedCustomizationMigrationUris = new ResourceSet();
+	private selectedCustomizationMigrationItems = new ResourceMap<Set<PromptsStorage>>();
 	private readonly migrationPageDisposables = this._register(new DisposableStore());
 
 	// Embedded MCP server detail view
@@ -888,7 +888,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 			const selectedCustomizations = this.getMigrationCandidates(category)
-				.filter(customization => this.selectedCustomizationMigrationUris.has(customization.uri));
+				.filter(customization => this.isCustomizationSelectedForMigration(customization));
 			void this.migrateSelectedCustomizations(category, selectedCustomizations);
 		}));
 
@@ -1137,16 +1137,51 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private setCustomizationsToMigrate(candidatesByCategory: Map<CustomizationMigrationCategoryId, readonly IPromptPath[]>): void {
-		const previousUris = new ResourceSet(this.getAllMigrationCandidates().map(customization => customization.uri));
-		const selectedUris = new ResourceSet();
+		const previousItems = this.createCustomizationMigrationItemMap(this.getAllMigrationCandidates());
+		const selectedItems = new ResourceMap<Set<PromptsStorage>>();
 		for (const customization of [...candidatesByCategory.values()].flat()) {
-			if (!previousUris.has(customization.uri) || this.selectedCustomizationMigrationUris.has(customization.uri)) {
-				selectedUris.add(customization.uri);
+			if (!this.hasCustomizationMigrationItem(previousItems, customization) || this.isCustomizationSelectedForMigration(customization)) {
+				this.addCustomizationMigrationItem(selectedItems, customization);
 			}
 		}
-		this.selectedCustomizationMigrationUris = selectedUris;
+		this.selectedCustomizationMigrationItems = selectedItems;
 		this.customizationsByMigrationCategory = candidatesByCategory;
 		this.refreshCustomizationMigrationUi();
+	}
+
+	private createCustomizationMigrationItemMap(customizations: readonly IPromptPath[]): ResourceMap<Set<PromptsStorage>> {
+		const result = new ResourceMap<Set<PromptsStorage>>();
+		for (const customization of customizations) {
+			this.addCustomizationMigrationItem(result, customization);
+		}
+		return result;
+	}
+
+	private hasCustomizationMigrationItem(items: ResourceMap<Set<PromptsStorage>>, customization: IPromptPath): boolean {
+		return items.get(customization.uri)?.has(customization.storage) === true;
+	}
+
+	private addCustomizationMigrationItem(items: ResourceMap<Set<PromptsStorage>>, customization: IPromptPath): void {
+		const storages = items.get(customization.uri) ?? new Set<PromptsStorage>();
+		storages.add(customization.storage);
+		items.set(customization.uri, storages);
+	}
+
+	private isCustomizationSelectedForMigration(customization: IPromptPath): boolean {
+		return this.hasCustomizationMigrationItem(this.selectedCustomizationMigrationItems, customization);
+	}
+
+	private setCustomizationSelectedForMigration(customization: IPromptPath, selected: boolean): void {
+		if (selected) {
+			this.addCustomizationMigrationItem(this.selectedCustomizationMigrationItems, customization);
+			return;
+		}
+
+		const storages = this.selectedCustomizationMigrationItems.get(customization.uri);
+		storages?.delete(customization.storage);
+		if (storages?.size === 0) {
+			this.selectedCustomizationMigrationItems.delete(customization.uri);
+		}
 	}
 
 	private getMigrationCandidates(category: ICustomizationMigrationCategory): readonly IPromptPath[] {
@@ -1322,40 +1357,38 @@ export class AICustomizationManagementEditor extends EditorPane {
 				isWorkspaceFile,
 			);
 		};
-		const renderSelectionCheckbox = (row: HTMLElement, customization: IPromptPath): Checkbox => {
+		const renderSelectionCheckbox = (row: HTMLElement, customization: IPromptPath): void => {
 			const checkboxContainer = DOM.append(row, $('.item-sync-checkbox.prompt-migration-checkbox'));
 			const checkboxTitle = localize('customizationMigrationSelectAriaLabel', "Select {0}", customization.name ?? basename(customization.uri));
-			const checkbox = this.migrationPageDisposables.add(new Checkbox(checkboxTitle, this.selectedCustomizationMigrationUris.has(customization.uri), defaultCheckboxStyles));
+			const checkbox = this.migrationPageDisposables.add(new Checkbox(checkboxTitle, this.isCustomizationSelectedForMigration(customization), defaultCheckboxStyles));
 			checkboxContainer.replaceChildren(checkbox.domNode);
 			this.migrationPageDisposables.add(checkbox.onChange(() => {
-				if (checkbox.checked) {
-					this.selectedCustomizationMigrationUris.add(customization.uri);
-				} else {
-					this.selectedCustomizationMigrationUris.delete(customization.uri);
-				}
+				this.setCustomizationSelectedForMigration(customization, checkbox.checked);
 				this.updateCustomizationMigrationActionState();
 			}));
-			return checkbox;
 		};
 
 		const renderItem = (container: HTMLElement, customization: IPromptPath): void => {
 			const row = DOM.append(container, $('div.ai-customization-list-item.prompt-migration-item'));
-			const checkbox = renderSelectionCheckbox(row, customization);
-			this.migrationPageDisposables.add(DOM.addDisposableListener(row, 'click', event => {
-				if (event.target instanceof Node && checkbox.domNode.contains(event.target)) {
-					return;
-				}
-				openCustomizationInEmbeddedEditor(customization);
-			}));
+			renderSelectionCheckbox(row, customization);
 
 			const itemLeft = DOM.append(row, $('span.item-left'));
-			const itemText = DOM.append(itemLeft, $('span.item-text'));
+			const displayName = customization.name ?? basename(customization.uri);
+			const relativePath = this.labelService.getUriLabel(customization.uri, { relative: true });
+			const openButton = this.migrationPageDisposables.add(new Button(itemLeft, {
+				ariaLabel: localize('openCustomizationFile', "Open {0}, {1}", displayName, relativePath),
+			}));
+			openButton.label = displayName;
+			DOM.clearNode(openButton.element);
+			openButton.element.classList.add('item-text', 'prompt-migration-open-button');
+			this.migrationPageDisposables.add(openButton.onDidClick(() => openCustomizationInEmbeddedEditor(customization)));
+			const itemText = openButton.element;
 			const nameRow = DOM.append(itemText, $('span.item-name-row'));
 			const nameLabel = DOM.append(nameRow, $('span.item-name.prompt-migration-item-name'));
-			nameLabel.textContent = customization.name ?? basename(customization.uri);
+			nameLabel.textContent = displayName;
 
 			const pathLabel = DOM.append(itemText, $('span.item-description.is-filename.prompt-migration-item-path'));
-			pathLabel.textContent = this.labelService.getUriLabel(customization.uri, { relative: true });
+			pathLabel.textContent = relativePath;
 
 			const itemRight = DOM.append(row, $('span.item-right'));
 			const deleteButton = DOM.append(itemRight, $('button.icon-button', {
@@ -1378,17 +1411,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const group = DOM.append(this.migrationListContainer!, $('.prompt-migration-group'));
 			const groupHeader = DOM.append(group, $('.ai-customization-group-header.prompt-migration-group-header'));
 			const groupCheckboxContainer = DOM.append(groupHeader, $('.item-sync-checkbox.prompt-migration-group-checkbox'));
-			const allInGroupSelected = customizations.every(customization => this.selectedCustomizationMigrationUris.has(customization.uri));
+			const allInGroupSelected = customizations.every(customization => this.isCustomizationSelectedForMigration(customization));
 			const groupCheckboxAriaLabel = localize('customizationMigrationSelectGroupAriaLabel', "Select all customizations in {0}", groupLabel);
 			const groupCheckbox = this.migrationPageDisposables.add(new Checkbox(groupCheckboxAriaLabel, allInGroupSelected, defaultCheckboxStyles));
 			groupCheckboxContainer.replaceChildren(groupCheckbox.domNode);
 			this.migrationPageDisposables.add(groupCheckbox.onChange(() => {
 				for (const customization of customizations) {
-					if (groupCheckbox.checked) {
-						this.selectedCustomizationMigrationUris.add(customization.uri);
-					} else {
-						this.selectedCustomizationMigrationUris.delete(customization.uri);
-					}
+					this.setCustomizationSelectedForMigration(customization, groupCheckbox.checked);
 				}
 				this.renderCustomizationMigrationPage();
 			}));
@@ -1499,7 +1528,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		const category = this.getActiveMigrationCategory() ?? CUSTOMIZATION_MIGRATION_CATEGORIES[0];
-		const selectedCount = this.getMigrationCandidates(category).filter(customization => this.selectedCustomizationMigrationUris.has(customization.uri)).length;
+		const selectedCount = this.getMigrationCandidates(category).filter(customization => this.isCustomizationSelectedForMigration(customization)).length;
 		this.migrationMigrateButton.enabled = selectedCount > 0;
 		this.migrationMigrateButton.label = selectedCount > 0
 			? localize('customizationMigrationPageButtonWithCount', "Migrate ({0})", selectedCount)
