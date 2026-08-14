@@ -2311,10 +2311,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Resolves the Copilot SDK conversation id backing a session URI, falling back to the AH session id. */
 	private _sdkConversationId(session: URI): string {
 		const sessionId = AgentSession.id(session);
-		// The persisted default-chat backing recovers the SDK id after a cold
-		// restart, before the session is resumed into a live entry (a rename can
-		// arrive in that window). Fresh sessions store the AH id here, so this is
-		// a no-op for them.
 		return this._findSessionChat(session)?.sessionId
 			?? this._provisionalSessions.get(sessionId)?.sdkSessionId
 			?? this._chatBackings.get(buildDefaultChatUri(session))?.sdkSessionId
