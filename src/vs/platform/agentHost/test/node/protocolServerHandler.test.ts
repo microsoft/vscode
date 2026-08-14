@@ -838,9 +838,7 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-1');
 		transport.sent.length = 0;
 
-		// A client subscribes and dispatches on the same connection without
-		// waiting for the subscribe response, so the envelope is emitted while
-		// the snapshot is still resolving.
+		// Dispatch lands while the subscribe snapshot is still resolving.
 		agentService.subscribeBarrier = new DeferredPromise<void>();
 		transport.simulateMessage(request(1, 'subscribe', { channel: defaultChatUri }));
 		transport.simulateMessage(notification('dispatchAction', {
@@ -851,8 +849,11 @@ suite('ProtocolServerHandler', () => {
 		agentService.subscribeBarrier.complete();
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		const echoed = transport.sent.some(m => (m as { params?: { action?: { type?: string } } }).params?.action?.type === ActionType.ChatTurnStarted);
-		assert.strictEqual(echoed, true, 'turnStarted must be echoed to the client that dispatched it');
+		const echoed = transport.sent
+			.map(m => (m as { params?: { action?: { type?: string; turnId?: string } } }).params?.action)
+			.filter(a => a?.type === ActionType.ChatTurnStarted)
+			.map(a => a?.turnId);
+		assert.deepStrictEqual(echoed, ['turn-1'], 'the dispatched turnStarted must be echoed back to its originating client');
 	});
 
 	test('client action is dispatched and echoed', () => {
