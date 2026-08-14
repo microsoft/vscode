@@ -6395,6 +6395,32 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('send_to_chat with new_session bypasses a focused omni input', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const commandService = new TestCommandService(true);
+		const chatService = new NewSessionChatService();
+		const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+		await controller.connect(mainWindow);
+		(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+
+		voiceClientService.fireToolCall({
+			callId: 'new-session-omni-focused',
+			name: 'send_to_chat',
+			args: { text: 'refactor the upload service', new_session: true },
+		});
+		await voiceClientService.toolResultReceived;
+
+		assert.deepStrictEqual({
+			sent: chatService.sent,
+			omniInputs: commandService.acceptedOmniInputs,
+			panelInputs: commandService.acceptedInputs,
+		}, {
+			sent: [{ resource: 'chat-session://new/1', message: 'refactor the upload service' }],
+			omniInputs: [],
+			panelInputs: [],
+		});
+	});
+
 	test('send_to_chat with new_session and no text creates and targets a session without sending', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const commandService = new TestCommandService();
@@ -6478,6 +6504,44 @@ suite('VoiceSessionController', () => {
 			target: 'chat-session://new/1',
 			targetStillExists: true,
 			retainedRefs: 1,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on retarget', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.setTargetSession(URI.parse('chat-session://existing/1'));
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
+		});
+	});
+
+	test('newSessionAsTarget releases an unadopted session on disconnect', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new RefCountingChatService();
+		const controller = createController(voiceClientService, undefined, new TestCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.newSessionAsTarget();
+		await Promise.resolve();
+		await Promise.resolve();
+		controller.disconnect();
+
+		assert.deepStrictEqual({
+			targetStillExists: chatService.live.has('chat-session://new/1'),
+			retainedRefs: chatService.refCount('chat-session://new/1'),
+		}, {
+			targetStillExists: false,
+			retainedRefs: 0,
 		});
 	});
 

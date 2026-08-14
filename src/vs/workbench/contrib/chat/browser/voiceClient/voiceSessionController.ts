@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { IObservable, ITransaction, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { addDisposableListener, disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
@@ -2113,11 +2113,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					e.args['text'] = text;
 				}
 				if (e.args?.['new_session'] === true) {
-					// Clear the pin first: an explicit "start a new session"
-					// outranks a pin left by a focus change, which would
-					// otherwise win in _sendTranscriptionToChat.
-					this._consumePinnedSubmitSession();
+					// Pin this submission to the new target so it outranks both
+					// a focus-change pin and a focused Omni input.
+					this._setPinnedSubmitSession(undefined);
 					this.newSessionAsTarget();
+					if (text.trim()) {
+						this._setPinnedSubmitSession(this._targetSession.get());
+					}
 				}
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
@@ -2402,7 +2404,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// snapshot (and suppress the tracker) so a later reconnect can't re-pin
 		// voice to the old session or repopulate its stale confirmation.
 		this._targetOmniRoute = undefined;
-		this._targetSession.set(undefined, undefined);
+		this._setTargetSession(undefined);
 		this._hasDraftTarget.set(false, undefined);
 		this._omniInputActive.set(false, undefined);
 		this._suppressPendingConfirmationsUntilConnect();
@@ -2554,7 +2556,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// pending-confirmation snapshot, and suppress the tracker so connect()
 		// isn't re-pinned to this evicted session (see disconnect()).
 		this._targetOmniRoute = undefined;
-		this._targetSession.set(undefined, undefined);
+		this._setTargetSession(undefined);
 		this._hasDraftTarget.set(false, undefined);
 		this._omniInputActive.set(false, undefined);
 		this._suppressPendingConfirmationsUntilConnect();
@@ -3184,10 +3186,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	setTargetSession(resource: URI | undefined, omniRoute?: 'existing_session' | 'new_session'): void {
-		this._releaseNewSessionRefUnlessTargeting(resource);
 		this._targetOmniRoute = resource ? omniRoute : undefined;
 		this._hasDraftTarget.set(false, undefined);
-		this._targetSession.set(resource, undefined);
+		this._setTargetSession(resource);
 	}
 
 	prepareForRoutingRequest(): void {
@@ -3253,7 +3254,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	setDraftTarget(): void {
 		this._targetOmniRoute = undefined;
-		this._targetSession.set(undefined, undefined);
+		this._setTargetSession(undefined);
 		this._hasDraftTarget.set(true, undefined);
 	}
 
@@ -3264,7 +3265,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._targetOmniRoute = undefined;
 			this._omniInputActive.set(false, tx);
 			this._hasDraftTarget.set(false, tx);
-			this._targetSession.set(resource, tx);
+			this._setTargetSession(resource, tx);
 		});
 		this.activateSession(resource);
 	}
@@ -3275,7 +3276,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		transaction(tx => {
 			this._targetOmniRoute = undefined;
 			this._omniInputActive.set(false, tx);
-			this._targetSession.set(undefined, tx);
+			this._setTargetSession(undefined, tx);
 			this._hasDraftTarget.set(true, tx);
 		});
 	}
@@ -3285,7 +3286,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.setActiveWindow(window);
 		transaction(tx => {
 			this._targetOmniRoute = undefined;
-			this._targetSession.set(undefined, tx);
+			this._setTargetSession(undefined, tx);
 			this._hasDraftTarget.set(true, tx);
 			this._omniInputActive.set(true, tx);
 		});
@@ -3306,7 +3307,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._omniInputActive.set(active, undefined);
 		if (!active) {
 			this._targetOmniRoute = undefined;
-			this._targetSession.set(undefined, undefined);
+			this._setTargetSession(undefined);
 			this._hasDraftTarget.set(false, undefined);
 		}
 	}
@@ -3366,7 +3367,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return;
 		}
 		this._hasDraftTarget.set(false, undefined);
-		this._targetSession.set(resource, undefined);
+		this._setTargetSession(resource);
 		if (this._isSameSession(resource.toString(), this._shownSessionId())) {
 			this._activateShownSession(resource);
 		}
@@ -3381,7 +3382,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._newSessionRef.value = ref;
 		this._targetOmniRoute = undefined;
 		this._hasDraftTarget.set(false, undefined);
-		this._targetSession.set(resource, undefined);
+		this._setTargetSession(resource);
 		// Try to switch the view to the new session (works if chat pane is open)
 		this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', resource.toString()).then(switched => {
 			// Only release once a host holds its own reference. On failure the
@@ -3399,9 +3400,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private _releaseNewSessionRefUnlessTargeting(resource: URI | undefined): void {
 		const held = this._newSessionRef.value;
-		if (held && held.object.sessionResource.toString() !== resource?.toString()) {
+		if (held && (!resource || !isEqual(held.object.sessionResource, resource))) {
 			this._newSessionRef.clear();
 		}
+	}
+
+	private _setTargetSession(resource: URI | undefined, tx?: ITransaction): void {
+		this._releaseNewSessionRefUnlessTargeting(resource);
+		this._targetSession.set(resource, tx);
 	}
 
 	private _scheduleDelayedMicStop(): void {
@@ -4389,7 +4395,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const canonicalFrom = this._sessionKey(from);
 		const target = this._targetSession.get();
 		if (target && isEqual(target, previous)) {
-			this._targetSession.set(current, undefined);
+			this._setTargetSession(current);
 		}
 		if (this._activeSessionShown === from) {
 			this._activeSessionShown = to;
@@ -5250,7 +5256,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// Changing the visible session must not move an existing voice
 			// conversation with it. Pin voice to its current session while the
 			// newly shown session remains authoritative for playback deferral.
-			this._targetSession.set(URI.parse(this._activeSessionShown), undefined);
+			this._setTargetSession(URI.parse(this._activeSessionShown));
 		}
 	}
 
