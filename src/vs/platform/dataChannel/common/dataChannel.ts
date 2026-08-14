@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IObservable } from '../../../base/common/observable.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IDataChannelService = createDecorator<IDataChannelService>('dataChannelService');
@@ -23,6 +26,35 @@ export interface CoreDataChannel<T = unknown> {
 export interface IDataChannelEvent<T = unknown> {
 	channelId: string;
 	data: T;
+}
+
+export const IDataWatcherService = createDecorator<IDataWatcherService>('dataWatcherService');
+
+export const enum DataWatcherKind {
+	AgentSession = 'agentSession',
+}
+
+export interface IAgentSessionDataWatcherParams {
+	readonly kind: DataWatcherKind.AgentSession;
+	readonly resource: URI;
+}
+
+export type IDataWatcherParams =
+	| IAgentSessionDataWatcherParams;
+
+export interface IDataWatcher<T = unknown> extends IDisposable {
+	readonly data: IObservable<T | undefined>;
+}
+
+export interface IDataWatcherProvider {
+	createDataWatcher(params: IDataWatcherParams): IDataWatcher | undefined;
+}
+
+export interface IDataWatcherService {
+	readonly _serviceBrand: undefined;
+
+	registerDataWatcherProvider(kind: DataWatcherKind, provider: IDataWatcherProvider): IDisposable;
+	createDataWatcher(params: IDataWatcherParams): IDataWatcher | undefined;
 }
 
 export class NullDataChannelService implements IDataChannelService {

@@ -76,9 +76,7 @@ class TestAgentHostEnablementService extends Disposable implements IAgentHostEna
 	}
 
 	setEnabled(enabled: boolean): void {
-		if (!this.enabled.get() && enabled) {
-			this._enabled.set(true, undefined);
-		}
+		this._enabled.set(enabled, undefined);
 	}
 }
 

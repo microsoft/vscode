@@ -313,7 +313,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
 		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
-			localize('agentHost.sessionConfig.autoApprove.default', "Default permissions"),
+			localize('agentHost.sessionConfig.autoApprove.default', "Manual permissions"),
 			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
@@ -467,6 +467,15 @@ export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGen
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
+
+export const enum AgentHostExternalSessionsMode {
+	None = 'none',
+	All = 'all',
+	Last24Hours = 'last24Hours',
+	Last7Days = 'last7Days',
+}
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -753,6 +762,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
+	}),
+	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<AgentHostExternalSessionsMode>({
+		type: 'string',
+		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
+		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
+		enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days],
+		default: AgentHostExternalSessionsMode.Last7Days,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

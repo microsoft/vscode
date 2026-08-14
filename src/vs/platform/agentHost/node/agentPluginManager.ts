@@ -58,8 +58,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 */
 	private readonly _lru: ICacheEntry[] = [];
 
-	/** Whether the on-disk cache has been loaded. */
-	private _cacheLoaded = false;
+	private _cacheLoadPromise: Promise<void> | undefined;
 
 	constructor(
 		userDataPath: URI,
@@ -248,12 +247,12 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 	// ---- cache persistence --------------------------------------------------
 
-	private async _ensureCacheLoaded(): Promise<void> {
-		if (this._cacheLoaded) {
-			return;
-		}
-		this._cacheLoaded = true;
+	private _ensureCacheLoaded(): Promise<void> {
+		this._cacheLoadPromise ??= this._loadCache();
+		return this._cacheLoadPromise;
+	}
 
+	private async _loadCache(): Promise<void> {
 		try {
 			if (!await this._fileService.exists(this._cachePath)) {
 				return;

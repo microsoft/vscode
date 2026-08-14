@@ -109,7 +109,7 @@ suite('Agent Host provider seams', () => {
 				resource: context.resource.toString(),
 				origin: context.origin,
 				parent: resolveSubagentChatParent(context)?.toolCallId,
-				customizations: context.customizations?.map(c => [c.id, c.enabled]),
+				customizations: context.customizations?.map(c => [c.id, c.type === CustomizationType.Directory ? c.enabled : undefined]),
 			}, {
 				resource: subagentChat.toString(),
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionKey), toolCallId: 'tool-1' },
