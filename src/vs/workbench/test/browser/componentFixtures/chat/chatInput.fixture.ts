@@ -13,6 +13,7 @@ import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/c
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
 import { ChatAgentLocation } from '../../../../contrib/chat/common/constants.js';
+import { ChatInputNotificationSeverity, IChatInputNotification } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { renderChatInput } from './renderChatInput.js';
 
@@ -78,12 +79,32 @@ const sampleModels: ILanguageModelChatMetadataAndIdentifier[] = [
 	},
 ];
 
+const sampleNotification: IChatInputNotification = {
+	id: 'fixture.notification',
+	severity: ChatInputNotificationSeverity.Info,
+	message: 'You are approaching your monthly limit.',
+	description: undefined,
+	actions: [],
+	dismissible: true,
+	autoDismissOnMessage: false,
+};
+
 export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels, width: 260 }) }),
 	WithArtifacts: defineComponentFixture({ render: context => renderChatInput(context, { artifacts: sampleArtifacts }) }),
+	// The notice/input seam, the subject of #330483. Driven through the real
+	// notification service so the squared corner comes from the stack.
+	WithNotification: defineComponentFixture({
+		render: context => renderChatInput(context, { notification: sampleNotification })
+	}),
+	// A run of three: notice, todo list, then the input. Covers a notice docking
+	// to a widget rather than straight to the input.
+	WithNotificationAndTodos: defineComponentFixture({
+		render: context => renderChatInput(context, { notification: sampleNotification, todos: sampleTodos })
+	}),
 	WithFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })
 	}),

@@ -6,6 +6,7 @@
 import { localize } from '../../../nls.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { ConfigurationTarget, type IConfigurationService, type IConfigurationValue } from '../../configuration/common/configuration.js';
+import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, type ChatEditAutoApprovePatterns } from '../../chat/common/chatSettings.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
@@ -312,7 +313,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.autoApproveDescription', "Tool approval behavior for this session"),
 		enum: ['default', 'assisted', 'autoApprove'],
 		enumLabels: [
-			localize('agentHost.sessionConfig.autoApprove.default', "Default permissions"),
+			localize('agentHost.sessionConfig.autoApprove.default', "Manual permissions"),
 			localize('agentHost.sessionConfig.autoApprove.assisted', "Assisted permissions"),
 			localize('agentHost.sessionConfig.autoApprove.bypass', "Allow all"),
 		],
@@ -410,6 +411,9 @@ export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
  */
 export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
 
+/** Root config key carrying the effective edit auto-approve patterns. */
+export const AgentHostEditAutoApprovePatternsConfigKey = 'editAutoApprovePatterns';
+
 /**
  * Root config key forwarded from the renderer when VS Code's
  * `chat.tools.terminal.enableAutoApprove` setting changes. Controls whether
@@ -456,10 +460,22 @@ export const PREFER_LONG_CONTEXT_SETTING_ID = 'github.copilot.chat.preferLongCon
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
 export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
+/** Root config key forwarded from the renderer for active-agent title generation. */
+export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
+
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
+
+export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
+
+export const enum AgentHostExternalSessionsMode {
+	None = 'none',
+	All = 'all',
+	Last24Hours = 'last24Hours',
+	Last7Days = 'last7Days',
+}
 
 /**
  * Root config key forwarded from the renderer that gates multiple-working-directory
@@ -735,11 +751,24 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.systemProxyEnabled.description', "Whether Copilot sessions automatically discover and use the operating system's proxy configuration."),
 		default: true,
 	}),
+	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
+		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of utility-model title generation."),
+		default: false,
+	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
 		default: false,
+	}),
+	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<AgentHostExternalSessionsMode>({
+		type: 'string',
+		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
+		description: localize('agentHost.config.showExternalSessions.description', "Controls whether sessions created outside the Agent Host are included in the session catalog."),
+		enum: [AgentHostExternalSessionsMode.None, AgentHostExternalSessionsMode.All, AgentHostExternalSessionsMode.Last24Hours, AgentHostExternalSessionsMode.Last7Days],
+		default: AgentHostExternalSessionsMode.Last7Days,
 	}),
 	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -758,6 +787,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.codexMultiRootEnabled.title', "Codex Multiple Working Directories"),
 		description: localize('agentHost.config.codexMultiRootEnabled.description', "Whether the Codex provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
 		default: false,
+	}),
+	[AgentHostEditAutoApprovePatternsConfigKey]: schemaProperty<ChatEditAutoApprovePatterns>({
+		type: 'object',
+		title: localize('agentHost.config.editAutoApprovePatterns.title', "Edit Auto Approve Patterns"),
+		description: localize('agentHost.config.editAutoApprovePatterns.description', "Effective edit auto-approve patterns forwarded by the connected client for agent-host write permission checks."),
+		default: DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
 	}),
 	[AgentHostTerminalAutoApproveRulesConfigKey]: schemaProperty<AgentHostTerminalAutoApproveRules>({
 		type: 'object',
