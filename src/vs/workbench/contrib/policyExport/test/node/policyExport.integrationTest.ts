@@ -39,7 +39,8 @@ suite('PolicyExport Integration Tests', () => {
 	test('policy telemetry covers every exported core policy', async () => {
 		const rootPath = dirname(FileAccess.asFileUri('').fsPath);
 		const policyDataPath = join(rootPath, 'build/lib/policies/policyData.jsonc');
-		const policyData = JSON.parse(await fs.promises.readFile(policyDataPath, 'utf8').then(content => content.replace(/^\/\*[\s\S]*?\*\/\s*/, ''))) as { policies: { name: string }[] };
+		const content = await fs.promises.readFile(policyDataPath, 'utf8');
+		const policyData = JSON.parse(content.replace(/^\/\*[\s\S]*?\*\/\s*/, '')) as { policies: { name: string }[] };
 
 		assert.deepStrictEqual(CORE_POLICY_NAMES, policyData.policies.map(policy => policy.name).sort());
 	});
