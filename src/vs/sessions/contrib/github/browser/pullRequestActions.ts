@@ -251,6 +251,11 @@ export class OpenPullRequestActionViewItem extends SessionHeaderMetaActionViewIt
 	}
 
 	protected override onDidClickButton(): void {
+		if (this._pullRequestList) {
+			this._hoverService.hideHover(true);
+			return;
+		}
+
 		const pullRequests = this._pullRequestsObs.get();
 		if (pullRequests.length > 1) {
 			this._showPullRequestPicker(pullRequests);

@@ -102,6 +102,7 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 
 	private readonly _issueRefsObs: IObservable<readonly IGitHubIssueRef[]>;
 	private readonly _issuesObs: IObservable<readonly IResolvedSessionIssue[]>;
+	private _issuePickerVisible = false;
 
 	constructor(
 		action: MenuItemAction,
@@ -155,6 +156,11 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 	}
 
 	protected override onDidClickButton(): void {
+		if (this._issuePickerVisible) {
+			this._hoverService.hideHover(true);
+			return;
+		}
+
 		const issues = this._issuesObs.get();
 		if (issues.length > 1) {
 			this._showIssuePicker(issues);
@@ -242,7 +248,8 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 			uri: ref.uri,
 		}));
 
-		this._hoverService.showInstantHover({
+		this._issuePickerVisible = true;
+		const hover = this._hoverService.showInstantHover({
 			content: createGitHubReferenceListElement(entries, entry => {
 				this._hoverService.hideHover();
 				this._openerService.open(entry.uri, { openExternal: true });
@@ -252,7 +259,11 @@ export class OpenIssueActionViewItem extends SessionHeaderMetaActionViewItem {
 			persistence: { sticky: true, hideOnKeyDown: true },
 			appearance: { showPointer: false, skipFadeInAnimation: true },
 			trapFocus: true,
+			onDidHide: () => this._issuePickerVisible = false,
 		}, true);
+		if (!hover) {
+			this._issuePickerVisible = false;
+		}
 	}
 
 	private _getRepositoryUri(ref: IGitHubIssueRef): URI {
