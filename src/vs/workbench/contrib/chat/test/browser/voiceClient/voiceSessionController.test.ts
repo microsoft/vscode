@@ -4512,6 +4512,40 @@ suite('VoiceSessionController', () => {
 		});
 	});
 
+	test('open omni requests narration for a transcript-only final response', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const sessionId = URI.parse('vscode-chat://transcript-only-response').toString();
+		showSessionsInAgentsList(controller, sessionId);
+		await connectWithOmniOpen(controller, voiceClientService);
+
+		voiceClientService.fireAudioResponse({
+			audio: '',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: 'transcript-only-response',
+			transcript: 'The requested file was created.',
+		});
+
+		assert.deepStrictEqual({
+			playedAudio: ttsPlaybackService.playedAudio,
+			narrations: voiceClientService.requests.map(request => ({
+				sessionId: request.sessionId,
+				kind: request.kind,
+				text: request.text,
+			})),
+		}, {
+			playedAudio: [],
+			narrations: [{
+				sessionId,
+				kind: 'response',
+				text: 'The requested file was created.',
+			}],
+		});
+	});
+
 	test('open omni does not claim audio from a session missing from the Agents list', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();

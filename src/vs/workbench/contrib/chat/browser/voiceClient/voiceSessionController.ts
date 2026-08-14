@@ -622,6 +622,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	 */
 	private readonly _responseRoutes = new Map<string, 'live' | 'deferred'>();
 	private readonly _responseSessionIds = new Map<string, string>();
+	private readonly _responseIdsWithAudio = new Set<string>();
 	private readonly _ownershipDroppedResponseIds = new Set<string>();
 
 	/**
@@ -1887,6 +1888,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			if (e.responseId && codingSessionId) {
 				this._responseSessionIds.set(e.responseId, codingSessionId);
 			}
+			if (e.responseId && e.audio) {
+				this._responseIdsWithAudio.add(e.responseId);
+			}
+			const responseHasAudio = !!e.responseId && this._responseIdsWithAudio.has(e.responseId);
+			if (e.isFinal && e.responseId) {
+				this._responseIdsWithAudio.delete(e.responseId);
+			}
 			if (e.responseId && this._isOmniVoiceInboxSession(codingSessionId)) {
 				this._omniNarrationIds.add(e.responseId);
 			}
@@ -2049,7 +2057,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					// (dropping its next reply / misrouting this one). See
 					// _reconcileConfirmationIndicators for the same caveat.
 					const heardSessionId = codingSessionId ?? this._awaitingReplyForSession ?? this._shownSessionId();
-					if (!isCheckpointNarration && heardSessionId && e.transcript) {
+					if (!isCheckpointNarration && responseHasAudio && heardSessionId && e.transcript) {
 						const heard = this._normalizeTranscript(e.transcript);
 						if (heard) {
 							const heardKey = this._sessionKey(heardSessionId);
@@ -2062,6 +2070,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// On the final chunk we have the complete assistant transcript to persist.
 			if (!isCheckpointNarration && e.isFinal && e.transcript) {
 				this._persistTurn('assistant', e.transcript);
+			}
+			if (e.isFinal
+				&& e.responseId
+				&& codingSessionId
+				&& e.transcript
+				&& !responseHasAudio
+				&& !solicitedNarration
+				&& this._isOmniVoiceInboxSession(codingSessionId)
+				&& this.configurationService.getValue<boolean>('agents.voice.speakResponses') !== false) {
+				const sessionKey = this._sessionKey(codingSessionId);
+				this._pendingResponseSummaries.set(sessionKey, e.transcript);
+				this._omniClaimedResponseSummaries.set(sessionKey, e.transcript);
+				this._narrate(codingSessionId, 'response', e.transcript);
 			}
 			// NOTE: a reply is marked "heard" (dedup set, pending indicator cleared)
 			// only when its audio finishes PLAYING - see onPlaybackStopped and the
@@ -5977,6 +5998,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._deferredResponses.clear();
 		this._responseRoutes.clear();
 		this._responseSessionIds.clear();
+		this._responseIdsWithAudio.clear();
 		this._ownershipDroppedResponseIds.clear();
 		for (const key of this._confirmationPendingSessions) {
 			this._markPendingResponse(key, false);
