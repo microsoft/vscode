@@ -28,6 +28,7 @@ import { voiceCloseCodeInfo, VoiceCloseCode } from '../../common/voiceClient/voi
 import { getVoiceConfirmationType, isPendingVoiceQuestionnaireInvocation, isVoiceQuestionnaireInvocation } from '../../common/voiceClient/voiceConfirmation.js';
 import { IMicCaptureService, IPttDiagnostic, isMicrophonePermissionDeniedError } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
+import { ISpeechService } from '../../../speech/common/speechService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceToolDispatchService.js';
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -336,6 +337,8 @@ export interface IVoiceSessionController {
 	activateSession(resource: URI): void;
 	/** Narrate the current actionable item for a session owned by the visible Omni inbox. */
 	announceSessionInOmni(resource: URI): void;
+	/** Immediately synchronize a pending item resolved directly in the Omni UI. */
+	notifyPendingItemResolved(resource: URI): void;
 
 	/**
 	 * Submit user feedback along with full diagnostic data (transcript history,
@@ -874,6 +877,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@INotificationService private readonly notificationService: INotificationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ISpeechService private readonly speechService: ISpeechService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, (_accessor, resource: string | undefined, kind?: 'existing_session' | 'new_session') => {
@@ -2076,13 +2080,18 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				&& codingSessionId
 				&& e.transcript
 				&& !responseHasAudio
-				&& !solicitedNarration
 				&& this._isOmniVoiceInboxSession(codingSessionId)
 				&& this.configurationService.getValue<boolean>('agents.voice.speakResponses') !== false) {
 				const sessionKey = this._sessionKey(codingSessionId);
 				this._pendingResponseSummaries.set(sessionKey, e.transcript);
 				this._omniClaimedResponseSummaries.set(sessionKey, e.transcript);
-				this._narrate(codingSessionId, 'response', e.transcript);
+				if (solicitedNarration?.kind === 'response') {
+					this._speakTranscriptOnlyResponse(codingSessionId, e.responseId, solicitedNarration).catch(error => {
+						this.logService.error('[voice] transcript-only response fallback failed', error);
+					});
+				} else if (!solicitedNarration) {
+					this._narrate(codingSessionId, 'response', e.transcript);
+				}
 			}
 			// NOTE: a reply is marked "heard" (dedup set, pending indicator cleared)
 			// only when its audio finishes PLAYING - see onPlaybackStopped and the
@@ -5347,6 +5356,63 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._omniClaimedPendingIds.set(sessionKey, this._narratableIdentity(narratable));
 		}
 		this._narrate(sessionId, narratable.kind, narratable.text, undefined, undefined, narratable.confirmationType, narratable.pending);
+	}
+
+	notifyPendingItemResolved(resource: URI): void {
+		const sessionId = resource.toString();
+		this._stopPendingNarration(sessionId);
+		this.voiceClientService.invalidateSessionCache(sessionId);
+		this._sendContext();
+		this.voiceClientService.flushSessionContext();
+	}
+
+	private async _speakTranscriptOnlyResponse(sessionId: string, narrationId: string, narration: IPendingSolicitedNarration): Promise<void> {
+		if (this._currentPlaybackSessionId !== null || this.ttsPlaybackService.isPlaying) {
+			this._queueOmniNarration({
+				sessionId,
+				kind: 'response',
+				text: narration.text,
+			});
+			this._clearPendingSolicitedNarration(narrationId, narration);
+			this._solicitedNarrationIds.delete(narrationId);
+			return;
+		}
+
+		this._prepareForPlayback();
+		this._voiceState.set('speaking', undefined);
+		this._statusText.set('Speaking...', undefined);
+		this.voicePlaybackService.notifyPlaybackStart(URI.parse(sessionId), narration.text);
+		try {
+			await this._synthesizeTranscriptFallback(narration.text);
+			this._markNarrationHeard(narrationId);
+			this._completeRoutedResponse(sessionId);
+		} finally {
+			this.voicePlaybackService.notifyPlaybackEnd(URI.parse(sessionId));
+			this._solicitedNarrationIds.delete(narrationId);
+			this._omniNarrationIds.delete(narrationId);
+			this._restoreVoiceStateAfterNarrationTimeout();
+			queueMicrotask(() => this._drainOmniInbox());
+		}
+	}
+
+	private async _synthesizeTranscriptFallback(text: string): Promise<void> {
+		try {
+			const session = await this.speechService.createTextToSpeechSession(CancellationToken.None, 'agentsVoiceFallback');
+			await session.synthesize(text);
+			return;
+		} catch (error) {
+			this.logService.warn('[voice] speech provider unavailable for transcript-only response; using system speech', error);
+		}
+
+		if (!this._window) {
+			throw new Error('No window is available for transcript-only response speech.');
+		}
+		const utterance = new this._window.SpeechSynthesisUtterance(text);
+		await new Promise<void>((resolve, reject) => {
+			utterance.onend = () => resolve();
+			utterance.onerror = event => reject(new Error(`System speech failed: ${event.error}`));
+			this._window!.speechSynthesis.speak(utterance);
+		});
 	}
 
 	/**

@@ -29,6 +29,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService } from '../../../../../test/common/workbenchTestServices.js';
 import { IVoiceTranscriptStore, IVoiceTranscriptTurn } from '../../../../agentsVoice/common/voiceTranscriptStore.js';
+import { ISpeechService } from '../../../../speech/common/speechService.js';
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
@@ -626,6 +627,7 @@ suite('VoiceSessionController', () => {
 			notificationService,
 			promptsService,
 			chatEntitlementService,
+			new class extends mock<ISpeechService>() { }(),
 		));
 	}
 
@@ -4516,6 +4518,15 @@ suite('VoiceSessionController', () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();
 		const controller = createController(voiceClientService, ttsPlaybackService);
+		const synthesized: string[] = [];
+		Reflect.set(controller, 'speechService', new class extends mock<ISpeechService>() {
+			override async createTextToSpeechSession() {
+				return {
+					onDidChange: Event.None,
+					synthesize: async (text: string) => { synthesized.push(text); },
+				};
+			}
+		}());
 		const sessionId = URI.parse('vscode-chat://transcript-only-response').toString();
 		showSessionsInAgentsList(controller, sessionId);
 		await connectWithOmniOpen(controller, voiceClientService);
@@ -4528,9 +4539,22 @@ suite('VoiceSessionController', () => {
 			responseId: 'transcript-only-response',
 			transcript: 'The requested file was created.',
 		});
+		const narrationId = voiceClientService.requests[0].narrationId;
+		voiceClientService.fireAudioResponse({
+			audio: '',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: sessionId,
+			responseId: narrationId,
+			transcript: 'The requested file was created.',
+			narrationKind: 'response',
+		});
+		await Promise.resolve();
+		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			playedAudio: ttsPlaybackService.playedAudio,
+			synthesized,
 			narrations: voiceClientService.requests.map(request => ({
 				sessionId: request.sessionId,
 				kind: request.kind,
@@ -4538,6 +4562,7 @@ suite('VoiceSessionController', () => {
 			})),
 		}, {
 			playedAudio: [],
+			synthesized: ['The requested file was created.'],
 			narrations: [{
 				sessionId,
 				kind: 'response',
@@ -4810,6 +4835,40 @@ suite('VoiceSessionController', () => {
 			kind: 'question',
 			text: 'Which runtime should be used? Options: 1, Node.js. 2, Deno. You can also give your own answer. Or say skip.',
 		}]);
+	});
+
+	test('direct omni question answers immediately synchronize voice context', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const controller = createController(voiceClientService, undefined, undefined, undefined, undefined, undefined, chatService);
+		const resource = URI.parse('vscode-chat://direct-omni-question-answer');
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'runtime',
+			type: 'singleSelect',
+			title: 'runtime',
+			message: 'Which runtime should be used?',
+			options: [{ id: 'node', label: 'Node.js', value: 'node' }],
+		}], true, 'select-runtime');
+		chatService.setModels([pendingResponsePartModel(resource, carousel, 'questions: runtime')]);
+		showSessionsInAgentsList(controller, resource.toString());
+		await connectWithOmniOpen(controller, voiceClientService);
+		controller.announceSessionInOmni(resource);
+
+		carousel.dismiss({ runtime: { selectedValue: 'node' } });
+		controller.notifyPendingItemResolved(resource);
+
+		const context = voiceClientService.wireEvents.at(-1);
+		assert.deepStrictEqual({
+			type: context?.type,
+			pending: context?.type === 'session_context'
+				? context.context.sessions.find(session => session.id === resource.toString())?.pending
+				: undefined,
+			inFlightNarrations: (Reflect.get(controller, '_pendingSolicitedNarrations') as Map<string, unknown>).size,
+		}, {
+			type: 'session_context',
+			pending: undefined,
+			inFlightNarrations: 0,
+		});
 	});
 
 	test('open omni queues background narration while passive listening has detected speech', async () => {
@@ -6982,6 +7041,7 @@ suite('VoiceSessionController live transcription', () => {
 		const chatEntitlementService = new TestChatEntitlementService();
 		chatEntitlementService.entitlement = ChatEntitlement.Pro;
 		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
+		instantiationService.stub(ISpeechService, new class extends mock<ISpeechService>() { }());
 
 		const controller = store.add(instantiationService.createInstance(VoiceSessionController));
 		controller['_isConnected'].set(true, undefined);

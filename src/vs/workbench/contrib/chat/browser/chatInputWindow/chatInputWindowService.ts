@@ -849,14 +849,20 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._windowDisposables.add(dom.addDisposableListener(parent, dom.EventType.CLICK, event => {
 			const approval = displayedApproval;
 			const target = event.target;
-			if (!approval || !(target instanceof auxiliaryWindow.window.Element) || !target.closest('.chat-confirmation-widget-buttons')) {
+			if (!(target instanceof auxiliaryWindow.window.Element)) {
 				return;
 			}
-			const state = approval.invocation.state.get();
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
-				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				markPendingIdResolved(approval.occurrence);
+			if (approval && target.closest('.chat-confirmation-widget-buttons')) {
+				const state = approval.invocation.state.get();
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					markPendingIdResolved(approval.occurrence);
+				}
 			}
+			this._notifyPendingItemResolvedAfterInteraction();
+		}, { capture: true }));
+		this._windowDisposables.add(dom.addDisposableListener(parent, dom.EventType.KEY_DOWN, () => {
+			this._notifyPendingItemResolvedAfterInteraction();
 		}, { capture: true }));
 		const scopedContextKeyService = this._windowDisposables.add(this.contextKeyService.createScoped(parent));
 		ChatContextKeys.inChatInputWindow.bindTo(scopedContextKeyService).set(true);
@@ -1120,6 +1126,29 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				: -1;
 			showPendingItem(preservedIndex >= 0 ? preservedIndex : Math.min(this._pendingPromptIndex, pendingItems.length - 1));
 		}));
+	}
+
+	private _notifyPendingItemResolvedAfterInteraction(): void {
+		const resource = this._activePendingSessionResource;
+		if (!resource) {
+			return;
+		}
+		const model = this.chatService.getSession(resource);
+		const occurrence = model
+			? this._getPendingToolApproval(model)?.occurrence ?? this._getPendingQuestionOccurrence(model)
+			: undefined;
+		if (!occurrence) {
+			return;
+		}
+		setTimeout(() => {
+			const currentModel = this.chatService.getSession(resource);
+			const currentOccurrence = currentModel
+				? this._getPendingToolApproval(currentModel)?.occurrence ?? this._getPendingQuestionOccurrence(currentModel)
+				: undefined;
+			if (currentOccurrence !== occurrence) {
+				this.voiceSessionController.notifyPendingItemResolved(resource);
+			}
+		}, 0);
 	}
 
 	private _loadPendingSessionModels(): void {
