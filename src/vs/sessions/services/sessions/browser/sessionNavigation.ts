@@ -34,6 +34,7 @@ interface ICustomViewNavigation {
 	readonly viewId: string;
 	readonly previousKey: string | undefined;
 	readonly nextKey: string;
+	readonly customViewKey: string | undefined;
 	readonly location: CustomViewNavigationLocation;
 }
 
@@ -155,7 +156,9 @@ export class SessionsNavigation extends Disposable {
 			if (!this._pendingCustomViewOrigin && customViewNavigation) {
 				const expectedKey = customViewNavigation.location === 'previous'
 					? customViewNavigation.previousKey
-					: customViewNavigation.nextKey;
+					: customViewNavigation.location === 'customView'
+						? customViewNavigation.customViewKey
+						: customViewNavigation.nextKey;
 				if (key !== expectedKey) {
 					this._customViewNavigation.set(undefined, undefined);
 				}
@@ -229,6 +232,7 @@ export class SessionsNavigation extends Disposable {
 		this._customViewNavigation.set({
 			...pending,
 			nextKey,
+			customViewKey: undefined,
 			location: 'next',
 		}, undefined);
 	}
@@ -252,7 +256,7 @@ export class SessionsNavigation extends Disposable {
 	async goBack(): Promise<void> {
 		const customViewNavigation = this._customViewNavigation.get();
 		if (customViewNavigation?.location === 'next' && this._currentKey.get() === customViewNavigation.nextKey) {
-			if (this._showCustomView(customViewNavigation)) {
+			if (this._showCustomView(customViewNavigation, customViewNavigation.nextKey)) {
 				return;
 			}
 		} else if (customViewNavigation?.location === 'customView') {
@@ -266,7 +270,7 @@ export class SessionsNavigation extends Disposable {
 				return;
 			}
 
-			this._customViewNavigation.set({ ...customViewNavigation, location: 'previous' }, undefined);
+			this._customViewNavigation.set({ ...customViewNavigation, customViewKey: undefined, location: 'previous' }, undefined);
 			this._customViewService.hideCustomView();
 			await this._navigateTo(previousIdx);
 			return;
@@ -289,8 +293,8 @@ export class SessionsNavigation extends Disposable {
 	async goForward(): Promise<void> {
 		const customViewNavigation = this._customViewNavigation.get();
 		const currentKey = this._currentKey.get();
-		if (customViewNavigation?.location === 'previous' && currentKey === customViewNavigation.previousKey) {
-			if (this._showCustomView(customViewNavigation)) {
+		if (customViewNavigation?.location === 'previous' && currentKey !== undefined && currentKey === customViewNavigation.previousKey) {
+			if (this._showCustomView(customViewNavigation, currentKey)) {
 				return;
 			}
 		} else if (customViewNavigation?.location === 'customView') {
@@ -300,7 +304,7 @@ export class SessionsNavigation extends Disposable {
 				return;
 			}
 
-			this._customViewNavigation.set({ ...customViewNavigation, location: 'next' }, undefined);
+			this._customViewNavigation.set({ ...customViewNavigation, customViewKey: undefined, location: 'next' }, undefined);
 			this._customViewService.hideCustomView();
 			await this._navigateTo(nextIdx);
 			return;
@@ -329,14 +333,14 @@ export class SessionsNavigation extends Disposable {
 		return this._recency.entries.findIndex(e => entryKey(e.sessionResource, e.chatResource) === key);
 	}
 
-	private _showCustomView(customViewNavigation: ICustomViewNavigation): boolean {
+	private _showCustomView(customViewNavigation: ICustomViewNavigation, customViewKey: string): boolean {
 		this._customViewService.showCustomView(customViewNavigation.viewId);
 		if (this._customViewService.activeCustomView.get()?.id !== customViewNavigation.viewId) {
 			this._customViewNavigation.set(undefined, undefined);
 			return false;
 		}
 
-		this._customViewNavigation.set({ ...customViewNavigation, location: 'customView' }, undefined);
+		this._customViewNavigation.set({ ...customViewNavigation, customViewKey, location: 'customView' }, undefined);
 		return true;
 	}
 

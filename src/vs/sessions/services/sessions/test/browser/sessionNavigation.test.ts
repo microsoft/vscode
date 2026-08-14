@@ -356,6 +356,51 @@ suite('SessionsNavigation', () => {
 		});
 	});
 
+	test('keeps custom view forward navigation when the previous session changes status', async () => {
+		const previousStatus = observableValue('previous.status', SessionStatus.InProgress);
+		const previousSession: ISession = {
+			...stubSession('previous'),
+			status: previousStatus,
+		};
+		const automationRunSession = stubSession('automation-run');
+		store.addSession(previousSession);
+		store.addSession(automationRunSession);
+
+		store.setActiveSession(previousSession);
+		customViewService.showCustomView('automations');
+		nav.onWillOpenSession();
+		customViewService.hideCustomView();
+		await store.openSession(automationRunSession.resource);
+		nav.onDidOpenSession();
+
+		await nav.goBack();
+		await nav.goBack();
+		await nav.goForward();
+		previousStatus.set(SessionStatus.Completed, undefined);
+		const afterStatusChange = {
+			customView: customViewService.activeCustomView.get()?.id,
+			canGoForward: canGoForward(),
+		};
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			afterStatusChange,
+			afterForward: {
+				customView: customViewService.activeCustomView.get()?.id,
+				openedSession: store.lastOpenedResource?.toString(),
+			},
+		}, {
+			afterStatusChange: {
+				customView: 'automations',
+				canGoForward: true,
+			},
+			afterForward: {
+				customView: undefined,
+				openedSession: automationRunSession.resource.toString(),
+			},
+		});
+	});
+
 	test('can go back after navigating to two sessions', () => {
 		const s1 = stubSession('s1');
 		const s2 = stubSession('s2');
