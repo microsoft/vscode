@@ -1379,6 +1379,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		} else {
 			await this._restartClientIfProxyChanged();
 		}
+		await this._resolveCopilotSku(token);
 		void this._scheduleModelRefresh();
 	}
 
@@ -1387,6 +1388,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 			resource: this._gitHubEndpointService.getCopilotResource(),
 			reason: AuthRequiredReason.Expired,
 		}, undefined);
+	}
+
+	private async _resolveCopilotSku(githubToken: string): Promise<void> {
+		try {
+			const copilotSku = await this._copilotApiService.resolveCopilotSku?.(githubToken);
+			if (copilotSku && this._githubToken === githubToken) {
+				// __GDPR__COMMON__ "copilotSku" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The raw Copilot entitlement SKU of the authenticated GitHub account." }
+				this._telemetryService.setCommonProperty('copilotSku', copilotSku);
+			}
+		} catch (err) {
+			this._logService.debug(`[Copilot] SKU resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
