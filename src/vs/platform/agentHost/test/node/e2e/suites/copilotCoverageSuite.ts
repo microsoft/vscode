@@ -619,7 +619,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	});
 
 	// Windows loses the persisted provider session during restart, so the host cannot reconstruct its tool history.
-	(context.isWindows ? test.skip : test)('tool-rich provider history is reconstructed after a host restart', async function () {
+	(!context.isWindows || context.runKnownIssueTests ? test : test.skip)('tool-rich provider history is reconstructed after a host restart', async function () {
 		this.timeout(240_000);
 		const { sessionUri, workspace } = await createWorkspaceSession('tool-history-restart');
 		writeFileSync(join(workspace, 'history.txt'), 'before\n');

@@ -296,6 +296,11 @@ export class SyncedCustomizationBundler extends Disposable {
 		return this._lastNonce;
 	}
 
+	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
+		return this._lastRef?.ref.uri === pluginUri
+			&& Object.hasOwn(this._lastRef.ref.childEnablement ?? {}, serverName);
+	}
+
 	/**
 	 * Recovers the original provenance of a file that was flattened into the
 	 * synthetic bundle, given its synced (destination) URI. Returns `undefined`

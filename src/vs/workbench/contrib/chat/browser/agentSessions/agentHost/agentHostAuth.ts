@@ -183,6 +183,11 @@ export class AgentHostAuthenticationRecovery {
 	private readonly _resentTokens = new Map<string, string>();
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
 
+	clear(): void {
+		this._resentTokens.clear();
+		this._pendingRecoveries.clear();
+	}
+
 	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
 		const key = protectedResourceAuthenticationKey(resource);
 		const pendingRecovery = this._pendingRecoveries.get(key);
@@ -201,6 +206,7 @@ export class AgentHostAuthenticationRecovery {
 	}
 
 	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
+		throwIfAuthenticationStale(options);
 		const authenticationService = accessor.get(IAuthenticationService);
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
@@ -213,6 +219,7 @@ export class AgentHostAuthenticationRecovery {
 			logService,
 			options.logPrefix,
 		);
+		throwIfAuthenticationStale(options);
 		if (!token) {
 			logService.info(`${options.logPrefix} No token resolved for resource: ${resource.resource}`);
 			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
@@ -226,7 +233,9 @@ export class AgentHostAuthenticationRecovery {
 		const previousToken = this._resentTokens.get(key);
 		if (previousToken !== undefined && previousToken === token) {
 			options.authTokenCache?.clear(resource.resource, resource.scopes_supported);
+			throwIfAuthenticationStale(options);
 			const interactiveToken = await forceAuthenticationInteractively(authenticationService, commandService, logService, resource, options);
+			throwIfAuthenticationStale(options);
 			if (interactiveToken) {
 				this._resentTokens.set(key, interactiveToken);
 				if (interactiveToken === token) {
@@ -313,6 +322,7 @@ export interface IAgentHostAuthenticateRequest {
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
+	readonly isCurrent?: () => boolean;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -338,17 +348,24 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 }
 
 async function forwardAuthenticationToken(
-	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate'>,
+	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[],
 	token: string,
 ): Promise<boolean> {
+	throwIfAuthenticationStale(options);
 	const request = { resource, scopes, token };
 	if (options.authTokenCache) {
 		return options.authTokenCache.authenticate(resource, scopes, token, () => options.authenticate(request));
 	}
 	await options.authenticate(request);
 	return true;
+}
+
+function throwIfAuthenticationStale(options: Pick<IAgentHostAuthenticationOptions, 'isCurrent'>): void {
+	if (options.isCurrent?.() === false) {
+		throw new CancellationError();
+	}
 }
 
 /**
@@ -386,7 +403,9 @@ async function authenticateProtectedResourceWithServices(
 	resource: ProtectedResourceMetadata,
 	options: IAgentHostAuthenticationOptions,
 ): Promise<boolean> {
+	throwIfAuthenticationStale(options);
 	const token = await resolveTokenForProtectedResource(authenticationService, logService, resource, options);
+	throwIfAuthenticationStale(options);
 
 	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], token ?? '');
 	if (!authenticated) {
@@ -432,6 +451,7 @@ export async function resolveAuthenticationInteractively(
 	const commandService = accessor.get(ICommandService);
 	const logService = accessor.get(ILogService);
 	for (const resource of protectedResources) {
+		throwIfAuthenticationStale(options);
 		const resourceUri = URI.parse(resource.resource);
 		const scopes = resource.scopes_supported ?? [];
 		const existingToken = await resolveTokenForResource(
@@ -442,6 +462,7 @@ export async function resolveAuthenticationInteractively(
 			logService,
 			options.logPrefix,
 		);
+		throwIfAuthenticationStale(options);
 		if (existingToken) {
 			await forwardAuthenticationToken(options, resource.resource, scopes, existingToken);
 			logService.info(`${options.logPrefix} Interactive authentication succeeded for ${resource.resource}`);
@@ -461,6 +482,7 @@ async function forceAuthenticationInteractively(
 	resource: ProtectedResourceMetadata,
 	options: IAgentHostAuthenticationOptions,
 ): Promise<string | undefined> {
+	throwIfAuthenticationStale(options);
 	const scopes = resource.scopes_supported ?? [];
 	const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
 		forceSignInDialog: true,
@@ -469,6 +491,7 @@ async function forceAuthenticationInteractively(
 		disableChatViewReveal: true,
 		returnResult: true,
 	});
+	throwIfAuthenticationStale(options);
 	if (setupResult?.success === undefined) {
 		return undefined;
 	}
@@ -483,6 +506,7 @@ async function forceAuthenticationInteractively(
 		logService,
 		options.logPrefix,
 	);
+	throwIfAuthenticationStale(options);
 	if (!token) {
 		logService.info(`${options.logPrefix} Interactive authentication did not provide a token for ${resource.resource}`);
 		return undefined;

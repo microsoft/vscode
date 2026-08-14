@@ -26,8 +26,8 @@ import { ActionType, type ChatTurnStartedAction, type SessionActiveClientSetActi
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionWorkspaceless } from '../../common/state/sessionState.js';
-import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, customizationId, withSessionExternal, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { NonReconnectableTransportError, type IClientTransport, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
@@ -390,6 +390,31 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionWorkspaceless(s._meta)), [true]);
+	});
+
+	test('listSessions carries external provenance back on _meta', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [{
+					resource: 'agent-session://copilotcli/native-1',
+					provider: 'copilotcli',
+					title: 'Native Chat',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					_meta: withSessionExternal(undefined, true),
+				}],
+			},
+		});
+
+		const sessions = await resultPromise;
+		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
 	});
 
 	test('queues requests and notifications until a client transport initializes', async () => {
@@ -1764,6 +1789,92 @@ suite('RemoteAgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		test('retries an initial transport failure with a fresh initialization', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new Error('initial transport failed'));
+			await assert.rejects(connectPromise, /initial transport failed/);
+			await waitForReconnecting(client);
+
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			while (client.connectionState !== AgentHostClientState.Connected) {
+				await Promise.resolve();
+			}
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				transportCount: transports.length,
+			}, {
+				state: AgentHostClientState.Connected,
+				transportCount: 2,
+			});
+		});
+
+		test('does not retry a non-reconnectable initial transport failure', async () => {
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
+
+			await assert.rejects(connectPromise, /terminal failure/);
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				transportCount: transports.length,
+			}, {
+				state: AgentHostClientState.Closed,
+				transportCount: 1,
+			});
+		});
+
+		test('can reconnect a terminal connection after an explicit host restart', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			const connectPromise = client.connect();
+			transports[0].connectDeferred.error(new NonReconnectableTransportError('terminal failure'));
+			await assert.rejects(connectPromise, /terminal failure/);
+
+			assert.strictEqual(client.reconnectFromClosed(), true);
+			const reconnectTransport = await waitForTransport(transports, 1);
+			reconnectTransport.connectDeferred.complete();
+			const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: reconnect.id,
+				error: { code: AhpErrorCodes.NotFound, message: 'client not found' },
+			});
+			const initialize = await waitForRequest(reconnectTransport, 'initialize');
+			reconnectTransport.fireMessage({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			while (client.connectionState !== AgentHostClientState.Connected) {
+				await Promise.resolve();
+			}
+
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				transportCount: transports.length,
+			}, {
+				state: AgentHostClientState.Connected,
+				transportCount: 2,
+			});
+		});
 
 		test('reuses clientId across transport reconnects', async function () {
 			this.timeout(10_000);

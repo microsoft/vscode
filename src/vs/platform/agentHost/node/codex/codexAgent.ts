@@ -7,7 +7,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Limiter, raceTimeout } from '../../../../base/common/async.js';
+import { Limiter, raceTimeout, retry } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -27,7 +27,7 @@ import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelSourceMeta } from
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
+import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentCreateChatForkSource, IAgentCreateChatResult, IAgentCreateChatOptions, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSpawnChatEvent, IMcpNotification, resolveAgentChatContext, resolveAgentHostInstructions, type AgentProvider, type AuthenticateParams } from '../../common/agent.js';
 import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -35,15 +35,15 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { buildDefaultChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PolicyState, type ToolCallResult, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { McpCustomizationController } from '../shared/mcpCustomizationController.js';
 import { buildCodexMcpReadResult, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, translateCodexMcpStartupState, type ICodexMcpServerConfigJson, type ICodexMcpServerEntry } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents } from './codexCustomizations.js';
-import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
+import { CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexPluginMcpServerSources, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
-import { isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { buildElicitationRequest, cancelledElicitationResponse, declinedElicitationResponse, elicitationResponseFromAnswers } from './codexElicitationMapper.js';
 import { McpAuthRequiredReason, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
@@ -1027,6 +1027,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _githubToken: string | undefined;
 	private _connection: ConnectionState = { kind: 'idle' };
 	private _connectionGeneration = 0;
+	private readonly _onDidDiscoverChats = this._register(new Emitter<readonly IAgentDiscoveredChat[]>({
+		onDidAddFirstListener: () => { void this._startCodexChatDiscovery(); },
+	}));
+	readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
+	private _codexChatDiscovery: Promise<void> | undefined;
 	private _modelsRefreshPromise: Promise<void> | undefined;
 	private _copilotModels: readonly IAgentModelInfo[] = [];
 	private _codexModels: readonly IAgentModelInfo[] = [];
@@ -3251,7 +3256,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * never by whether `chat` happens to be "the default chat" or by an
 	 * Agent-Host-guaranteed teardown order.
 	 */
-	private async _releaseConfigScopeIfDone(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
+	private async _releaseConfigScopeIfDone(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		const configurationResource = this._configScope(chat, context);
 		if (this._untrackConfigScopeChat(configurationResource, chat)) {
 			await this._reclaimManagedWorkingDirectoryIfNotLive(configurationResource);
@@ -3296,27 +3301,28 @@ export class CodexAgent extends Disposable implements IAgent {
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
 		},
-		disposeChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
-		releaseChat: (chat: URI, context?: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
+		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._disposeChat(chat, context),
+		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._releaseChat(chat, context),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
 			const operationContext = context ?? (typeof clientTypeOrContext === 'string' ? undefined : clientTypeOrContext);
 			return this._sendMessage(chat, prompt, attachments, turnId, workingDirectories, operationContext);
 		},
-		abort: (chat: URI): Promise<void> => {
-			return this._abort(chat);
+		abort: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
+			return this._abort(chat, context);
 		},
-		changeModel: (chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> => {
+		changeModel: (chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> => {
 			return this._changeModel(chat, model, context);
 		},
-		changeAgent: (chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
-		getMessages: (chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> => {
+		changeAgent: (chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> => this._changeAgent(chat, agent, context),
+		getMessages: (chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> => {
 			return this._getChatMessages(chat, context);
 		},
 	};
 
-	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context?: URI | IAgentChatContext): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			throw new Error(`Codex conversation is not bound: ${chat.toString()}`);
 		}
@@ -3708,10 +3714,18 @@ export class CodexAgent extends Disposable implements IAgent {
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		const operationContext = resolveAgentChatContext(context, chat);
 		const target: ICodexTargetChat = { resource: chat };
-		const decoded = decodeCodexChat(providerData);
-		if (!decoded) {
-			this._logService.warn(`[Codex] materializeChat: missing or corrupt providerData for ${chat.toString()}`);
-			return;
+		let decoded: ICodexPersistedChat | undefined;
+		if (providerData === undefined) {
+			if (!isDefaultChatUri(chat)) {
+				return;
+			}
+			decoded = { sessionId: AgentSession.id(operationContext.configurationResource) };
+		} else {
+			decoded = decodeCodexChat(providerData);
+			if (!decoded) {
+				this._logService.warn(`[Codex] materializeChat: dropping corrupt providerData for ${chat.toString()}`);
+				return;
+			}
 		}
 		this._trackConfigScopeChat(operationContext.configurationResource, chat);
 		const sessionId = decoded.sessionId;
@@ -3719,7 +3733,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (existing) {
 			existing.chatChannel = chat;
 			this._sessionIdByChatUri.set(chat.toString(), existing.sessionId);
-			return;
+			return providerData === undefined ? { providerData: encodeCodexChat(decoded) } : undefined;
 		}
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const overlay = await this._metadataStore.read(sessionUri);
@@ -3747,6 +3761,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session.serverToolsAdvertised && this._serverToolHost) {
 			session.serverToolsAdvertised = true;
 			this._serverToolHost.advertise(operationContext.configurationResource.toString());
+		}
+		if (providerData === undefined) {
+			return { providerData: encodeCodexChat(decoded) };
 		}
 	}
 
@@ -4286,7 +4303,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			// so it must NOT trigger a cold SDK download. When the SDK isn't
 			// local yet, skip prewarm; the first `sendMessage` materializes the
 			// thread and fires the (host-level progress-reported) download then.
-			if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
+			if (!(await this._isSdkResolvableWithoutDownload())) {
 				this._logService.info(`[Codex] SDK not downloaded yet; skipping prewarm for session=${session.sessionUri.toString()} until a message triggers the download`);
 				return;
 			}
@@ -4663,8 +4680,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _abort(chat: URI): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat);
+	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
 		}
@@ -4710,13 +4728,14 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _disposeChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const runtimeSession = this._resolveConversationSession(chat, context);
+	private async _disposeChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		this._removeActiveClientHandlesForChat(chat);
 		// Configuration-scope ref tracking is independent of whether a
 		// runtime is currently resolvable for `chat` — an unaddressable chat
 		// still occupied a slot in its scope's ref set when it was created.
-		await this._releaseConfigScopeIfDone(chat, context);
+		await this._releaseConfigScopeIfDone(chat, operationContext);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4724,8 +4743,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._sessionIdByChatUri.delete(chat.toString());
 	}
 
-	private async _releaseChat(chat: URI, context?: URI | IAgentChatContext): Promise<void> {
-		const runtimeSession = this._resolveConversationSession(chat, context);
+	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const runtimeSession = this._resolveConversationSession(chat, operationContext);
 		if (!runtimeSession) {
 			return;
 		}
@@ -4857,8 +4877,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _changeModel(chat: URI, model: ModelSelection, context?: URI | IAgentChatContext): Promise<void> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _changeModel(chat: URI, model: ModelSelection, context: URI | IAgentChatContext): Promise<void> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return;
 		}
@@ -5002,8 +5023,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * persisted rollout. Chat-addressed only: the owning session comes from the
 	 * recorded binding or the host-supplied context, never from the URI.
 	 */
-	private async _getChatMessages(chat: URI, context?: URI | IAgentChatContext): Promise<readonly Turn[]> {
-		const sessionUri = this._resolveConversationSession(chat, context);
+	private async _getChatMessages(chat: URI, context: URI | IAgentChatContext): Promise<readonly Turn[]> {
+		const operationContext = resolveAgentChatContext(context, chat);
+		const sessionUri = this._resolveConversationSession(chat, operationContext);
 		if (!sessionUri) {
 			return [];
 		}
@@ -5245,23 +5267,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async listLegacyChats(): Promise<IAgentChatMetadata[] | undefined> {
-		// After the orchestrator-owned session registry (I3-removal stage 2),
-		// AH no longer unions provider top-level session enumeration from this
-		// method; it now serves only the registry's one-time backfill of
-		// pre-registry hosts. Threads with no live in-memory session are mapped
-		// to `codex:/<threadId>` below — that thread→URI identity is the LEGACY
-		// persisted identity of those sessions, not an active I3 invariant.
-		// Don't connect (and trigger a cold SDK download) just to list threads
-		// at startup. When the SDK isn't local yet, return `undefined` — this
-		// is NOT an authoritative "no legacy chats" answer, just "can't
-		// enumerate yet". The download fires (with host-level progress) once
-		// the user starts a session, and the registry's next backfill pass
-		// returns the full list.
-		if (!(await this._agentSdkDownloader.isSdkResolvableWithoutDownload(CodexSdkPackage))) {
-			this._logService.info('[Codex] SDK not downloaded yet; deferring thread/list until a session triggers the download');
-			return undefined;
-		}
+	private async _listCodexChats(): Promise<IAgentChatMetadata[] | undefined> {
+		// Provider-native threads are continuously discovered into the
+		// orchestrator-owned registry. Threads with no live in-memory session are
+		// mapped to `codex:/<threadId>` below.
 		try {
 			const conn = await this._ensureConnection();
 			const threads = await collectThreadListPages<Thread>(
@@ -5292,13 +5301,72 @@ export class CodexAgent extends Disposable implements IAgent {
 				return this._withWorkingDirectories(await this._threadToMetadata(thread, chat, undefined, isDesktop), liveWorkingDirectories);
 			}));
 		} catch (err) {
-			// This backfill runs across every not-yet-migrated provider; a
-			// rejection here should not take a sibling provider's backfill
+			// Discovery runs independently for every provider; a rejection here
+			// should not take a sibling provider's discovery
 			// down with it. `undefined` signals "can't enumerate yet" so the
 			// orchestrator retries later instead of treating this as an
-			// authoritative "no legacy sessions" result.
+			// authoritative empty result.
 			this._logService.warn(`[Codex] thread/list failed: ${err instanceof Error ? err.message : String(err)}`);
 			return undefined;
+		}
+	}
+
+	async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+		try {
+			await this._resolveSdkRoot();
+		} catch (err) {
+			this._logService.warn(`[Codex] SDK unavailable while listing chats to migrate: ${err instanceof Error ? err.message : String(err)}`);
+			return undefined;
+		}
+		const chats = await this._listCodexChats();
+		if (!chats) {
+			return undefined;
+		}
+		const limiter = new Limiter<IAgentChatMetadata | undefined>(4);
+		const known = await Promise.all(chats.map(chat => limiter.queue(async () => {
+			return await this._isKnownCodexChat(chat) ? chat : undefined;
+		})));
+		return known.filter((chat): chat is IAgentChatMetadata => chat !== undefined);
+	}
+
+	private _startCodexChatDiscovery(): Promise<void> {
+		if (!this._codexChatDiscovery) {
+			this._codexChatDiscovery = retry(async () => {
+				await this._resolveSdkRoot();
+				if (!(await this._emitCodexChats())) {
+					throw new Error('Codex chat catalog is not available');
+				}
+			}, 5000, 3)
+				.catch(err => this._logService.warn(`[Codex] Chat discovery failed: ${err instanceof Error ? err.message : String(err)}`));
+		}
+		return this._codexChatDiscovery;
+	}
+
+	private async _emitCodexChats(): Promise<boolean> {
+		try {
+			const chats = await this._listCodexChats();
+			if (chats) {
+				const limiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
+				const unknown = await Promise.all(chats.map(chat => limiter.queue(async () => {
+					return await this._isKnownCodexChat(chat) ? undefined : { ...chat, external: true };
+				})));
+				const discovered = unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
+				this._onDidDiscoverChats.fire(discovered);
+				return true;
+			}
+		} catch (err) {
+			this._logService.warn(`[Codex] Failed to emit discovered chats: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		return false;
+	}
+
+	private async _isKnownCodexChat(chat: IAgentChatMetadata): Promise<boolean> {
+		try {
+			const session = URI.parse(parseRequiredSessionUriFromChatUri(chat.chat));
+			return await this._metadataStore.hasKnownSession(session);
+		} catch (err) {
+			this._logService.warn(`[Codex] Failed to inspect stored metadata for ${chat.chat.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			return false;
 		}
 	}
 
@@ -5730,6 +5798,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				sessionUri: session.sessionUri,
 				emit: action => this._fire(session.sessionUri, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,
+				pluginMcpServerSources: () => codexPluginMcpServerSources(session.clientCustomizations.plugins()),
+				resolveEnablement: (server, owningPluginUri) => {
+					const resolution = this._customizationEnablementService.resolve(session.sessionUri.toString(), targetForMcpServer(server, owningPluginUri, false));
+					return resolution.kind === 'resolved' ? resolution.enablement : undefined;
+				},
 			});
 		}
 		return session.mcpController;

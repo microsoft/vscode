@@ -18,6 +18,7 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 	private readonly _enablement = new Map<string, readonly CustomizationEnablement[]>();
 	private readonly _enablementByDurableKey = new Map<string, readonly CustomizationEnablement[]>();
 	private _pending: 'session' | 'workingDirectory' | undefined;
+	lastResolvedTarget: ICustomizationEnablementTarget | undefined;
 
 	setEnablementFor(id: string, enablement: readonly CustomizationEnablement[]): void {
 		this._enablement.set(id, sortCustomizationEnablement(enablement));
@@ -38,6 +39,7 @@ class TestEnablementService implements IAgentHostCustomizationEnablementService 
 	}
 
 	resolve(_session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution {
+		this.lastResolvedTarget = target;
 		if (this._pending !== undefined) {
 			return { kind: 'pending', reason: this._pending };
 		}
@@ -292,7 +294,7 @@ suite('CustomizationEnablementGate', () => {
 			service,
 			URI.parse('ahp://copilot/new-session'),
 			[topLevel],
-			undefined,
+			new Map([[pluginUri, { azure: [] }]]),
 			undefined,
 			new Map([['azure', pluginUri]]),
 		);
@@ -300,9 +302,11 @@ suite('CustomizationEnablementGate', () => {
 		assert.deepStrictEqual({
 			nested: firstChildEnablement(nestedResolved.customizations),
 			topLevel: (topLevelResolved.customizations[0] as McpServerCustomization).enablement,
+			topLevelIsClientBundled: service.lastResolvedTarget?.isClientBundled,
 		}, {
 			nested: enablement,
 			topLevel: enablement,
+			topLevelIsClientBundled: true,
 		});
 	});
 
@@ -325,10 +329,12 @@ suite('CustomizationEnablementGate', () => {
 		const resolvedChild = (resolved.customizations[0] as PluginCustomization).children?.[0] as McpServerCustomization;
 		assert.deepStrictEqual({
 			enablement: resolvedChild.enablement,
-			isClientBundled: resolvedChild.isClientBundled,
+			isClientBundled: service.lastResolvedTarget?.isClientBundled,
+			publishesClientBundled: Object.hasOwn(resolvedChild, 'isClientBundled'),
 		}, {
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
 			isClientBundled: true,
+			publishesClientBundled: false,
 		});
 	});
 

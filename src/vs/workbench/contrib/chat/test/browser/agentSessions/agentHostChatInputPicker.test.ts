@@ -59,7 +59,7 @@ suite('AgentHostChatInputPicker - list options', () => {
 		});
 	});
 
-	test('attaches the sandbox toggle only to Default permissions', () => {
+	test('attaches the sandbox toggle only to Manual permissions', () => {
 		assert.deepStrictEqual({
 			defaultPermissions: isAgentHostSandboxToggleItem(SessionConfigKey.AutoApprove, ChatPermissionLevel.Default),
 			assistedPermissions: isAgentHostSandboxToggleItem(SessionConfigKey.AutoApprove, ChatPermissionLevel.Assisted),
@@ -146,7 +146,7 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 			title: 'Approvals',
 			description: 'Tool approval behavior for this session',
 			enum: ['default', 'autoApprove'],
-			enumLabels: ['Default permissions', 'Allow all'],
+			enumLabels: ['Manual permissions', 'Allow all'],
 			enumDescriptions: ['Asks when approval settings don\'t apply', 'Runs tool calls without asking'],
 		} as SessionConfigPropertySchema;
 
