@@ -662,11 +662,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _clientStopping: Promise<void> | undefined;
-	/**
-	 * Proxy URL injected into the running client's subprocess env (`undefined`
-	 * when none was injected). Used to detect when a token change alters the
-	 * token-discovered CAPI endpoint's proxy so we can restart the client.
-	 */
+	private _resolvedProxy: string | undefined;
+	private _proxyResolutionGeneration = 0;
 	private _appliedProxy: string | undefined;
 	/**
 	 * Reasons for a client restart that is parked until every chat is idle. See
@@ -792,6 +789,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._githubTelemetryRouter = isAgentHostTelemetryService(this._telemetryService)
 			? new AgentHostGitHubTelemetryRouter(this._telemetryService)
 			: undefined;
+		this._register(this._proxyResolver.onDidRegisterConnection(() => this._refreshProxy()));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 		// Mirror host-owned titles under the SDK conversation id used by the agent's turn spans.
 		this._register(sessionTitleSignal.onDidChangeSessionTitle(({ provider, session, title }) => {
@@ -939,6 +937,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const enterpriseHost = this._getEnterpriseHost();
 		const systemProxyEnabled = this._isSystemProxyEnabled();
 		const managedSettingsPermissions = this._managedSettingsService.permissions;
+		const proxyTargetChanged = this._lastEnterpriseHost !== enterpriseHost || this._lastSystemProxyEnabled !== systemProxyEnabled;
 		if (this._lastSessionSyncEnabled === sessionSync && this._lastRubberDuckEnabled === rubberDuck && this._lastCopilotSdkLogLevelSetting === copilotSdkLogLevelSetting && this._lastEnterpriseHost === enterpriseHost && this._lastSystemProxyEnabled === systemProxyEnabled && equals(this._lastManagedSettingsPermissions, managedSettingsPermissions)) {
 			return;
 		}
@@ -956,6 +955,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastEnterpriseHost = enterpriseHost;
 		this._lastSystemProxyEnabled = systemProxyEnabled;
 		this._lastManagedSettingsPermissions = managedSettingsPermissions;
+		if (proxyTargetChanged) {
+			this._refreshProxy();
+		}
 		if (this._client) {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 		}
@@ -1371,6 +1373,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
 		this._githubToken = token;
 		this._updateRestrictedTelemetry(token);
+		this._refreshProxy();
 		if (!token) {
 			await this._requestClientRestart('GitHub authentication cleared');
 			void this._scheduleModelRefresh();
@@ -1394,8 +1397,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		if (restartRequired) {
 			await this._requestClientRestart('GitHub credential update failed');
-		} else {
-			await this._restartClientIfProxyChanged();
 		}
 		await this._resolveCopilotSku(token);
 		void this._scheduleModelRefresh();
@@ -1742,6 +1743,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._clientStarting) {
 			return this._clientStarting;
 		}
+		if (this._proxyResolutionGeneration === 0) {
+			this._refreshProxy();
+		}
 		// Snapshot the startup config so we can detect a change that lands while the
 		// client is still starting and abort the stale start (the values are baked
 		// into the client options / subprocess env below).
@@ -1760,7 +1764,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
-			await this._configureProxyEnv(env);
+			this._applyProxyEnv(env);
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
@@ -3996,8 +4000,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- helpers ------------------------------------------------------------
 
-	private async _configureProxyEnv(env: Record<string, string | undefined>): Promise<void> {
-		const proxy = await this._resolveProxyForSdk(env);
+	private _applyProxyEnv(env: Record<string, string | undefined>): void {
+		const proxy = this._isSystemProxyEnabled() ? this._resolvedProxy : undefined;
 		this._appliedProxy = proxy;
 		if (proxy) {
 			for (const key of COPILOT_PROXY_SET_ENV_KEYS) {
@@ -4036,31 +4040,32 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/**
-	 * Restarts the client when token-based CAPI endpoint discovery changes its
-	 * subprocess proxy. Session credential updates otherwise keep the process alive.
-	 */
-	private async _restartClientIfProxyChanged(): Promise<void> {
-		if (!this._client && !this._clientStarting) {
-			return;
-		}
-		const oldProxy = this._appliedProxy;
-		const newProxy = await this._resolveProxyForSdk();
-		if (newProxy === oldProxy) {
-			return;
-		}
-		if (this._clientStarting) {
-			try {
-				await this._clientStarting;
-			} catch {
+	private _refreshProxy(): void {
+		const generation = ++this._proxyResolutionGeneration;
+		void this._resolveProxyForSdk().then(async proxy => {
+			if (generation !== this._proxyResolutionGeneration) {
 				return;
 			}
-		}
-		if (!this._client) {
-			return;
-		}
-		this._logService.info(`[Copilot] CAPI proxy changed after token update (${oldProxy ?? '(none)'} -> ${newProxy ?? '(none)'}); restarting CopilotClient`);
-		await this._requestClientRestart('CAPI proxy changed after GitHub token update');
+			this._resolvedProxy = proxy;
+			const effectiveProxy = this._isSystemProxyEnabled() ? proxy : undefined;
+			if (effectiveProxy === this._appliedProxy) {
+				return;
+			}
+			if (this._clientStarting) {
+				try {
+					await this._clientStarting;
+				} catch {
+					return;
+				}
+				// A newer proxy resolution (or the client start we just awaited)
+				// may have already superseded this one; re-check both so we don't
+				// restart based on a stale comparison.
+				if (generation !== this._proxyResolutionGeneration || effectiveProxy === this._appliedProxy) {
+					return;
+				}
+			}
+			await this._requestClientRestart(`CAPI proxy changed (${this._appliedProxy ?? '(none)'} -> ${effectiveProxy ?? '(none)'})`);
+		}).catch(error => this._logService.error('[Copilot] Failed to refresh CAPI proxy', error));
 	}
 
 	private _getOrCreateActiveClient(session: URI, directory: URI | undefined): ActiveClient {
