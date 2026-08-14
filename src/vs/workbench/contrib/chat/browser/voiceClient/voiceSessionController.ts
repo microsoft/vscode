@@ -218,6 +218,8 @@ export interface IVoiceSessionController {
 	readonly hasDraftTarget: IObservable<boolean>;
 	/** Whether the floating omni input, rather than a standard chat input, owns Voice Mode. */
 	readonly omniInputActive: IObservable<boolean>;
+	/** Whether the floating omni input is open and therefore owns Voice Mode visuals. */
+	readonly omniInputOpen: IObservable<boolean>;
 	/** Session that produced the response most recently spoken to the user. */
 	getLastSpokenResponseSession(): URI | undefined;
 
@@ -396,7 +398,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	readonly hasDraftTarget: IObservable<boolean> = this._hasDraftTarget;
 	private readonly _omniInputActive = observableValue<boolean>(this, false);
 	readonly omniInputActive: IObservable<boolean> = this._omniInputActive;
-	private _omniInputOpen = false;
+	private readonly _omniInputOpen = observableValue<boolean>(this, false);
+	readonly omniInputOpen: IObservable<boolean> = this._omniInputOpen;
 
 	// --- Internal state ---
 	private _pttHeld = false;
@@ -3296,10 +3299,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	setOmniInputOpen(open: boolean): void {
-		if (this._omniInputOpen === open) {
+		if (this._omniInputOpen.get() === open) {
 			return;
 		}
-		this._omniInputOpen = open;
+		this._omniInputOpen.set(open, undefined);
 		this.logService.trace(`[voice] omni inbox ${open ? 'opened' : 'closed'}`);
 		if (open) {
 			// Omni is the visible owner while connected. Hide any voice-only list
@@ -4299,7 +4302,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const focused = this._getFocusedSessionId();
 		if (focused) {
 			const resource = URI.parse(focused);
-			if (!this._omniInputOpen && (this._isConnected.get() || this._isConnecting.get())) {
+			if (!this._omniInputOpen.get() && (this._isConnected.get() || this._isConnecting.get())) {
 				this.setTargetSession(resource);
 			}
 			this._activateShownSession(resource);
@@ -5362,7 +5365,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _isOmniVoiceInboxActive(): boolean {
-		return this._omniInputOpen && this._isConnected.get();
+		return this._omniInputOpen.get() && (this._isConnected.get() || this._isConnecting.get());
 	}
 
 	/** Whether a response for `sessionId` should defer: true unless it is the

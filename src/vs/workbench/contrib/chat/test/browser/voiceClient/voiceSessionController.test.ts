@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -4060,6 +4060,18 @@ suite('VoiceSessionController', () => {
 		assert.strictEqual(controller.retainOmniInputOwnershipForBargeIn(mainWindow), false);
 	});
 
+	test('omni open state is observable independently of capture ownership', () => {
+		const controller = createController(new TestVoiceClientService());
+		const states: boolean[] = [];
+		const listener = autorun(reader => states.push(controller.omniInputOpen.read(reader)));
+
+		controller.setOmniInputOpen(true);
+		controller.setOmniInputOpen(false);
+		listener.dispose();
+
+		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
 	test('omni blur preserves an in-progress turn until voice returns to idle', async () => {
 		const controller = createController(new TestVoiceClientService());
 		const voiceState = Reflect.get(controller, '_voiceState') as { set(value: string, tx: undefined): void };
@@ -4491,6 +4503,30 @@ suite('VoiceSessionController', () => {
 			playedAudio: ['The background task is complete.'],
 			pendingSessions: [],
 		});
+	});
+
+	test('open omni claims background audio while the voice session awaits initialization', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const ttsPlaybackService = new TestTtsPlaybackService();
+		const controller = createController(voiceClientService, ttsPlaybackService);
+		const resource = URI.parse('vscode-chat://background-during-connect');
+		await controller.connect(mainWindow);
+		controller.setOmniInputOpen(true);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+
+		voiceClientService.fireAudioResponse({
+			audio: 'The background task finished while voice mode was connecting.',
+			isFirstChunk: true,
+			isFinal: true,
+			codingSessionId: resource.toString(),
+			responseId: 'background-during-connect-response',
+			transcript: 'The background task finished while voice mode was connecting.',
+		});
+
+		assert.deepStrictEqual(ttsPlaybackService.playedAudio, [
+			'The background task finished while voice mode was connecting.',
+		]);
 	});
 
 	test('opening omni drops stale panel deferrals before narrating global work', async () => {

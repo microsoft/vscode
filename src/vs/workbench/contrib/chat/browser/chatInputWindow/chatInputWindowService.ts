@@ -48,7 +48,7 @@ import { ChatWidget } from '../widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionRoutingController, IChatSessionRoutingHost } from '../sessionRouter/chatSessionRoutingController.js';
 import { combineVoiceInput } from '../voiceClient/voiceInputUtils.js';
-import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID } from '../../common/chatInputWindow.js';
+import { IChatInputWindowCIFailure, IChatInputWindowCIFailureProvider, IChatInputWindowService, ChatInputWindowStorageKeys, CHAT_INPUT_WINDOW_DEFAULT_HEIGHT, CHAT_INPUT_WINDOW_SET_VOICE_TARGET_COMMAND_ID, getCenteredChatInputWindowBounds } from '../../common/chatInputWindow.js';
 import { autorun, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -380,7 +380,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			if (this._window !== auxiliaryWindow) {
 				return;
 			}
-			this._storeWindowPosition(auxiliaryWindow);
 			this._disposeWidget();
 			this._desiredOpen = false;
 			this._ownershipClaim = undefined;
@@ -400,7 +399,6 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 		this._ownershipClaim = undefined;
 		if (!this._window) { return; }
 
-		this._storeWindowPosition(this._window);
 		this.storageService.store(ChatInputWindowStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		// Cancel any in-flight submission so routing can't dispatch after close.
@@ -517,9 +515,9 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 				}, {
 					inputContainer,
 					glowContainer: surface,
-					isActive: this.voiceSessionController.omniInputActive,
+					isActive: this.voiceSessionController.omniInputOpen,
 					inputValue,
-					isOwner: this.voiceSessionController.omniInputActive,
+					isOwner: this.voiceSessionController.omniInputOpen,
 				}));
 			} catch (error) {
 				this.logService.error('[chatInputWindow] Failed to initialize voice decorations', error);
@@ -647,7 +645,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 			lastContentHeight = contentHeight;
 			if (!didInitialPosition) {
 				didInitialPosition = true;
-				const initialBounds = this._positionedBounds(width, contentHeight);
+				const initialBounds = getCenteredChatInputWindowBounds(this._invokingWindowBounds, width, contentHeight);
 				currentPosition = { x: initialBounds.x, y: initialBounds.y };
 			} else if (!applyingBounds) {
 				currentPosition = { x: win.screenX, y: win.screenY };
@@ -1480,44 +1478,7 @@ export class ChatInputWindowService extends Disposable implements IChatInputWind
 	}
 
 	private _defaultBounds(): IRectangle {
-		return this._positionedBounds(this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
-	}
-
-	private _positionedBounds(width: number, height: number): IRectangle {
-		const invoking = this._invokingWindowBounds;
-		const stored = this.storageService.getObject<{ readonly x: number; readonly y: number }>(
-			ChatInputWindowStorageKeys.WindowPosition,
-			StorageScope.WORKSPACE,
-		);
-		const centeredX = invoking.x + (invoking.width - width) / 2;
-		const centeredY = invoking.y + (invoking.height - height) / 2;
-		const hasStoredPosition = stored
-			&& Number.isFinite(stored.x)
-			&& Number.isFinite(stored.y);
-		const desiredX = hasStoredPosition ? stored.x : centeredX;
-		const desiredY = hasStoredPosition ? stored.y : centeredY;
-		return {
-			x: Math.round(desiredX),
-			y: Math.round(desiredY),
-			width,
-			height,
-		};
-	}
-
-	private _storeWindowPosition(auxiliaryWindow: IAuxiliaryWindow): void {
-		const bounds = auxiliaryWindow.createState().bounds;
-		if (bounds?.x === undefined || bounds.y === undefined) {
-			return;
-		}
-		this.storageService.store(
-			ChatInputWindowStorageKeys.WindowPosition,
-			JSON.stringify({
-				x: bounds.x,
-				y: bounds.y,
-			}),
-			StorageScope.WORKSPACE,
-			StorageTarget.MACHINE,
-		);
+		return getCenteredChatInputWindowBounds(this._invokingWindowBounds, this._defaultWidth(), CHAT_INPUT_WINDOW_DEFAULT_HEIGHT);
 	}
 
 	private _defaultWidth(): number {
