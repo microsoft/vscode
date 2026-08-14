@@ -86,7 +86,7 @@ import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from './automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
 const $ = DOM.$;
 

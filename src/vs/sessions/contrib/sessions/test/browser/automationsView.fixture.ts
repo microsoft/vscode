@@ -38,7 +38,8 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID, AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
+import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');

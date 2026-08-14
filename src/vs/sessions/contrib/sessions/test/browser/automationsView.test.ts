@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { GestureEvent, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -461,6 +462,7 @@ suite('AutomationsCardsWidget', () => {
 		const sessionsService = new FakeSessionsService(() => sessionsManagementService.markRead(sessionsManagementService.session));
 		const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
 		const store = disposables.add(new DisposableStore());
+		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return false; }

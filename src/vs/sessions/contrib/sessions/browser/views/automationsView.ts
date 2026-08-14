@@ -50,6 +50,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/
 import { IAction } from '../../../../../base/common/actions.js';
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, SessionSupportsDeleteContext } from '../../../../common/contextkeys.js';
 import { SessionsFlatList, SessionItemStatusContext } from './sessionsList.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
@@ -1073,8 +1074,6 @@ async function showAutomationsDisabled(dialogService: IDialogService): Promise<v
 //#endregion
 
 //#region AutomationsView (Custom View)
-
-export const AUTOMATIONS_CUSTOM_VIEW_ID = 'sessions.customView.automations';
 
 /**
  * A custom view that hosts the automations management page inside the
