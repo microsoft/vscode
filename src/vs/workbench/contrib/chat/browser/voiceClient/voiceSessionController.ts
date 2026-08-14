@@ -407,6 +407,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	readonly omniInputOpen: IObservable<boolean> = this._omniInputOpen;
 	private _omniOpenedAt = 0;
 	private readonly _omniCompletionEndedAtBySession = new Map<string, number>();
+	private readonly _omniCompletedResponseIds = new Set<string>();
 
 	// --- Internal state ---
 	private _pttHeld = false;
@@ -1515,7 +1516,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						// _sessionsAwaitingResponseSummary), so an old summary surfacing
 						// from a rehydrated dormant model isn't mistaken for a new reply.
 						const isResponseSummaryTransition = !isStateTransition && prev !== undefined && currentState === 'idle' && !!normalizedSummary && normalizedSummary !== prev.lastResponseSummary && this._sessionsAwaitingResponseSummary.has(sessionId);
-						const isTransition = isStateTransition || isDetailTransition || isResponseSummaryTransition;
+						const isOmniResponseCompletion = this._claimOmniCompletedResponse(model, currentState, normalizedSummary);
+						if (isOmniResponseCompletion) {
+							this._pendingResponseSummaries.set(this._sessionKey(sessionId), normalizedSummary);
+						}
+						const isTransition = isStateTransition || isDetailTransition || isResponseSummaryTransition || isOmniResponseCompletion;
 						if (isTransition) {
 							this.logService.trace(`[voice] autorun transition id=${sessionId.slice(-32)} ${prev?.state}→${currentState} detailChanged=${isDetailTransition} summaryChanged=${isResponseSummaryTransition} hasDetail=${!!detail}`);
 							// A new turn supersedes prior narration; clear dedup here (before coalescing collapses a fast idle→thinking→idle to net-zero), skipping eager-reload wobble. Arm the awaiting-summary marker so this run's completion (whenever its summary lands) is recognized as new.
@@ -3344,6 +3349,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.logService.trace(`[voice] omni inbox ${open ? 'opened' : 'closed'}`);
 		if (open) {
 			this._omniOpenedAt = Date.now();
+			for (const model of this.chatService.chatModels.get()) {
+				this._rememberOmniCompletedResponse(model);
+			}
 			// Omni is the visible owner while connected. Hide any voice-only list
 			// indicators; their underlying state remains available in omni itself.
 			for (const key of this._pendingVoiceIndicatorKeys()) {
@@ -3374,6 +3382,36 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			return false;
 		}
 		this._omniCompletionEndedAtBySession.set(sessionId, endedAt);
+		return true;
+	}
+
+	private _rememberOmniCompletedResponse(model: IChatModel): void {
+		const response = model.lastRequest?.response;
+		if (response?.isComplete && !response.isCanceled) {
+			this._omniCompletedResponseIds.add(`${this._sessionKey(model.sessionResource.toString())}\0${response.id}`);
+		}
+	}
+
+	private _claimOmniCompletedResponse(model: IChatModel, state: string, summary: string): boolean {
+		const response = model.lastRequest?.response;
+		if (state !== 'idle'
+			|| !summary
+			|| !response?.isComplete
+			|| response.isCanceled
+			|| !this._isOmniVoiceInboxSession(model.sessionResource.toString())) {
+			return false;
+		}
+		const id = `${this._sessionKey(model.sessionResource.toString())}\0${response.id}`;
+		if (this._omniCompletedResponseIds.has(id)) {
+			return false;
+		}
+		if (this._omniCompletedResponseIds.size >= 256) {
+			const oldest = this._omniCompletedResponseIds.values().next().value;
+			if (oldest !== undefined) {
+				this._omniCompletedResponseIds.delete(oldest);
+			}
+		}
+		this._omniCompletedResponseIds.add(id);
 		return true;
 	}
 
@@ -7031,13 +7069,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			// a new reply.
 			const normalizedSummary = lastResponseSummary ?? '';
 			const isResponseSummaryChange = !isStateChange && prev !== undefined && currentState === 'idle' && !!normalizedSummary && normalizedSummary !== prev.lastResponseSummary && this._sessionsAwaitingResponseSummary.has(sessionId);
+			const isOmniResponseCompletion = !!model && this._claimOmniCompletedResponse(model, currentState, normalizedSummary);
+			if (isOmniResponseCompletion) {
+				this._pendingResponseSummaries.set(this._sessionKey(sessionId), normalizedSummary);
+			}
 
 			// The completion for this run has been accepted; consume the marker.
 			if ((isStateChange && currentState === 'idle' && !!normalizedSummary) || isResponseSummaryChange) {
 				this._sessionsAwaitingResponseSummary.delete(sessionId);
 			}
 
-			if (isStateChange || isDetailChange || isResponseSummaryChange) {
+			if (isStateChange || isDetailChange || isResponseSummaryChange || isOmniResponseCompletion) {
 				const cancelExpiry = this._userCancelledSessions.get(sessionId);
 				if (cancelExpiry) {
 					clearTimeout(cancelExpiry);

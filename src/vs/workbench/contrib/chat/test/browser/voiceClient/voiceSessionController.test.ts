@@ -4620,6 +4620,27 @@ suite('VoiceSessionController', () => {
 		], [true, false]);
 	});
 
+	test('open omni claims each completed response id exactly once', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const controller = createController(voiceClientService);
+		const resource = URI.parse('vscode-chat://completed-response-identity');
+		showSessionsInAgentsList(controller, resource.toString());
+		await connectWithOmniOpen(controller, voiceClientService);
+		const response = { id: 'response-1', isComplete: true, isCanceled: false };
+		const model = {
+			sessionResource: resource,
+			lastRequest: { response },
+		} as unknown as IChatModel;
+		const claim = Reflect.get(controller, '_claimOmniCompletedResponse') as (model: IChatModel, state: string, summary: string) => boolean;
+
+		const first = claim.call(controller, model, 'idle', 'First completed response.');
+		const duplicate = claim.call(controller, model, 'idle', 'First completed response.');
+		response.id = 'response-2';
+		const next = claim.call(controller, model, 'idle', 'Second completed response.');
+
+		assert.deepStrictEqual([first, duplicate, next], [true, false, true]);
+	});
+
 	test('open omni does not claim audio from a session missing from the Agents list', async () => {
 		const voiceClientService = new TestVoiceClientService();
 		const ttsPlaybackService = new TestTtsPlaybackService();

@@ -55,20 +55,21 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 		const statusText = controller.statusText.read(reader);
 		const turns = controller.transcriptTurns.read(reader);
 		const targetSession = controller.targetSession.read(reader);
+		const omniInputOpen = controller.omniInputOpen.read(reader);
 
 		widget.setConnected(connected);
 		widget.setConnecting(connecting);
 		widget.setReconnecting(reconnecting);
-		widget.setVoiceState(state);
+		widget.setVoiceState(omniInputOpen ? 'idle' : state);
 		widget.setPendingToolConfirmations(toolConfirmations);
 		// Respect showTranscript setting — hide transcript when disabled
 		const showTranscript = configurationService?.getValue<boolean>('agents.voice.showTranscript') !== false;
-		widget.setTranscriptTurns(showTranscript ? turns : []);
+		widget.setTranscriptTurns(!omniInputOpen && showTranscript ? turns : []);
 		widget.setStatusText(statusText);
 		widget.setSelectedTargetSession(targetSession);
 
 		// Resolve speaking session label from the model
-		if (speakingSession) {
+		if (speakingSession && !omniInputOpen) {
 			const sessions = agentSessionsService.model.sessions;
 			const match = sessions.find(s => s.resource.toString() === speakingSession.toString());
 			widget.setSpeakingSession(speakingSession, match?.label);
