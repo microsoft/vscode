@@ -2972,11 +2972,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
-		if (this.viewModel.model.requestInProgress.get()) {
-			const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-			if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
-				return;
-			}
+		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+			return;
 		}
 		const isEditing = this.viewModel?.editing;
 		const editedModelRequestOptions = isEditing && this.configurationService.getValue<string>('chat.editRequests') !== 'input'
@@ -3209,7 +3207,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
 		const viewModel = this.viewModel;
-		if (!viewModel) {
+		if (!viewModel?.model.hasActiveRequest.get()) {
 			return false;
 		}
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(
