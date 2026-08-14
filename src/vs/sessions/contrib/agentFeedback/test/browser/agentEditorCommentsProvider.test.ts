@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -56,5 +56,45 @@ suite('AgentEditorCommentsProviderContribution', () => {
 				],
 			},
 		);
+	});
+
+	test('reveals a comment after its resource scope becomes available', () => {
+		const resource = URI.parse('file:///document.md');
+		const sessionResource = URI.parse('test://session/1');
+		const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 };
+		const onDidChangeFeedbackScope = store.add(new Emitter<void>());
+		const onDidRevealSessionComment = store.add(new Emitter<{ sessionResource: URI; commentId: string; resourceUri: URI }>());
+		let scopeAvailable = false;
+		const feedbackService = new class extends mock<IAgentFeedbackService>() {
+			override readonly onDidChangeFeedback = Event.None;
+			override readonly onDidChangeFeedbackScope = onDidChangeFeedbackScope.event;
+			override readonly onDidRevealSessionComment = onDidRevealSessionComment.event;
+			override getFeedbackSessionResource(): URI | undefined {
+				return scopeAvailable ? sessionResource : undefined;
+			}
+			override getFeedback() {
+				return [
+					{ id: 'feedback', text: 'Feedback', resourceUri: resource, range, sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Created },
+				];
+			}
+		}();
+		const planReviewFeedbackService = new class extends mock<IPlanReviewFeedbackService>() {
+			override readonly onDidChangePlanReviewScope = Event.None;
+		}();
+		const bridge = store.add(new AgentEditorCommentsBridge());
+		store.add(new AgentEditorCommentsProviderContribution(feedbackService, planReviewFeedbackService, bridge));
+
+		const events: string[] = [];
+		store.add(bridge.onDidChangeComments(() => events.push(`comments:${bridge.getCommentIds(resource).join(',')}`)));
+		store.add(bridge.onDidRevealComment(event => events.push(`reveal:${event.id}`)));
+
+		onDidRevealSessionComment.fire({ sessionResource, commentId: 'agentFeedback:feedback', resourceUri: resource });
+		scopeAvailable = true;
+		onDidChangeFeedbackScope.fire();
+
+		assert.deepStrictEqual(events, [
+			'comments:agentFeedback:feedback',
+			'reveal:agentFeedback:feedback',
+		]);
 	});
 });
